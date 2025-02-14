@@ -135,7 +135,7 @@ def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
     if isinstance(col, Column):
         return col
     elif isinstance(col, str):
-        return Column(col)
+        return Column(col, _caller_name=None)
     else:
         raise TypeError(
             f"'{func_name.upper()}' expected Column or str, got: {type(col)}"
@@ -146,9 +146,9 @@ def _to_col_if_str_or_int(col: Union[ColumnOrName, int], func_name: str) -> "Col
     if isinstance(col, Column):
         return col
     elif isinstance(col, str):
-        return Column(col)
+        return Column(col, _caller_name=None)
     elif isinstance(col, int):
-        return Column(Literal(col))
+        return Column(Literal(col), _emit_ast=False)
     else:  # pragma: no cover
         raise TypeError(
             f"'{func_name.upper()}' expected Column, int or str, got: {type(col)}"
@@ -255,6 +255,7 @@ class Column:
         expr2: Optional[str] = None,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
+        _caller_name: Optional[str] = "Column",
         *,
         _is_qualified_name: bool = False,
     ) -> None:
@@ -294,7 +295,7 @@ class Column:
             # A column from the aliased DataFrame instance can be created using this alias like col(<df_alias>, <col_name>)
             # In the IR we will need to store this alias to resolve which DataFrame instance the user is referring to
             if self._ast is None and _emit_ast:
-                self._ast = create_ast_for_column(expr1, expr2)
+                self._ast = create_ast_for_column(expr1, expr2, _caller_name)
 
         elif isinstance(expr1, str):
             if expr1 == "*":
@@ -305,7 +306,7 @@ class Column:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
             if self._ast is None and _emit_ast:
-                self._ast = create_ast_for_column(expr1, None)
+                self._ast = create_ast_for_column(expr1, None, _caller_name)
 
         elif isinstance(expr1, Expression):
             self._expression = expr1

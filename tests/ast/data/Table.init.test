@@ -8,7 +8,7 @@ df = df.select("STR", col("A"))
 
 df = Table("table1", session)
 
-df = df.select(col("STR"), col("A"))
+df = df.select("STR", col("A"))
 
 ## EXPECTED ENCODED AST
 
@@ -59,30 +59,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            apply_expr {
-              fn {
-                builtin_fn {
-                  name {
-                    name {
-                      sp_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 39
-                    end_line: 27
-                    file: 2
-                    start_column: 13
-                    start_line: 27
-                  }
-                  v: "STR"
-                }
-              }
+            string_val {
               src {
                 end_column: 39
                 end_line: 27
@@ -90,6 +67,7 @@ body {
                 start_column: 13
                 start_line: 27
               }
+              v: "STR"
             }
           }
           args {

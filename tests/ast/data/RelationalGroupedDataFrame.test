@@ -1568,6 +1568,7 @@ body {
         id {
           bitfield1: 22
         }
+        n: 10
       }
     }
     symbol {
@@ -1786,6 +1787,7 @@ body {
         id {
           bitfield1: 28
         }
+        n: 10
       }
     }
     symbol {

@@ -342,19 +342,19 @@ df19 = df.select(current_account())
 
 df20 = df.select(current_available_roles())
 
-df21 = df.select(add_months(col("d"), 4))
+df21 = df.select(add_months("d", 4))
 
 df22 = df.select(add_months(col("A"), 4))
 
 df23 = df.select(add_months(col("A"), col("A")))
 
-df24 = df.select(any_value(col("A")), any_value(col("A")))
+df24 = df.select(any_value("A"), any_value(col("A")))
 
-df25 = df.select(bitnot(col("A")), bitnot(col("A")), bitnot(col("A")))
+df25 = df.select(bitnot("A"), bitnot(col("A")), bitnot(col("A")))
 
-df26 = df.select(bitshiftleft(col("A"), col("B")), bitshiftleft(col("A"), -10), bitshiftleft(col("B"), 42))
+df26 = df.select(bitshiftleft("A", col("B")), bitshiftleft("A", -10), bitshiftleft(col("B"), 42))
 
-df27 = df.select(bitshiftright(col("A"), col("B")), bitshiftright(col("A"), -10), bitshiftright(col("B"), 42))
+df27 = df.select(bitshiftright("A", col("B")), bitshiftright("A", -10), bitshiftright(col("B"), 42))
 
 df28 = df.select(bround("A", 10), bround("A", 2), bround(col("A"), col("B")))
 
@@ -362,67 +362,67 @@ df29 = df.select(convert_timezone("A", col("B")), convert_timezone(col("A"), "B"
 
 df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
 
-df31 = df.select(approx_count_distinct(col("A")), approx_count_distinct(col("A")))
+df31 = df.select(approx_count_distinct("A"), approx_count_distinct(col("A")))
 
-df32 = df.select(avg(col("A")), avg(col("B")))
+df32 = df.select(avg("A"), avg(col("B")))
 
-df33 = df.select(corr(col("A"), col("B")))
+df33 = df.select(corr("A", "B"))
 
 df34 = df.select(count("*"), count("A"), count(col("A")))
 
-df35 = df.select(count_distinct(), count_distinct("*"), count_distinct("A", "B", "C", "D", col("E")))
+df35 = df.select(count_distinct(), count_distinct(col("*")), count_distinct("A", "B", "C", "D", col("E")))
 
-df36 = df.select(covar_pop(col("A"), col("B")))
+df36 = df.select(covar_pop("A", col("B")))
 
-df37 = df.select(covar_samp(col("A"), col("B")))
+df37 = df.select(covar_samp("A", "B"))
 
-df38 = df.select(create_map(col("A"), col("B")))
+df38 = df.select(create_map("A", "B"))
 
-df39 = df.select(create_map(col("A"), col("B"), col("A"), col("B")))
+df39 = df.select(create_map("A", "B", "A", "B"))
 
-df40 = df.select(create_map(col("A"), col("B")))
+df40 = df.select(create_map("A", "B"))
 
-df41 = df.select(create_map(col("A"), col("B"), col("C"), col("D")))
+df41 = df.select(create_map("A", "B", "C", "D"))
 
-df42 = df.select(kurtosis(col("A")))
+df42 = df.select(kurtosis("A"))
 
-df43 = df.select(max("*"), max(col("A")), max(col("A")))
+df43 = df.select(max("*"), max("A"), max(col("A")))
 
-df44 = df.select(avg(col("A")))
+df44 = df.select(avg("A"))
 
-df45 = df.select(median(col("A")))
+df45 = df.select(median("A"))
 
-df46 = df.select(min(col("A")))
+df46 = df.select(min("A"))
 
-df47 = df.select(mode(col("A")))
+df47 = df.select(mode("A"))
 
-df48 = df.select(skew(col("A")))
+df48 = df.select(skew("A"))
 
-df49 = df.select(stddev(col("A")))
+df49 = df.select(stddev("A"))
 
-df50 = df.select(stddev_samp(col("A")))
+df50 = df.select(stddev_samp("A"))
 
-df51 = df.select(stddev_pop(col("A")))
+df51 = df.select(stddev_pop("A"))
 
-df52 = df.select(sum(col("A")))
+df52 = df.select(sum("A"))
 
-df53 = df.select(sum_distinct(col("A")))
+df53 = df.select(sum_distinct("A"))
 
-df54 = df.select(variance(col("A")))
+df54 = df.select(variance("A"))
 
-df55 = df.select(variance(col("A")))
+df55 = df.select(variance("A"))
 
-df56 = df.select(var_pop(col("A")))
+df56 = df.select(var_pop("A"))
 
-df57 = df.select(approx_percentile(col("A"), 0.6), approx_percentile(col("B"), 0.0))
+df57 = df.select(approx_percentile("A", 0.6), approx_percentile(col("B"), 0.0))
 
-df58 = df.select(approx_percentile_accumulate(col("A")))
+df58 = df.select(approx_percentile_accumulate("A"))
 
-df59 = df.select(approx_percentile_estimate(col("A"), 0.3))
+df59 = df.select(approx_percentile_estimate("A", 0.3))
 
-df60 = df.select(approx_percentile_combine(col("A")))
+df60 = df.select(approx_percentile_combine("A"))
 
-df61 = df.select(grouping(col("A")), grouping(col("A"), col("B")))
+df61 = df.select(grouping("A"), grouping("A", "B"))
 
 df62 = df.select(coalesce(), coalesce(col("A"), lit(10)))
 
@@ -436,7 +436,7 @@ df66 = df.select(not_("A"))
 
 df67 = df.select(random(), random(), random(10))
 
-df68 = df.select(uniform(col("A"), col("B"), col("A")), uniform(lit(10), lit(13.0).cast(FloatType()), col("A")), uniform(lit(0.2).cast(FloatType()), lit(2), lit(0.2)))
+df68 = df.select(uniform("A", "B", "A"), uniform(lit(10), lit(13.0).cast(FloatType()), col("A")), uniform(lit(0.2).cast(FloatType()), lit(2), lit(0.2)))
 
 df69 = df.select(seq1(0), seq1(10), seq1(-10))
 
@@ -446,85 +446,85 @@ df71 = df.select(seq4(12))
 
 df72 = df.select(seq8(324))
 
-df73 = df.select(to_decimal(col("A"), 10, 3), to_decimal(col("B"), 12, 3))
+df73 = df.select(to_decimal("A", 10, 3), to_decimal(col("B"), 12, 3))
 
 df74 = df.select(to_double(col("A"), None), to_double("A", None), to_double("A", "999.9"), to_double(col("A"), col("B")))
 
 df75 = df.select(div0(0, 1), div0(1.2, 9.3), div0(10, 89.2), div0("A", 1), div0(0.2, "A"), div0(0.3, col("B")))
 
-df76 = df.select(sqrt(col("A")))
+df76 = df.select(sqrt("A"))
 
-df77 = df.select(abs(col("A")))
+df77 = df.select(abs("A"))
 
-df78 = df.select(acos(col("A")))
+df78 = df.select(acos("A"))
 
-df79 = df.select(asin(col("A")))
+df79 = df.select(asin("A"))
 
-df80 = df.select(atan(col("A")))
+df80 = df.select(atan("A"))
 
-df81 = df.select(atan2(col("A"), col("B")))
+df81 = df.select(atan2("A", "B"))
 
-df82 = df.select(ceil(col("A")))
+df82 = df.select(ceil("A"))
 
-df83 = df.select(cos(col("A")))
+df83 = df.select(cos("A"))
 
-df84 = df.select(cosh(col("A")))
+df84 = df.select(cosh("A"))
 
-df85 = df.select(exp(col("A")))
+df85 = df.select(exp("A"))
 
-df86 = df.select(factorial(col("A")))
+df86 = df.select(factorial("A"))
 
-df87 = df.select(floor(col("A")))
+df87 = df.select(floor("A"))
 
-df88 = df.select(format_number(col("A"), col("B")), format_number(col("A"), 10))
+df88 = df.select(format_number("A", col("B")), format_number("A", 10))
 
-df89 = df.select(sin(col("A")))
+df89 = df.select(sin("A"))
 
-df90 = df.select(sinh(col("A")))
+df90 = df.select(sinh("A"))
 
-df91 = df.select(tan(col("A")))
+df91 = df.select(tan("A"))
 
-df92 = df.select(tanh(col("A")))
+df92 = df.select(tanh("A"))
 
-df93 = df.select(degrees(col("A")))
+df93 = df.select(degrees("A"))
 
-df94 = df.select(radians(col("A")))
+df94 = df.select(radians("A"))
 
-df95 = df.select(md5(col("A")))
+df95 = df.select(md5("A"))
 
-df96 = df.select(sha1(col("A")))
+df96 = df.select(sha1("A"))
 
-df97 = df.select(sha2(col("B"), 0), sha2(col("A"), 224))
+df97 = df.select(sha2(col("B"), 0), sha2("A", 224))
 
-df98 = df.select(hash(lit(None), lit(10), col("A"), col("B")))
+df98 = df.select(hash(lit(None), lit(10), col("A"), "B"))
 
-df99 = df.select(ascii(col("A")))
+df99 = df.select(ascii("A"))
 
-df100 = df.select(initcap(col("A")), initcap(col("A")), initcap(col("A"), col("B")), initcap(col("A"), lit("123")))
+df100 = df.select(initcap("A"), initcap("A"), initcap("A", "B"), initcap(col("A"), lit("123")))
 
-df101 = df.select(length(col("A")))
+df101 = df.select(length("A"))
 
-df102 = df.select(lower(col("A")))
+df102 = df.select(lower("A"))
 
-df103 = df.select(lpad(col("A"), col("B"), col("B")), lpad(col("A"), 100, col("B")), lpad(col("A"), col("B"), col("B")))
+df103 = df.select(lpad("A", col("B"), "B"), lpad("A", 100, "B"), lpad(col("A"), col("B"), col("B")))
 
-df104 = df.select(ltrim(col("A")), ltrim(col("A")), ltrim(col("A"), col("B")), ltrim(col("A"), lit("B")))
+df104 = df.select(ltrim("A"), ltrim("A"), ltrim(col("A"), "B"), ltrim(col("A"), lit("B")))
 
-df105 = df.select(rpad(col("A"), col("B"), col("B")), rpad(col("A"), 100, col("B")), rpad(col("A"), col("B"), col("B")))
+df105 = df.select(rpad("A", col("B"), "B"), rpad("A", 100, "B"), rpad(col("A"), col("B"), col("B")))
 
-df106 = df.select(rtrim(col("A")), rtrim(col("A")), rtrim(col("A"), col("B")), rtrim(col("A"), lit("B")))
+df106 = df.select(rtrim("A"), rtrim("A"), rtrim(col("A"), "B"), rtrim(col("A"), lit("B")))
 
-df107 = df.select(repeat(col("A"), 1), repeat(col("A"), 20), repeat(col("B"), col("A")))
+df107 = df.select(repeat("A", 1), repeat(col("A"), 20), repeat("B", col("A")))
 
-df108 = df.select(reverse(col("A")))
+df108 = df.select(reverse("A"))
 
-df109 = df.select(soundex(col("A")))
+df109 = df.select(soundex("A"))
 
-df110 = df.select(trim(col("A")), trim(col("A")), trim(col("A"), col("B")), trim(col("A"), lit("B")))
+df110 = df.select(trim("A"), trim("A"), trim(col("A"), "B"), trim(col("A"), lit("B")))
 
-df111 = df.select(upper(col("A")))
+df111 = df.select(upper("A"))
 
-df112 = df111.select(strtok_to_array(col("A")), strtok_to_array(col("A")), strtok_to_array(col("A"), col("B")), strtok_to_array(col("A"), col("B")))
+df112 = df111.select(strtok_to_array("A"), strtok_to_array(col("A")), strtok_to_array(col("A"), col("B")), strtok_to_array("A", "B"))
 
 df113 = df111.select(struct("A", col("A"), col("B")))
 
@@ -534,55 +534,55 @@ df115 = df111.select(pow("A", 10), pow(col("B"), 4.3), pow("A", "B"))
 
 df116 = df111.select(round("A", 0), round("A", 0), round(col("B"), 4.7))
 
-df117 = df111.select(sign(col("A")))
+df117 = df111.select(sign("A"))
 
-df118 = df111.select(split(col("A"), col("B")), split(col("A"), lit("asfdg")))
+df118 = df111.select(split("A", "B"), split(col("A"), lit("asfdg")))
 
-df119 = df111.select(substring(col("A"), col("A"), col("A")), substring(col("A"), 0, 10), substring(col("A"), 20, col("B")))
+df119 = df111.select(substring("A", col("A"), col("A")), substring(col("A"), 0, 10), substring(col("A"), 20, col("B")))
 
 df120 = df111.select(substring_index("A", "abc", 3), substring_index(col("A"), col("B"), 2))
 
-df121 = df111.select(regexp_count(col("A"), "B", col("A")), regexp_count(col("A"), col("B"), col("C"), 1, 2, "test"))
+df121 = df111.select(regexp_count("A", "B", col("A")), regexp_count(col("A"), col("B"), col("C"), 1, 2, "test"))
 
 df122 = df111.select(regexp_extract("A", "B", 2))
 
-df123 = df111.select(regexp_replace(col("A"), "B", "", 1, 0), regexp_replace(col("A"), col("B"), col("C"), col("D"), col("E"), col("F"), 1, "sgh", 99.9))
+df123 = df111.select(regexp_replace("A", "B", "", 1, 0), regexp_replace(col("A"), col("B"), col("C"), col("D"), col("E"), col("F"), 1, "sgh", 99.9))
 
-df124 = df111.select(replace(col("A"), "", ""), replace(col("A"), "B", "ahsgj"))
+df124 = df111.select(replace(col("A"), "", ""), replace("A", "B", "ahsgj"))
 
-df125 = df111.select(charindex(col("A"), col("B"), 20), charindex(col("A"), col("B"), col("C")))
+df125 = df111.select(charindex("A", "B", 20), charindex("A", "B", col("C")))
 
 df126 = df111.select(collate(col("A"), "sp-upper"))
 
-df127 = df111.select(collation(col("A")))
+df127 = df111.select(collation("A"))
 
-df128 = df111.select(concat(col("A"), col("B"), col("A")), concat())
+df128 = df111.select(concat("A", col("B"), "A"), concat())
 
-df129 = df111.select(concat_ws(col("A"), col("B"), col("A")))
+df129 = df111.select(concat_ws("A", col("B"), "A"))
 
-df130 = df111.select(translate(col("A"), col("B"), col("B")), translate(col("A"), col("B"), lit("ashg")))
+df130 = df111.select(translate("A", "B", "B"), translate(col("A"), col("B"), lit("ashg")))
 
-df131 = df111.select(contains(col("A"), col("B")))
+df131 = df111.select(contains("A", "B"))
 
-df132 = df111.select(startswith(col("A"), col("B")))
+df132 = df111.select(startswith("A", "B"))
 
-df133 = df111.select(endswith(col("A"), col("B")))
+df133 = df111.select(endswith("A", "B"))
 
-df134 = df111.select(insert(col("A"), col("B"), col("C"), col("D")), insert(col("A"), 12, 13, col("D")))
+df134 = df111.select(insert(col("A"), col("B"), col("C"), "D"), insert("A", 12, 13, col("D")))
 
-df135 = df111.select(left(col("A"), col("B")), left(col("A"), 10))
+df135 = df111.select(left("A", col("B")), left(col("A"), 10))
 
-df136 = df111.select(right(col("A"), col("B")), right(col("A"), 10))
+df136 = df111.select(right("A", col("B")), right(col("A"), 10))
 
-df137 = df111.select(char(col("A")))
+df137 = df111.select(char("A"))
 
-df138 = df111.select(to_char(col("A"), "bcd"))
+df138 = df111.select(to_char("A", "bcd"))
 
 df139 = df111.select(date_format(col("A"), col("B")), date_format("A", "YYYY"))
 
-df140 = df111.select(to_time(col("A")), to_time(col("A"), "YYYY"), to_time(col("A"), col("B")))
+df140 = df111.select(to_time("A"), to_time("A", "YYYY"), to_time(col("A"), col("B")))
 
-df141 = df111.select(to_timestamp(col("A")), to_timestamp(col("C")), to_timestamp(col("A"), col("B")))
+df141 = df111.select(to_timestamp("A"), to_timestamp("C"), to_timestamp(col("A"), col("B")))
 
 df142 = df111.select(to_timestamp_ntz("A", None), to_timestamp_ntz(col("A"), None), to_timestamp_ntz("A", "auto"), to_timestamp_ntz(col("A"), col("B")))
 
@@ -2146,30 +2146,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 43
-                        end_line: 69
-                        file: 2
-                        start_column: 25
-                        start_line: 69
-                      }
-                      v: "d"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 43
                     end_line: 69
@@ -2177,6 +2154,7 @@ body {
                     start_column: 25
                     start_line: 69
                   }
+                  v: "d"
                 }
               }
               pos_args {
@@ -2468,30 +2446,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 39
-                        end_line: 75
-                        file: 2
-                        start_column: 25
-                        start_line: 75
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 39
                     end_line: 75
@@ -2499,6 +2454,7 @@ body {
                     start_column: 25
                     start_line: 75
                   }
+                  v: "A"
                 }
               }
               src {
@@ -2612,30 +2568,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 36
-                        end_line: 77
-                        file: 2
-                        start_column: 25
-                        start_line: 77
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 36
                     end_line: 77
@@ -2643,6 +2576,7 @@ body {
                     start_column: 25
                     start_line: 77
                   }
+                  v: "A"
                 }
               }
               src {
@@ -2812,30 +2746,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 52
-                        end_line: 79
-                        file: 2
-                        start_column: 25
-                        start_line: 79
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 52
                     end_line: 79
@@ -2843,6 +2754,7 @@ body {
                     start_column: 25
                     start_line: 79
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -2902,30 +2814,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 76
-                        end_line: 79
-                        file: 2
-                        start_column: 54
-                        start_line: 79
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 76
                     end_line: 79
@@ -2933,6 +2822,7 @@ body {
                     start_column: 54
                     start_line: 79
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -3070,30 +2960,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 53
-                        end_line: 81
-                        file: 2
-                        start_column: 25
-                        start_line: 81
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 53
                     end_line: 81
@@ -3101,6 +2968,7 @@ body {
                     start_column: 25
                     start_line: 81
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -3160,30 +3028,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 78
-                        end_line: 81
-                        file: 2
-                        start_column: 55
-                        start_line: 81
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 78
                     end_line: 81
@@ -3191,6 +3036,7 @@ body {
                     start_column: 55
                     start_line: 81
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -4196,30 +4042,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 51
-                        end_line: 89
-                        file: 2
-                        start_column: 25
-                        start_line: 89
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 51
                     end_line: 89
@@ -4227,6 +4050,7 @@ body {
                     start_column: 25
                     start_line: 89
                   }
+                  v: "A"
                 }
               }
               src {
@@ -4340,30 +4164,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 91
-                        file: 2
-                        start_column: 25
-                        start_line: 91
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 91
@@ -4371,6 +4172,7 @@ body {
                     start_column: 25
                     start_line: 91
                   }
+                  v: "A"
                 }
               }
               src {
@@ -4484,30 +4286,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 39
-                        end_line: 93
-                        file: 2
-                        start_column: 25
-                        start_line: 93
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 39
                     end_line: 93
@@ -4515,33 +4294,11 @@ body {
                     start_column: 25
                     start_line: 93
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 39
-                        end_line: 93
-                        file: 2
-                        start_column: 25
-                        start_line: 93
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 39
                     end_line: 93
@@ -4549,6 +4306,7 @@ body {
                     start_column: 25
                     start_line: 93
                   }
+                  v: "B"
                 }
               }
               src {
@@ -4784,8 +4542,30 @@ body {
                 }
               }
               pos_args {
-                sp_column_sql_expr {
-                  sql: "*"
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 66
+                        end_line: 97
+                        file: 2
+                        start_column: 58
+                        start_line: 97
+                      }
+                      v: "*"
+                    }
+                  }
                   src {
                     end_column: 66
                     end_line: 97
@@ -4954,30 +4734,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 49
-                        end_line: 99
-                        file: 2
-                        start_column: 25
-                        start_line: 99
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 49
                     end_line: 99
@@ -4985,6 +4742,7 @@ body {
                     start_column: 25
                     start_line: 99
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -5076,30 +4834,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 45
-                        end_line: 101
-                        file: 2
-                        start_column: 25
-                        start_line: 101
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 45
                     end_line: 101
@@ -5107,33 +4842,11 @@ body {
                     start_column: 25
                     start_line: 101
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 45
-                        end_line: 101
-                        file: 2
-                        start_column: 25
-                        start_line: 101
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 45
                     end_line: 101
@@ -5141,6 +4854,7 @@ body {
                     start_column: 25
                     start_line: 101
                   }
+                  v: "B"
                 }
               }
               src {
@@ -5198,30 +4912,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 103
-                        file: 2
-                        start_column: 25
-                        start_line: 103
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 103
@@ -5229,33 +4920,11 @@ body {
                     start_column: 25
                     start_line: 103
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 103
-                        file: 2
-                        start_column: 25
-                        start_line: 103
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 103
@@ -5263,6 +4932,7 @@ body {
                     start_column: 25
                     start_line: 103
                   }
+                  v: "B"
                 }
               }
               src {
@@ -5320,30 +4990,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 57
-                        end_line: 105
-                        file: 2
-                        start_column: 25
-                        start_line: 105
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 57
                     end_line: 105
@@ -5351,33 +4998,11 @@ body {
                     start_column: 25
                     start_line: 105
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 57
-                        end_line: 105
-                        file: 2
-                        start_column: 25
-                        start_line: 105
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 57
                     end_line: 105
@@ -5385,33 +5010,11 @@ body {
                     start_column: 25
                     start_line: 105
                   }
+                  v: "B"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 57
-                        end_line: 105
-                        file: 2
-                        start_column: 25
-                        start_line: 105
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 57
                     end_line: 105
@@ -5419,33 +5022,11 @@ body {
                     start_column: 25
                     start_line: 105
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 57
-                        end_line: 105
-                        file: 2
-                        start_column: 25
-                        start_line: 105
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 57
                     end_line: 105
@@ -5453,6 +5034,7 @@ body {
                     start_column: 25
                     start_line: 105
                   }
+                  v: "B"
                 }
               }
               src {
@@ -5510,30 +5092,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 45
-                        end_line: 107
-                        file: 2
-                        start_column: 25
-                        start_line: 107
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 45
                     end_line: 107
@@ -5541,33 +5100,11 @@ body {
                     start_column: 25
                     start_line: 107
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 45
-                        end_line: 107
-                        file: 2
-                        start_column: 25
-                        start_line: 107
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 45
                     end_line: 107
@@ -5575,6 +5112,7 @@ body {
                     start_column: 25
                     start_line: 107
                   }
+                  v: "B"
                 }
               }
               src {
@@ -5632,30 +5170,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 55
-                        end_line: 109
-                        file: 2
-                        start_column: 25
-                        start_line: 109
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 55
                     end_line: 109
@@ -5663,33 +5178,11 @@ body {
                     start_column: 25
                     start_line: 109
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 55
-                        end_line: 109
-                        file: 2
-                        start_column: 25
-                        start_line: 109
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 55
                     end_line: 109
@@ -5697,33 +5190,11 @@ body {
                     start_column: 25
                     start_line: 109
                   }
+                  v: "B"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 55
-                        end_line: 109
-                        file: 2
-                        start_column: 25
-                        start_line: 109
-                      }
-                      v: "C"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 55
                     end_line: 109
@@ -5731,33 +5202,11 @@ body {
                     start_column: 25
                     start_line: 109
                   }
+                  v: "C"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 55
-                        end_line: 109
-                        file: 2
-                        start_column: 25
-                        start_line: 109
-                      }
-                      v: "D"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 55
                     end_line: 109
@@ -5765,6 +5214,7 @@ body {
                     start_column: 25
                     start_line: 109
                   }
+                  v: "D"
                 }
               }
               src {
@@ -5822,30 +5272,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 38
-                        end_line: 111
-                        file: 2
-                        start_column: 25
-                        start_line: 111
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 38
                     end_line: 111
@@ -5853,6 +5280,7 @@ body {
                     start_column: 25
                     start_line: 111
                   }
+                  v: "A"
                 }
               }
               src {
@@ -5944,30 +5372,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 43
-                        end_line: 113
-                        file: 2
-                        start_column: 35
-                        start_line: 113
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 43
                     end_line: 113
@@ -5975,6 +5380,7 @@ body {
                     start_column: 35
                     start_line: 113
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6088,30 +5494,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 115
-                        file: 2
-                        start_column: 25
-                        start_line: 115
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 115
@@ -6119,6 +5502,7 @@ body {
                     start_column: 25
                     start_line: 115
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6176,30 +5560,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 36
-                        end_line: 117
-                        file: 2
-                        start_column: 25
-                        start_line: 117
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 36
                     end_line: 117
@@ -6207,6 +5568,7 @@ body {
                     start_column: 25
                     start_line: 117
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6264,30 +5626,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 119
-                        file: 2
-                        start_column: 25
-                        start_line: 119
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 119
@@ -6295,6 +5634,7 @@ body {
                     start_column: 25
                     start_line: 119
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6352,30 +5692,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 121
-                        file: 2
-                        start_column: 25
-                        start_line: 121
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 121
@@ -6383,6 +5700,7 @@ body {
                     start_column: 25
                     start_line: 121
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6440,30 +5758,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 123
-                        file: 2
-                        start_column: 25
-                        start_line: 123
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 123
@@ -6471,6 +5766,7 @@ body {
                     start_column: 25
                     start_line: 123
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6528,30 +5824,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 36
-                        end_line: 125
-                        file: 2
-                        start_column: 25
-                        start_line: 125
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 36
                     end_line: 125
@@ -6559,6 +5832,7 @@ body {
                     start_column: 25
                     start_line: 125
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6616,30 +5890,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 41
-                        end_line: 127
-                        file: 2
-                        start_column: 25
-                        start_line: 127
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 41
                     end_line: 127
@@ -6647,6 +5898,7 @@ body {
                     start_column: 25
                     start_line: 127
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6704,30 +5956,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 40
-                        end_line: 129
-                        file: 2
-                        start_column: 25
-                        start_line: 129
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 40
                     end_line: 129
@@ -6735,6 +5964,7 @@ body {
                     start_column: 25
                     start_line: 129
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6792,30 +6022,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 131
-                        file: 2
-                        start_column: 25
-                        start_line: 131
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 131
@@ -6823,6 +6030,7 @@ body {
                     start_column: 25
                     start_line: 131
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6880,30 +6088,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 42
-                        end_line: 133
-                        file: 2
-                        start_column: 25
-                        start_line: 133
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 42
                     end_line: 133
@@ -6911,6 +6096,7 @@ body {
                     start_column: 25
                     start_line: 133
                   }
+                  v: "A"
                 }
               }
               src {
@@ -6968,30 +6154,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 38
-                        end_line: 135
-                        file: 2
-                        start_column: 25
-                        start_line: 135
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 38
                     end_line: 135
@@ -6999,6 +6162,7 @@ body {
                     start_column: 25
                     start_line: 135
                   }
+                  v: "A"
                 }
               }
               src {
@@ -7056,30 +6220,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 38
-                        end_line: 137
-                        file: 2
-                        start_column: 25
-                        start_line: 137
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 38
                     end_line: 137
@@ -7087,6 +6228,7 @@ body {
                     start_column: 25
                     start_line: 137
                   }
+                  v: "A"
                 }
               }
               src {
@@ -7144,30 +6286,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 37
-                        end_line: 139
-                        file: 2
-                        start_column: 25
-                        start_line: 139
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 37
                     end_line: 139
@@ -7175,6 +6294,7 @@ body {
                     start_column: 25
                     start_line: 139
                   }
+                  v: "A"
                 }
               }
               src {
@@ -7232,30 +6352,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 52
-                        end_line: 141
-                        file: 2
-                        start_column: 25
-                        start_line: 141
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 52
                     end_line: 141
@@ -7263,6 +6360,7 @@ body {
                     start_column: 25
                     start_line: 141
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -7399,30 +6497,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 58
-                        end_line: 143
-                        file: 2
-                        start_column: 25
-                        start_line: 143
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 58
                     end_line: 143
@@ -7430,6 +6505,7 @@ body {
                     start_column: 25
                     start_line: 143
                   }
+                  v: "A"
                 }
               }
               src {
@@ -7487,30 +6563,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 61
-                        end_line: 145
-                        file: 2
-                        start_column: 25
-                        start_line: 145
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 61
                     end_line: 145
@@ -7518,6 +6571,7 @@ body {
                     start_column: 25
                     start_line: 145
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -7587,30 +6641,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 55
-                        end_line: 147
-                        file: 2
-                        start_column: 25
-                        start_line: 147
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 55
                     end_line: 147
@@ -7618,6 +6649,7 @@ body {
                     start_column: 25
                     start_line: 147
                   }
+                  v: "A"
                 }
               }
               src {
@@ -7675,30 +6707,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 38
-                        end_line: 149
-                        file: 2
-                        start_column: 25
-                        start_line: 149
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 38
                     end_line: 149
@@ -7706,6 +6715,7 @@ body {
                     start_column: 25
                     start_line: 149
                   }
+                  v: "A"
                 }
               }
               src {
@@ -7731,30 +6741,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 58
-                        end_line: 149
-                        file: 2
-                        start_column: 40
-                        start_line: 149
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 58
                     end_line: 149
@@ -7762,33 +6749,11 @@ body {
                     start_column: 40
                     start_line: 149
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 58
-                        end_line: 149
-                        file: 2
-                        start_column: 40
-                        start_line: 149
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 58
                     end_line: 149
@@ -7796,6 +6761,7 @@ body {
                     start_column: 40
                     start_line: 149
                   }
+                  v: "B"
                 }
               }
               src {
@@ -8371,30 +7337,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 163
-                        file: 2
-                        start_column: 25
-                        start_line: 163
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 163
@@ -8402,33 +7345,11 @@ body {
                     start_column: 25
                     start_line: 163
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 163
-                        file: 2
-                        start_column: 25
-                        start_line: 163
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 163
@@ -8436,33 +7357,11 @@ body {
                     start_column: 25
                     start_line: 163
                   }
+                  v: "B"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 163
-                        file: 2
-                        start_column: 25
-                        start_line: 163
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 163
@@ -8470,6 +7369,7 @@ body {
                     start_column: 25
                     start_line: 163
                   }
+                  v: "A"
                 }
               }
               src {
@@ -9134,30 +8034,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 173
-                        file: 2
-                        start_column: 25
-                        start_line: 173
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 173
@@ -9165,6 +8042,7 @@ body {
                     start_column: 25
                     start_line: 173
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -9935,30 +8813,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 179
-                        file: 2
-                        start_column: 25
-                        start_line: 179
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 179
@@ -9966,6 +8821,7 @@ body {
                     start_column: 25
                     start_line: 179
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10023,30 +8879,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 181
-                        file: 2
-                        start_column: 25
-                        start_line: 181
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 181
@@ -10054,6 +8887,7 @@ body {
                     start_column: 25
                     start_line: 181
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10111,30 +8945,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 183
-                        file: 2
-                        start_column: 25
-                        start_line: 183
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 183
@@ -10142,6 +8953,7 @@ body {
                     start_column: 25
                     start_line: 183
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10199,30 +9011,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 185
-                        file: 2
-                        start_column: 25
-                        start_line: 185
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 185
@@ -10230,6 +9019,7 @@ body {
                     start_column: 25
                     start_line: 185
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10287,30 +9077,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 187
-                        file: 2
-                        start_column: 25
-                        start_line: 187
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 187
@@ -10318,6 +9085,7 @@ body {
                     start_column: 25
                     start_line: 187
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10375,30 +9143,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 40
-                        end_line: 189
-                        file: 2
-                        start_column: 25
-                        start_line: 189
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 40
                     end_line: 189
@@ -10406,33 +9151,11 @@ body {
                     start_column: 25
                     start_line: 189
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 40
-                        end_line: 189
-                        file: 2
-                        start_column: 25
-                        start_line: 189
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 40
                     end_line: 189
@@ -10440,6 +9163,7 @@ body {
                     start_column: 25
                     start_line: 189
                   }
+                  v: "B"
                 }
               }
               src {
@@ -10497,30 +9221,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 191
-                        file: 2
-                        start_column: 25
-                        start_line: 191
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 191
@@ -10528,6 +9229,7 @@ body {
                     start_column: 25
                     start_line: 191
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10585,30 +9287,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 193
-                        file: 2
-                        start_column: 25
-                        start_line: 193
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 193
@@ -10616,6 +9295,7 @@ body {
                     start_column: 25
                     start_line: 193
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10673,30 +9353,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 195
-                        file: 2
-                        start_column: 25
-                        start_line: 195
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 195
@@ -10704,6 +9361,7 @@ body {
                     start_column: 25
                     start_line: 195
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10761,30 +9419,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 197
-                        file: 2
-                        start_column: 25
-                        start_line: 197
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 197
@@ -10792,6 +9427,7 @@ body {
                     start_column: 25
                     start_line: 197
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10849,30 +9485,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 39
-                        end_line: 199
-                        file: 2
-                        start_column: 25
-                        start_line: 199
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 39
                     end_line: 199
@@ -10880,6 +9493,7 @@ body {
                     start_column: 25
                     start_line: 199
                   }
+                  v: "A"
                 }
               }
               src {
@@ -10937,30 +9551,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 201
-                        file: 2
-                        start_column: 25
-                        start_line: 201
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 201
@@ -10968,6 +9559,7 @@ body {
                     start_column: 25
                     start_line: 201
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11025,30 +9617,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 53
-                        end_line: 203
-                        file: 2
-                        start_column: 25
-                        start_line: 203
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 53
                     end_line: 203
@@ -11056,6 +9625,7 @@ body {
                     start_column: 25
                     start_line: 203
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -11115,30 +9685,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 77
-                        end_line: 203
-                        file: 2
-                        start_column: 55
-                        start_line: 203
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 77
                     end_line: 203
@@ -11146,6 +9693,7 @@ body {
                     start_column: 55
                     start_line: 203
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -11215,30 +9763,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 205
-                        file: 2
-                        start_column: 25
-                        start_line: 205
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 205
@@ -11246,6 +9771,7 @@ body {
                     start_column: 25
                     start_line: 205
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11303,30 +9829,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 207
-                        file: 2
-                        start_column: 25
-                        start_line: 207
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 207
@@ -11334,6 +9837,7 @@ body {
                     start_column: 25
                     start_line: 207
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11391,30 +9895,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 209
-                        file: 2
-                        start_column: 25
-                        start_line: 209
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 209
@@ -11422,6 +9903,7 @@ body {
                     start_column: 25
                     start_line: 209
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11479,30 +9961,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 211
-                        file: 2
-                        start_column: 25
-                        start_line: 211
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 211
@@ -11510,6 +9969,7 @@ body {
                     start_column: 25
                     start_line: 211
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11567,30 +10027,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 37
-                        end_line: 213
-                        file: 2
-                        start_column: 25
-                        start_line: 213
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 37
                     end_line: 213
@@ -11598,6 +10035,7 @@ body {
                     start_column: 25
                     start_line: 213
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11655,30 +10093,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 37
-                        end_line: 215
-                        file: 2
-                        start_column: 25
-                        start_line: 215
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 37
                     end_line: 215
@@ -11686,6 +10101,7 @@ body {
                     start_column: 25
                     start_line: 215
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11743,30 +10159,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 33
-                        end_line: 217
-                        file: 2
-                        start_column: 25
-                        start_line: 217
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 33
                     end_line: 217
@@ -11774,6 +10167,7 @@ body {
                     start_column: 25
                     start_line: 217
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11831,30 +10225,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 219
-                        file: 2
-                        start_column: 25
-                        start_line: 219
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 219
@@ -11862,6 +10233,7 @@ body {
                     start_column: 25
                     start_line: 219
                   }
+                  v: "A"
                 }
               }
               src {
@@ -11986,30 +10358,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 58
-                        end_line: 221
-                        file: 2
-                        start_column: 44
-                        start_line: 221
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 58
                     end_line: 221
@@ -12017,6 +10366,7 @@ body {
                     start_column: 44
                     start_line: 221
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -12187,30 +10537,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 64
-                        end_line: 223
-                        file: 2
-                        start_column: 25
-                        start_line: 223
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 64
                     end_line: 223
@@ -12218,6 +10545,7 @@ body {
                     start_column: 25
                     start_line: 223
                   }
+                  v: "B"
                 }
               }
               src {
@@ -12275,30 +10603,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 225
-                        file: 2
-                        start_column: 25
-                        start_line: 225
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 225
@@ -12306,6 +10611,7 @@ body {
                     start_column: 25
                     start_line: 225
                   }
+                  v: "A"
                 }
               }
               src {
@@ -12363,30 +10669,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 38
-                        end_line: 227
-                        file: 2
-                        start_column: 26
-                        start_line: 227
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 38
                     end_line: 227
@@ -12394,6 +10677,7 @@ body {
                     start_column: 26
                     start_line: 227
                   }
+                  v: "A"
                 }
               }
               src {
@@ -12419,30 +10703,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 58
-                        end_line: 227
-                        file: 2
-                        start_column: 40
-                        start_line: 227
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 58
                     end_line: 227
@@ -12450,6 +10711,7 @@ body {
                     start_column: 40
                     start_line: 227
                   }
+                  v: "A"
                 }
               }
               src {
@@ -12475,30 +10737,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 77
-                        end_line: 227
-                        file: 2
-                        start_column: 60
-                        start_line: 227
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 77
                     end_line: 227
@@ -12506,33 +10745,11 @@ body {
                     start_column: 60
                     start_line: 227
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 77
-                        end_line: 227
-                        file: 2
-                        start_column: 60
-                        start_line: 227
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 77
                     end_line: 227
@@ -12540,6 +10757,7 @@ body {
                     start_column: 60
                     start_line: 227
                   }
+                  v: "B"
                 }
               }
               src {
@@ -12687,30 +10905,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 37
-                        end_line: 229
-                        file: 2
-                        start_column: 26
-                        start_line: 229
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 37
                     end_line: 229
@@ -12718,6 +10913,7 @@ body {
                     start_column: 26
                     start_line: 229
                   }
+                  v: "A"
                 }
               }
               src {
@@ -12775,30 +10971,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 36
-                        end_line: 231
-                        file: 2
-                        start_column: 26
-                        start_line: 231
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 36
                     end_line: 231
@@ -12806,6 +10979,7 @@ body {
                     start_column: 26
                     start_line: 231
                   }
+                  v: "A"
                 }
               }
               src {
@@ -12863,30 +11037,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 50
-                        end_line: 233
-                        file: 2
-                        start_column: 26
-                        start_line: 233
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 50
                     end_line: 233
@@ -12894,6 +11045,7 @@ body {
                     start_column: 26
                     start_line: 233
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -12931,30 +11083,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 50
-                        end_line: 233
-                        file: 2
-                        start_column: 26
-                        start_line: 233
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 50
                     end_line: 233
@@ -12962,6 +11091,7 @@ body {
                     start_column: 26
                     start_line: 233
                   }
+                  v: "B"
                 }
               }
               src {
@@ -12987,30 +11117,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 71
-                        end_line: 233
-                        file: 2
-                        start_column: 52
-                        start_line: 233
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 71
                     end_line: 233
@@ -13018,6 +11125,7 @@ body {
                     start_column: 52
                     start_line: 233
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -13033,30 +11141,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 71
-                        end_line: 233
-                        file: 2
-                        start_column: 52
-                        start_line: 233
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 71
                     end_line: 233
@@ -13064,6 +11149,7 @@ body {
                     start_column: 52
                     start_line: 233
                   }
+                  v: "B"
                 }
               }
               src {
@@ -13245,30 +11331,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 36
-                        end_line: 235
-                        file: 2
-                        start_column: 26
-                        start_line: 235
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 36
                     end_line: 235
@@ -13276,6 +11339,7 @@ body {
                     start_column: 26
                     start_line: 235
                   }
+                  v: "A"
                 }
               }
               src {
@@ -13301,30 +11365,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 54
-                        end_line: 235
-                        file: 2
-                        start_column: 38
-                        start_line: 235
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 54
                     end_line: 235
@@ -13332,6 +11373,7 @@ body {
                     start_column: 38
                     start_line: 235
                   }
+                  v: "A"
                 }
               }
               src {
@@ -13391,30 +11433,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 76
-                        end_line: 235
-                        file: 2
-                        start_column: 56
-                        start_line: 235
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 76
                     end_line: 235
@@ -13422,6 +11441,7 @@ body {
                     start_column: 56
                     start_line: 235
                   }
+                  v: "B"
                 }
               }
               src {
@@ -13569,30 +11589,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 50
-                        end_line: 237
-                        file: 2
-                        start_column: 26
-                        start_line: 237
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 50
                     end_line: 237
@@ -13600,6 +11597,7 @@ body {
                     start_column: 26
                     start_line: 237
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -13637,30 +11635,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 50
-                        end_line: 237
-                        file: 2
-                        start_column: 26
-                        start_line: 237
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 50
                     end_line: 237
@@ -13668,6 +11643,7 @@ body {
                     start_column: 26
                     start_line: 237
                   }
+                  v: "B"
                 }
               }
               src {
@@ -13693,30 +11669,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 71
-                        end_line: 237
-                        file: 2
-                        start_column: 52
-                        start_line: 237
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 71
                     end_line: 237
@@ -13724,6 +11677,7 @@ body {
                     start_column: 52
                     start_line: 237
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -13739,30 +11693,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 71
-                        end_line: 237
-                        file: 2
-                        start_column: 52
-                        start_line: 237
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 71
                     end_line: 237
@@ -13770,6 +11701,7 @@ body {
                     start_column: 52
                     start_line: 237
                   }
+                  v: "B"
                 }
               }
               src {
@@ -13951,30 +11883,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 36
-                        end_line: 239
-                        file: 2
-                        start_column: 26
-                        start_line: 239
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 36
                     end_line: 239
@@ -13982,6 +11891,7 @@ body {
                     start_column: 26
                     start_line: 239
                   }
+                  v: "A"
                 }
               }
               src {
@@ -14007,30 +11917,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 54
-                        end_line: 239
-                        file: 2
-                        start_column: 38
-                        start_line: 239
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 54
                     end_line: 239
@@ -14038,6 +11925,7 @@ body {
                     start_column: 38
                     start_line: 239
                   }
+                  v: "A"
                 }
               }
               src {
@@ -14097,30 +11985,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 76
-                        end_line: 239
-                        file: 2
-                        start_column: 56
-                        start_line: 239
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 76
                     end_line: 239
@@ -14128,6 +11993,7 @@ body {
                     start_column: 56
                     start_line: 239
                   }
+                  v: "B"
                 }
               }
               src {
@@ -14275,30 +12141,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 40
-                        end_line: 241
-                        file: 2
-                        start_column: 26
-                        start_line: 241
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 40
                     end_line: 241
@@ -14306,6 +12149,7 @@ body {
                     start_column: 26
                     start_line: 241
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -14411,30 +12255,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 85
-                        end_line: 241
-                        file: 2
-                        start_column: 64
-                        start_line: 241
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 85
                     end_line: 241
@@ -14442,6 +12263,7 @@ body {
                     start_column: 64
                     start_line: 241
                   }
+                  v: "B"
                 }
               }
               pos_args {
@@ -14533,30 +12355,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 38
-                        end_line: 243
-                        file: 2
-                        start_column: 26
-                        start_line: 243
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 38
                     end_line: 243
@@ -14564,6 +12363,7 @@ body {
                     start_column: 26
                     start_line: 243
                   }
+                  v: "A"
                 }
               }
               src {
@@ -14621,30 +12421,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 38
-                        end_line: 245
-                        file: 2
-                        start_column: 26
-                        start_line: 245
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 38
                     end_line: 245
@@ -14652,6 +12429,7 @@ body {
                     start_column: 26
                     start_line: 245
                   }
+                  v: "A"
                 }
               }
               src {
@@ -14709,30 +12487,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 247
-                        file: 2
-                        start_column: 26
-                        start_line: 247
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 247
@@ -14740,6 +12495,7 @@ body {
                     start_column: 26
                     start_line: 247
                   }
+                  v: "A"
                 }
               }
               src {
@@ -14765,30 +12521,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 52
-                        end_line: 247
-                        file: 2
-                        start_column: 37
-                        start_line: 247
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 52
                     end_line: 247
@@ -14796,6 +12529,7 @@ body {
                     start_column: 37
                     start_line: 247
                   }
+                  v: "A"
                 }
               }
               src {
@@ -14855,30 +12589,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 73
-                        end_line: 247
-                        file: 2
-                        start_column: 54
-                        start_line: 247
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 73
                     end_line: 247
@@ -14886,6 +12597,7 @@ body {
                     start_column: 54
                     start_line: 247
                   }
+                  v: "B"
                 }
               }
               src {
@@ -15033,30 +12745,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 41
-                        end_line: 249
-                        file: 2
-                        start_column: 31
-                        start_line: 249
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 41
                     end_line: 249
@@ -15064,6 +12753,7 @@ body {
                     start_column: 31
                     start_line: 249
                   }
+                  v: "A"
                 }
               }
               src {
@@ -15121,30 +12811,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 46
-                        end_line: 251
-                        file: 2
-                        start_column: 26
-                        start_line: 251
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 46
                     end_line: 251
@@ -15152,6 +12819,7 @@ body {
                     start_column: 26
                     start_line: 251
                   }
+                  v: "A"
                 }
               }
               src {
@@ -15323,30 +12991,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 143
-                        end_line: 251
-                        file: 2
-                        start_column: 118
-                        start_line: 251
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 143
                     end_line: 251
@@ -15354,33 +12999,11 @@ body {
                     start_column: 118
                     start_line: 251
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 143
-                        end_line: 251
-                        file: 2
-                        start_column: 118
-                        start_line: 251
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 143
                     end_line: 251
@@ -15388,6 +13011,7 @@ body {
                     start_column: 118
                     start_line: 251
                   }
+                  v: "B"
                 }
               }
               src {
@@ -16153,30 +13777,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 261
-                        file: 2
-                        start_column: 26
-                        start_line: 261
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 261
@@ -16184,6 +13785,7 @@ body {
                     start_column: 26
                     start_line: 261
                   }
+                  v: "A"
                 }
               }
               src {
@@ -16241,30 +13843,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 41
-                        end_line: 263
-                        file: 2
-                        start_column: 26
-                        start_line: 263
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 41
                     end_line: 263
@@ -16272,33 +13851,11 @@ body {
                     start_column: 26
                     start_line: 263
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 41
-                        end_line: 263
-                        file: 2
-                        start_column: 26
-                        start_line: 263
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 41
                     end_line: 263
@@ -16306,6 +13863,7 @@ body {
                     start_column: 26
                     start_line: 263
                   }
+                  v: "B"
                 }
               }
               src {
@@ -16453,30 +14011,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 60
-                        end_line: 265
-                        file: 2
-                        start_column: 26
-                        start_line: 265
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 60
                     end_line: 265
@@ -16484,6 +14019,7 @@ body {
                     start_column: 26
                     start_line: 265
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -16982,30 +14518,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 58
-                        end_line: 269
-                        file: 2
-                        start_column: 26
-                        start_line: 269
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 58
                     end_line: 269
@@ -17013,6 +14526,7 @@ body {
                     start_column: 26
                     start_line: 269
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -17366,30 +14880,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 60
-                        end_line: 273
-                        file: 2
-                        start_column: 26
-                        start_line: 273
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 60
                     end_line: 273
@@ -17397,6 +14888,7 @@ body {
                     start_column: 26
                     start_line: 273
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -17840,30 +15332,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 79
-                        end_line: 275
-                        file: 2
-                        start_column: 53
-                        start_line: 275
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 79
                     end_line: 275
@@ -17871,6 +15340,7 @@ body {
                     start_column: 53
                     start_line: 275
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -17952,30 +15422,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 107
-                        end_line: 277
-                        file: 2
-                        start_column: 84
-                        start_line: 277
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 107
                     end_line: 277
@@ -17983,33 +15430,11 @@ body {
                     start_column: 84
                     start_line: 277
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 107
-                        end_line: 277
-                        file: 2
-                        start_column: 84
-                        start_line: 277
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 107
                     end_line: 277
@@ -18017,6 +15442,7 @@ body {
                     start_column: 84
                     start_line: 277
                   }
+                  v: "B"
                 }
               }
               pos_args {
@@ -18054,30 +15480,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 138
-                        end_line: 277
-                        file: 2
-                        start_column: 109
-                        start_line: 277
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 138
                     end_line: 277
@@ -18085,33 +15488,11 @@ body {
                     start_column: 109
                     start_line: 277
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 138
-                        end_line: 277
-                        file: 2
-                        start_column: 109
-                        start_line: 277
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 138
                     end_line: 277
@@ -18119,6 +15500,7 @@ body {
                     start_column: 109
                     start_line: 277
                   }
+                  v: "B"
                 }
               }
               pos_args {
@@ -18310,30 +15692,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 40
-                        end_line: 281
-                        file: 2
-                        start_column: 26
-                        start_line: 281
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 40
                     end_line: 281
@@ -18341,6 +15700,7 @@ body {
                     start_column: 26
                     start_line: 281
                   }
+                  v: "A"
                 }
               }
               src {
@@ -18398,30 +15758,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 52
-                        end_line: 283
-                        file: 2
-                        start_column: 26
-                        start_line: 283
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 52
                     end_line: 283
@@ -18429,6 +15766,7 @@ body {
                     start_column: 26
                     start_line: 283
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -18466,30 +15804,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 52
-                        end_line: 283
-                        file: 2
-                        start_column: 26
-                        start_line: 283
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 52
                     end_line: 283
@@ -18497,6 +15812,7 @@ body {
                     start_column: 26
                     start_line: 283
                   }
+                  v: "A"
                 }
               }
               src {
@@ -18576,30 +15892,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 55
-                        end_line: 285
-                        file: 2
-                        start_column: 26
-                        start_line: 285
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 55
                     end_line: 285
@@ -18607,6 +15900,7 @@ body {
                     start_column: 26
                     start_line: 285
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -18644,30 +15938,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 55
-                        end_line: 285
-                        file: 2
-                        start_column: 26
-                        start_line: 285
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 55
                     end_line: 285
@@ -18675,6 +15946,7 @@ body {
                     start_column: 26
                     start_line: 285
                   }
+                  v: "A"
                 }
               }
               src {
@@ -18732,30 +16004,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 50
-                        end_line: 287
-                        file: 2
-                        start_column: 26
-                        start_line: 287
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 50
                     end_line: 287
@@ -18763,33 +16012,11 @@ body {
                     start_column: 26
                     start_line: 287
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 50
-                        end_line: 287
-                        file: 2
-                        start_column: 26
-                        start_line: 287
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 50
                     end_line: 287
@@ -18797,33 +16024,11 @@ body {
                     start_column: 26
                     start_line: 287
                   }
+                  v: "B"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 50
-                        end_line: 287
-                        file: 2
-                        start_column: 26
-                        start_line: 287
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 50
                     end_line: 287
@@ -18831,6 +16036,7 @@ body {
                     start_column: 26
                     start_line: 287
                   }
+                  v: "B"
                 }
               }
               src {
@@ -19012,30 +16218,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 44
-                        end_line: 289
-                        file: 2
-                        start_column: 26
-                        start_line: 289
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 44
                     end_line: 289
@@ -19043,33 +16226,11 @@ body {
                     start_column: 26
                     start_line: 289
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 44
-                        end_line: 289
-                        file: 2
-                        start_column: 26
-                        start_line: 289
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 44
                     end_line: 289
@@ -19077,6 +16238,7 @@ body {
                     start_column: 26
                     start_line: 289
                   }
+                  v: "B"
                 }
               }
               src {
@@ -19134,30 +16296,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 46
-                        end_line: 291
-                        file: 2
-                        start_column: 26
-                        start_line: 291
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 46
                     end_line: 291
@@ -19165,33 +16304,11 @@ body {
                     start_column: 26
                     start_line: 291
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 46
-                        end_line: 291
-                        file: 2
-                        start_column: 26
-                        start_line: 291
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 46
                     end_line: 291
@@ -19199,6 +16316,7 @@ body {
                     start_column: 26
                     start_line: 291
                   }
+                  v: "B"
                 }
               }
               src {
@@ -19256,30 +16374,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 44
-                        end_line: 293
-                        file: 2
-                        start_column: 26
-                        start_line: 293
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 44
                     end_line: 293
@@ -19287,33 +16382,11 @@ body {
                     start_column: 26
                     start_line: 293
                   }
+                  v: "A"
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 44
-                        end_line: 293
-                        file: 2
-                        start_column: 26
-                        start_line: 293
-                      }
-                      v: "B"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 44
                     end_line: 293
@@ -19321,6 +16394,7 @@ body {
                     start_column: 26
                     start_line: 293
                   }
+                  v: "B"
                 }
               }
               src {
@@ -19480,30 +16554,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 67
-                        end_line: 295
-                        file: 2
-                        start_column: 26
-                        start_line: 295
-                      }
-                      v: "D"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 67
                     end_line: 295
@@ -19511,6 +16562,7 @@ body {
                     start_column: 26
                     start_line: 295
                   }
+                  v: "D"
                 }
               }
               src {
@@ -19536,30 +16588,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 98
-                        end_line: 295
-                        file: 2
-                        start_column: 69
-                        start_line: 295
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 98
                     end_line: 295
@@ -19567,6 +16596,7 @@ body {
                     start_column: 69
                     start_line: 295
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -19682,30 +16712,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 45
-                        end_line: 297
-                        file: 2
-                        start_column: 26
-                        start_line: 297
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 45
                     end_line: 297
@@ -19713,6 +16720,7 @@ body {
                     start_column: 26
                     start_line: 297
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -19872,30 +16880,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 46
-                        end_line: 299
-                        file: 2
-                        start_column: 26
-                        start_line: 299
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 46
                     end_line: 299
@@ -19903,6 +16888,7 @@ body {
                     start_column: 26
                     start_line: 299
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -20062,30 +17048,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 301
-                        file: 2
-                        start_column: 26
-                        start_line: 301
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 301
@@ -20093,6 +17056,7 @@ body {
                     start_column: 26
                     start_line: 301
                   }
+                  v: "A"
                 }
               }
               src {
@@ -20150,30 +17114,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 84
-                        end_line: 303
-                        file: 2
-                        start_column: 65
-                        start_line: 303
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 84
                     end_line: 303
@@ -20181,6 +17122,7 @@ body {
                     start_column: 65
                     start_line: 303
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -20418,30 +17360,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 38
-                        end_line: 307
-                        file: 2
-                        start_column: 26
-                        start_line: 307
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 38
                     end_line: 307
@@ -20449,6 +17368,7 @@ body {
                     start_column: 26
                     start_line: 307
                   }
+                  v: "A"
                 }
               }
               src {
@@ -20474,30 +17394,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 60
-                        end_line: 307
-                        file: 2
-                        start_column: 40
-                        start_line: 307
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 60
                     end_line: 307
@@ -20505,6 +17402,7 @@ body {
                     start_column: 40
                     start_line: 307
                   }
+                  v: "A"
                 }
               }
               pos_args {
@@ -20664,30 +17562,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 43
-                        end_line: 309
-                        file: 2
-                        start_column: 26
-                        start_line: 309
-                      }
-                      v: "A"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 43
                     end_line: 309
@@ -20695,6 +17570,7 @@ body {
                     start_column: 26
                     start_line: 309
                   }
+                  v: "A"
                 }
               }
               src {
@@ -20720,30 +17596,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 68
-                        end_line: 309
-                        file: 2
-                        start_column: 45
-                        start_line: 309
-                      }
-                      v: "C"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 68
                     end_line: 309
@@ -20751,6 +17604,7 @@ body {
                     start_column: 45
                     start_line: 309
                   }
+                  v: "C"
                 }
               }
               src {

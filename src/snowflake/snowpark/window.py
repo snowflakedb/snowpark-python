@@ -358,7 +358,7 @@ class WindowSpec:
                 col = (
                     e
                     if isinstance(e, snowflake.snowpark.column.Column)
-                    else snowflake.snowpark.column.Column(e)
+                    else snowflake.snowpark.column.Column(e, _caller_name=None)
                 )
                 build_expr_from_snowpark_column_or_python_val(col_ast, col)
 
@@ -405,7 +405,7 @@ class WindowSpec:
                 col = (
                     e
                     if isinstance(e, snowflake.snowpark.column.Column)
-                    else snowflake.snowpark.column.Column(e)
+                    else snowflake.snowpark.column.Column(e, _caller_name=None)
                 )
                 build_expr_from_snowpark_column_or_python_val(col_ast, col)
 
