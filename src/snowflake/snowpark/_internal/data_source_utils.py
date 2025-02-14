@@ -7,7 +7,6 @@ import logging
 from enum import Enum
 from typing import List, Any, Tuple, Protocol, Union
 from snowflake.connector.options import pandas as pd
-from dateutil import parser
 
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -299,13 +298,6 @@ def data_source_data_to_pandas_df(
     if current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
         return df
     elif current_db == DBMS_TYPE.ORACLE_DB:
-        tz_data = []
-        for col in schema.fields:
-            if isinstance(col.datatype, TimestampType) and col.datatype.tz in [
-                TimestampTimeZone.TZ,
-                TimestampTimeZone.LTZ,
-            ]:
-                tz_data.append(col.name)
         # apply read to LOB object, we currently have FakeOracleLOB because CLOB and BLOB is represented by an
         # oracledb object and we cannot add it as our dependency in test, so we fake it in this way
         # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
@@ -314,8 +306,6 @@ def data_source_data_to_pandas_df(
             if (hasattr(x, "__name__") and x.__name__.lower() == "lob")
             else x
         )
-        for column in tz_data:
-            df[column] = df[column].apply(lambda x: parser.parse(x))
 
     else:
         raise NotImplementedError(
@@ -334,14 +324,14 @@ def generate_select_query(table: str, schema: StructType, conn: Connection) -> s
                 and field.datatype.tz == TimestampTimeZone.TZ
             ):
                 cols.append(
-                    f"""TO_CHAR({field.name}, 'YYYY-MM-DD"T"HH24:MI:SS.FF9 TZH:TZM')"""
+                    f"""TO_CHAR({field.name}, 'YYYY-MM-DD HH24:MI:SS.FF9 TZHTZM')"""
                 )
             elif (
                 isinstance(field.datatype, TimestampType)
                 and field.datatype.tz == TimestampTimeZone.LTZ
             ):
                 cols.append(
-                    f"""TO_CHAR({field.name} AT TIME ZONE SESSIONTIMEZONE, 'YYYY-MM-DD"T"HH24:MI:SS.FF9 TZH:TZM')"""
+                    f"""TO_CHAR({field.name} AT TIME ZONE SESSIONTIMEZONE, 'YYYY-MM-DD HH24:MI:SS.FF9 TZHTZM')"""
                 )
             else:
                 cols.append(field.name)
