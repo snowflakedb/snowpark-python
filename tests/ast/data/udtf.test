@@ -180,7 +180,9 @@ body {
                 fields {
                   list {
                     column_identifier {
-                      name: "number"
+                      sp_column_name {
+                        name: "number"
+                      }
                     }
                     data_type {
                       sp_integer_type: true
@@ -390,7 +392,9 @@ body {
                 fields {
                   list {
                     column_identifier {
-                      name: "number"
+                      sp_column_name {
+                        name: "number"
+                      }
                     }
                     data_type {
                       sp_long_type: true
@@ -724,7 +728,9 @@ body {
                 fields {
                   list {
                     column_identifier {
-                      name: "number"
+                      sp_column_name {
+                        name: "number"
+                      }
                     }
                     data_type {
                       sp_integer_type: true
@@ -977,7 +983,9 @@ body {
                 fields {
                   list {
                     column_identifier {
-                      name: "a"
+                      sp_column_name {
+                        name: "a"
+                      }
                     }
                     data_type {
                       sp_long_type: true
@@ -986,7 +994,9 @@ body {
                   }
                   list {
                     column_identifier {
-                      name: "b"
+                      sp_column_name {
+                        name: "b"
+                      }
                     }
                     data_type {
                       sp_long_type: true
@@ -1305,7 +1315,9 @@ body {
                 fields {
                   list {
                     column_identifier {
-                      name: "two_x"
+                      sp_column_name {
+                        name: "two_x"
+                      }
                     }
                     data_type {
                       sp_integer_type: true
@@ -1500,7 +1512,9 @@ body {
                 fields {
                   list {
                     column_identifier {
-                      name: "two_x"
+                      sp_column_name {
+                        name: "two_x"
+                      }
                     }
                     data_type {
                       sp_integer_type: true
@@ -1509,7 +1523,9 @@ body {
                   }
                   list {
                     column_identifier {
-                      name: "six_x"
+                      sp_column_name {
+                        name: "six_x"
+                      }
                     }
                     data_type {
                       sp_integer_type: true

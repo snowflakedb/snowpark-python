@@ -604,6 +604,7 @@ class StructField:
         nullable: bool = True,
         _is_column: bool = True,
     ) -> None:
+        self.original_column_identifier = column_identifier
         self.name = column_identifier
         self._is_column = _is_column
         self.datatype = datatype
@@ -675,7 +676,12 @@ class StructField:
     fromJson = from_json
 
     def _fill_ast(self, ast: proto.SpStructField) -> None:
-        self.column_identifier._fill_ast(ast.column_identifier)
+        if isinstance(self.original_column_identifier, ColumnIdentifier):
+            self.original_column_identifier._fill_ast(
+                ast.column_identifier.sp_column_identifier
+            )
+        else:
+            ast.column_identifier.sp_column_name.name = self.original_column_identifier
         self.datatype._fill_ast(ast.data_type)
         ast.nullable = self.nullable
 

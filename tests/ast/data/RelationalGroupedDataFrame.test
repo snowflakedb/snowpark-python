@@ -1054,7 +1054,9 @@ body {
           fields {
             list {
               column_identifier {
-                name: "location"
+                sp_column_name {
+                  name: "location"
+                }
               }
               data_type {
                 sp_string_type {
@@ -1066,7 +1068,9 @@ body {
             }
             list {
               column_identifier {
-                name: "temp_c"
+                sp_column_name {
+                  name: "temp_c"
+                }
               }
               data_type {
                 sp_float_type: true
@@ -1075,7 +1079,9 @@ body {
             }
             list {
               column_identifier {
-                name: "temp_f"
+                sp_column_name {
+                  name: "temp_f"
+                }
               }
               data_type {
                 sp_float_type: true

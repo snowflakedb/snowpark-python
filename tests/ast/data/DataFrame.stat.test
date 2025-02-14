@@ -68,6 +68,8 @@ df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 
 
 sample_df = df.stat.sample_by("name", {"Bob": 0.5, "Nico": 1.0})
 
+sample_df
+
 ## EXPECTED ENCODED AST
 
 interned_value_table {
@@ -1211,6 +1213,14 @@ body {
       value: "sample_df"
     }
     uid: 19
+    var_id {
+      bitfield1: 19
+    }
+  }
+}
+body {
+  eval {
+    uid: 20
     var_id {
       bitfield1: 19
     }
