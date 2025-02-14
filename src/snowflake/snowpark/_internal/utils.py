@@ -634,19 +634,19 @@ def create_or_update_statement_params_with_query_tag(
     statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
+    collect_stacktrace: bool = False,
 ) -> Dict[str, str]:
-    if query_tag := (
+    if (
         exists_session_query_tag
         or (statement_params and QUERY_TAG_STRING in statement_params)
+        or not collect_stacktrace
     ):
-        if query_tag == "__COLLECT_STACKTRACE__":
-            statement_params = statement_params or {}
-            statement_params[QUERY_TAG_STRING] = create_statement_query_tag(
-                skip_levels + 1
-            )
         return statement_params
 
-    return None
+    ret = statement_params or {}
+    # as create_statement_query_tag is called by the method, skip_levels needs to +1 to skip the current call
+    ret[QUERY_TAG_STRING] = create_statement_query_tag(skip_levels + 1)
+    return ret
 
 
 def get_stage_file_prefix_length(stage_location: str) -> int:
