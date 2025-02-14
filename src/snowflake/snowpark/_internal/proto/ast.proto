@@ -114,7 +114,7 @@ message SpColumnAliasFn {
   }
 }
 
-// type.ir:30
+// type.ir:31
 message SpColumnRef {
   oneof sealed_value {
     SpColumnIdentifier sp_column_identifier = 1;
