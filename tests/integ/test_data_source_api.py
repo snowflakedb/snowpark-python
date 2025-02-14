@@ -11,13 +11,16 @@ import pytest
 
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
-    DATA_SOURCE_DBAPI_SIGNATURE,
-    DATA_SOURCE_SQL_COMMENT,
-    STATEMENT_PARAMS_DATA_SOURCE,
 )
 from snowflake.snowpark.dataframe_reader import (
     _task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
+)
+from snowflake.snowpark._internal.data_source_utils import (
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    DATA_SOURCE_SQL_COMMENT,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    DBMS_TYPE,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -46,6 +49,11 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_create_connection_small_data,
     sqlite3_db,
     create_connection_to_sqlite3_db,
+    oracledb_all_type_data_result,
+    oracledb_create_connection,
+    oracledb_all_type_small_data_result,
+    oracledb_create_connection_small_data,
+    fake_detect_dbms_pyodbc,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -55,10 +63,19 @@ pytestmark = pytest.mark.skipif(
 )
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
+ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
 
 
 def fake_task_fetch_from_data_source_with_retry(
-    create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
+    create_connection,
+    query,
+    schema,
+    i,
+    tmp_dir,
+    current_db,
+    driver_info,
+    query_timeout,
+    fetch_size,
 ):
     time.sleep(2)
 
@@ -74,61 +91,122 @@ def upload_and_copy_into_table_with_retry(
 
 
 def test_dbapi_with_temp_table(session):
-    df = session.read.dbapi(
-        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
-    )
-    assert df.collect() == sql_server_all_type_data
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ):
+        df = session.read.dbapi(
+            sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
+        )
+        assert df.collect() == sql_server_all_type_data
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
+def test_dbapi_oracledb(session):
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ):
+        df = session.read.dbapi(
+            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
+        )
+        assert df.collect() == oracledb_all_type_data_result
+
+
+def test_dbapi_batch_fetch_oracledb(session):
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ):
+        df = session.read.dbapi(
+            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=1
+        )
+        assert df.collect() == oracledb_all_type_data_result
+
+        df = session.read.dbapi(
+            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=3
+        )
+        assert df.collect() == oracledb_all_type_data_result
+
+        df = session.read.dbapi(
+            oracledb_create_connection_small_data,
+            ORACLEDB_TABLE_NAME,
+            max_workers=4,
+            fetch_size=1,
+        )
+        assert df.collect() == oracledb_all_type_small_data_result
+
+        df = session.read.dbapi(
+            oracledb_create_connection_small_data,
+            ORACLEDB_TABLE_NAME,
+            max_workers=4,
+            fetch_size=3,
+        )
+        assert df.collect() == oracledb_all_type_small_data_result
+
+
 def test_dbapi_batch_fetch(session):
-    df = session.read.dbapi(
-        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=1
-    )
-    assert df.collect() == sql_server_all_type_data
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ):
+        df = session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_size=1,
+        )
+        assert df.collect() == sql_server_all_type_data
 
-    df = session.read.dbapi(
-        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=3
-    )
-    assert df.collect() == sql_server_all_type_data
+        df = session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_size=3,
+        )
+        assert df.collect() == sql_server_all_type_data
 
-    df = session.read.dbapi(
-        sql_server_create_connection_small_data,
-        SQL_SERVER_TABLE_NAME,
-        max_workers=4,
-        fetch_size=1,
-    )
-    assert df.collect() == sql_server_all_type_small_data
+        df = session.read.dbapi(
+            sql_server_create_connection_small_data,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_size=1,
+        )
+        assert df.collect() == sql_server_all_type_small_data
 
-    df = session.read.dbapi(
-        sql_server_create_connection_small_data,
-        SQL_SERVER_TABLE_NAME,
-        max_workers=4,
-        fetch_size=3,
-    )
-    assert df.collect() == sql_server_all_type_small_data
+        df = session.read.dbapi(
+            sql_server_create_connection_small_data,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_size=3,
+        )
+        assert df.collect() == sql_server_all_type_small_data
 
 
 def test_dbapi_retry(session):
 
     with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ), mock.patch(
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
         side_effect=Exception("Test error"),
     ) as mock_task:
         result = _task_fetch_from_data_source_with_retry(
             create_connection=sql_server_create_connection,
             query="SELECT * FROM test_table",
-            schema=(("col1", int, 0, 0, 0, False),),
+            schema=StructType([StructField("col1", IntegerType(), False)]),
             i=0,
             tmp_dir="/tmp",
+            current_db=DBMS_TYPE.SQL_SERVER_DB,
+            driver_info="pyodbc",
         )
         assert mock_task.call_count == MAX_RETRY_TIME
         assert isinstance(result, Exception)
 
     with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ), mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=Exception("Test error"),
     ) as mock_task:
@@ -152,26 +230,29 @@ def test_parallel(session):
     with mock.patch(
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source_with_retry",
         new=fake_task_fetch_from_data_source_with_retry,
-    ):
-        with mock.patch(
-            "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
-            wrap=upload_and_copy_into_table_with_retry,
-        ) as mock_upload_and_copy:
-            start = time.time()
-            session.read.dbapi(
-                sql_server_create_connection,
-                SQL_SERVER_TABLE_NAME,
-                column="Id",
-                upper_bound=100,
-                lower_bound=0,
-                num_partitions=num_partitions,
-                max_workers=4,
-            )
-            end = time.time()
-            # totally time without parallel is 12 seconds
-            assert end - start < 12
-            # verify that mocked function is called for each partition
-            assert mock_upload_and_copy.call_count == num_partitions
+    ), mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ), mock.patch(
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
+        wrap=upload_and_copy_into_table_with_retry,
+    ) as mock_upload_and_copy:
+
+        start = time.time()
+        session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            column="Id",
+            upper_bound=100,
+            lower_bound=0,
+            num_partitions=num_partitions,
+            max_workers=4,
+        )
+        end = time.time()
+        # totally time without parallel is 12 seconds
+        assert end - start < 12
+        # verify that mocked function is called for each partition
+        assert mock_upload_and_copy.call_count == num_partitions
 
 
 def test_partition_logic(session):
@@ -183,7 +264,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=5,
@@ -201,7 +282,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=-5,
@@ -216,7 +297,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=5,
@@ -240,7 +321,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=5,
@@ -257,7 +338,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=5,
@@ -276,7 +357,7 @@ def test_partition_date_timestamp(session):
         "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
     ]
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=DateType(),
         column="DATE",
         lower_bound=str(datetime.date(2020, 6, 15)),
@@ -294,7 +375,7 @@ def test_partition_date_timestamp(session):
         "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
     ]
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=DateType(),
         column="DATE",
         lower_bound=str(datetime.datetime(2020, 6, 15, 12, 25, 30)),
@@ -309,7 +390,7 @@ def test_partition_date_timestamp(session):
 def test_partition_unsupported_type(session):
     with pytest.raises(TypeError, match="unsupported column type for partition:"):
         session.read._generate_partition(
-            table="fake_table",
+            select_query="SELECT * FROM fake_table",
             column_type=MapType(),
             column="DATE",
             lower_bound=0,
@@ -338,6 +419,9 @@ def test_telemetry_tracking(caplog, session):
     with mock.patch(
         "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
         side_effect=assert_datasource_statement_params_run_query,
+    ), mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
     ), mock.patch(
         "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
     ) as mock_telemetry:
