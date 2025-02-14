@@ -44,9 +44,18 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
-    Connection,
-    sql_server_type_to_snow_type,
     type_string_to_type_object,
+)
+from snowflake.snowpark._internal.data_source_utils import (
+    data_source_data_to_pandas_df,
+    Connection,
+    infer_data_source_schema,
+    generate_select_query,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    detect_dbms,
+    DBMS_TYPE,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    DATA_SOURCE_SQL_COMMENT,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -58,16 +67,12 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     get_temp_type_for_object,
     normalize_local_file,
-    DATA_SOURCE_DBAPI_SIGNATURE,
-    detect_dbms,
-    DBMS_TYPE,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
     SnowparkClientException,
-    SnowparkDataframeReaderException,
 )
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -75,17 +80,13 @@ from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
     VariantType,
-    StructField,
     DateType,
     DataType,
     _NumericType,
     TimestampType,
 )
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
-    STATEMENT_PARAMS_DATA_SOURCE,
-    DATA_SOURCE_SQL_COMMENT,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1086,8 +1087,9 @@ class DataFrameReader:
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
+        current_db, driver_info = detect_dbms(conn)
         if custom_schema is None:
-            struct_schema = self._infer_data_source_schema(conn, table)
+            struct_schema = infer_data_source_schema(conn, table)
         else:
             if isinstance(custom_schema, str):
                 struct_schema = type_string_to_type_object(custom_schema)
@@ -1100,6 +1102,8 @@ class DataFrameReader:
                 struct_schema = custom_schema
             else:
                 raise TypeError(f"Invalid schema type: {type(custom_schema)}. ")
+
+        select_query = generate_select_query(table, struct_schema, conn)
         if column is None:
             if (
                 lower_bound is not None
@@ -1109,7 +1113,7 @@ class DataFrameReader:
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
-            partitioned_queries = [f"SELECT * FROM {table}"]
+            partitioned_queries = [select_query]
         else:
             if lower_bound is None or upper_bound is None or num_partitions is None:
                 raise ValueError(
@@ -1128,7 +1132,7 @@ class DataFrameReader:
             ):
                 raise ValueError(f"unsupported type {column_type}")
             partitioned_queries = self._generate_partition(
-                table,
+                select_query,
                 column_type,
                 column,
                 lower_bound,
@@ -1175,6 +1179,8 @@ class DataFrameReader:
                         struct_schema,
                         i,
                         tmp_dir,
+                        current_db,
+                        driver_info,
                         query_timeout,
                         fetch_size,
                     )
@@ -1214,32 +1220,15 @@ class DataFrameReader:
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df
 
-    def _infer_data_source_schema(self, conn: Connection, table: str) -> StructType:
-        # TODO: SNOW-1893781 change implementation if oracle has different way of infer schema
-        try:
-            query = f"""
-                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = '{table}'
-                """
-            raw_schema = conn.cursor().execute(query).fetchall()
-            return self._to_snowpark_type(raw_schema)
-        except Exception as exc:
-            raise SnowparkDataframeReaderException(
-                f"Unable to infer schema from table {table}"
-            ) from exc
-
     def _generate_partition(
         self,
-        table: str,
+        select_query: str,
         column_type: DataType,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
     ) -> List[str]:
-        select_query = f"SELECT * FROM {table}"
-
         processed_lower_bound = self._to_internal_value(lower_bound, column_type)
         processed_upper_bound = self._to_internal_value(upper_bound, column_type)
         if processed_lower_bound > processed_upper_bound:
@@ -1327,16 +1316,6 @@ class DataFrameReader:
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
 
-    def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
-        fields = []
-        for column in schema:
-            datatype = sql_server_type_to_snow_type(column)
-            field = StructField(
-                column[0], datatype, True if column[5].lower() == "yes" else False
-            )
-            fields.append(field)
-        return StructType(fields)
-
     def _upload_and_copy_into_table(
         self,
         local_file: str,
@@ -1404,19 +1383,21 @@ def _task_fetch_from_data_source(
     schema: StructType,
     i: int,
     tmp_dir: str,
+    current_db: DBMS_TYPE,
+    driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
 ) -> str:
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
-    dbms = detect_dbms(conn)
-    if dbms == DBMS_TYPE.SQL_SERVER_DB:
+    if current_db == DBMS_TYPE.SQL_SERVER_DB:
         conn.timeout = query_timeout
     result = []
+    cursor = conn.cursor()
     if fetch_size == 0:
-        result = conn.cursor().execute(query).fetchall()
+        cursor.execute(query)
+        result = cursor.fetchall()
     elif fetch_size > 0:
-        cursor = conn.cursor()
         cursor = cursor.execute(query)
         rows = cursor.fetchmany(fetch_size)
         while rows:
@@ -1425,17 +1406,7 @@ def _task_fetch_from_data_source(
     else:
         raise ValueError("fetch size cannot be smaller than 0")
 
-    columns = [field.name for field in schema.fields]
-    df = pd.DataFrame.from_records(result, columns=columns)
-
-    # convert timestamp and date to string to work around SNOW-1911989
-    df = df.map(
-        lambda x: x.isoformat()
-        if isinstance(x, (datetime.datetime, datetime.date))
-        else x
-    )
-    # convert binary type to object type to work around SNOW-1912094
-    df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
+    df = data_source_data_to_pandas_df(result, schema, current_db, driver_info)
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path
@@ -1447,6 +1418,8 @@ def _task_fetch_from_data_source_with_retry(
     schema: StructType,
     i: int,
     tmp_dir: str,
+    current_db: DBMS_TYPE,
+    driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
 ) -> Union[str, Exception]:
@@ -1455,7 +1428,15 @@ def _task_fetch_from_data_source_with_retry(
     while retry_count < MAX_RETRY_TIME:
         try:
             path = _task_fetch_from_data_source(
-                create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
+                create_connection,
+                query,
+                schema,
+                i,
+                tmp_dir,
+                current_db,
+                driver_info,
+                query_timeout,
+                fetch_size,
             )
             return path
         except Exception as e:

@@ -25,6 +25,10 @@ from snowflake.snowpark._internal.ast.utils import (
     DATAFRAME_AST_PARAMETER,
     build_sp_table_name,
 )
+from snowflake.snowpark._internal.data_source_utils import (
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    STATEMENT_PARAMS_DATA_SOURCE,
+)
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
@@ -41,8 +45,6 @@ from snowflake.snowpark._internal.utils import (
     str_to_enum,
     validate_object_name,
     warning,
-    DATA_SOURCE_DBAPI_SIGNATURE,
-    STATEMENT_PARAMS_DATA_SOURCE,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_str
