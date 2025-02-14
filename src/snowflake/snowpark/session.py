@@ -38,11 +38,14 @@ import pkg_resources
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.connector.options import installed_pandas, pandas, pyarrow
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    result_scan_statement,
+    write_arrow,
+)
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -278,6 +281,7 @@ _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE = False
 DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> "Session":
@@ -2515,12 +2519,13 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_generator, stmt)
-            col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+            col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
+                *columns
+            )
             for col_name in col_names:
-                ast.columns.append(col_name._ast)
+                ast.columns.args.append(col_name._ast)
             ast.row_count = rowcount
             ast.time_limit_seconds = timelimit
-            ast.variadic = is_variadic
 
         # TODO: Support generator in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -2722,6 +2727,104 @@ class Session:
                 # set the value after running the query to ensure atomicity
                 self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
+
+    @experimental(version="1.28.0")
+    @publicapi
+    def write_arrow(
+        self,
+        table: "pyarrow.Table",
+        table_name: str,
+        *,
+        database: Optional[str] = None,
+        schema: Optional[str] = None,
+        chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
+        compression: str = "gzip",
+        on_error: str = "abort_statement",
+        parallel: int = 4,
+        quote_identifiers: bool = True,
+        auto_create_table: bool = False,
+        overwrite: bool = False,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
+        use_logical_type: Optional[bool] = None,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Table:
+        """Writes a pyarrow.Table to a Snowflake table.
+
+        The pyarrow Table is written out to temporary files, uploaded to a temporary stage, and then copied into the final location.
+
+        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+
+        Returns a Snowpark Table that references the table referenced by table_name.
+
+        Args:
+            table: The pyarrow Table that is written.
+            table_name: Table name where we want to insert into.
+            database: Database schema and table is in, if not provided the default one will be used (Default value = None).
+            schema: Schema table is in, if not provided the default one will be used (Default value = None).
+            chunk_size: Number of elements to be inserted in each batch, if not provided all elements will be dumped
+                (Default value = None).
+            compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives a
+                better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
+            on_error: Action to take when COPY INTO statements fail, default follows documentation at:
+                https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
+                (Default value = 'abort_statement').
+            parallel: Number of threads to be used when uploading chunks, default follows documentation at:
+                https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+            quote_identifiers: By default, identifiers, specifically database, schema, table and column names
+                (from df.columns) will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
+                I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+            auto_create_table: When true, will automatically create a table with corresponding columns for each column in
+                the passed in DataFrame. The table will not be created if it already exists
+            table_type: The table type of to-be-created table. The supported table types include ``temp``/``temporary``
+                and ``transient``. Empty means permanent table as per SQL convention.
+            use_logical_type: Boolean that specifies whether to use Parquet logical types. With this file format option,
+                Snowflake can interpret Parquet logical types during data loading. To enable Parquet logical types,
+                set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
+                https://docs.snowflake.com/en/sql-reference/sql/create-file-format
+        """
+        cursor = self._conn._conn.cursor()
+
+        if quote_identifiers:
+            location = (
+                (('"' + database + '".') if database else "")
+                + (('"' + schema + '".') if schema else "")
+                + ('"' + table_name + '"')
+            )
+        else:
+            location = (
+                (database + "." if database else "")
+                + (schema + "." if schema else "")
+                + (table_name)
+            )
+
+        success, _, _, ci_output = write_arrow(
+            cursor=cursor,
+            table=table,
+            table_name=table_name,
+            database=database,
+            schema=schema,
+            chunk_size=chunk_size,
+            compression=compression,
+            on_error=on_error,
+            parallel=parallel,
+            quote_identifiers=quote_identifiers,
+            auto_create_table=auto_create_table,
+            overwrite=overwrite,
+            table_type=table_type,
+            use_logical_type=use_logical_type,
+            use_scoped_temp_object=self._use_scoped_temp_objects
+            and is_in_stored_procedure(),
+        )
+
+        if success:
+            table = self.table(location, _emit_ast=False)
+            set_api_call_source(table, "Session.write_arrow")
+            return table
+        else:
+            raise SnowparkSessionException(
+                f"Failed to write arrow table to Snowflake. COPY INTO output {ci_output}"
+            )
 
     def _write_modin_pandas_helper(
         self,
@@ -2963,6 +3066,8 @@ class Session:
             if modin_is_imported and isinstance(
                 df, (modin_pandas.DataFrame, modin_pandas.Series)
             ):
+                # use_logical_type should be ignored for Snowpark pandas
+                kwargs.pop("use_logical_type", None)
                 self._write_modin_pandas_helper(
                     df,
                     table_name,
@@ -3062,7 +3167,7 @@ class Session:
     @publicapi
     def create_dataframe(
         self,
-        data: Union[List, Tuple, "pandas.DataFrame"],
+        data: Union[List, Tuple, "pandas.DataFrame", "pyarrow.Table"],
         schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -3136,7 +3241,10 @@ class Session:
 
         if not isinstance(data, (list, tuple)) and (
             not installed_pandas
-            or (installed_pandas and not isinstance(data, pandas.DataFrame))
+            or (
+                installed_pandas
+                and not isinstance(data, (pandas.DataFrame, pyarrow.Table))
+            )
         ):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
@@ -3146,7 +3254,7 @@ class Session:
         # Warn user to acknowledge this.
         if (
             installed_pandas
-            and isinstance(data, pandas.DataFrame)
+            and isinstance(data, (pandas.DataFrame, pyarrow.Table))
             and schema is not None
         ):
             warnings.warn(
@@ -3158,7 +3266,7 @@ class Session:
         # check to see if it is a pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         origin_data = data
-        if installed_pandas and isinstance(data, pandas.DataFrame):
+        if installed_pandas and isinstance(data, (pandas.DataFrame, pyarrow.Table)):
             temp_table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
@@ -3171,17 +3279,30 @@ class Session:
                 )
                 sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
-                table = self.write_pandas(
-                    data,
-                    temp_table_name,
-                    database=sf_database,
-                    schema=sf_schema,
-                    quote_identifiers=True,
-                    auto_create_table=True,
-                    table_type="temporary",
-                    use_logical_type=self._use_logical_type_for_create_df,
-                )
-                set_api_call_source(table, "Session.create_dataframe[pandas]")
+                if isinstance(data, pyarrow.Table):
+                    table = self.write_arrow(
+                        data,
+                        temp_table_name,
+                        database=sf_database,
+                        schema=sf_schema,
+                        quote_identifiers=True,
+                        auto_create_table=True,
+                        table_type="temporary",
+                        use_logical_type=self._use_logical_type_for_create_df,
+                    )
+                    set_api_call_source(table, "Session.create_dataframe[arrow]")
+                else:
+                    table = self.write_pandas(
+                        data,
+                        temp_table_name,
+                        database=sf_database,
+                        schema=sf_schema,
+                        quote_identifiers=True,
+                        auto_create_table=True,
+                        table_type="temporary",
+                        use_logical_type=self._use_logical_type_for_create_df,
+                    )
+                    set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
                     stmt = self._ast_batch.assign()

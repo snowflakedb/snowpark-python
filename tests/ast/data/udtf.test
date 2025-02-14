@@ -612,25 +612,27 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          sp_dataframe_col {
-            col_name: "a"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 7
+          args {
+            sp_dataframe_col {
+              col_name: "a"
+              df {
+                sp_dataframe_ref {
+                  id {
+                    bitfield1: 7
+                  }
                 }
               }
-            }
-            src {
-              end_column: 63
-              end_line: 56
-              file: 2
-              start_column: 59
-              start_line: 56
+              src {
+                end_column: 63
+                end_line: 56
+                file: 2
+                start_column: 59
+                start_line: 56
+              }
             }
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
           sp_dataframe_ref {
             id {
@@ -1198,9 +1200,44 @@ body {
   assign {
     expr {
       sp_dataframe_to_df {
-        col_names: "a"
-        col_names: "b"
-        col_names: "c"
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 38
+                end_line: 94
+                file: 2
+                start_column: 13
+                start_line: 94
+              }
+              v: "a"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 38
+                end_line: 94
+                file: 2
+                start_column: 13
+                start_line: 94
+              }
+              v: "b"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 38
+                end_line: 94
+                file: 2
+                start_column: 13
+                start_line: 94
+              }
+              v: "c"
+            }
+          }
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -1343,22 +1380,25 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 21
+          args {
+            apply_expr {
+              fn {
+                indirect_table_fn_id_ref {
+                  id {
+                    bitfield1: 21
+                  }
                 }
               }
-            }
-            src {
-              end_column: 33
-              end_line: 106
-              file: 2
-              start_column: 8
-              start_line: 106
+              src {
+                end_column: 33
+                end_line: 106
+                file: 2
+                start_column: 8
+                start_line: 106
+              }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -1374,7 +1414,6 @@ body {
           start_column: 8
           start_line: 106
         }
-        variadic: true
       }
     }
     symbol {
@@ -1552,41 +1591,44 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_dataframe_col {
-            col_name: "a"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 19
+          args {
+            sp_dataframe_col {
+              col_name: "a"
+              df {
+                sp_dataframe_ref {
+                  id {
+                    bitfield1: 19
+                  }
                 }
               }
-            }
-            src {
-              end_column: 22
-              end_line: 120
-              file: 2
-              start_column: 18
-              start_line: 120
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 26
-                }
+              src {
+                end_column: 22
+                end_line: 120
+                file: 2
+                start_column: 18
+                start_line: 120
               }
             }
-            src {
-              end_column: 43
-              end_line: 120
-              file: 2
-              start_column: 8
-              start_line: 120
+          }
+          args {
+            apply_expr {
+              fn {
+                indirect_table_fn_id_ref {
+                  id {
+                    bitfield1: 26
+                  }
+                }
+              }
+              src {
+                end_column: 43
+                end_line: 120
+                file: 2
+                start_column: 8
+                start_line: 120
+              }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -1602,7 +1644,6 @@ body {
           start_column: 8
           start_line: 120
         }
-        variadic: true
       }
     }
     symbol {
@@ -1730,90 +1771,93 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 71
-                  end_line: 122
-                  file: 2
-                  start_column: 8
-                  start_line: 122
-                }
-                v: "a"
-              }
-            }
-            src {
-              end_column: 71
-              end_line: 122
-              file: 2
-              start_column: 8
-              start_line: 122
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 30
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 71
+                    end_line: 122
+                    file: 2
+                    start_column: 8
+                    start_line: 122
+                  }
+                  v: "a"
                 }
               }
-            }
-            src {
-              end_column: 71
-              end_line: 122
-              file: 2
-              start_column: 8
-              start_line: 122
+              src {
+                end_column: 71
+                end_line: 122
+                file: 2
+                start_column: 8
+                start_line: 122
+              }
             }
           }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                indirect_table_fn_id_ref {
+                  id {
+                    bitfield1: 30
+                  }
+                }
+              }
+              src {
+                end_column: 71
+                end_line: 122
+                file: 2
+                start_column: 8
+                start_line: 122
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 71
-                  end_line: 122
-                  file: 2
-                  start_column: 8
-                  start_line: 122
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 71
+                    end_line: 122
+                    file: 2
+                    start_column: 8
+                    start_line: 122
+                  }
+                  v: "c"
                 }
-                v: "c"
+              }
+              src {
+                end_column: 71
+                end_line: 122
+                file: 2
+                start_column: 8
+                start_line: 122
               }
             }
-            src {
-              end_column: 71
-              end_line: 122
-              file: 2
-              start_column: 8
-              start_line: 122
-            }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -1829,7 +1873,6 @@ body {
           start_column: 8
           start_line: 122
         }
-        variadic: true
       }
     }
     symbol {

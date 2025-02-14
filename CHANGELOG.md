@@ -1,6 +1,6 @@
 # Release History
 
-# 1.28.0 (TBD)
+## 1.28.0 (TBD)
 
 ### Snowpark Python API Updates
 
@@ -10,7 +10,7 @@
   - `normal`
   - `randn`
 
-#### Deprecations:
+#### Deprecations
 
 - Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
 - Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
@@ -18,12 +18,25 @@
 #### Bug Fixes
 
 - Fixed a bug where query_tag was overwritten to a stacktrace when it was set using any method other than `Session.query_tag`.
+- Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
+
+#### Experimental Features
+
+- Added support for writing pyarrow Tables to Snowflake tables.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
+- Added support for `Series.hist`.
+- Added support for list values in `Series.str.get`.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 
 ## 1.27.0 (2025-02-03)
 

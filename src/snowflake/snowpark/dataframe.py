@@ -26,7 +26,7 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.connector.options import installed_pandas, pandas, pyarrow
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -1087,6 +1087,85 @@ class DataFrame:
             **kwargs,
         )
 
+    @experimental(version="1.28.0")
+    @df_collect_api_telemetry
+    @publicapi
+    def to_arrow(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Union["pyarrow.Table", AsyncJob]:
+        """
+        Executes the query representing this DataFrame and returns the result as a
+        `pyarrow Table <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`.
+
+        When the data is too large to fit into memory, you can use :meth:`to_arrow_batches`.
+
+        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        """
+        return self._session._conn.execute(
+            self._plan,
+            to_pandas=False,
+            to_iter=False,
+            to_arrow=True,
+            block=block,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+            **kwargs,
+        )
+
+    @experimental(version="1.28.0")
+    @df_collect_api_telemetry
+    @publicapi
+    def to_arrow_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Union[Iterator["pyarrow.Table"], AsyncJob]:
+        """
+        Executes the query representing this DataFrame and returns an iterator of
+        pyarrow Tables (containing a subset of rows) that you can use to
+        retrieve the results.
+
+        Unlike :meth:`to_arrow`, this method does not load all data into memory
+        at once.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        """
+        return self._session._conn.execute(
+            self._plan,
+            to_pandas=False,
+            to_iter=True,
+            to_arrow=True,
+            block=block,
+            data_type=_AsyncResultType.ITERATOR,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+            **kwargs,
+        )
+
     @df_api_usage
     @publicapi
     def to_df(
@@ -1125,8 +1204,9 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
-            ast.col_names.extend(col_names)
-            ast.variadic = is_variadic
+            for col in col_names:
+                build_expr_from_python_val(ast.col_names.args.add(), col)
+            ast.col_names.variadic = is_variadic
             self._set_ast_ref(ast.df)
 
         new_cols = []
@@ -1472,12 +1552,12 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
             self._set_ast_ref(ast.df)
-            ast.variadic = is_variadic
+            ast.cols.variadic = is_variadic
 
             # Add columns after the statement to ensure any dependent columns have lower ast id.
             for ast_col in ast_cols:
                 if ast_col is not None:
-                    ast.cols.add().CopyFrom(ast_col)
+                    ast.cols.args.append(ast_col)
 
         if self._select_statement:
             if join_plan:
@@ -1538,8 +1618,9 @@ class DataFrame:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_select__exprs, stmt)
                 self._set_ast_ref(ast.df)
-                ast.variadic = is_variadic
-                ast.exprs.extend(exprs)
+                ast.exprs.variadic = is_variadic
+                for expr in exprs:
+                    build_expr_from_python_val(ast.exprs.args.add(), expr)
             else:
                 stmt = _ast_stmt
 
@@ -1768,8 +1849,8 @@ class DataFrame:
             _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
             ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
             for c in _cols:
-                build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
-            ast.cols_variadic = is_variadic
+                build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
+            ast.cols.variadic = is_variadic
             self._set_ast_ref(ast.df)
 
         orders = []
@@ -2144,11 +2225,12 @@ class DataFrame:
                 stmt.expr.sp_dataframe_group_by_grouping_sets, stmt
             )
             self._set_ast_ref(expr.df)
-            grouping_set_list, expr.variadic = parse_positional_args_to_list_variadic(
-                *grouping_sets
-            )
+            (
+                grouping_set_list,
+                expr.grouping_sets.variadic,
+            ) = parse_positional_args_to_list_variadic(*grouping_sets)
             for gs in grouping_set_list:
-                expr.grouping_sets.append(gs._ast)
+                expr.grouping_sets.args.append(gs._ast)
 
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
@@ -2244,6 +2326,7 @@ class DataFrame:
 
         :meth:`dropDuplicates` is an alias of :meth:`drop_duplicates`.
         """
+        subset, is_variadic = parse_positional_args_to_list_variadic(*subset)
 
         # AST.
         stmt = None
@@ -2251,13 +2334,9 @@ class DataFrame:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
+                ast.cols.variadic = is_variadic
                 for arg in subset:
-                    if isinstance(arg, str):
-                        ast.cols.append(arg)
-                        ast.variadic = True
-                    else:
-                        ast.cols.extend(arg)
-                        ast.variadic = False
+                    build_expr_from_python_val(ast.cols.args.add(), arg)
                 self._set_ast_ref(ast.df)
             else:
                 stmt = _ast_stmt
@@ -2269,8 +2348,6 @@ class DataFrame:
             if _emit_ast:
                 df._ast_id = stmt.var_id.bitfield1
             return df
-
-        subset = parse_positional_args_to_list(*subset)
 
         filter_cols = [self.col(x) for x in subset]
         output_cols = [self.col(col_name) for col_name in self.columns]
