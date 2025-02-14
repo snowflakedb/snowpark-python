@@ -114,6 +114,24 @@ message SpColumnAliasFn {
   }
 }
 
+// type.ir:30
+message SpColumnRef {
+  oneof sealed_value {
+    SpColumnIdentifier sp_column_identifier = 1;
+    SpColumnName sp_column_name = 2;
+  }
+}
+
+// type.ir:31
+message SpColumnIdentifier {
+  string name = 1;
+}
+
+// type.ir:32
+message SpColumnName {
+  string name = 1;
+}
+
 // type.ir:1
 message SpDataType {
   oneof variant {
@@ -121,27 +139,26 @@ message SpDataType {
     bool sp_binary_type = 2;
     bool sp_boolean_type = 3;
     bool sp_byte_type = 4;
-    SpColumnIdentifier sp_column_identifier = 5;
-    bool sp_date_type = 6;
-    SpDecimalType sp_decimal_type = 7;
-    bool sp_double_type = 8;
-    bool sp_float_type = 9;
-    bool sp_geography_type = 10;
-    bool sp_geometry_type = 11;
-    bool sp_integer_type = 12;
-    bool sp_long_type = 13;
-    SpMapType sp_map_type = 14;
-    bool sp_null_type = 15;
-    SpPandasDataFrameType sp_pandas_data_frame_type = 16;
-    SpPandasSeriesType sp_pandas_series_type = 17;
-    bool sp_short_type = 18;
-    SpStringType sp_string_type = 19;
-    SpStructField sp_struct_field = 20;
-    SpStructType sp_struct_type = 21;
-    bool sp_time_type = 22;
-    SpTimestampType sp_timestamp_type = 23;
-    bool sp_variant_type = 24;
-    SpVectorType sp_vector_type = 25;
+    bool sp_date_type = 5;
+    SpDecimalType sp_decimal_type = 6;
+    bool sp_double_type = 7;
+    bool sp_float_type = 8;
+    bool sp_geography_type = 9;
+    bool sp_geometry_type = 10;
+    bool sp_integer_type = 11;
+    bool sp_long_type = 12;
+    SpMapType sp_map_type = 13;
+    bool sp_null_type = 14;
+    SpPandasDataFrameType sp_pandas_data_frame_type = 15;
+    SpPandasSeriesType sp_pandas_series_type = 16;
+    bool sp_short_type = 17;
+    SpStringType sp_string_type = 18;
+    SpStructField sp_struct_field = 19;
+    SpStructType sp_struct_type = 20;
+    bool sp_time_type = 21;
+    SpTimestampType sp_timestamp_type = 22;
+    bool sp_variant_type = 23;
+    SpVectorType sp_vector_type = 24;
   }
 }
 
@@ -151,59 +168,54 @@ message SpArrayType {
   SpDataType ty = 2;
 }
 
-// type.ir:7
-message SpColumnIdentifier {
-  string name = 1;
-}
-
-// type.ir:9
+// type.ir:8
 message SpDecimalType {
   int64 precision = 1;
   int64 scale = 2;
 }
 
-// type.ir:16
+// type.ir:15
 message SpMapType {
   SpDataType key_ty = 1;
   bool structured = 2;
   SpDataType value_ty = 3;
 }
 
-// type.ir:19
+// type.ir:18
 message SpStringType {
   google.protobuf.Int64Value length = 1;
 }
 
-// type.ir:20
+// type.ir:19
 message SpStructField {
-  SpColumnIdentifier column_identifier = 1;
+  SpColumnRef column_identifier = 1;
   SpDataType data_type = 2;
   bool nullable = 3;
 }
 
-// type.ir:21
+// type.ir:20
 message SpStructType {
   List_SpStructField fields = 1;
   bool structured = 2;
 }
 
-// type.ir:23
+// type.ir:22
 message SpTimestampType {
   SpTimestampTimeZone time_zone = 1;
 }
 
-// type.ir:25
+// type.ir:24
 message SpVectorType {
   int64 dimension = 1;
   SpDataType ty = 2;
 }
 
-// type.ir:27
+// type.ir:26
 message SpPandasSeriesType {
   SpDataType el_ty = 1;
 }
 
-// type.ir:28
+// type.ir:27
 message SpPandasDataFrameType {
   repeated string col_names = 1;
   repeated SpDataType col_types = 2;
@@ -233,7 +245,7 @@ message SpDataframeData_Pandas {
   StagedPandasDataframe v = 1;
 }
 
-// type.ir:38
+// type.ir:42
 message SpDataframeSchema {
   oneof sealed_value {
     SpDataframeSchema_List sp_dataframe_schema__list = 1;
@@ -241,12 +253,12 @@ message SpDataframeSchema {
   }
 }
 
-// type.ir:39
+// type.ir:43
 message SpDataframeSchema_List {
   repeated string vs = 1;
 }
 
-// type.ir:40
+// type.ir:44
 message SpDataframeSchema_Struct {
   SpStructType v = 1;
 }
@@ -338,7 +350,7 @@ message SpTableVariant {
   }
 }
 
-// type.ir:31
+// type.ir:35
 message SpTimestampTimeZone {
   oneof variant {
     bool sp_timestamp_time_zone_default = 1;
