@@ -3274,7 +3274,7 @@ def test_df_iloc_full_set_row_from_series(columns, index):
         lambda df: df.iloc[1000:100:-1],
     ],
 )
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_df_iloc_efficient_sql(session, ops):
     df = DataFrame({"a": [1] * 10000})
     with session.query_history() as query_listener:
@@ -3295,7 +3295,7 @@ def test_df_iloc_efficient_sql(session, ops):
         lambda df: df.iloc[100],
     ],
 )
-@sql_count_checker(query_count=8, union_count=1)
+@sql_count_checker(query_count=6, union_count=1)
 def test_df_iloc_scalar_efficient_sql(session, ops):
     df = DataFrame({"a": [1] * 10000})
     with session.query_history() as query_listener:
