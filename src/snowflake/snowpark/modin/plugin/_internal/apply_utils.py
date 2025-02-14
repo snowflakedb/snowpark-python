@@ -8,7 +8,7 @@ import sys
 from collections import namedtuple
 from collections.abc import Hashable
 from enum import Enum, auto
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal, Optional, Tuple, Union
 from datetime import datetime
 
 import cloudpickle
@@ -434,6 +434,91 @@ def create_groupby_transform_func(
     )
 
 
+def apply_groupby_func_to_df(
+    df: native_pd.DataFrame,
+    num_by: int,
+    index_column_names: list[Hashable],
+    series_groupby: bool,
+    data_column_index: native_pd.Index,
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    force_list_like_to_series: bool = False,
+) -> Tuple[native_pd.Series, native_pd.DataFrame, native_pd.DataFrame]:
+    """
+    Restore input dataframe received in udtf to original schema.
+    Args:
+        df: Native pandas dataframe.
+        num_by: Number of by columns.
+        index_column_names: Index column names.
+        series_groupby:  Whether we are performing a SeriesGroupBy.apply().
+        data_column_index: Data column index.
+        func: The function we need to apply to each group.
+        args: Function's positional arguments.
+        kwargs: Function's keyword arguments.
+        force_list_like_to_series: Force the function result to series if it is list-like.
+
+    Returns:
+        A Tuple of
+         1. rows positions
+         2. restored input dataframe.
+         3. Result of applying the function to input dataframe.
+    """
+    # The first column is row position. Save it for later.
+    col_offset = 0
+    row_positions = df.iloc[:, col_offset]
+    col_offset = col_offset + 1
+
+    # The next columns are the by columns. Since we are only looking at
+    # one group, every row in the by columns is the same, so get the
+    # group label from the first row.
+    group_label = tuple(df.iloc[0, col_offset : col_offset + num_by])
+    col_offset = col_offset + num_by
+    if len(group_label) == 1:
+        group_label = group_label[0]
+
+    df = df.iloc[:, col_offset:]
+    # Snowflake names the original columns "ARG1", "ARG2", ... "ARGN".
+    # the columns after the by columns are the index columns.
+    df.set_index(
+        [
+            f"ARG{i}"
+            for i in range(
+                1 + col_offset,
+                1 + col_offset + len(index_column_names),
+            )
+        ],
+        inplace=True,
+    )
+    df.index.names = index_column_names
+    if series_groupby:
+        # For SeriesGroupBy, there should be only one data column.
+        num_columns = len(df.columns)
+        assert (
+            num_columns == 1
+        ), f"Internal error: SeriesGroupBy func should apply to series, but input data had {num_columns} columns."
+        input_object = df.iloc[:, 0].rename(group_label)
+    else:
+        input_object = df.set_axis(data_column_index, axis="columns")
+    # Use infer_objects() because integer columns come as floats
+    # TODO: file snowpark bug about that. Asked about this here:
+    # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
+    input_object = input_object.infer_objects()
+    func_result = func(input_object, *args, **kwargs)
+    if (
+        force_list_like_to_series
+        and not isinstance(func_result, native_pd.Series)
+        and native_pd.api.types.is_list_like(func_result)
+    ):
+        if len(func_result) == 1:
+            func_result = func_result[0]
+        else:
+            func_result = native_pd.Series(func_result)
+            if len(func_result) == len(df.index):
+                func_result.index = df.index
+    return row_positions, input_object, func_result
+
+
 def create_udtf_for_groupby_transform(
     func: Callable,
     args: tuple,
@@ -510,60 +595,17 @@ def create_udtf_for_groupby_transform(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            # The first column is row position. Save it for later.
-            row_position_column_number = 0
-            row_positions = df.iloc[:, row_position_column_number]
-            current_column_position = row_position_column_number + 1
-
-            # The next columns are the by columns. Since we are only looking at
-            # one group, every row in the by columns is the same, so get the
-            # group label from the first row.
-            group_label = tuple(
-                df.iloc[0, current_column_position : current_column_position + num_by]
+            row_positions, input_object, func_result = apply_groupby_func_to_df(
+                df,
+                num_by,
+                index_column_names,
+                series_groupby,
+                data_column_index,
+                func,
+                args,
+                kwargs,
+                force_list_like_to_series,
             )
-            current_column_position = current_column_position + num_by
-            if len(group_label) == 1:
-                group_label = group_label[0]
-
-            df = df.iloc[:, current_column_position:]
-            # Snowflake names the original columns "ARG1", "ARG2", ... "ARGN".
-            # the columns after the by columns are the index columns.
-            df.set_index(
-                [
-                    f"ARG{i}"
-                    for i in range(
-                        1 + current_column_position,
-                        1 + current_column_position + len(index_column_names),
-                    )
-                ],
-                inplace=True,
-            )
-            df.index.names = index_column_names
-            if series_groupby:
-                # For SeriesGroupBy, there should be only one data column.
-                num_columns = len(df.columns)
-                assert (
-                    num_columns == 1
-                ), f"Internal error: SeriesGroupBy func should apply to series, but input data had {num_columns} columns."
-                input_object = df.iloc[:, 0].rename(group_label)
-            else:
-                input_object = df.set_axis(data_column_index, axis="columns")
-            # Use infer_objects() because integer columns come as floats
-            # TODO: file snowpark bug about that. Asked about this here:
-            # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
-            input_object = input_object.infer_objects()
-            func_result = func(input_object, *args, **kwargs)
-            if (
-                force_list_like_to_series
-                and not isinstance(func_result, native_pd.Series)
-                and native_pd.api.types.is_list_like(func_result)
-            ):
-                if len(func_result) == 1:
-                    func_result = func_result[0]
-                else:
-                    func_result = native_pd.Series(func_result)
-                    if len(func_result) == len(df.index):
-                        func_result.index = df.index
             if isinstance(func_result, native_pd.Series):
                 if series_groupby:
                     func_result_as_frame = func_result.to_frame()
@@ -794,60 +836,17 @@ def create_udtf_for_groupby_apply(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            # The first column is row position. Save it for later.
-            row_position_column_number = 0
-            row_positions = df.iloc[:, row_position_column_number]
-            current_column_position = row_position_column_number + 1
-
-            # The next columns are the by columns. Since we are only looking at
-            # one group, every row in the by columns is the same, so get the
-            # group label from the first row.
-            group_label = tuple(
-                df.iloc[0, current_column_position : current_column_position + num_by]
+            row_positions, input_object, func_result = apply_groupby_func_to_df(
+                df,
+                num_by,
+                index_column_names,
+                series_groupby,
+                data_column_index,
+                func,
+                args,
+                kwargs,
+                force_list_like_to_series,
             )
-            current_column_position = current_column_position + num_by
-            if len(group_label) == 1:
-                group_label = group_label[0]
-
-            df = df.iloc[:, current_column_position:]
-            # Snowflake names the original columns "ARG1", "ARG2", ... "ARGN".
-            # the columns after the by columns are the index columns.
-            df.set_index(
-                [
-                    f"ARG{i}"
-                    for i in range(
-                        1 + current_column_position,
-                        1 + current_column_position + len(index_column_names),
-                    )
-                ],
-                inplace=True,
-            )
-            df.index.names = index_column_names
-            if series_groupby:
-                # For SeriesGroupBy, there should be only one data column.
-                num_columns = len(df.columns)
-                assert (
-                    num_columns == 1
-                ), f"Internal error: SeriesGroupBy func should apply to series, but input data had {num_columns} columns."
-                input_object = df.iloc[:, 0].rename(group_label)
-            else:
-                input_object = df.set_axis(data_column_index, axis="columns")
-            # Use infer_objects() because integer columns come as floats
-            # TODO: file snowpark bug about that. Asked about this here:
-            # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
-            input_object = input_object.infer_objects()
-            func_result = func(input_object, *args, **kwargs)
-            if (
-                force_list_like_to_series
-                and not isinstance(func_result, native_pd.Series)
-                and native_pd.api.types.is_list_like(func_result)
-            ):
-                if len(func_result) == 1:
-                    func_result = func_result[0]
-                else:
-                    func_result = native_pd.Series(func_result)
-                    if len(func_result) == len(df.index):
-                        func_result.index = df.index
             if isinstance(func_result, native_pd.Series):
                 if series_groupby:
                     func_result_as_frame = func_result.to_frame()
