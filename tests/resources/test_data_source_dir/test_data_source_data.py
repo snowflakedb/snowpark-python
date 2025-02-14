@@ -1,34 +1,305 @@
 import datetime
 import sqlite3
 from _decimal import Decimal
+from dateutil import parser
+
+from snowflake.snowpark._internal.data_source_utils import DBMS_TYPE
+
+
+# we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
+class FakeConnection:
+    def __init__(self, data, schema, connection_type) -> None:
+        self.__class__.__module__ = connection_type
+        self.sql = ""
+        self.start_index = 0
+        self.data = data
+        self.schema = schema
+
+    def cursor(self):
+        return self
+
+    def execute(self, sql: str):
+        self.sql = sql
+        return self
+
+    def fetchall(self):
+        if "INFORMATION_SCHEMA" in self.sql or "USER_TAB_COLUMNS" in self.sql:
+            return self.schema
+        else:
+            return self.data
+
+    def fetchmany(self, row_count: int):
+        end_index = self.start_index + row_count
+        res = (
+            self.data[self.start_index : end_index]
+            if end_index < len(self.data)
+            else self.data[self.start_index :]
+        )
+        self.start_index = end_index
+        return res
+
+    def getinfo(self, sql_dbms_name):
+        return "sqlserver"
+
+
+class FakeOracleLOB:
+    __name__ = "LOB"
+
+    def __init__(self, value) -> None:
+        self.value = value
+
+    def read(self, offset: int = 1, amount: int = None):
+        return self.value
+
+
+def fake_detect_dbms_pyodbc(conn):
+    return DBMS_TYPE.SQL_SERVER_DB
+
 
 sql_server_all_type_schema = (
-    ("Id", "int", None, 10, 0, "NO"),
-    ("SmallIntCol", "smallint", None, 5, 0, "YES"),
-    ("TinyIntCol", "tinyint", None, 3, 0, "YES"),
-    ("BigIntCol", "bigint", None, 19, 0, "YES"),
-    ("DecimalCol", "decimal", None, 10, 2, "YES"),
-    ("FloatCol", "float", None, 53, None, "YES"),
-    ("RealCol", "real", None, 24, None, "YES"),
-    ("MoneyCol", "money", None, 19, 4, "YES"),
-    ("SmallMoneyCol", "smallmoney", None, 10, 4, "YES"),
-    ("CharCol", "char", 10, None, None, "YES"),
-    ("VarCharCol", "varchar", 50, None, None, "YES"),
-    ("TextCol", "text", 2147483647, None, None, "YES"),
-    ("NCharCol", "nchar", 10, None, None, "YES"),
-    ("NVarCharCol", "nvarchar", 50, None, None, "YES"),
-    ("NTextCol", "ntext", 1073741823, None, None, "YES"),
-    ("DateCol", "date", None, None, None, "YES"),
-    ("TimeCol", "time", None, None, None, "YES"),
-    ("DateTimeCol", "datetime", None, None, None, "YES"),
-    ("DateTime2Col", "datetime2", None, None, None, "YES"),
-    ("SmallDateTimeCol", "smalldatetime", None, None, None, "YES"),
-    ("BinaryCol", "binary", 5, None, None, "YES"),
-    ("VarBinaryCol", "varbinary", 50, None, None, "YES"),
-    ("BitCol", "bit", None, None, None, "YES"),
-    ("UniqueIdentifierCol", "uniqueidentifier", None, None, None, "YES"),
+    ("Id", "int", 10, 0, "NO"),
+    ("SmallIntCol", "smallint", 5, 0, "YES"),
+    ("TinyIntCol", "tinyint", 3, 0, "YES"),
+    ("BigIntCol", "bigint", 19, 0, "YES"),
+    ("DecimalCol", "decimal", 10, 2, "YES"),
+    ("FloatCol", "float", 53, None, "YES"),
+    ("RealCol", "real", 24, None, "YES"),
+    ("MoneyCol", "money", 19, 4, "YES"),
+    ("SmallMoneyCol", "smallmoney", 10, 4, "YES"),
+    ("CharCol", "char", None, None, "YES"),
+    ("VarCharCol", "varchar", None, None, "YES"),
+    ("TextCol", "text", None, None, "YES"),
+    ("NCharCol", "nchar", None, None, "YES"),
+    ("NVarCharCol", "nvarchar", None, None, "YES"),
+    ("NTextCol", "ntext", None, None, "YES"),
+    ("DateCol", "date", None, None, "YES"),
+    ("TimeCol", "time", None, None, "YES"),
+    ("DateTimeCol", "datetime", None, None, "YES"),
+    ("DateTime2Col", "datetime2", None, None, "YES"),
+    ("SmallDateTimeCol", "smalldatetime", None, None, "YES"),
+    ("BinaryCol", "binary", None, None, "YES"),
+    ("VarBinaryCol", "varbinary", None, None, "YES"),
+    ("BitCol", "bit", None, None, "YES"),
+    ("UniqueIdentifierCol", "uniqueidentifier", None, None, "YES"),
 )
 
+oracledb_all_type_schema = (
+    ("ID", "NUMBER", None, None, "N"),
+    ("NUMBER_COL", "NUMBER", 10, 2, "Y"),
+    ("BINARY_FLOAT_COL", "BINARY_FLOAT", None, None, "Y"),
+    ("BINARY_DOUBLE_COL", "BINARY_DOUBLE", None, None, "Y"),
+    ("VARCHAR2_COL", "VARCHAR2", None, None, "Y"),
+    ("CHAR_COL", "CHAR", None, None, "Y"),
+    ("CLOB_COL", "CLOB", None, None, "Y"),
+    ("NCHAR_COL", "NCHAR", None, None, "Y"),
+    ("NVARCHAR2_COL", "NVARCHAR2", None, None, "Y"),
+    ("NCLOB_COL", "NCLOB", None, None, "Y"),
+    ("DATE_COL", "DATE", None, None, "Y"),
+    ("TIMESTAMP_COL", "TIMESTAMP(6)", None, 6, "Y"),
+    ("TIMESTAMP_TZ_COL", "TIMESTAMP(6) WITH TIME ZONE", None, 6, "Y"),
+    ("TIMESTAMP_LTZ_COL", "TIMESTAMP(6) WITH LOCAL TIME ZONE", None, 6, "Y"),
+    ("BLOB_COL", "BLOB", None, None, "Y"),
+    ("RAW_COL", "RAW", None, None, "Y"),
+)
+
+oracledb_all_type_data = [
+    (
+        1,
+        123.45,
+        123.0,
+        12345678900.0,
+        "Sample1",
+        "Char1     ",
+        FakeOracleLOB("Large text data 1"),
+        "Hello     ",
+        "World",
+        FakeOracleLOB("sample text 1"),
+        datetime.datetime(2024, 1, 1, 0, 0),
+        datetime.datetime(2024, 1, 1, 12, 0),
+        "2024-01-01 12:00:00.000000000 -0800",
+        "2024-01-01 12:00:00.000000000 -0800",
+        None,
+        b"Binary1",
+    ),
+    (
+        2,
+        234.56,
+        234.0,
+        234567890000.0,
+        "Sample2",
+        "Char2     ",
+        FakeOracleLOB("Large text data 2"),
+        "Goodbye   ",
+        "Everyone",
+        FakeOracleLOB("sample text 2"),
+        datetime.datetime(2024, 1, 2, 0, 0),
+        datetime.datetime(2024, 1, 2, 13, 30),
+        "2024-01-02 13:30:00.000000000 -0800",
+        "2024-01-02 13:30:00.000000000 -0800",
+        None,
+        b"Binary2",
+    ),
+    (
+        3,
+        345.67,
+        345.0,
+        3456789000000.0,
+        "Sample3",
+        "Char3     ",
+        FakeOracleLOB("Large text data 3"),
+        "Morning   ",
+        "Sunrise",
+        FakeOracleLOB("sample text 3"),
+        datetime.datetime(2024, 1, 3, 0, 0),
+        datetime.datetime(2024, 1, 3, 8, 15),
+        "2024-01-03 08:15:00.000000000 -0800",
+        "2024-01-03 08:15:00.000000000 -0800",
+        None,
+        b"Binary3",
+    ),
+    (
+        4,
+        456.78,
+        456.0,
+        45678900000000.0,
+        "Sample4",
+        "Char4     ",
+        FakeOracleLOB("Large text data 4"),
+        "Afternoon ",
+        "Clouds",
+        FakeOracleLOB("sample text 4"),
+        datetime.datetime(2024, 1, 4, 0, 0),
+        datetime.datetime(2024, 1, 4, 14, 45),
+        "2024-01-04 14:45:00.000000000 -0800",
+        "2024-01-04 14:45:00.000000000 -0800",
+        None,
+        b"Binary4",
+    ),
+    (
+        5,
+        567.89,
+        567.0,
+        567890000000000.0,
+        "Sample5",
+        "Char5     ",
+        FakeOracleLOB("Large text data 5"),
+        "Evening   ",
+        "Stars",
+        FakeOracleLOB("sample text 5"),
+        datetime.datetime(2024, 1, 5, 0, 0),
+        datetime.datetime(2024, 1, 5, 19, 0),
+        "2024-01-05 19:00:00.000000000 -0800",
+        "2024-01-05 19:00:00.000000000 -0800",
+        None,
+        b"Binary5",
+    ),
+    (
+        6,
+        678.9,
+        678.0,
+        6789000000000000.0,
+        "Sample6",
+        "Char6     ",
+        FakeOracleLOB("Large text data 6"),
+        "Night     ",
+        "Moon",
+        FakeOracleLOB("sample text 6"),
+        datetime.datetime(2024, 1, 6, 0, 0),
+        datetime.datetime(2024, 1, 6, 23, 59),
+        "2024-01-06 23:59:00.000000000 -0800",
+        "2024-01-06 23:59:00.000000000 -0800",
+        None,
+        b"Binary6",
+    ),
+    (
+        7,
+        789.01,
+        789.0,
+        7.89e16,
+        "Sample7",
+        "Char7     ",
+        FakeOracleLOB("Large text data 7"),
+        "Dawn      ",
+        "Mist",
+        FakeOracleLOB("sample text 7"),
+        datetime.datetime(2024, 1, 7, 0, 0),
+        datetime.datetime(2024, 1, 7, 4, 30),
+        "2024-01-07 04:30:00.000000000 -0800",
+        "2024-01-07 04:30:00.000000000 -0800",
+        None,
+        b"Binary7",
+    ),
+    (
+        8,
+        890.12,
+        890.0,
+        8.9e17,
+        "Sample8",
+        "Char8     ",
+        FakeOracleLOB("Large text data 8"),
+        "Midday    ",
+        "Heat",
+        FakeOracleLOB("sample text 8"),
+        datetime.datetime(2024, 1, 8, 0, 0),
+        datetime.datetime(2024, 1, 8, 12, 0),
+        "2024-01-08 12:00:00.000000000 -0800",
+        "2024-01-08 12:00:00.000000000 -0800",
+        None,
+        b"Binary8",
+    ),
+    (
+        9,
+        901.23,
+        901.0,
+        9.01e18,
+        "Sample9",
+        "Char9     ",
+        FakeOracleLOB("Large text data 9"),
+        "Sunset    ",
+        "Horizon",
+        FakeOracleLOB("sample text 9"),
+        datetime.datetime(2024, 1, 9, 0, 0),
+        datetime.datetime(2024, 1, 9, 18, 45),
+        "2024-01-09 18:45:00.000000000 -0800",
+        "2024-01-09 18:45:00.000000000 -0800",
+        None,
+        b"Binary9",
+    ),
+    (
+        10,
+        1012.34,
+        1010.0,
+        1.01e19,
+        "Sample10",
+        "Char10    ",
+        FakeOracleLOB("Large text data 10"),
+        "Twilight  ",
+        "Calm",
+        FakeOracleLOB("sample text 10"),
+        datetime.datetime(2024, 1, 10, 0, 0),
+        datetime.datetime(2024, 1, 10, 21, 15),
+        "2024-01-10 21:15:00.000000000 -0800",
+        "2024-01-10 21:15:00.000000000 -0800",
+        None,
+        b"Binary10",
+    ),
+]
+
+oracledb_all_type_data_result = []
+for row in oracledb_all_type_data:
+    new_row = []
+    for i, item in enumerate(row):
+        if i == 6 or i == 9:
+            new_row.append(item.read())
+        elif i == 1:
+            new_row.append(Decimal(str(item)))
+        elif i == 12 or i == 13:
+            new_row.append(parser.parse(item))
+        elif i == 10:
+            new_row.append(item.date())
+        else:
+            new_row.append(item)
+    oracledb_all_type_data_result.append(tuple(new_row))
 sql_server_all_type_data = [
     (
         1,
@@ -319,46 +590,20 @@ sql_server_all_type_data = [
 ]
 
 sql_server_all_type_small_data = sql_server_all_type_data[5:]
-
-
-# we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
-class FakeConnection:
-    def __init__(self, data, schema) -> None:
-        self.sql = ""
-        self.start_index = 0
-        self.data = data
-        self.schema = schema
-
-    def cursor(self):
-        return self
-
-    def execute(self, sql: str):
-        self.sql = sql
-        return self
-
-    def fetchall(self):
-        if "INFORMATION_SCHEMA" in self.sql:
-            return self.schema
-        else:
-            return self.data
-
-    def fetchmany(self, row_count: int):
-        end_index = self.start_index + row_count
-        res = (
-            self.data[self.start_index : end_index]
-            if end_index < len(self.data)
-            else self.data[self.start_index :]
-        )
-        self.start_index = end_index
-        return res
+oracledb_all_type_small_data = oracledb_all_type_data[5:]
+oracledb_all_type_small_data_result = oracledb_all_type_data_result[5:]
 
 
 def sql_server_create_connection():
-    return FakeConnection(sql_server_all_type_data, sql_server_all_type_schema)
+    return FakeConnection(
+        sql_server_all_type_data, sql_server_all_type_schema, "pyodbc"
+    )
 
 
 def sql_server_create_connection_small_data():
-    return FakeConnection(sql_server_all_type_small_data, sql_server_all_type_schema)
+    return FakeConnection(
+        sql_server_all_type_small_data, sql_server_all_type_schema, "pyodbc"
+    )
 
 
 def sqlite3_db(db_path):
@@ -568,3 +813,13 @@ def sqlite3_db(db_path):
 
 def create_connection_to_sqlite3_db(db_path):
     return sqlite3.connect(db_path)
+
+
+def oracledb_create_connection():
+    return FakeConnection(oracledb_all_type_data, oracledb_all_type_schema, "oracledb")
+
+
+def oracledb_create_connection_small_data():
+    return FakeConnection(
+        oracledb_all_type_small_data, oracledb_all_type_schema, "oracledb"
+    )
