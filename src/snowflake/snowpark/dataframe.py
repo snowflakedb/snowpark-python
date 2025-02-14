@@ -132,11 +132,13 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import add_package_to_existing_packages
 from snowflake.snowpark._internal.utils import (
+    SKIP_LEVELS_TWO,
     TempObjectType,
     check_agg_exprs,
     check_flatten_mode,
     check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
+    create_or_update_statement_params_with_query_tag,
     deprecated,
     escape_quotes,
     experimental,
@@ -1104,7 +1106,7 @@ class DataFrame:
 
         When the data is too large to fit into memory, you can use :meth:`to_arrow_batches`.
 
-        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+        This function requires the optional dependency snowflake-snowpark-python[pandas] be installed.
 
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.

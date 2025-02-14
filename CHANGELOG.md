@@ -17,7 +17,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug where query_tag was overwritten to a stacktrace when it was set using any method other than `Session.query_tag`.
+- Fixed a bug where query_tag was overwritten to stacktrace of the query execution. Now, the query_tag will only be set to the stacktrace if the query_tag is set to "__COLLECT_STACKTRACE__".
 - Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
 
 #### Experimental Features
