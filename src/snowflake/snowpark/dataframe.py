@@ -2890,7 +2890,9 @@ class DataFrame:
                             for col in materialized_names
                         ],
                     )
-                return left._union_by_name_internal(right, is_all=is_all)
+                return left._union_by_name_internal(
+                    right, is_all=is_all, _ast_stmt=_ast_stmt
+                )
             else:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
                     missing_left, missing_right
