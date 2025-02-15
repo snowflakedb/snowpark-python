@@ -6,6 +6,7 @@
 import decimal
 import sys
 import threading
+from unittest.mock import patch
 import uuid
 from functools import partial
 from typing import Any, Dict, Tuple
@@ -1255,3 +1256,64 @@ def test_plan_metrics_telemetry(session):
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
     assert data == expected_data
     assert type_ == "snowpark_compilation_stage_statistics"
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df = df.filter(df.a > 0).union(df.filter(df.b > 0))
+    original_collect_telemetry_at_critical_path = (
+        session._collect_snowflake_plan_telemetry_at_critical_path
+    )
+    try:
+        expected_data = {
+            "session_id": session.session_id,
+            "data": {
+                "plan_uuid": df._plan._uuid,
+                "query_plan_height": 4,
+                "query_plan_num_selects_with_complexity_merged": 0,
+                "query_plan_num_duplicate_nodes": 1,
+                "query_plan_duplicated_node_complexity_distribution": [
+                    2,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                "query_plan_complexity": {
+                    "set_operation": 1,
+                    "column": 10,
+                    "filter": 2,
+                    "low_impact": 2,
+                    "literal": 10,
+                },
+                "complexity_score_before_compilation": 25,
+            },
+        }
+        session._collect_snowflake_plan_telemetry_at_critical_path = enabled
+        with patch.object(
+            session._conn._telemetry_client, "send_plan_metrics_telemetry"
+        ) as patch_send:
+            df._internal_collect_with_tag_no_telemetry()
+
+        if enabled:
+            patch_send.assert_called_once()
+            _, kwargs = patch_send.call_args
+            assert kwargs == expected_data
+        else:
+            patch_send.assert_not_called()
+
+        with patch.object(
+            session._conn._telemetry_client, "send_plan_metrics_telemetry"
+        ) as patch_send:
+            df.collect()
+
+        patch_send.assert_called_once()
+        _, kwargs = patch_send.call_args
+        assert kwargs == expected_data
+    finally:
+        session._collect_snowflake_plan_telemetry_at_critical_path = (
+            original_collect_telemetry_at_critical_path
+        )
