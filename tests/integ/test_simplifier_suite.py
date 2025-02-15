@@ -81,6 +81,23 @@ def simplifier_table(session) -> None:
     Utils.drop_table(session, table_name)
 
 
+@pytest.fixture(scope="module")
+def distinct_table(session):
+    table_name = Utils.random_table_name()
+    data = [
+        [5, "a"],
+        [3, "b"],
+        [5, "a"],
+        [1, "c"],
+        [3, "c"],
+    ]
+    session.create_dataframe(data, schema=["a", "b"]).write.save_as_table(
+        table_name, table_type="temp", mode="overwrite"
+    )
+    yield table_name
+    Utils.drop_table(session, table_name)
+
+
 @pytest.mark.parametrize(
     "set_operator", [SET_UNION, SET_UNION_ALL, SET_EXCEPT, SET_INTERSECT]
 )
@@ -110,6 +127,56 @@ def test_set_same_operator(session, set_operator):
     assert (
         query1
         == f"(SELECT 1 as a, 2 as b){set_operator}(SELECT 2 as a, 2 as b){set_operator}((SELECT 3 as a, 2 as b){set_operator}(SELECT 4 as a, 2 as b))"
+    )
+
+
+@pytest.mark.parametrize(
+    "operator,action",
+    [
+        (SET_UNION, lambda df1, df2: df1.union(df2)),
+        (SET_UNION_ALL, lambda df1, df2: df1.union_all(df2)),
+        (SET_EXCEPT, lambda df1, df2: df1.except_(df2)),
+        (SET_INTERSECT, lambda df1, df2: df1.intersect(df2)),
+    ],
+)
+def test_distinct_set_operator(session, distinct_table, action, operator):
+    df1 = session.table(distinct_table)
+    df2 = session.table(distinct_table)
+
+    df = action(df1, df2.distinct())
+    assert (
+        df.queries["queries"][0]
+        == f"""( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table})"""
+    )
+
+    df = action(df1.distinct(), df2)
+    assert (
+        df.queries["queries"][0]
+        == f"""( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table})"""
+    )
+
+    df = action(df1, df2).distinct()
+    assert (
+        df.queries["queries"][0]
+        == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+    )
+
+    df = action(df1, df2.distinct()).distinct()
+    assert (
+        df.queries["queries"][0]
+        == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+    )
+
+    df = action(df1.distinct(), df2).distinct()
+    assert (
+        df.queries["queries"][0]
+        == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+    )
+
+    df = action(df1.distinct(), df2.distinct()).distinct()
+    assert (
+        df.queries["queries"][0]
+        == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
     )
 
 
@@ -1368,3 +1435,70 @@ def test_select_limit_orderby(session):
     df3 = df.select("a", "b").limit(2, offset=1).sort(col("a"))
     expected_query = """SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) LIMIT 2 OFFSET 1) ORDER BY "A" ASC NULLS FIRST"""
     assert df3.queries["queries"][0] == expected_query
+
+
+@pytest.mark.parametrize(
+    "operation,expected_query,expected_result,sort_results",
+    [
+        # df.select().distinct() != df.distinct().select()
+        (
+            lambda df: df.select("a", "b").distinct().select("a"),
+            lambda table: f"""SELECT "A" FROM ( SELECT  DISTINCT "A", "B" FROM {table})""",
+            [Row(5), Row(3), Row(1), Row(3)],
+            False,
+        ),
+        (
+            lambda df: df.select("a", "b").select("a").distinct(),
+            lambda table: f"""SELECT  DISTINCT "A" FROM {table}""",
+            [Row(5), Row(3), Row(1)],
+            False,
+        ),
+        # df.select().distinct().limit() != df.distinct().select().limit() for optimization
+        (
+            lambda df: df.select("a", "b").distinct().limit(4),
+            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} LIMIT 4""",
+            [Row(5, "a"), Row(3, "b"), Row(1, "c"), Row(3, "c")],
+            False,
+        ),
+        (
+            lambda df: df.select("a", "b").limit(4).distinct(),
+            lambda table: f"""SELECT  DISTINCT  *  FROM ( SELECT "A", "B" FROM {table} LIMIT 4)""",
+            None,
+            False,
+        ),
+        # df.distinct().filter() = df.filter().distinct()
+        (
+            lambda df: df.select("a", "b").distinct().filter(col("a") > 1),
+            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} WHERE ("A" > 1)""",
+            [Row(5, "a"), Row(3, "b"), Row(3, "c")],
+            False,
+        ),
+        (
+            lambda df: df.select("a", "b").filter(col("a") > 1).distinct(),
+            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} WHERE ("A" > 1)""",
+            [Row(5, "a"), Row(3, "b"), Row(3, "c")],
+            False,
+        ),
+        # df.distinct().sort() = df.sort().distinct()
+        (
+            lambda df: df.select("a", "b").distinct().sort(col("a"), col("b")),
+            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
+            [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
+            True,
+        ),
+        (
+            lambda df: df.select("a", "b").sort(col("a"), col("b")).distinct(),
+            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
+            [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
+            True,
+        ),
+    ],
+)
+def test_select_distinct(
+    session, distinct_table, operation, expected_query, expected_result, sort_results
+):
+    df = session.table(distinct_table)
+    df1 = operation(df)
+    if expected_result is not None:
+        Utils.check_answer(df1, expected_result, sort=sort_results)
+    assert df1.queries["queries"][0] == expected_query(distinct_table)

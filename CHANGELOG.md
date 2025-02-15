@@ -10,6 +10,10 @@
   - `normal`
   - `randn`
 
+#### Improvements
+
+- Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns.
+
 #### Deprecations
 
 - Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.

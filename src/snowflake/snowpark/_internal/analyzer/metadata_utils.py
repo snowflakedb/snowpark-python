@@ -95,6 +95,7 @@ def infer_metadata(
         Project,
         Sample,
         Sort,
+        Distinct,
     )
 
     attributes = None
@@ -104,7 +105,7 @@ def infer_metadata(
         # so we can try to infer the metadata from its child (SnowflakePlan)
         # When source_plan is Filter, Sort, Limit, Sample, metadata won't be changed
         # so we can use the metadata from its child directly
-        if isinstance(source_plan, (Filter, Sort, Limit, Sample)):
+        if isinstance(source_plan, (Filter, Sort, Limit, Sample, Distinct)):
             if isinstance(source_plan.child, SnowflakePlan):
                 attributes = source_plan.child._metadata.attributes
                 quoted_identifiers = source_plan.child._metadata.quoted_identifiers
