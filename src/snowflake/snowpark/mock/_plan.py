@@ -899,6 +899,7 @@ def execute_mock_plan(
         order_by: Optional[List[Expression]] = source_plan.order_by
         limit_: Optional[int] = source_plan.limit_
         offset: Optional[int] = source_plan.offset
+        distinct_: bool = source_plan.distinct_
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
@@ -980,6 +981,9 @@ def execute_mock_plan(
             if offset is not None:
                 result_df = result_df.iloc[offset:]
             result_df = result_df.head(n=limit_)
+
+        if distinct_:
+            result_df = result_df.drop_duplicates()
 
         return result_df
     if isinstance(source_plan, MockSetStatement):
