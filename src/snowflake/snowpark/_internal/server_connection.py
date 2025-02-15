@@ -55,6 +55,7 @@ from snowflake.snowpark._internal.utils import (
     create_thread_local,
     escape_quotes,
     get_application_name,
+    get_transmit_query_to_server,
     get_version,
     is_in_stored_procedure,
     normalize_local_file,
@@ -491,6 +492,8 @@ class ServerConnection:
         async_post_actions: Optional[List[Query]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
+        if not get_transmit_query_to_server():
+            query = "SELECT 'This is a dummy query!!'; --No actual query sent, the server should rely on the provided AST!"
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:

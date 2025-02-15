@@ -1514,3 +1514,17 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+# Flag to determine whether to transmit the client-side generated queries to the server.
+# If set to False, the server will rely on the AST sent to it to generate the required results.
+transmit_query_to_server: bool = True
+
+
+def set_transmit_query_to_server(value: bool) -> None:
+    global transmit_query_to_server
+    transmit_query_to_server = value
+
+
+def get_transmit_query_to_server() -> bool:
+    return transmit_query_to_server
