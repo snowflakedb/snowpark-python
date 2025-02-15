@@ -15,7 +15,11 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanState,
+    get_complexity_score,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
@@ -169,8 +173,16 @@ def safe_telemetry(func):
 def df_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        with args[0]._session.query_history() as query_history:
-            result = func(*args, **kwargs)
+        session = args[0]._session
+        with session.query_history() as query_history:
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                if not session._collect_snowflake_plan_telemetry_at_critical_path:
+                    session._conn._telemetry_client.send_plan_metrics_telemetry(
+                        session_id=session.session_id,
+                        data=get_plan_telemetry_metrics(args[0]._plan),
+                    )
         plan = args[0]._select_statement or args[0]._plan
         api_calls = [
             *plan.api_calls,
@@ -178,39 +190,11 @@ def df_collect_api_telemetry(func):
         ]
         # The first api call will indicate following:
         # - sql simplifier is enabled.
-        # - height of the query plan
-        # - number of unique duplicate subtrees in the query plan
-        api_calls[0][TelemetryField.SQL_SIMPLIFIER_ENABLED.value] = args[
-            0
-        ]._session.sql_simplifier_enabled
-        try:
-            plan_state = plan.plan_state
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value
-            ] = plan_state[PlanState.PLAN_HEIGHT]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
-            ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
-            ] = plan_state[PlanState.NUM_CTE_NODES]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
-            ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
-
-            # The uuid for df._select_statement can be different from df._plan. Since plan
-            # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
-            # to track the queries.
-            uuid = args[0]._plan.uuid
-            api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
-            api_calls[0][CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
-                key.value: value
-                for key, value in plan.cumulative_node_complexity.items()
-            }
-            api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
-        except Exception:
-            pass
-        args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
+        api_calls[0][
+            TelemetryField.SQL_SIMPLIFIER_ENABLED.value
+        ] = session.sql_simplifier_enabled
+        api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
+        session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
             api_calls=api_calls,
@@ -224,16 +208,22 @@ def df_collect_api_telemetry(func):
 def dfw_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        with args[0]._dataframe._session.query_history() as query_history:
-            result = func(*args, **kwargs)
+        session = args[0]._dataframe._session
+        with session.query_history() as query_history:
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                if not session._collect_snowflake_plan_telemetry_at_critical_path:
+                    session._conn._telemetry_client.send_plan_metrics_telemetry(
+                        session_id=session.session_id,
+                        data=get_plan_telemetry_metrics(args[0]._dataframe._plan),
+                    )
         plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
         api_calls = [
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}"},
         ]
-        args[
-            0
-        ]._dataframe._session._conn._telemetry_client.send_function_usage_telemetry(
+        session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
             api_calls=api_calls,
@@ -298,6 +288,38 @@ def relational_group_df_api_usage(func):
         return r
 
     return wrap
+
+
+def get_plan_telemetry_metrics(plan: SnowflakePlan) -> Dict[str, Any]:
+    data = {}
+    try:
+        data[CompilationStageTelemetryField.PLAN_UUID.value] = plan.uuid
+        # plan state
+        plan_state = plan.plan_state
+        data[CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value] = plan_state[
+            PlanState.PLAN_HEIGHT
+        ]
+        data[
+            CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
+        ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
+        data[
+            CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+        ] = plan_state[PlanState.NUM_CTE_NODES]
+        data[
+            CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
+        ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
+
+        # plan complexity score
+        data[CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
+            key.value: value for key, value in plan.cumulative_node_complexity.items()
+        }
+        data[
+            CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value
+        ] = get_complexity_score(plan)
+    except Exception as e:
+        data[CompilationStageTelemetryField.ERROR_MESSAGE.value] = str(e)
+
+    return data
 
 
 class TelemetryClient:
@@ -478,6 +500,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_COMPILATION_STAGE_STATS.value,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 **compilation_stage_summary,
             },
@@ -493,9 +516,25 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_COMPILATION_STAGE_ERROR.value,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 CompilationStageTelemetryField.ERROR_TYPE.value: error_type,
                 CompilationStageTelemetryField.ERROR_MESSAGE.value: error_message,
+            },
+        }
+        self.send(message)
+
+    def send_plan_metrics_telemetry(
+        self, session_id: int, data: Dict[str, Any]
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_SNOWFLAKE_PLAN_METRICS.value,
+                **data,
             },
         }
         self.send(message)

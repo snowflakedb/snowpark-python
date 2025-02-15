@@ -6,11 +6,13 @@
 import decimal
 import sys
 import threading
+from unittest.mock import patch
 import uuid
 from functools import partial
 from typing import Any, Dict, Tuple
 
 import pytest
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 
 try:
     import pandas as pd  # noqa: F401
@@ -573,30 +575,13 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
 
     df.collect()
     # API calls don't change after query is executed
-    query_plan_height = 2 if sql_simplifier_enabled else 3
-    filter = 1 if sql_simplifier_enabled else 2
-    low_impact = 3 if sql_simplifier_enabled else 2
     thread_ident = threading.get_ident()
 
     assert df._plan.api_calls == [
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -608,21 +593,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -634,21 +605,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -660,21 +617,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -686,21 +629,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -830,25 +759,16 @@ def test_dataframe_stat_functions_api_calls(session):
     # check to make sure that the original DF is unchanged
     assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
 
-    column = 4 if session.sql_simplifier_enabled else 8
-    query_plan_height = 2 if session.sql_simplifier_enabled else 4
     crosstab = df.stat.crosstab("empid", "month")
     # uuid here is generated by an intermediate dataframe in crosstab implementation
     # therefore we can't predict it. We check that the uuid for crosstab is same as
     # that for df.
-    uuid = df._plan.api_calls[0]["plan_uuid"]
     thread_ident = threading.get_ident()
     assert crosstab._plan.api_calls == [
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {"distinct": 1, "column": column, "literal": 48},
         },
         {
             "name": "DataFrameStatFunctions.crosstab",
@@ -865,13 +785,7 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {"distinct": 1, "column": column, "literal": 48},
         }
     ]
 
@@ -1189,6 +1103,7 @@ def test_post_compilation_stage_telemetry(session):
     expected_data = {
         "session_id": session.session_id,
         "plan_uuid": uuid_str,
+        "category": "query_compilation_stage_statistics",
         "cte_optimization_enabled": True,
         "large_query_breakdown_enabled": True,
         "complexity_score_bounds": (300, 600),
@@ -1294,3 +1209,91 @@ def test_describe_query_details(session):
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
     assert data == expected_data
     assert type_ == "snowpark_describe_query_details"
+
+
+def test_plan_metrics_telemetry(session):
+    client = session._conn._telemetry_client
+    telemetry_data = {
+        "plan_uuid": "plan_uuid_placeholder",
+        "category": "snowflake_plan_metrics",
+        "query_plan_height": 10,
+        "query_plan_num_duplicate_nodes": 5,
+        "query_plan_num_selects_with_complexity_merged": 3,
+        "query_plan_duplicated_node_complexity_distribution": [1, 2, 3],
+        "query_plan_complexity": {
+            "filter": 1,
+            "low_impact": 2,
+            "function": 3,
+            "column": 4,
+            "literal": 5,
+            "window": 6,
+            "order_by": 7,
+        },
+    }
+
+    def send_telemetry():
+        client.send_plan_metrics_telemetry(session.session_id, data=telemetry_data)
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {"session_id": session.session_id, **telemetry_data}
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_compilation_stage_statistics"
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df = df.filter(df.a > 0).union(df.filter(df.b > 0))
+    original_collect_telemetry_at_critical_path = (
+        session._collect_snowflake_plan_telemetry_at_critical_path
+    )
+    try:
+        plan_state = df._plan.plan_state
+        query_plan_complexity = {
+            key.value: value
+            for key, value in df._plan.cumulative_node_complexity.items()
+        }
+        expected_data = {
+            "session_id": session.session_id,
+            "data": {
+                "plan_uuid": df._plan._uuid,
+                "query_plan_height": plan_state[PlanState.PLAN_HEIGHT],
+                "query_plan_num_selects_with_complexity_merged": plan_state[
+                    PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED
+                ],
+                "query_plan_num_duplicate_nodes": plan_state[PlanState.NUM_CTE_NODES],
+                "query_plan_duplicated_node_complexity_distribution": plan_state[
+                    PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION
+                ],
+                "query_plan_complexity": query_plan_complexity,
+                "complexity_score_before_compilation": 25,
+            },
+        }
+        session._collect_snowflake_plan_telemetry_at_critical_path = enabled
+        with patch.object(
+            session._conn._telemetry_client, "send_plan_metrics_telemetry"
+        ) as patch_send:
+            df._internal_collect_with_tag_no_telemetry()
+
+        if enabled:
+            patch_send.assert_called_once()
+            _, kwargs = patch_send.call_args
+            assert kwargs == expected_data
+        else:
+            patch_send.assert_not_called()
+
+        with patch.object(
+            session._conn._telemetry_client, "send_plan_metrics_telemetry"
+        ) as patch_send:
+            df.collect()
+
+        patch_send.assert_called_once()
+        _, kwargs = patch_send.call_args
+        assert kwargs == expected_data
+    finally:
+        session._collect_snowflake_plan_telemetry_at_critical_path = (
+            original_collect_telemetry_at_critical_path
+        )
