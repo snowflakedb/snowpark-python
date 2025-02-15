@@ -303,7 +303,7 @@ def data_source_data_to_pandas_df(
         # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
         df = df.map(
             lambda x: x.read()
-            if (hasattr(x, "__name__") and x.__name__.lower() == "lob")
+            if (hasattr(x, "__class__") and x.__class__.__name__.lower() == "lob")
             else x
         )
 
