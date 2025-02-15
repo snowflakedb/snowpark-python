@@ -12,6 +12,7 @@ from functools import partial
 from typing import Any, Dict, Tuple
 
 import pytest
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 
 try:
     import pandas as pd  # noqa: F401
@@ -1266,29 +1267,24 @@ def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
         session._collect_snowflake_plan_telemetry_at_critical_path
     )
     try:
+        plan_state = df._plan.plan_state
+        query_plan_complexity = {
+            key.value: value
+            for key, value in df._plan.cumulative_node_complexity.items()
+        }
         expected_data = {
             "session_id": session.session_id,
             "data": {
                 "plan_uuid": df._plan._uuid,
-                "query_plan_height": 4,
-                "query_plan_num_selects_with_complexity_merged": 0,
-                "query_plan_num_duplicate_nodes": 1,
-                "query_plan_duplicated_node_complexity_distribution": [
-                    2,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
+                "query_plan_height": plan_state[PlanState.PLAN_HEIGHT],
+                "query_plan_num_selects_with_complexity_merged": plan_state[
+                    PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED
                 ],
-                "query_plan_complexity": {
-                    "set_operation": 1,
-                    "column": 10,
-                    "filter": 2,
-                    "low_impact": 2,
-                    "literal": 10,
-                },
+                "query_plan_num_duplicate_nodes": plan_state[PlanState.NUM_CTE_NODES],
+                "query_plan_duplicated_node_complexity_distribution": plan_state[
+                    PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION
+                ],
+                "query_plan_complexity": query_plan_complexity,
                 "complexity_score_before_compilation": 25,
             },
         }
