@@ -444,7 +444,9 @@ def apply_groupby_func_to_df(
     args: tuple,
     kwargs: dict,
     force_list_like_to_series: bool = False,
-) -> Tuple[native_pd.Series, native_pd.DataFrame, native_pd.DataFrame]:
+) -> Tuple[
+    native_pd.Series, native_pd.DataFrame, native_pd.DataFrame
+]:  # pragma: no cover
     """
     Restore input dataframe received in udtf to original schema.
     Args:
