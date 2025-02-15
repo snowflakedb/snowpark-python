@@ -303,7 +303,7 @@ def data_source_data_to_pandas_df(
         # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
         df = df.map(
             lambda x: x.read()
-            if (hasattr(x, "__name__") and x.__name__.lower() == "lob")
+            if (hasattr(x, "__class__") and x.__class__.__name__.lower() == "lob")
             else x
         )
 
@@ -342,3 +342,7 @@ def generate_select_query(table: str, schema: StructType, conn: Connection) -> s
         raise NotImplementedError(
             f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
         )
+
+
+def generate_sql_with_predicates(select_query: str, predicates: List[str]):
+    return [select_query + f" WHERE {predicate}" for predicate in predicates]

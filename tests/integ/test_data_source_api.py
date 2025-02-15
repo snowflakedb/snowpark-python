@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_SQL_COMMENT,
     STATEMENT_PARAMS_DATA_SOURCE,
     DBMS_TYPE,
+    generate_sql_with_predicates,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -503,3 +504,15 @@ def test_custom_schema(session, custom_schema):
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
                 table_name,
             )
+
+
+def test_predicates():
+    select_query = "select * from fake_table"
+    predicates = ["id > 1 AND id <= 1000", "id > 1001 AND id <= 2000", "id > 2001"]
+    expected_result = [
+        "select * from fake_table WHERE id > 1 AND id <= 1000",
+        "select * from fake_table WHERE id > 1001 AND id <= 2000",
+        "select * from fake_table WHERE id > 2001",
+    ]
+    res = generate_sql_with_predicates(select_query, predicates)
+    assert res == expected_result
