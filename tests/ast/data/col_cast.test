@@ -1786,7 +1786,9 @@ body {
                   fields {
                     list {
                       column_identifier {
-                        name: "B"
+                        sp_column_name {
+                          name: "B"
+                        }
                       }
                       data_type {
                         sp_integer_type: true
