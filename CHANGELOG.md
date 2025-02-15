@@ -40,11 +40,17 @@
 - Added support for `Series.hist`.
 - Added support for list values in `Series.str.get`.
 
+#### Bug Fixes
+
+- Fixed a bug in `apply` where kwargs were not being correctly passed into the applied function.
+
 ### Snowpark Local Testing Updates
 
 #### Bug Fixes
 
 - Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
+
+
 
 ## 1.27.0 (2025-02-03)
 
