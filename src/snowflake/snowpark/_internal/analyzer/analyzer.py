@@ -927,6 +927,7 @@ class Analyzer:
                 logical_plan,
                 logical_plan.probability_fraction,
                 logical_plan.row_count,
+                logical_plan.seed,
             )
 
         if isinstance(logical_plan, Join):
