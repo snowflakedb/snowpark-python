@@ -163,7 +163,7 @@ def test_df_itertuples_large_df(size):
         query_count=query_count,
         join_count=0,
         high_count_expected=True,
-        high_count_reason="DataFrame spans multiple iteration partitions, each of which requires 6 queries",
+        high_count_reason="DataFrame spans multiple iteration partitions, each of which requires 4 queries",
     ):
         eval_snowpark_pandas_result(
             snowpark_df,

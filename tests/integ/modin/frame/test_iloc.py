@@ -802,6 +802,9 @@ def test_df_iloc_get_key_bool_series_with_1k_shape(key, native_df_1k_1k):
             else df.iloc[: len(key)].iloc[key[: len(df)]]
         )
 
+    # 4 queries includes 3 queries to prepare the temp table for df, including create,
+    # insert, drop the temp table (3) and one select query.
+    # 7 queries add extra 3 queries to prepare the temp table for key.
     query_count = 7 if len(key) >= 300 else 4
     _test_df_iloc_with_1k_shape(native_df_1k_1k, iloc_helper, query_count, 1)
 
@@ -1042,6 +1045,9 @@ def test_df_iloc_get_key_int_series_with_1k_shape(key, native_df_1k_1k):
             else df.iloc[[k for k in key if -1001 < k < 1000]]
         )
 
+    # 4 queries includes 3 queries to prepare the temp table for df, including create,
+    # insert, drop the temp table (3) and one select query.
+    # 7 queries add extra 3 queries to prepare the temp table for key.
     query_count = 4 if len(key) < 300 else 7
     _test_df_iloc_with_1k_shape(native_df_1k_1k, iloc_helper, query_count, 2)
 

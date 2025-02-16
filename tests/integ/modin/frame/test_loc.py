@@ -1835,6 +1835,9 @@ def test_df_loc_get_key_bool_series_with_1k_shape(key, native_df_1k_1k):
             else df.iloc[: len(key)].loc[native_pd.Series(key, dtype="bool")]
         )
 
+    # 4 queries includes 3 queries to prepare the temp table for df, including create,
+    # insert, drop the temp table (3) and one select query.
+    # 7 queries add extra 3 queries to prepare the temp table for key.
     query_count = 7 if len(key) >= 300 else 4
     _test_df_loc_with_1k_shape(native_df_1k_1k, loc_helper, query_count)
 
@@ -2046,6 +2049,9 @@ def test_df_loc_get_key_non_boolean_series_with_1k_shape(key, native_df_1k_1k):
             else df.loc[[k for k in key if k in range(1000)]]
         )
 
+    # 4 queries includes 3 queries to prepare the temp table for df, including create,
+    # insert, drop the temp table (3) and one select query.
+    # 7 queries add extra 3 queries to prepare the temp table for key.
     query_count = 7 if len(key) >= 300 else 4
     _test_df_loc_with_1k_shape(native_df_1k_1k, loc_helper, query_count)
 

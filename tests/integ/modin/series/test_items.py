@@ -74,7 +74,7 @@ def test_items_large_series():
         query_count=query_count,
         join_count=0,
         high_count_expected=True,
-        high_count_reason="Series spans multiple iteration partitions, each of which requires 6 queries",
+        high_count_reason="Series spans multiple iteration partitions, each of which requires 4 queries",
     ):
         eval_snowpark_pandas_result(
             snow_series,
