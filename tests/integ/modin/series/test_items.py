@@ -69,7 +69,7 @@ def test_items_large_series():
     data = rng.integers(low=-1500, high=1500, size=size)
     native_series = native_pd.Series(data)
     snow_series = pd.Series(native_series)
-    query_count = (np.floor(size / PARTITION_SIZE) + 1) * 6
+    query_count = (np.floor(size / PARTITION_SIZE) + 1) * 4
     with SqlCounter(
         query_count=query_count,
         join_count=0,
