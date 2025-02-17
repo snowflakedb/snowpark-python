@@ -1836,6 +1836,10 @@ def test_read_csv_nulls(session):
     Utils.check_answer(df, [Row(A=1, B=None, C=1.2), Row(A=2, B=None, C=2.2)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
 def test_read_multiple_csvs(session):
     reader = get_reader(session, "copy")
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
