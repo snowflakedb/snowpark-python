@@ -43,7 +43,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }

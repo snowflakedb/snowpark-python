@@ -95,7 +95,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -134,7 +134,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -183,7 +183,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -266,7 +266,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "avg"
                               }
                             }
@@ -279,7 +279,7 @@ body {
                             builtin_fn {
                               name {
                                 name {
-                                  sp_name_flat {
+                                  name_flat {
                                     name: "col"
                                   }
                                 }
@@ -359,7 +359,7 @@ body {
                                 builtin_fn {
                                   name {
                                     name {
-                                      sp_name_flat {
+                                      name_flat {
                                         name: "col"
                                       }
                                     }
@@ -402,7 +402,7 @@ body {
                                     builtin_fn {
                                       name {
                                         name {
-                                          sp_name_flat {
+                                          name_flat {
                                             name: "col"
                                           }
                                         }
@@ -479,7 +479,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "avg"
                               }
                             }
@@ -492,7 +492,7 @@ body {
                             builtin_fn {
                               name {
                                 name {
-                                  sp_name_flat {
+                                  name_flat {
                                     name: "col"
                                   }
                                 }
@@ -561,7 +561,7 @@ body {
                                     builtin_fn {
                                       name {
                                         name {
-                                          sp_name_flat {
+                                          name_flat {
                                             name: "col"
                                           }
                                         }
@@ -678,7 +678,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "stddev"
                           }
                         }
@@ -691,7 +691,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -743,7 +743,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -833,7 +833,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "stddev"
                           }
                         }
@@ -846,7 +846,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -898,7 +898,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -932,7 +932,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1022,7 +1022,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -1035,7 +1035,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1087,7 +1087,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1177,7 +1177,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -1190,7 +1190,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1242,7 +1242,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1332,7 +1332,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -1345,7 +1345,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1484,7 +1484,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -1497,7 +1497,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1637,7 +1637,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -1650,7 +1650,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1789,7 +1789,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -1802,7 +1802,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -1942,7 +1942,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -1955,7 +1955,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -2069,7 +2069,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -2082,7 +2082,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -2196,7 +2196,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -2209,7 +2209,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -2323,7 +2323,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -2336,7 +2336,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -2450,7 +2450,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "avg"
                           }
                         }
@@ -2463,7 +2463,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -2551,7 +2551,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "avg"
                               }
                             }
@@ -2564,7 +2564,7 @@ body {
                             builtin_fn {
                               name {
                                 name {
-                                  sp_name_flat {
+                                  name_flat {
                                     name: "col"
                                   }
                                 }

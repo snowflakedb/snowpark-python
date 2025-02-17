@@ -206,7 +206,7 @@ body {
           name: "my_copy"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\""
               }
             }
@@ -231,7 +231,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "my_copy_sp"
             }
           }
@@ -436,7 +436,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_from"
             }
           }
@@ -564,7 +564,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_to"
             }
           }
@@ -650,7 +650,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_to"
             }
           }
@@ -775,7 +775,7 @@ body {
             }
             name {
               name {
-                sp_name_flat {
+                name_flat {
                   name: "my_copy_sp"
                 }
               }
@@ -905,7 +905,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_from"
             }
           }
@@ -1008,7 +1008,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_to"
             }
           }
@@ -1046,7 +1046,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_to"
             }
           }
@@ -1114,7 +1114,7 @@ body {
           name: "<lambda [1]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
@@ -1375,7 +1375,7 @@ body {
           name: "<lambda [2]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
@@ -1392,7 +1392,7 @@ body {
         is_permanent: true
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "mul_sp"
             }
           }
@@ -1488,7 +1488,7 @@ body {
           name: "<lambda [3]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
@@ -1506,7 +1506,7 @@ body {
         is_permanent: true
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "mul_sp"
             }
           }
@@ -1602,7 +1602,7 @@ body {
           name: "<lambda [4]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
@@ -1619,7 +1619,7 @@ body {
         is_permanent: true
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "mul_sp"
             }
           }
@@ -1724,7 +1724,7 @@ body {
           name: "sin_sp"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
@@ -1821,7 +1821,7 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
@@ -1992,7 +1992,7 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
@@ -2140,7 +2140,7 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }

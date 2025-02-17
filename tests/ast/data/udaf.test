@@ -120,7 +120,7 @@ body {
           name: "PythonSumUDAF"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "sum_int"
               }
             }
@@ -147,7 +147,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "sum_int"
             }
           }
@@ -505,7 +505,7 @@ body {
           name: "PythonTopK"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "top_k"
               }
             }
@@ -514,7 +514,7 @@ body {
         immutable: true
         imports {
           name {
-            sp_name_flat {
+            name_flat {
               name: "numpy"
             }
           }
@@ -556,7 +556,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "top_k"
             }
           }

@@ -32,7 +32,7 @@ body {
         is_temp_table_for_cleanup: true
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "mock_schema.table1"
             }
           }
@@ -64,7 +64,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "mock_schema.table1"
             }
           }
@@ -137,7 +137,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }

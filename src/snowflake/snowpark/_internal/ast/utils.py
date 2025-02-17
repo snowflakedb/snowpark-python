@@ -350,11 +350,11 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
-def build_sp_name(name: Union[str, Iterable[str]], expr: proto.SpName) -> None:
+def build_name(name: Union[str, Iterable[str]], expr: proto.Name) -> None:
     if isinstance(name, str):
-        expr.sp_name_flat.name = name
+        expr.name_flat.name = name
     elif isinstance(name, Iterable):
-        expr.sp_name_structured.name.extend(name)
+        expr.name_structured.name.extend(name)
     else:
         raise ValueError(
             f"Invalid object name: {name}. The object name must be a string or an iterable of strings."
@@ -375,24 +375,24 @@ def _set_fn_name(
         ValueError: Raised if the function name is not a string or an iterable of strings.
     """
     try:
-        build_sp_name(name, fn.name.name)
+        build_name(name, fn.name.name)
     except ValueError as e:
         raise ValueError("Invalid function name") from e
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_sp_table_name(
-    expr_builder: proto.SpNameRef, name: Union[str, Iterable[str]]
+    expr_builder: proto.NameRef, name: Union[str, Iterable[str]]
 ) -> None:  # pragma: no cover
     try:
-        build_sp_name(name, expr_builder.name)
+        build_name(name, expr_builder.name)
     except ValueError as e:
         raise ValueError("Invalid table name") from e
 
 
-def build_sp_view_name(expr: proto.SpNameRef, name: Union[str, Iterable[str]]) -> None:
+def build_sp_view_name(expr: proto.NameRef, name: Union[str, Iterable[str]]) -> None:
     try:
-        build_sp_name(name, expr.name)
+        build_name(name, expr.name)
     except ValueError as e:
         raise ValueError("Invalid view name") from e
 
@@ -1162,7 +1162,7 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpNameRef()
+            import_expr = proto.NameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1251,7 +1251,7 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         ast.stage_location.value = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpNameRef()
+            import_expr = proto.NameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1348,7 +1348,7 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpNameRef()
+            import_expr = proto.NameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1419,7 +1419,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
-    sp_name: str,
+    name: str,
     stage_location: Optional[str] = None,
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
@@ -1440,8 +1440,8 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
 ) -> None:  # pragma: no cover
     """Helper function to encode stored procedure parameters (used in both regular and mock StoredProcedureRegistration)."""
 
-    if sp_name is not None:
-        _set_fn_name(sp_name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "StoredProcedure"; expected "FnNameRefExpr"
+    if name is not None:
+        _set_fn_name(name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "StoredProcedure"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
         ast.func,
@@ -1460,7 +1460,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpNameRef()
+            import_expr = proto.NameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:

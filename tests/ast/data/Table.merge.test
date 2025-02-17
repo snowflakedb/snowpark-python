@@ -254,7 +254,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_1"
             }
           }
@@ -460,7 +460,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_1b"
             }
           }
@@ -680,7 +680,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_2"
             }
           }
@@ -886,7 +886,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_2b"
             }
           }
@@ -1106,7 +1106,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_3"
             }
           }
@@ -1231,7 +1231,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_4"
             }
           }
@@ -1450,7 +1450,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_5"
             }
           }

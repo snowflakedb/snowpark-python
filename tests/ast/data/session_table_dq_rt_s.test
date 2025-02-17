@@ -26,7 +26,7 @@ body {
       sp_table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "\"the#qui.ck#bro.wn#\"\"Fox\"\"won\'t#jump!\""
             }
           }
@@ -63,7 +63,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
