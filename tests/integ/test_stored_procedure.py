@@ -1930,6 +1930,11 @@ def test_register_sproc_after_switch_schema(session):
         session.use_schema(current_schema)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Packaging processing is a NOOP in Local Testing",
+    run=False,
+)
 @pytest.mark.parametrize(
     "version_override, expect_warning",
     [
@@ -1938,7 +1943,7 @@ def test_register_sproc_after_switch_schema(session):
     ],
 )
 def test_snowpark_python_bugfix_version_warning(
-    caplog, version_override, expect_warning
+    session, caplog, version_override, expect_warning
 ):
     def mock_get_distribution(version_override):
         """Returns a function that mocks pkg_resources.get_distribution."""
