@@ -19,6 +19,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Set,
     Tuple,
     Union,
     overload,
@@ -2879,40 +2880,32 @@ class DataFrame:
         missing_left = right_cols - left_cols
         missing_right = left_cols - right_cols
 
+        def add_nulls(
+            missing_cols: Set[str], to_df: DataFrame, from_df: DataFrame
+        ) -> DataFrame:
+            """
+            Adds null filled columns to a dataframe using typing information from another dataframe.
+            """
+            # schema has to be resolved in order to get correct type information for missing columns
+            dt_map = {field.name: field.datatype for field in from_df.schema.fields}
+            # depending on how column names are handled names may differ from attributes to schema
+            materialized_names = {
+                StructField(col, DataType()).name for col in missing_cols
+            }
+
+            return to_df.select(
+                "*",
+                *[lit(None).cast(dt_map[col]).alias(col) for col in materialized_names],
+            )
+
         if missing_left or missing_right:
             if allow_missing_columns:
                 left = self
                 right = other
                 if missing_left:
-                    # schema has to be resolved in order to get correct type information for missing columns
-                    dt_map = {
-                        field.name: field.datatype for field in right.schema.fields
-                    }
-                    # depending on how column names are handled names may differ from attributes to schema
-                    materialized_names = {
-                        StructField(col, DataType()).name for col in missing_left
-                    }
-                    left = left.select(
-                        "*",
-                        *[
-                            lit(None).cast(dt_map[col]).alias(col)
-                            for col in materialized_names
-                        ],
-                    )
+                    left = add_nulls(missing_left, left, right)
                 if missing_right:
-                    dt_map = {
-                        field.name: field.datatype for field in left.schema.fields
-                    }
-                    materialized_names = {
-                        StructField(col, DataType()).name for col in missing_right
-                    }
-                    right = right.select(
-                        "*",
-                        *[
-                            lit(None).cast(dt_map[col]).alias(col)
-                            for col in materialized_names
-                        ],
-                    )
+                    right = add_nulls(missing_right, right, left)
                 return left._union_by_name_internal(
                     right, is_all=is_all, _ast_stmt=_ast_stmt
                 )
