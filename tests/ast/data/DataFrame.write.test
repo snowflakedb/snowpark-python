@@ -483,7 +483,7 @@ body {
           }
         }
         partition_by {
-          sp_column_sql_expr {
+          sql_expr {
             sql: "value"
             src {
               end_column: 38

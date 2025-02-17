@@ -227,7 +227,7 @@ body {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
                     sp_dataframe_ref {
@@ -461,7 +461,7 @@ body {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
                     sp_dataframe_ref {
@@ -560,7 +560,7 @@ body {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
                     sp_dataframe_ref {
@@ -749,7 +749,7 @@ body {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
                     sp_dataframe_ref {
@@ -983,7 +983,7 @@ body {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
                     sp_dataframe_ref {

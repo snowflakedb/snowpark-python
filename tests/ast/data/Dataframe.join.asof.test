@@ -463,7 +463,7 @@ body {
             lhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "c1"
                     df {
                       sp_dataframe_ref {
@@ -482,7 +482,7 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "c1"
                     df {
                       sp_dataframe_ref {
@@ -512,7 +512,7 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "c2"
                     df {
                       sp_dataframe_ref {
@@ -531,7 +531,7 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "c2"
                     df {
                       sp_dataframe_ref {
@@ -583,7 +583,7 @@ body {
         match_condition {
           geq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "c3"
                 df {
                   sp_dataframe_ref {
@@ -602,7 +602,7 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "c3"
                 df {
                   sp_dataframe_ref {

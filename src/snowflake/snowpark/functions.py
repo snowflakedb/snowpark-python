@@ -440,7 +440,7 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
     ast = None
     if _emit_ast:
         sql_expr_ast = proto.Expr()
-        ast = with_src_position(sql_expr_ast.sp_column_sql_expr)
+        ast = with_src_position(sql_expr_ast.sql_expr)
         ast.sql = sql
 
         # Capture with ApplyFn in order to restore sql_expr(...) function.

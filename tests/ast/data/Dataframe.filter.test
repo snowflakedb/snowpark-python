@@ -310,7 +310,7 @@ body {
     expr {
       sp_dataframe_filter {
         condition {
-          sp_column_sql_expr {
+          sql_expr {
             sql: "a > 1 and b < 100"
             src {
               end_column: 45
@@ -351,7 +351,7 @@ body {
     expr {
       sp_dataframe_filter {
         condition {
-          sp_column_sql_expr {
+          sql_expr {
             sql: "a > 1"
             src {
               end_column: 33

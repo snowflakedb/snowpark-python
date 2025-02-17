@@ -431,7 +431,7 @@ body {
         col {
           div {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "SALESAMOUNT"
                 df {
                   sp_dataframe_ref {
@@ -860,7 +860,7 @@ body {
               }
             }
             pos_args {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "ORDERDATE"
                 df {
                   sp_dataframe_ref {

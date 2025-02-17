@@ -151,7 +151,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_sql_expr {
+            sql_expr {
               sql: "*"
               src {
                 end_column: 45
@@ -268,7 +268,7 @@ body {
         condition {
           gt {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {

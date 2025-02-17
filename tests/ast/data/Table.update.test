@@ -183,7 +183,7 @@ body {
         assignments {
           _1: "c"
           _2 {
-            sp_dataframe_col {
+            dataframe_col {
               col_name: "num"
               df {
                 sp_dataframe_ref {
@@ -254,7 +254,7 @@ body {
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -423,7 +423,7 @@ body {
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -442,7 +442,7 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
                   sp_dataframe_ref {
@@ -526,7 +526,7 @@ body {
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -545,7 +545,7 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
                   sp_dataframe_ref {
@@ -629,7 +629,7 @@ body {
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -648,7 +648,7 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
                   sp_dataframe_ref {

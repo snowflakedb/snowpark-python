@@ -829,7 +829,7 @@ def build_expr_from_snowpark_column_or_sql_str(
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, str):
-        expr = with_src_position(expr_builder.sp_column_sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        expr = with_src_position(expr_builder.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
         expr.sql = value  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
     else:
         raise TypeError(
@@ -907,14 +907,14 @@ def fill_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # 
 
     # Handle the special case * (as a SQL column expr).
     if name2 == "*":
-        ast = with_src_position(expr.sp_column_sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
         ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
         if name1 is not None:
             ast.df_alias.value = name1  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "df_alias"
         return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
 
     if name1 == "*" and name2 is None:
-        ast = with_src_position(expr.sp_column_sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
         ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
         return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
 
@@ -971,7 +971,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
     elif isinstance(expr, UnresolvedAttribute):
         # Unresolved means treatment as sql expression.
         ast = proto.Expr()
-        sql_expr_ast = with_src_position(ast.sp_column_sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        sql_expr_ast = with_src_position(ast.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
         sql_expr_ast.sql = expr.sql  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
         return ast
     elif isinstance(expr, MultipleExpression):

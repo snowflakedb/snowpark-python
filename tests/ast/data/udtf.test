@@ -540,7 +540,7 @@ body {
               }
             }
             pos_args {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
                   sp_dataframe_ref {
@@ -559,7 +559,7 @@ body {
               }
             }
             pos_args {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "b"
                 df {
                   sp_dataframe_ref {
@@ -617,7 +617,7 @@ body {
       sp_dataframe_sort {
         cols {
           args {
-            sp_dataframe_col {
+            dataframe_col {
               col_name: "a"
               df {
                 sp_dataframe_ref {
@@ -1568,7 +1568,7 @@ body {
           }
         }
         pos_args {
-          sp_dataframe_col {
+          dataframe_col {
             col_name: "a"
             df {
               sp_dataframe_ref {
@@ -1609,7 +1609,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_dataframe_col {
+            dataframe_col {
               col_name: "a"
               df {
                 sp_dataframe_ref {

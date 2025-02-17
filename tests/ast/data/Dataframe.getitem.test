@@ -63,7 +63,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_dataframe_col {
+            dataframe_col {
               col_name: "STR"
               df {
                 sp_dataframe_ref {
@@ -82,7 +82,7 @@ body {
             }
           }
           args {
-            sp_dataframe_col {
+            dataframe_col {
               col_name: "STR"
               df {
                 sp_dataframe_ref {

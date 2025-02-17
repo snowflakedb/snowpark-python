@@ -98,7 +98,7 @@ body {
         join_expr {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -117,7 +117,7 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -187,7 +187,7 @@ body {
           args {
             sp_column_alias {
               col {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "num"
                   df {
                     sp_dataframe_ref {
@@ -221,7 +221,7 @@ body {
           args {
             sp_column_alias {
               col {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "num"
                   df {
                     sp_dataframe_ref {
@@ -253,7 +253,7 @@ body {
             }
           }
           args {
-            sp_dataframe_col {
+            dataframe_col {
               col_name: "str"
               df {
                 sp_dataframe_ref {

@@ -1432,7 +1432,7 @@ body {
                 }
               }
               pos_args {
-                sp_column_sql_expr {
+                sql_expr {
                   sql: "CURRENT_WAREHOUSE()"
                   src {
                     end_column: 56
@@ -4784,7 +4784,7 @@ body {
                 }
               }
               pos_args {
-                sp_column_sql_expr {
+                sql_expr {
                   sql: "*"
                   src {
                     end_column: 66
@@ -5910,7 +5910,7 @@ body {
                 }
               }
               pos_args {
-                sp_column_sql_expr {
+                sql_expr {
                   sql: "*"
                   src {
                     end_column: 33

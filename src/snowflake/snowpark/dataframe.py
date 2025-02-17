@@ -1436,7 +1436,7 @@ class DataFrame:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            col_expr_ast = with_src_position(expr.sp_dataframe_col)
+            col_expr_ast = with_src_position(expr.dataframe_col)
             self._set_ast_ref(col_expr_ast.df)
             col_expr_ast.col_name = col_name
         if col_name == "*":

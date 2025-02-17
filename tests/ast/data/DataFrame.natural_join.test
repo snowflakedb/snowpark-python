@@ -133,7 +133,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_sql_expr {
+            sql_expr {
               sql: "*"
               src {
                 end_column: 41

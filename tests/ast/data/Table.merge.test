@@ -325,7 +325,7 @@ body {
             lhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
                       sp_dataframe_ref {
@@ -344,7 +344,7 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
                       sp_dataframe_ref {
@@ -374,7 +374,7 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
                       sp_dataframe_ref {
@@ -496,7 +496,7 @@ body {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
                       sp_dataframe_ref {
@@ -603,7 +603,7 @@ body {
         join_expr {
           neq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "str"
                 df {
                   sp_dataframe_ref {
@@ -751,7 +751,7 @@ body {
             lhs {
               neq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
                       sp_dataframe_ref {
@@ -770,7 +770,7 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
                       sp_dataframe_ref {
@@ -800,7 +800,7 @@ body {
             rhs {
               neq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
                       sp_dataframe_ref {
@@ -922,7 +922,7 @@ body {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
                       sp_dataframe_ref {
@@ -1029,7 +1029,7 @@ body {
         join_expr {
           neq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "str"
                 df {
                   sp_dataframe_ref {
@@ -1147,7 +1147,7 @@ body {
         join_expr {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -1166,7 +1166,7 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -1266,7 +1266,7 @@ body {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
                       sp_dataframe_ref {
@@ -1315,7 +1315,7 @@ body {
             lhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
                       sp_dataframe_ref {
@@ -1357,7 +1357,7 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
                       sp_dataframe_ref {
@@ -1376,7 +1376,7 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
                       sp_dataframe_ref {
@@ -1486,7 +1486,7 @@ body {
         join_expr {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
@@ -1505,7 +1505,7 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
                   sp_dataframe_ref {
