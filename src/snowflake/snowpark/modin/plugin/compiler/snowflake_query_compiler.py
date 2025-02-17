@@ -89,6 +89,7 @@ from snowflake.snowpark.functions import (
     abs as abs_,
     array_construct,
     array_size,
+    array_slice,
     bround,
     builtin,
     cast,
@@ -16787,8 +16788,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
+        col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+        if (
+            step is not None
+            and step != 1
+            and isinstance(
+                self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+                ArrayType,
+            )
+        ):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas method 'Series.str.slice' does not yet support 'step!=1' for list values"
+            )
 
-        def output_col(
+        def output_col_string(
             column: SnowparkColumn,
             start: Optional[int],
             stop: Optional[int],
@@ -16895,9 +16908,34 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
-            lambda column: output_col(column, start, stop, step)
-        )
+        def output_col_list(
+            column: SnowparkColumn,
+            start: Optional[int],
+            stop: Optional[int],
+        ) -> SnowparkColumn:
+            col_len_exp = array_size(column)
+            if start is None:
+                start_exp = pandas_lit(0)
+            else:
+                start_exp = pandas_lit(start)
+            if stop is None:
+                stop_exp = col_len_exp + pandas_lit(1)
+            else:
+                stop_exp = pandas_lit(stop)
+            return array_slice(column, start_exp, stop_exp)
+
+        if isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            ArrayType,
+        ):
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: output_col_list(column, start, stop)
+            )
+        else:
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                lambda column: output_col_string(column, start, stop, step)
+            )
+
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_slice_replace(
