@@ -554,7 +554,7 @@ body {
                       wnd {
                         sp_window_spec_order_by {
                           cols {
-                            sp_column_desc {
+                            column_desc {
                               col {
                                 apply_expr {
                                   fn {
@@ -590,7 +590,7 @@ body {
                                 }
                               }
                               null_order {
-                                sp_null_order_default: true
+                                null_order_default: true
                               }
                               src {
                                 end_column: 51

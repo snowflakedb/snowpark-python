@@ -60,7 +60,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_between {
+            column_between {
               col {
                 apply_expr {
                   fn {

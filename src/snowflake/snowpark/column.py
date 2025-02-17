@@ -759,7 +759,7 @@ class Column:
         expr = None
         if _emit_ast and self._ast is not None:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_between)
+            ast = with_src_position(expr.column_between)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.lower_bound, lower_bound)
             build_expr_from_snowpark_column_or_python_val(ast.upper_bound, upper_bound)
@@ -969,9 +969,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(
-                expr.sp_column_try_cast if try_ else expr.sp_column_cast
-            )
+            ast = with_src_position(expr.column_try_cast if try_ else expr.column_cast)
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
         return Column(
@@ -1024,9 +1022,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_desc)
+            ast = with_src_position(expr.column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_default = True
+            ast.null_order.null_order_default = True
         return Column(
             SortOrder(self._expression, Descending()), _ast=expr, _emit_ast=_emit_ast
         )
@@ -1038,9 +1036,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_desc)
+            ast = with_src_position(expr.column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_nulls_first = True
+            ast.null_order.null_order_nulls_first = True
         return Column(
             SortOrder(self._expression, Descending(), NullsFirst()),
             _ast=expr,
@@ -1054,9 +1052,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_desc)
+            ast = with_src_position(expr.column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_nulls_last = True
+            ast.null_order.null_order_nulls_last = True
         return Column(
             SortOrder(self._expression, Descending(), NullsLast()),
             _ast=expr,
@@ -1069,9 +1067,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_asc)
+            ast = with_src_position(expr.column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_default = True
+            ast.null_order.null_order_default = True
         return Column(
             SortOrder(self._expression, Ascending()), _ast=expr, _emit_ast=_emit_ast
         )
@@ -1083,9 +1081,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_asc)
+            ast = with_src_position(expr.column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_nulls_first = True
+            ast.null_order.null_order_nulls_first = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsFirst()),
             _ast=expr,
@@ -1099,9 +1097,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_asc)
+            ast = with_src_position(expr.column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_nulls_last = True
+            ast.null_order.null_order_nulls_last = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsLast()),
             _ast=expr,

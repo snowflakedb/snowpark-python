@@ -419,7 +419,7 @@ body {
             column_case_expr {
               cases {
                 condition {
-                  sp_column_between {
+                  column_between {
                     col {
                       apply_expr {
                         fn {

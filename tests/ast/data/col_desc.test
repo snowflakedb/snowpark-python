@@ -67,7 +67,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_desc {
+            column_desc {
               col {
                 apply_expr {
                   fn {
@@ -103,7 +103,7 @@ body {
                 }
               }
               null_order {
-                sp_null_order_default: true
+                null_order_default: true
               }
               src {
                 end_column: 38
@@ -147,7 +147,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_desc {
+            column_desc {
               col {
                 apply_expr {
                   fn {
@@ -183,7 +183,7 @@ body {
                 }
               }
               null_order {
-                sp_null_order_nulls_first: true
+                null_order_nulls_first: true
               }
               src {
                 end_column: 50
@@ -227,7 +227,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_desc {
+            column_desc {
               col {
                 apply_expr {
                   fn {
@@ -263,7 +263,7 @@ body {
                 }
               }
               null_order {
-                sp_null_order_nulls_last: true
+                null_order_nulls_last: true
               }
               src {
                 end_column: 49

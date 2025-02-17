@@ -119,6 +119,15 @@ message NameStructured {
   repeated string name = 1;
 }
 
+// column.ir:62
+message NullOrder {
+  oneof variant {
+    bool null_order_default = 1;
+    bool null_order_nulls_first = 2;
+    bool null_order_nulls_last = 3;
+  }
+}
+
 // const.ir:81
 message PythonTimeZone {
   google.protobuf.StringValue name = 1;
@@ -301,15 +310,6 @@ message SpJoinType {
     bool sp_join_type__left_outer = 6;
     bool sp_join_type__left_semi = 7;
     bool sp_join_type__right_outer = 8;
-  }
-}
-
-// column.ir:62
-message SpNullOrder {
-  oneof variant {
-    bool sp_null_order_default = 1;
-    bool sp_null_order_nulls_first = 2;
-    bool sp_null_order_nulls_last = 3;
   }
 }
 
@@ -581,6 +581,21 @@ message ColumnApply_String {
   SrcPosition src = 3;
 }
 
+// column.ir:41
+message ColumnAsc {
+  Expr col = 1;
+  NullOrder null_order = 2;
+  SrcPosition src = 3;
+}
+
+// column.ir:45
+message ColumnBetween {
+  Expr col = 1;
+  Expr lower_bound = 2;
+  SrcPosition src = 3;
+  Expr upper_bound = 4;
+}
+
 // column.ir:12
 message ColumnCaseExpr {
   repeated ColumnCaseExprClause cases = 1;
@@ -594,30 +609,51 @@ message ColumnCaseExprClause {
   Expr value = 3;
 }
 
+// column.ir:50
+message ColumnCast {
+  Expr col = 1;
+  SrcPosition src = 2;
+  SpDataType to = 3;
+}
+
+// column.ir:58
+message ColumnDesc {
+  Expr col = 1;
+  NullOrder null_order = 2;
+  SrcPosition src = 3;
+}
+
 message ColumnFn {
   oneof variant {
     ColumnAlias column_alias = 1;
     ColumnApply_Int column_apply__int = 2;
     ColumnApply_String column_apply__string = 3;
-    SpColumnAsc sp_column_asc = 4;
-    SpColumnBetween sp_column_between = 5;
-    SpColumnCast sp_column_cast = 6;
-    SpColumnDesc sp_column_desc = 7;
-    SpColumnEqualNan sp_column_equal_nan = 8;
-    SpColumnIn sp_column_in = 9;
-    SpColumnIsNotNull sp_column_is_not_null = 10;
-    SpColumnIsNull sp_column_is_null = 11;
-    SpColumnOver sp_column_over = 12;
-    SpColumnStringCollate sp_column_string_collate = 13;
-    SpColumnStringContains sp_column_string_contains = 14;
-    SpColumnStringEndsWith sp_column_string_ends_with = 15;
-    SpColumnStringLike sp_column_string_like = 16;
-    SpColumnStringRegexp sp_column_string_regexp = 17;
-    SpColumnStringStartsWith sp_column_string_starts_with = 18;
-    SpColumnStringSubstr sp_column_string_substr = 19;
-    SpColumnTryCast sp_column_try_cast = 20;
+    ColumnAsc column_asc = 4;
+    ColumnBetween column_between = 5;
+    ColumnCast column_cast = 6;
+    ColumnDesc column_desc = 7;
+    ColumnTryCast column_try_cast = 8;
+    SpColumnEqualNan sp_column_equal_nan = 9;
+    SpColumnIn sp_column_in = 10;
+    SpColumnIsNotNull sp_column_is_not_null = 11;
+    SpColumnIsNull sp_column_is_null = 12;
+    SpColumnOver sp_column_over = 13;
+    SpColumnStringCollate sp_column_string_collate = 14;
+    SpColumnStringContains sp_column_string_contains = 15;
+    SpColumnStringEndsWith sp_column_string_ends_with = 16;
+    SpColumnStringLike sp_column_string_like = 17;
+    SpColumnStringRegexp sp_column_string_regexp = 18;
+    SpColumnStringStartsWith sp_column_string_starts_with = 19;
+    SpColumnStringSubstr sp_column_string_substr = 20;
     SpColumnWithinGroup sp_column_within_group = 21;
   }
+}
+
+// column.ir:54
+message ColumnTryCast {
+  Expr col = 1;
+  SrcPosition src = 2;
+  SpDataType to = 3;
 }
 
 message Const {
@@ -732,54 +768,54 @@ message Expr {
     ColumnAlias column_alias = 27;
     ColumnApply_Int column_apply__int = 28;
     ColumnApply_String column_apply__string = 29;
-    ColumnCaseExpr column_case_expr = 30;
-    DataframeCol dataframe_col = 31;
-    Div div = 32;
-    Eq eq = 33;
-    ExtensionDataframeExpr extension_dataframe_expr = 34;
-    ExtensionExpr extension_expr = 35;
-    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 36;
-    Float64Val float64_val = 37;
-    Geq geq = 38;
-    Gt gt = 39;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 40;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 41;
-    Int64Val int64_val = 42;
-    Leq leq = 43;
-    ListVal list_val = 44;
-    Lt lt = 45;
-    Mod mod = 46;
-    Mul mul = 47;
-    Neg neg = 48;
-    Neq neq = 49;
-    Not not = 50;
-    NullVal null_val = 51;
-    ObjectGetItem object_get_item = 52;
-    Or or = 53;
-    Pow pow = 54;
-    PythonDateVal python_date_val = 55;
-    PythonTimeVal python_time_val = 56;
-    PythonTimestampVal python_timestamp_val = 57;
-    RedactedConst redacted_const = 58;
-    SeqMapVal seq_map_val = 59;
-    SpColumnAsc sp_column_asc = 60;
-    SpColumnBetween sp_column_between = 61;
-    SpColumnCast sp_column_cast = 62;
-    SpColumnDesc sp_column_desc = 63;
-    SpColumnEqualNan sp_column_equal_nan = 64;
-    SpColumnEqualNull sp_column_equal_null = 65;
-    SpColumnIn sp_column_in = 66;
-    SpColumnIsNotNull sp_column_is_not_null = 67;
-    SpColumnIsNull sp_column_is_null = 68;
-    SpColumnOver sp_column_over = 69;
-    SpColumnStringCollate sp_column_string_collate = 70;
-    SpColumnStringContains sp_column_string_contains = 71;
-    SpColumnStringEndsWith sp_column_string_ends_with = 72;
-    SpColumnStringLike sp_column_string_like = 73;
-    SpColumnStringRegexp sp_column_string_regexp = 74;
-    SpColumnStringStartsWith sp_column_string_starts_with = 75;
-    SpColumnStringSubstr sp_column_string_substr = 76;
-    SpColumnTryCast sp_column_try_cast = 77;
+    ColumnAsc column_asc = 30;
+    ColumnBetween column_between = 31;
+    ColumnCaseExpr column_case_expr = 32;
+    ColumnCast column_cast = 33;
+    ColumnDesc column_desc = 34;
+    ColumnTryCast column_try_cast = 35;
+    DataframeCol dataframe_col = 36;
+    Div div = 37;
+    Eq eq = 38;
+    ExtensionDataframeExpr extension_dataframe_expr = 39;
+    ExtensionExpr extension_expr = 40;
+    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 41;
+    Float64Val float64_val = 42;
+    Geq geq = 43;
+    Gt gt = 44;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 45;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 46;
+    Int64Val int64_val = 47;
+    Leq leq = 48;
+    ListVal list_val = 49;
+    Lt lt = 50;
+    Mod mod = 51;
+    Mul mul = 52;
+    Neg neg = 53;
+    Neq neq = 54;
+    Not not = 55;
+    NullVal null_val = 56;
+    ObjectGetItem object_get_item = 57;
+    Or or = 58;
+    Pow pow = 59;
+    PythonDateVal python_date_val = 60;
+    PythonTimeVal python_time_val = 61;
+    PythonTimestampVal python_timestamp_val = 62;
+    RedactedConst redacted_const = 63;
+    SeqMapVal seq_map_val = 64;
+    SpColumnEqualNan sp_column_equal_nan = 65;
+    SpColumnEqualNull sp_column_equal_null = 66;
+    SpColumnIn sp_column_in = 67;
+    SpColumnIsNotNull sp_column_is_not_null = 68;
+    SpColumnIsNull sp_column_is_null = 69;
+    SpColumnOver sp_column_over = 70;
+    SpColumnStringCollate sp_column_string_collate = 71;
+    SpColumnStringContains sp_column_string_contains = 72;
+    SpColumnStringEndsWith sp_column_string_ends_with = 73;
+    SpColumnStringLike sp_column_string_like = 74;
+    SpColumnStringRegexp sp_column_string_regexp = 75;
+    SpColumnStringStartsWith sp_column_string_starts_with = 76;
+    SpColumnStringSubstr sp_column_string_substr = 77;
     SpColumnWithinGroup sp_column_within_group = 78;
     SpCreateDataframe sp_create_dataframe = 79;
     SpDataframeAgg sp_dataframe_agg = 80;
@@ -1033,56 +1069,56 @@ message HasSrcPosition {
     ColumnAlias column_alias = 30;
     ColumnApply_Int column_apply__int = 31;
     ColumnApply_String column_apply__string = 32;
-    ColumnCaseExpr column_case_expr = 33;
-    ColumnCaseExprClause column_case_expr_clause = 34;
-    DataframeCol dataframe_col = 35;
-    Div div = 36;
-    Eq eq = 37;
-    ExtensionDataframeExpr extension_dataframe_expr = 38;
-    ExtensionExpr extension_expr = 39;
-    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 40;
-    Float64Val float64_val = 41;
-    Geq geq = 42;
-    Gt gt = 43;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 44;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 45;
-    Int64Val int64_val = 46;
-    Leq leq = 47;
-    ListVal list_val = 48;
-    Lt lt = 49;
-    Mod mod = 50;
-    Mul mul = 51;
-    NameRef name_ref = 52;
-    Neg neg = 53;
-    Neq neq = 54;
-    Not not = 55;
-    NullVal null_val = 56;
-    ObjectGetItem object_get_item = 57;
-    Or or = 58;
-    Pow pow = 59;
-    PythonDateVal python_date_val = 60;
-    PythonTimeVal python_time_val = 61;
-    PythonTimestampVal python_timestamp_val = 62;
-    RedactedConst redacted_const = 63;
-    SeqMapVal seq_map_val = 64;
-    SpColumnAsc sp_column_asc = 65;
-    SpColumnBetween sp_column_between = 66;
-    SpColumnCast sp_column_cast = 67;
-    SpColumnDesc sp_column_desc = 68;
-    SpColumnEqualNan sp_column_equal_nan = 69;
-    SpColumnEqualNull sp_column_equal_null = 70;
-    SpColumnIn sp_column_in = 71;
-    SpColumnIsNotNull sp_column_is_not_null = 72;
-    SpColumnIsNull sp_column_is_null = 73;
-    SpColumnOver sp_column_over = 74;
-    SpColumnStringCollate sp_column_string_collate = 75;
-    SpColumnStringContains sp_column_string_contains = 76;
-    SpColumnStringEndsWith sp_column_string_ends_with = 77;
-    SpColumnStringLike sp_column_string_like = 78;
-    SpColumnStringRegexp sp_column_string_regexp = 79;
-    SpColumnStringStartsWith sp_column_string_starts_with = 80;
-    SpColumnStringSubstr sp_column_string_substr = 81;
-    SpColumnTryCast sp_column_try_cast = 82;
+    ColumnAsc column_asc = 33;
+    ColumnBetween column_between = 34;
+    ColumnCaseExpr column_case_expr = 35;
+    ColumnCaseExprClause column_case_expr_clause = 36;
+    ColumnCast column_cast = 37;
+    ColumnDesc column_desc = 38;
+    ColumnTryCast column_try_cast = 39;
+    DataframeCol dataframe_col = 40;
+    Div div = 41;
+    Eq eq = 42;
+    ExtensionDataframeExpr extension_dataframe_expr = 43;
+    ExtensionExpr extension_expr = 44;
+    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 45;
+    Float64Val float64_val = 46;
+    Geq geq = 47;
+    Gt gt = 48;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 49;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 50;
+    Int64Val int64_val = 51;
+    Leq leq = 52;
+    ListVal list_val = 53;
+    Lt lt = 54;
+    Mod mod = 55;
+    Mul mul = 56;
+    NameRef name_ref = 57;
+    Neg neg = 58;
+    Neq neq = 59;
+    Not not = 60;
+    NullVal null_val = 61;
+    ObjectGetItem object_get_item = 62;
+    Or or = 63;
+    Pow pow = 64;
+    PythonDateVal python_date_val = 65;
+    PythonTimeVal python_time_val = 66;
+    PythonTimestampVal python_timestamp_val = 67;
+    RedactedConst redacted_const = 68;
+    SeqMapVal seq_map_val = 69;
+    SpColumnEqualNan sp_column_equal_nan = 70;
+    SpColumnEqualNull sp_column_equal_null = 71;
+    SpColumnIn sp_column_in = 72;
+    SpColumnIsNotNull sp_column_is_not_null = 73;
+    SpColumnIsNull sp_column_is_null = 74;
+    SpColumnOver sp_column_over = 75;
+    SpColumnStringCollate sp_column_string_collate = 76;
+    SpColumnStringContains sp_column_string_contains = 77;
+    SpColumnStringEndsWith sp_column_string_ends_with = 78;
+    SpColumnStringLike sp_column_string_like = 79;
+    SpColumnStringRegexp sp_column_string_regexp = 80;
+    SpColumnStringStartsWith sp_column_string_starts_with = 81;
+    SpColumnStringSubstr sp_column_string_substr = 82;
     SpColumnWithinGroup sp_column_within_group = 83;
     SpCreateDataframe sp_create_dataframe = 84;
     SpDataframeAgg sp_dataframe_agg = 85;
@@ -1395,35 +1431,6 @@ message SfQueryResult {
 message ShowResult {
 }
 
-// column.ir:41
-message SpColumnAsc {
-  Expr col = 1;
-  SpNullOrder null_order = 2;
-  SrcPosition src = 3;
-}
-
-// column.ir:45
-message SpColumnBetween {
-  Expr col = 1;
-  Expr lower_bound = 2;
-  SrcPosition src = 3;
-  Expr upper_bound = 4;
-}
-
-// column.ir:50
-message SpColumnCast {
-  Expr col = 1;
-  SrcPosition src = 2;
-  SpDataType to = 3;
-}
-
-// column.ir:58
-message SpColumnDesc {
-  Expr col = 1;
-  SpNullOrder null_order = 2;
-  SrcPosition src = 3;
-}
-
 // column.ir:64
 message SpColumnEqualNan {
   Expr col = 1;
@@ -1512,13 +1519,6 @@ message SpColumnStringSubstr {
   Expr len = 2;
   Expr pos = 3;
   SrcPosition src = 4;
-}
-
-// column.ir:54
-message SpColumnTryCast {
-  Expr col = 1;
-  SrcPosition src = 2;
-  SpDataType to = 3;
 }
 
 // column.ir:114

@@ -8529,7 +8529,7 @@ body {
                 }
               }
               pos_args {
-                sp_column_cast {
+                column_cast {
                   col {
                     apply_expr {
                       fn {
@@ -8633,7 +8633,7 @@ body {
                 }
               }
               pos_args {
-                sp_column_cast {
+                column_cast {
                   col {
                     apply_expr {
                       fn {
