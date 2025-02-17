@@ -87,6 +87,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateDynamicTableCommand,
     CreateViewCommand,
+    Distinct,
     Filter,
     LocalTempView,
     PersistedView,
@@ -790,6 +791,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
@@ -812,6 +816,9 @@ class DataFrame:
                     statement_params or self._statement_params,
                     self._session.query_tag,
                     SKIP_LEVELS_THREE,
+                    collect_stacktrace=self._session.conf.get(
+                        "collect_stacktrace_in_query_tag"
+                    ),
                 ),
             )
 
@@ -900,6 +907,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             case_sensitive=case_sensitive,
             **kwargs,
@@ -1006,6 +1016,9 @@ class DataFrame:
                     statement_params or self._statement_params,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
+                    collect_stacktrace=self._session.conf.get(
+                        "collect_stacktrace_in_query_tag"
+                    ),
                 ),
                 **kwargs,
             )
@@ -1107,6 +1120,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             **kwargs,
         )
@@ -1146,6 +1162,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             **kwargs,
         )
@@ -1186,6 +1205,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             **kwargs,
         )
@@ -2308,6 +2330,7 @@ class DataFrame:
         """
 
         # AST.
+        stmt = None
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
@@ -2317,10 +2340,10 @@ class DataFrame:
                 stmt = _ast_stmt
                 ast = None
 
-        df = self.group_by(
-            [self.col(quote_name(f.name), _emit_ast=False) for f in self.schema.fields],
-            _emit_ast=False,
-        ).agg(_emit_ast=False)
+        if self._select_statement:
+            df = self._with_plan(self._select_statement.distinct(), _ast_stmt=stmt)
+        else:
+            df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -4424,6 +4447,9 @@ class DataFrame:
                         statement_params or self._statement_params,
                         self._session.query_tag,
                         SKIP_LEVELS_TWO,
+                        collect_stacktrace=self._session.conf.get(
+                            "collect_stacktrace_in_query_tag"
+                        ),
                     ),
                     _emit_ast=_emit_ast,
                 )
@@ -4576,6 +4602,7 @@ class DataFrame:
             debug_check_missing_ast(self._ast_id, self)
             if self._ast_id is not None:
                 repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+            repr.expr.sp_dataframe_show.n = n
             self._session._ast_batch.eval(repr)
 
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
@@ -4879,6 +4906,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             _ast_stmt=stmt,
         )
@@ -5025,7 +5055,12 @@ class DataFrame:
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             iceberg_config=iceberg_config,
         )
@@ -5085,6 +5120,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             _ast_stmt=stmt,
         )
@@ -5146,6 +5184,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             _ast_stmt=stmt,
         )
@@ -5785,6 +5826,9 @@ class DataFrame:
                     statement_params_for_cache_result,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
+                    collect_stacktrace=self._session.conf.get(
+                        "collect_stacktrace_in_query_tag"
+                    ),
                 ),
             )
         cached_df = snowflake.snowpark.table.Table(
