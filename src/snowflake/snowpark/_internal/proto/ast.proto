@@ -105,7 +105,7 @@ message SpCallable {
   SpNameRef object_name = 3;
 }
 
-// column.ir:39
+// column.ir:34
 message SpColumnAliasFn {
   oneof variant {
     bool sp_column_alias_fn_alias = 1;
@@ -304,7 +304,7 @@ message SpNameStructured {
   repeated string name = 1;
 }
 
-// column.ir:70
+// column.ir:65
 message SpNullOrder {
   oneof variant {
     bool sp_null_order_default = 1;
@@ -331,7 +331,7 @@ message SpPivotValue_Dataframe {
   SpDataframeRef v = 1;
 }
 
-// dataframe-io.ir:85
+// dataframe-io.ir:75
 message SpSaveMode {
   oneof variant {
     bool sp_save_mode_append = 1;
@@ -1328,7 +1328,7 @@ message SpCaseExpr {
   Expr value = 3;
 }
 
-// column.ir:34
+// column.ir:29
 message SpColumnAlias {
   Expr col = 1;
   SpColumnAliasFn fn = 2;
@@ -1336,28 +1336,28 @@ message SpColumnAlias {
   SrcPosition src = 4;
 }
 
-// column.ir:41
+// column.ir:36
 message SpColumnApply_Int {
   Expr col = 1;
   int64 idx = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:45
+// column.ir:40
 message SpColumnApply_String {
   Expr col = 1;
   string field = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:49
+// column.ir:44
 message SpColumnAsc {
   Expr col = 1;
   SpNullOrder null_order = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:53
+// column.ir:48
 message SpColumnBetween {
   Expr col = 1;
   Expr lower_bound = 2;
@@ -1371,27 +1371,27 @@ message SpColumnCaseWhen {
   SrcPosition src = 2;
 }
 
-// column.ir:58
+// column.ir:53
 message SpColumnCast {
   Expr col = 1;
   SrcPosition src = 2;
   SpDataType to = 3;
 }
 
-// column.ir:66
+// column.ir:61
 message SpColumnDesc {
   Expr col = 1;
   SpNullOrder null_order = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:72
+// column.ir:67
 message SpColumnEqualNan {
   Expr col = 1;
   SrcPosition src = 2;
 }
 
-// column.ir:74
+// column.ir:69
 message SpColumnEqualNull {
   Expr lhs = 1;
   Expr rhs = 2;
@@ -1400,51 +1400,50 @@ message SpColumnEqualNull {
 
 message SpColumnFn {
   oneof variant {
-    ExtensionColumnFn extension_column_fn = 1;
-    SpColumnAlias sp_column_alias = 2;
-    SpColumnApply_Int sp_column_apply__int = 3;
-    SpColumnApply_String sp_column_apply__string = 4;
-    SpColumnAsc sp_column_asc = 5;
-    SpColumnBetween sp_column_between = 6;
-    SpColumnCast sp_column_cast = 7;
-    SpColumnDesc sp_column_desc = 8;
-    SpColumnEqualNan sp_column_equal_nan = 9;
-    SpColumnIn sp_column_in = 10;
-    SpColumnIsNotNull sp_column_is_not_null = 11;
-    SpColumnIsNull sp_column_is_null = 12;
-    SpColumnOver sp_column_over = 13;
-    SpColumnStringCollate sp_column_string_collate = 14;
-    SpColumnStringContains sp_column_string_contains = 15;
-    SpColumnStringEndsWith sp_column_string_ends_with = 16;
-    SpColumnStringLike sp_column_string_like = 17;
-    SpColumnStringRegexp sp_column_string_regexp = 18;
-    SpColumnStringStartsWith sp_column_string_starts_with = 19;
-    SpColumnStringSubstr sp_column_string_substr = 20;
-    SpColumnTryCast sp_column_try_cast = 21;
-    SpColumnWithinGroup sp_column_within_group = 22;
+    SpColumnAlias sp_column_alias = 1;
+    SpColumnApply_Int sp_column_apply__int = 2;
+    SpColumnApply_String sp_column_apply__string = 3;
+    SpColumnAsc sp_column_asc = 4;
+    SpColumnBetween sp_column_between = 5;
+    SpColumnCast sp_column_cast = 6;
+    SpColumnDesc sp_column_desc = 7;
+    SpColumnEqualNan sp_column_equal_nan = 8;
+    SpColumnIn sp_column_in = 9;
+    SpColumnIsNotNull sp_column_is_not_null = 10;
+    SpColumnIsNull sp_column_is_null = 11;
+    SpColumnOver sp_column_over = 12;
+    SpColumnStringCollate sp_column_string_collate = 13;
+    SpColumnStringContains sp_column_string_contains = 14;
+    SpColumnStringEndsWith sp_column_string_ends_with = 15;
+    SpColumnStringLike sp_column_string_like = 16;
+    SpColumnStringRegexp sp_column_string_regexp = 17;
+    SpColumnStringStartsWith sp_column_string_starts_with = 18;
+    SpColumnStringSubstr sp_column_string_substr = 19;
+    SpColumnTryCast sp_column_try_cast = 20;
+    SpColumnWithinGroup sp_column_within_group = 21;
   }
 }
 
-// column.ir:79
+// column.ir:74
 message SpColumnIn {
   Expr col = 1;
   SrcPosition src = 2;
   repeated Expr values = 3;
 }
 
-// column.ir:83
+// column.ir:78
 message SpColumnIsNotNull {
   Expr col = 1;
   SrcPosition src = 2;
 }
 
-// column.ir:85
+// column.ir:80
 message SpColumnIsNull {
   Expr col = 1;
   SrcPosition src = 2;
 }
 
-// column.ir:87
+// column.ir:82
 message SpColumnOver {
   Expr col = 1;
   SrcPosition src = 2;
@@ -1458,35 +1457,35 @@ message SpColumnSqlExpr {
   SrcPosition src = 3;
 }
 
-// column.ir:114
+// column.ir:109
 message SpColumnStringCollate {
   Expr col = 1;
   Expr collation_spec = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:118
+// column.ir:113
 message SpColumnStringContains {
   Expr col = 1;
   Expr pattern = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:105
+// column.ir:100
 message SpColumnStringEndsWith {
   Expr col = 1;
   SrcPosition src = 2;
   Expr suffix = 3;
 }
 
-// column.ir:97
+// column.ir:92
 message SpColumnStringLike {
   Expr col = 1;
   Expr pattern = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:92
+// column.ir:87
 message SpColumnStringRegexp {
   Expr col = 1;
   Expr parameters = 2;
@@ -1494,14 +1493,14 @@ message SpColumnStringRegexp {
   SrcPosition src = 4;
 }
 
-// column.ir:101
+// column.ir:96
 message SpColumnStringStartsWith {
   Expr col = 1;
   Expr prefix = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:109
+// column.ir:104
 message SpColumnStringSubstr {
   Expr col = 1;
   Expr len = 2;
@@ -1509,14 +1508,14 @@ message SpColumnStringSubstr {
   SrcPosition src = 4;
 }
 
-// column.ir:62
+// column.ir:57
 message SpColumnTryCast {
   Expr col = 1;
   SrcPosition src = 2;
   SpDataType to = 3;
 }
 
-// column.ir:122
+// column.ir:117
 message SpColumnWithinGroup {
   Expr col = 1;
   ExprArgList cols = 2;
@@ -1600,7 +1599,7 @@ message SpDataframeAnalyticsTimeSeriesAgg {
   repeated string windows = 8;
 }
 
-// dataframe-io.ir:197
+// dataframe-io.ir:187
 message SpDataframeCacheResult {
   SpDataframeExpr df = 1;
   SrcPosition src = 2;
@@ -1625,7 +1624,7 @@ message SpDataframeCollect {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe-io.ir:179
+// dataframe-io.ir:169
 message SpDataframeCopyIntoTable {
   repeated Tuple_String_Expr copy_options = 1;
   SpDataframeExpr df = 2;
@@ -1649,7 +1648,7 @@ message SpDataframeCount {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe-io.ir:163
+// dataframe-io.ir:153
 message SpDataframeCreateOrReplaceDynamicTable {
   List_Expr clustering_keys = 1;
   google.protobuf.StringValue comment = 2;
@@ -1667,7 +1666,7 @@ message SpDataframeCreateOrReplaceDynamicTable {
   string warehouse = 14;
 }
 
-// dataframe-io.ir:155
+// dataframe-io.ir:145
 message SpDataframeCreateOrReplaceView {
   google.protobuf.StringValue comment = 1;
   SpDataframeExpr df = 2;
@@ -1952,21 +1951,20 @@ message SpDataframeRandomSplit {
 
 message SpDataframeReader {
   oneof variant {
-    ExtensionDataframeReader extension_dataframe_reader = 1;
-    SpDataframeReaderInit sp_dataframe_reader_init = 2;
-    SpDataframeReaderOption sp_dataframe_reader_option = 3;
-    SpDataframeReaderOptions sp_dataframe_reader_options = 4;
-    SpDataframeReaderSchema sp_dataframe_reader_schema = 5;
-    SpDataframeReaderWithMetadata sp_dataframe_reader_with_metadata = 6;
+    SpDataframeReaderInit sp_dataframe_reader_init = 1;
+    SpDataframeReaderOption sp_dataframe_reader_option = 2;
+    SpDataframeReaderOptions sp_dataframe_reader_options = 3;
+    SpDataframeReaderSchema sp_dataframe_reader_schema = 4;
+    SpDataframeReaderWithMetadata sp_dataframe_reader_with_metadata = 5;
   }
 }
 
-// dataframe-io.ir:15
+// dataframe-io.ir:10
 message SpDataframeReaderInit {
   SrcPosition src = 1;
 }
 
-// dataframe-io.ir:17
+// dataframe-io.ir:12
 message SpDataframeReaderOption {
   string key = 1;
   SpDataframeReader reader = 2;
@@ -1974,21 +1972,21 @@ message SpDataframeReaderOption {
   Expr value = 4;
 }
 
-// dataframe-io.ir:23
+// dataframe-io.ir:18
 message SpDataframeReaderOptions {
   repeated Tuple_String_Expr configs = 1;
   SpDataframeReader reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:28
+// dataframe-io.ir:23
 message SpDataframeReaderSchema {
   SpDataframeReader reader = 1;
   SpStructType schema = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:33
+// dataframe-io.ir:28
 message SpDataframeReaderWithMetadata {
   ExprArgList metadata_columns = 1;
   SpDataframeReader reader = 2;
@@ -2191,7 +2189,7 @@ message SpDataframeWithColumns {
   repeated Expr values = 4;
 }
 
-// dataframe-io.ir:94
+// dataframe-io.ir:84
 message SpDataframeWrite {
   SpDataframeExpr df = 1;
   repeated Tuple_String_Expr options = 2;
@@ -2203,12 +2201,11 @@ message SpDataframeWrite {
 message SpDataframeWriter {
   oneof variant {
     SpWriteFile trait_sp_write_file = 1;
-    ExtensionDataframeWriter extension_dataframe_writer = 2;
-    SpWriteCopyIntoLocation sp_write_copy_into_location = 3;
-    SpWriteCsv sp_write_csv = 4;
-    SpWriteJson sp_write_json = 5;
-    SpWriteParquet sp_write_parquet = 6;
-    SpWriteTable sp_write_table = 7;
+    SpWriteCopyIntoLocation sp_write_copy_into_location = 2;
+    SpWriteCsv sp_write_csv = 3;
+    SpWriteJson sp_write_json = 4;
+    SpWriteParquet sp_write_parquet = 5;
+    SpWriteTable sp_write_table = 6;
   }
 }
 
@@ -2291,49 +2288,49 @@ message SpRange {
   google.protobuf.Int64Value step = 4;
 }
 
-// dataframe-io.ir:54
+// dataframe-io.ir:49
 message SpReadAvro {
   string path = 1;
   SpDataframeReader reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:43
+// dataframe-io.ir:38
 message SpReadCsv {
   string path = 1;
   SpDataframeReader reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:49
+// dataframe-io.ir:44
 message SpReadJson {
   string path = 1;
   SpDataframeReader reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:59
+// dataframe-io.ir:54
 message SpReadOrc {
   string path = 1;
   SpDataframeReader reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:64
+// dataframe-io.ir:59
 message SpReadParquet {
   string path = 1;
   SpDataframeReader reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:38
+// dataframe-io.ir:33
 message SpReadTable {
   SpNameRef name = 1;
   SpDataframeReader reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:69
+// dataframe-io.ir:64
 message SpReadXml {
   string path = 1;
   SpDataframeReader reader = 2;
@@ -2537,7 +2534,7 @@ message SpWindowSpecRowsBetween {
   SpWindowSpecExpr wnd = 4;
 }
 
-// dataframe-io.ir:145
+// dataframe-io.ir:135
 message SpWriteCopyIntoLocation {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2552,7 +2549,7 @@ message SpWriteCopyIntoLocation {
   repeated Tuple_String_String statement_params = 11;
 }
 
-// dataframe-io.ir:112
+// dataframe-io.ir:102
 message SpWriteCsv {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2574,7 +2571,7 @@ message SpWriteFile {
   }
 }
 
-// dataframe-io.ir:116
+// dataframe-io.ir:106
 message SpWriteJson {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2604,7 +2601,7 @@ message SpWritePandas {
   string table_type = 13;
 }
 
-// dataframe-io.ir:120
+// dataframe-io.ir:110
 message SpWriteParquet {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2617,7 +2614,7 @@ message SpWriteParquet {
   repeated Tuple_String_String statement_params = 9;
 }
 
-// dataframe-io.ir:124
+// dataframe-io.ir:114
 message SpWriteTable {
   bool block = 1;
   google.protobuf.BoolValue change_tracking = 2;
