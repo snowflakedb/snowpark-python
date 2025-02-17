@@ -245,7 +245,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 dataframe_col {
                   col_name: "num"
@@ -266,7 +266,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "num_1"
               src {
@@ -279,7 +279,7 @@ body {
             }
           }
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 dataframe_col {
                   col_name: "str"
@@ -300,7 +300,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "str_1"
               src {

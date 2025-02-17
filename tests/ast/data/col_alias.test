@@ -73,7 +73,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
@@ -109,7 +109,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "test"
               src {
@@ -154,7 +154,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
@@ -190,7 +190,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_alias: true
+                column_alias_fn_alias: true
               }
               name: "test"
               src {
@@ -235,7 +235,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
@@ -271,7 +271,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_name: true
+                column_alias_fn_name: true
               }
               name: "test"
               src {
@@ -316,7 +316,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 add {
                   lhs {
@@ -375,7 +375,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_name: true
+                column_alias_fn_name: true
               }
               name: "test"
               src {

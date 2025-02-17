@@ -60,7 +60,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_apply__int {
+            column_apply__int {
               col {
                 apply_expr {
                   fn {
@@ -106,7 +106,7 @@ body {
             }
           }
           args {
-            sp_column_apply__string {
+            column_apply__string {
               col {
                 apply_expr {
                   fn {

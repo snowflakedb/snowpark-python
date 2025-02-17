@@ -336,7 +336,7 @@ class Column:
         if isinstance(field, str):
             if _emit_ast:
                 expr = proto.Expr()
-                ast = with_src_position(expr.sp_column_apply__string)
+                ast = with_src_position(expr.column_apply__string)
                 ast.col.CopyFrom(self._ast)
                 ast.field = field
             return Column(
@@ -345,7 +345,7 @@ class Column:
         elif isinstance(field, int):
             if _emit_ast:
                 expr = proto.Expr()
-                ast = with_src_position(expr.sp_column_apply__int)
+                ast = with_src_position(expr.column_apply__int)
                 ast.col.CopyFrom(self._ast)
                 ast.idx = field
             return Column(
@@ -1328,15 +1328,15 @@ class Column:
         ast_expr = None  # Snowpark IR expression
         if _emit_ast and self._ast is not None:
             ast_expr = proto.Expr()
-            ast = with_src_position(ast_expr.sp_column_alias)
+            ast = with_src_position(ast_expr.column_alias)
             ast.col.CopyFrom(self._ast)
             ast.name = alias
             if variant == "as_":
-                ast.fn.sp_column_alias_fn_as = True
+                ast.fn.column_alias_fn_as = True
             elif variant == "alias":
-                ast.fn.sp_column_alias_fn_alias = True
+                ast.fn.column_alias_fn_alias = True
             elif variant == "name":
-                ast.fn.sp_column_alias_fn_name = True
+                ast.fn.column_alias_fn_name = True
 
         return Column(
             Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast
@@ -1540,7 +1540,7 @@ class CaseExpr(Column):
         """
 
         if _emit_ast:
-            case_expr = with_src_position(self._ast.sp_column_case_when.cases.add())
+            case_expr = with_src_position(self._ast.column_case_expr.cases.add())
             build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
             build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
 
@@ -1565,7 +1565,7 @@ class CaseExpr(Column):
         :meth:`else_` is an alias of :meth:`otherwise`.
         """
         if _emit_ast:
-            case_expr = with_src_position(self._ast.sp_column_case_when.cases.add())
+            case_expr = with_src_position(self._ast.column_case_expr.cases.add())
             build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
         return CaseExpr(
             CaseWhen(self._branches, Column._to_expr(value)), _ast=self._ast

@@ -68,6 +68,15 @@ message Tuple_String_String {
   string _2 = 2;
 }
 
+// column.ir:31
+message ColumnAliasFn {
+  oneof variant {
+    bool column_alias_fn_alias = 1;
+    bool column_alias_fn_as = 2;
+    bool column_alias_fn_name = 3;
+  }
+}
+
 // ast.ir:17
 message Language {
   oneof sealed_value {
@@ -121,15 +130,6 @@ message SpCallable {
   int64 id = 1;
   string name = 2;
   NameRef object_name = 3;
-}
-
-// column.ir:33
-message SpColumnAliasFn {
-  oneof variant {
-    bool sp_column_alias_fn_alias = 1;
-    bool sp_column_alias_fn_as = 2;
-    bool sp_column_alias_fn_name = 3;
-  }
 }
 
 // type.ir:31
@@ -304,7 +304,7 @@ message SpJoinType {
   }
 }
 
-// column.ir:64
+// column.ir:62
 message SpNullOrder {
   oneof variant {
     bool sp_null_order_default = 1;
@@ -559,6 +559,67 @@ message CallTableFunctionExpr {
   SrcPosition src = 2;
 }
 
+// column.ir:26
+message ColumnAlias {
+  Expr col = 1;
+  ColumnAliasFn fn = 2;
+  string name = 3;
+  SrcPosition src = 4;
+}
+
+// column.ir:33
+message ColumnApply_Int {
+  Expr col = 1;
+  int64 idx = 2;
+  SrcPosition src = 3;
+}
+
+// column.ir:37
+message ColumnApply_String {
+  Expr col = 1;
+  string field = 2;
+  SrcPosition src = 3;
+}
+
+// column.ir:12
+message ColumnCaseExpr {
+  repeated ColumnCaseExprClause cases = 1;
+  SrcPosition src = 2;
+}
+
+// column.ir:16
+message ColumnCaseExprClause {
+  Expr condition = 1;
+  SrcPosition src = 2;
+  Expr value = 3;
+}
+
+message ColumnFn {
+  oneof variant {
+    ColumnAlias column_alias = 1;
+    ColumnApply_Int column_apply__int = 2;
+    ColumnApply_String column_apply__string = 3;
+    SpColumnAsc sp_column_asc = 4;
+    SpColumnBetween sp_column_between = 5;
+    SpColumnCast sp_column_cast = 6;
+    SpColumnDesc sp_column_desc = 7;
+    SpColumnEqualNan sp_column_equal_nan = 8;
+    SpColumnIn sp_column_in = 9;
+    SpColumnIsNotNull sp_column_is_not_null = 10;
+    SpColumnIsNull sp_column_is_null = 11;
+    SpColumnOver sp_column_over = 12;
+    SpColumnStringCollate sp_column_string_collate = 13;
+    SpColumnStringContains sp_column_string_contains = 14;
+    SpColumnStringEndsWith sp_column_string_ends_with = 15;
+    SpColumnStringLike sp_column_string_like = 16;
+    SpColumnStringRegexp sp_column_string_regexp = 17;
+    SpColumnStringStartsWith sp_column_string_starts_with = 18;
+    SpColumnStringSubstr sp_column_string_substr = 19;
+    SpColumnTryCast sp_column_try_cast = 20;
+    SpColumnWithinGroup sp_column_within_group = 21;
+  }
+}
+
 message Const {
   oneof variant {
     BigDecimalVal big_decimal_val = 1;
@@ -645,11 +706,11 @@ message Expr {
     AbstractExtensionExpr trait_abstract_extension_expr = 1;
     AbstractTruncatedExpr trait_abstract_truncated_expr = 2;
     BinOp trait_bin_op = 3;
-    Const trait_const = 4;
-    FnIdRefExpr trait_fn_id_ref_expr = 5;
-    FnNameRefExpr trait_fn_name_ref_expr = 6;
-    FnRefExpr trait_fn_ref_expr = 7;
-    SpColumnFn trait_sp_column_fn = 8;
+    ColumnFn trait_column_fn = 4;
+    Const trait_const = 5;
+    FnIdRefExpr trait_fn_id_ref_expr = 6;
+    FnNameRefExpr trait_fn_name_ref_expr = 7;
+    FnRefExpr trait_fn_ref_expr = 8;
     SpDataframeExpr trait_sp_dataframe_expr = 9;
     SpDataframeWriter trait_sp_dataframe_writer = 10;
     SpMatchedClause trait_sp_matched_clause = 11;
@@ -668,41 +729,41 @@ message Expr {
     BoolVal bool_val = 24;
     BuiltinFn builtin_fn = 25;
     CallTableFunctionExpr call_table_function_expr = 26;
-    DataframeCol dataframe_col = 27;
-    Div div = 28;
-    Eq eq = 29;
-    ExtensionDataframeExpr extension_dataframe_expr = 30;
-    ExtensionExpr extension_expr = 31;
-    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 32;
-    Float64Val float64_val = 33;
-    Geq geq = 34;
-    Gt gt = 35;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 36;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 37;
-    Int64Val int64_val = 38;
-    Leq leq = 39;
-    ListVal list_val = 40;
-    Lt lt = 41;
-    Mod mod = 42;
-    Mul mul = 43;
-    Neg neg = 44;
-    Neq neq = 45;
-    Not not = 46;
-    NullVal null_val = 47;
-    ObjectGetItem object_get_item = 48;
-    Or or = 49;
-    Pow pow = 50;
-    PythonDateVal python_date_val = 51;
-    PythonTimeVal python_time_val = 52;
-    PythonTimestampVal python_timestamp_val = 53;
-    RedactedConst redacted_const = 54;
-    SeqMapVal seq_map_val = 55;
-    SpColumnAlias sp_column_alias = 56;
-    SpColumnApply_Int sp_column_apply__int = 57;
-    SpColumnApply_String sp_column_apply__string = 58;
-    SpColumnAsc sp_column_asc = 59;
-    SpColumnBetween sp_column_between = 60;
-    SpColumnCaseWhen sp_column_case_when = 61;
+    ColumnAlias column_alias = 27;
+    ColumnApply_Int column_apply__int = 28;
+    ColumnApply_String column_apply__string = 29;
+    ColumnCaseExpr column_case_expr = 30;
+    DataframeCol dataframe_col = 31;
+    Div div = 32;
+    Eq eq = 33;
+    ExtensionDataframeExpr extension_dataframe_expr = 34;
+    ExtensionExpr extension_expr = 35;
+    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 36;
+    Float64Val float64_val = 37;
+    Geq geq = 38;
+    Gt gt = 39;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 40;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 41;
+    Int64Val int64_val = 42;
+    Leq leq = 43;
+    ListVal list_val = 44;
+    Lt lt = 45;
+    Mod mod = 46;
+    Mul mul = 47;
+    Neg neg = 48;
+    Neq neq = 49;
+    Not not = 50;
+    NullVal null_val = 51;
+    ObjectGetItem object_get_item = 52;
+    Or or = 53;
+    Pow pow = 54;
+    PythonDateVal python_date_val = 55;
+    PythonTimeVal python_time_val = 56;
+    PythonTimestampVal python_timestamp_val = 57;
+    RedactedConst redacted_const = 58;
+    SeqMapVal seq_map_val = 59;
+    SpColumnAsc sp_column_asc = 60;
+    SpColumnBetween sp_column_between = 61;
     SpColumnCast sp_column_cast = 62;
     SpColumnDesc sp_column_desc = 63;
     SpColumnEqualNan sp_column_equal_nan = 64;
@@ -943,12 +1004,12 @@ message HasSrcPosition {
     AbstractExtensionExpr trait_abstract_extension_expr = 1;
     AbstractTruncatedExpr trait_abstract_truncated_expr = 2;
     BinOp trait_bin_op = 3;
-    Const trait_const = 4;
-    Expr trait_expr = 5;
-    FnIdRefExpr trait_fn_id_ref_expr = 6;
-    FnNameRefExpr trait_fn_name_ref_expr = 7;
-    FnRefExpr trait_fn_ref_expr = 8;
-    SpColumnFn trait_sp_column_fn = 9;
+    ColumnFn trait_column_fn = 4;
+    Const trait_const = 5;
+    Expr trait_expr = 6;
+    FnIdRefExpr trait_fn_id_ref_expr = 7;
+    FnNameRefExpr trait_fn_name_ref_expr = 8;
+    FnRefExpr trait_fn_ref_expr = 9;
     SpDataframeExpr trait_sp_dataframe_expr = 10;
     SpDataframeReader trait_sp_dataframe_reader = 11;
     SpDataframeWriter trait_sp_dataframe_writer = 12;
@@ -969,43 +1030,43 @@ message HasSrcPosition {
     BoolVal bool_val = 27;
     BuiltinFn builtin_fn = 28;
     CallTableFunctionExpr call_table_function_expr = 29;
-    DataframeCol dataframe_col = 30;
-    Div div = 31;
-    Eq eq = 32;
-    ExtensionDataframeExpr extension_dataframe_expr = 33;
-    ExtensionExpr extension_expr = 34;
-    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 35;
-    Float64Val float64_val = 36;
-    Geq geq = 37;
-    Gt gt = 38;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 39;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 40;
-    Int64Val int64_val = 41;
-    Leq leq = 42;
-    ListVal list_val = 43;
-    Lt lt = 44;
-    Mod mod = 45;
-    Mul mul = 46;
-    NameRef name_ref = 47;
-    Neg neg = 48;
-    Neq neq = 49;
-    Not not = 50;
-    NullVal null_val = 51;
-    ObjectGetItem object_get_item = 52;
-    Or or = 53;
-    Pow pow = 54;
-    PythonDateVal python_date_val = 55;
-    PythonTimeVal python_time_val = 56;
-    PythonTimestampVal python_timestamp_val = 57;
-    RedactedConst redacted_const = 58;
-    SeqMapVal seq_map_val = 59;
-    SpCaseExpr sp_case_expr = 60;
-    SpColumnAlias sp_column_alias = 61;
-    SpColumnApply_Int sp_column_apply__int = 62;
-    SpColumnApply_String sp_column_apply__string = 63;
-    SpColumnAsc sp_column_asc = 64;
-    SpColumnBetween sp_column_between = 65;
-    SpColumnCaseWhen sp_column_case_when = 66;
+    ColumnAlias column_alias = 30;
+    ColumnApply_Int column_apply__int = 31;
+    ColumnApply_String column_apply__string = 32;
+    ColumnCaseExpr column_case_expr = 33;
+    ColumnCaseExprClause column_case_expr_clause = 34;
+    DataframeCol dataframe_col = 35;
+    Div div = 36;
+    Eq eq = 37;
+    ExtensionDataframeExpr extension_dataframe_expr = 38;
+    ExtensionExpr extension_expr = 39;
+    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 40;
+    Float64Val float64_val = 41;
+    Geq geq = 42;
+    Gt gt = 43;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 44;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 45;
+    Int64Val int64_val = 46;
+    Leq leq = 47;
+    ListVal list_val = 48;
+    Lt lt = 49;
+    Mod mod = 50;
+    Mul mul = 51;
+    NameRef name_ref = 52;
+    Neg neg = 53;
+    Neq neq = 54;
+    Not not = 55;
+    NullVal null_val = 56;
+    ObjectGetItem object_get_item = 57;
+    Or or = 58;
+    Pow pow = 59;
+    PythonDateVal python_date_val = 60;
+    PythonTimeVal python_time_val = 61;
+    PythonTimestampVal python_timestamp_val = 62;
+    RedactedConst redacted_const = 63;
+    SeqMapVal seq_map_val = 64;
+    SpColumnAsc sp_column_asc = 65;
+    SpColumnBetween sp_column_between = 66;
     SpColumnCast sp_column_cast = 67;
     SpColumnDesc sp_column_desc = 68;
     SpColumnEqualNan sp_column_equal_nan = 69;
@@ -1334,43 +1395,14 @@ message SfQueryResult {
 message ShowResult {
 }
 
-// column.ir:18
-message SpCaseExpr {
-  Expr condition = 1;
-  SrcPosition src = 2;
-  Expr value = 3;
-}
-
-// column.ir:28
-message SpColumnAlias {
-  Expr col = 1;
-  SpColumnAliasFn fn = 2;
-  string name = 3;
-  SrcPosition src = 4;
-}
-
-// column.ir:35
-message SpColumnApply_Int {
-  Expr col = 1;
-  int64 idx = 2;
-  SrcPosition src = 3;
-}
-
-// column.ir:39
-message SpColumnApply_String {
-  Expr col = 1;
-  string field = 2;
-  SrcPosition src = 3;
-}
-
-// column.ir:43
+// column.ir:41
 message SpColumnAsc {
   Expr col = 1;
   SpNullOrder null_order = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:47
+// column.ir:45
 message SpColumnBetween {
   Expr col = 1;
   Expr lower_bound = 2;
@@ -1378,120 +1410,88 @@ message SpColumnBetween {
   Expr upper_bound = 4;
 }
 
-// column.ir:13
-message SpColumnCaseWhen {
-  repeated SpCaseExpr cases = 1;
-  SrcPosition src = 2;
-}
-
-// column.ir:52
+// column.ir:50
 message SpColumnCast {
   Expr col = 1;
   SrcPosition src = 2;
   SpDataType to = 3;
 }
 
-// column.ir:60
+// column.ir:58
 message SpColumnDesc {
   Expr col = 1;
   SpNullOrder null_order = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:66
+// column.ir:64
 message SpColumnEqualNan {
   Expr col = 1;
   SrcPosition src = 2;
 }
 
-// column.ir:68
+// column.ir:66
 message SpColumnEqualNull {
   Expr lhs = 1;
   Expr rhs = 2;
   SrcPosition src = 3;
 }
 
-message SpColumnFn {
-  oneof variant {
-    SpColumnAlias sp_column_alias = 1;
-    SpColumnApply_Int sp_column_apply__int = 2;
-    SpColumnApply_String sp_column_apply__string = 3;
-    SpColumnAsc sp_column_asc = 4;
-    SpColumnBetween sp_column_between = 5;
-    SpColumnCast sp_column_cast = 6;
-    SpColumnDesc sp_column_desc = 7;
-    SpColumnEqualNan sp_column_equal_nan = 8;
-    SpColumnIn sp_column_in = 9;
-    SpColumnIsNotNull sp_column_is_not_null = 10;
-    SpColumnIsNull sp_column_is_null = 11;
-    SpColumnOver sp_column_over = 12;
-    SpColumnStringCollate sp_column_string_collate = 13;
-    SpColumnStringContains sp_column_string_contains = 14;
-    SpColumnStringEndsWith sp_column_string_ends_with = 15;
-    SpColumnStringLike sp_column_string_like = 16;
-    SpColumnStringRegexp sp_column_string_regexp = 17;
-    SpColumnStringStartsWith sp_column_string_starts_with = 18;
-    SpColumnStringSubstr sp_column_string_substr = 19;
-    SpColumnTryCast sp_column_try_cast = 20;
-    SpColumnWithinGroup sp_column_within_group = 21;
-  }
-}
-
-// column.ir:73
+// column.ir:71
 message SpColumnIn {
   Expr col = 1;
   SrcPosition src = 2;
   repeated Expr values = 3;
 }
 
-// column.ir:77
+// column.ir:75
 message SpColumnIsNotNull {
   Expr col = 1;
   SrcPosition src = 2;
 }
 
-// column.ir:79
+// column.ir:77
 message SpColumnIsNull {
   Expr col = 1;
   SrcPosition src = 2;
 }
 
-// column.ir:81
+// column.ir:79
 message SpColumnOver {
   Expr col = 1;
   SrcPosition src = 2;
   SpWindowSpecExpr window_spec = 3;
 }
 
-// column.ir:108
+// column.ir:106
 message SpColumnStringCollate {
   Expr col = 1;
   Expr collation_spec = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:112
+// column.ir:110
 message SpColumnStringContains {
   Expr col = 1;
   Expr pattern = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:99
+// column.ir:97
 message SpColumnStringEndsWith {
   Expr col = 1;
   SrcPosition src = 2;
   Expr suffix = 3;
 }
 
-// column.ir:91
+// column.ir:89
 message SpColumnStringLike {
   Expr col = 1;
   Expr pattern = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:86
+// column.ir:84
 message SpColumnStringRegexp {
   Expr col = 1;
   Expr parameters = 2;
@@ -1499,14 +1499,14 @@ message SpColumnStringRegexp {
   SrcPosition src = 4;
 }
 
-// column.ir:95
+// column.ir:93
 message SpColumnStringStartsWith {
   Expr col = 1;
   Expr prefix = 2;
   SrcPosition src = 3;
 }
 
-// column.ir:103
+// column.ir:101
 message SpColumnStringSubstr {
   Expr col = 1;
   Expr len = 2;
@@ -1514,14 +1514,14 @@ message SpColumnStringSubstr {
   SrcPosition src = 4;
 }
 
-// column.ir:56
+// column.ir:54
 message SpColumnTryCast {
   Expr col = 1;
   SrcPosition src = 2;
   SpDataType to = 3;
 }
 
-// column.ir:116
+// column.ir:114
 message SpColumnWithinGroup {
   Expr col = 1;
   ExprArgList cols = 2;

@@ -127,7 +127,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
@@ -163,7 +163,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "key"
               src {
@@ -176,7 +176,7 @@ body {
             }
           }
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
@@ -212,7 +212,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "value"
               src {
@@ -257,7 +257,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 sp_column_over {
                   col {
@@ -457,7 +457,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "window1"
               src {
@@ -470,7 +470,7 @@ body {
             }
           }
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 sp_column_over {
                   col {
@@ -626,7 +626,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "window2"
               src {
@@ -2542,7 +2542,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 sp_column_over {
                   col {
@@ -2611,7 +2611,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "window1"
               src {

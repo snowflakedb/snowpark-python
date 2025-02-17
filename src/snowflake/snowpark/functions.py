@@ -8574,7 +8574,7 @@ def when(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        expr = with_src_position(ast.sp_column_case_when)
+        expr = with_src_position(ast.column_case_expr)
         case_expr = with_src_position(expr.cases.add())
         build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
         build_expr_from_snowpark_column_or_python_val(case_expr.value, value)

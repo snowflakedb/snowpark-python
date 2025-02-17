@@ -98,7 +98,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   apply_expr {
@@ -196,7 +196,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   eq {
@@ -416,7 +416,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   sp_column_between {
@@ -614,7 +614,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   sp_column_equal_nan {
@@ -744,7 +744,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   sp_column_is_null {
@@ -1018,7 +1018,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   sp_column_string_contains {
@@ -1238,7 +1238,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   and {
@@ -1402,7 +1402,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   eq {
