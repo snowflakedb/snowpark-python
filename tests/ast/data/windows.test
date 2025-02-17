@@ -259,7 +259,7 @@ body {
           args {
             column_alias {
               col {
-                sp_column_over {
+                column_over {
                   col {
                     apply_expr {
                       fn {
@@ -472,7 +472,7 @@ body {
           args {
             column_alias {
               col {
-                sp_column_over {
+                column_over {
                   col {
                     apply_expr {
                       fn {
@@ -671,7 +671,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -826,7 +826,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -1015,7 +1015,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -1170,7 +1170,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -1325,7 +1325,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -1477,7 +1477,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -1630,7 +1630,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -1782,7 +1782,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -1935,7 +1935,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -2062,7 +2062,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -2189,7 +2189,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -2316,7 +2316,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -2443,7 +2443,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_over {
+            column_over {
               col {
                 apply_expr {
                   fn {
@@ -2544,7 +2544,7 @@ body {
           args {
             column_alias {
               col {
-                sp_column_over {
+                column_over {
                   col {
                     apply_expr {
                       fn {

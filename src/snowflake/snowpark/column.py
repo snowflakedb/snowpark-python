@@ -677,7 +677,7 @@ class Column:
             ast = None
             if _emit_ast:
                 ast = proto.Expr()
-                proto_ast = ast.sp_column_in
+                proto_ast = ast.column_in
                 proto_ast.col.CopyFrom(self._ast)
 
             return Column(Literal(False), _ast=ast, _emit_ast=_emit_ast)
@@ -733,7 +733,7 @@ class Column:
         ast = None
         if _emit_ast:
             ast = proto.Expr()
-            proto_ast = ast.sp_column_in
+            proto_ast = ast.column_in
             proto_ast.col.CopyFrom(self._ast)
             for val in vals:
                 val_ast = proto_ast.values.add()
@@ -841,7 +841,7 @@ class Column:
         expr = None
         if _emit_ast := _emit_ast and self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_equal_null)
+            ast = with_src_position(expr.column_equal_null)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
@@ -856,7 +856,7 @@ class Column:
         expr = None
         if _emit_ast and self._ast is not None:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_equal_nan)
+            ast = with_src_position(expr.column_equal_nan)
             ast.col.CopyFrom(self._ast)
         return Column(IsNaN(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
@@ -866,7 +866,7 @@ class Column:
         expr = None
         if _emit_ast and self._ast is not None:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_is_null)
+            ast = with_src_position(expr.column_is_null)
             ast.col.CopyFrom(self._ast)
         return Column(IsNull(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
@@ -876,7 +876,7 @@ class Column:
         expr = None
         if _emit_ast and self._ast is not None:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_is_not_null)
+            ast = with_src_position(expr.column_is_not_null)
             ast.col.CopyFrom(self._ast)
         return Column(IsNotNull(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
@@ -1350,7 +1350,7 @@ class Column:
         ast = None
         if _emit_ast:
             ast = proto.Expr()
-            expr = with_src_position(ast.sp_column_over)
+            expr = with_src_position(ast.column_over)
             expr.col.CopyFrom(self._ast)
             if window:
                 expr.window_spec.CopyFrom(window._ast)

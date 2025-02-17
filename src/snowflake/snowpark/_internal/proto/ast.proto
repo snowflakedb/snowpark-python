@@ -623,6 +623,19 @@ message ColumnDesc {
   SrcPosition src = 3;
 }
 
+// column.ir:64
+message ColumnEqualNan {
+  Expr col = 1;
+  SrcPosition src = 2;
+}
+
+// column.ir:66
+message ColumnEqualNull {
+  Expr lhs = 1;
+  Expr rhs = 2;
+  SrcPosition src = 3;
+}
+
 message ColumnFn {
   oneof variant {
     ColumnAlias column_alias = 1;
@@ -632,12 +645,12 @@ message ColumnFn {
     ColumnBetween column_between = 5;
     ColumnCast column_cast = 6;
     ColumnDesc column_desc = 7;
-    ColumnTryCast column_try_cast = 8;
-    SpColumnEqualNan sp_column_equal_nan = 9;
-    SpColumnIn sp_column_in = 10;
-    SpColumnIsNotNull sp_column_is_not_null = 11;
-    SpColumnIsNull sp_column_is_null = 12;
-    SpColumnOver sp_column_over = 13;
+    ColumnEqualNan column_equal_nan = 8;
+    ColumnIn column_in = 9;
+    ColumnIsNotNull column_is_not_null = 10;
+    ColumnIsNull column_is_null = 11;
+    ColumnOver column_over = 12;
+    ColumnTryCast column_try_cast = 13;
     SpColumnStringCollate sp_column_string_collate = 14;
     SpColumnStringContains sp_column_string_contains = 15;
     SpColumnStringEndsWith sp_column_string_ends_with = 16;
@@ -647,6 +660,32 @@ message ColumnFn {
     SpColumnStringSubstr sp_column_string_substr = 20;
     SpColumnWithinGroup sp_column_within_group = 21;
   }
+}
+
+// column.ir:71
+message ColumnIn {
+  Expr col = 1;
+  SrcPosition src = 2;
+  repeated Expr values = 3;
+}
+
+// column.ir:75
+message ColumnIsNotNull {
+  Expr col = 1;
+  SrcPosition src = 2;
+}
+
+// column.ir:77
+message ColumnIsNull {
+  Expr col = 1;
+  SrcPosition src = 2;
+}
+
+// column.ir:79
+message ColumnOver {
+  Expr col = 1;
+  SrcPosition src = 2;
+  SpWindowSpecExpr window_spec = 3;
 }
 
 // column.ir:54
@@ -773,42 +812,42 @@ message Expr {
     ColumnCaseExpr column_case_expr = 32;
     ColumnCast column_cast = 33;
     ColumnDesc column_desc = 34;
-    ColumnTryCast column_try_cast = 35;
-    DataframeCol dataframe_col = 36;
-    Div div = 37;
-    Eq eq = 38;
-    ExtensionDataframeExpr extension_dataframe_expr = 39;
-    ExtensionExpr extension_expr = 40;
-    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 41;
-    Float64Val float64_val = 42;
-    Geq geq = 43;
-    Gt gt = 44;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 45;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 46;
-    Int64Val int64_val = 47;
-    Leq leq = 48;
-    ListVal list_val = 49;
-    Lt lt = 50;
-    Mod mod = 51;
-    Mul mul = 52;
-    Neg neg = 53;
-    Neq neq = 54;
-    Not not = 55;
-    NullVal null_val = 56;
-    ObjectGetItem object_get_item = 57;
-    Or or = 58;
-    Pow pow = 59;
-    PythonDateVal python_date_val = 60;
-    PythonTimeVal python_time_val = 61;
-    PythonTimestampVal python_timestamp_val = 62;
-    RedactedConst redacted_const = 63;
-    SeqMapVal seq_map_val = 64;
-    SpColumnEqualNan sp_column_equal_nan = 65;
-    SpColumnEqualNull sp_column_equal_null = 66;
-    SpColumnIn sp_column_in = 67;
-    SpColumnIsNotNull sp_column_is_not_null = 68;
-    SpColumnIsNull sp_column_is_null = 69;
-    SpColumnOver sp_column_over = 70;
+    ColumnEqualNan column_equal_nan = 35;
+    ColumnEqualNull column_equal_null = 36;
+    ColumnIn column_in = 37;
+    ColumnIsNotNull column_is_not_null = 38;
+    ColumnIsNull column_is_null = 39;
+    ColumnOver column_over = 40;
+    ColumnTryCast column_try_cast = 41;
+    DataframeCol dataframe_col = 42;
+    Div div = 43;
+    Eq eq = 44;
+    ExtensionDataframeExpr extension_dataframe_expr = 45;
+    ExtensionExpr extension_expr = 46;
+    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 47;
+    Float64Val float64_val = 48;
+    Geq geq = 49;
+    Gt gt = 50;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 51;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 52;
+    Int64Val int64_val = 53;
+    Leq leq = 54;
+    ListVal list_val = 55;
+    Lt lt = 56;
+    Mod mod = 57;
+    Mul mul = 58;
+    Neg neg = 59;
+    Neq neq = 60;
+    Not not = 61;
+    NullVal null_val = 62;
+    ObjectGetItem object_get_item = 63;
+    Or or = 64;
+    Pow pow = 65;
+    PythonDateVal python_date_val = 66;
+    PythonTimeVal python_time_val = 67;
+    PythonTimestampVal python_timestamp_val = 68;
+    RedactedConst redacted_const = 69;
+    SeqMapVal seq_map_val = 70;
     SpColumnStringCollate sp_column_string_collate = 71;
     SpColumnStringContains sp_column_string_contains = 72;
     SpColumnStringEndsWith sp_column_string_ends_with = 73;
@@ -1075,43 +1114,43 @@ message HasSrcPosition {
     ColumnCaseExprClause column_case_expr_clause = 36;
     ColumnCast column_cast = 37;
     ColumnDesc column_desc = 38;
-    ColumnTryCast column_try_cast = 39;
-    DataframeCol dataframe_col = 40;
-    Div div = 41;
-    Eq eq = 42;
-    ExtensionDataframeExpr extension_dataframe_expr = 43;
-    ExtensionExpr extension_expr = 44;
-    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 45;
-    Float64Val float64_val = 46;
-    Geq geq = 47;
-    Gt gt = 48;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 49;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 50;
-    Int64Val int64_val = 51;
-    Leq leq = 52;
-    ListVal list_val = 53;
-    Lt lt = 54;
-    Mod mod = 55;
-    Mul mul = 56;
-    NameRef name_ref = 57;
-    Neg neg = 58;
-    Neq neq = 59;
-    Not not = 60;
-    NullVal null_val = 61;
-    ObjectGetItem object_get_item = 62;
-    Or or = 63;
-    Pow pow = 64;
-    PythonDateVal python_date_val = 65;
-    PythonTimeVal python_time_val = 66;
-    PythonTimestampVal python_timestamp_val = 67;
-    RedactedConst redacted_const = 68;
-    SeqMapVal seq_map_val = 69;
-    SpColumnEqualNan sp_column_equal_nan = 70;
-    SpColumnEqualNull sp_column_equal_null = 71;
-    SpColumnIn sp_column_in = 72;
-    SpColumnIsNotNull sp_column_is_not_null = 73;
-    SpColumnIsNull sp_column_is_null = 74;
-    SpColumnOver sp_column_over = 75;
+    ColumnEqualNan column_equal_nan = 39;
+    ColumnEqualNull column_equal_null = 40;
+    ColumnIn column_in = 41;
+    ColumnIsNotNull column_is_not_null = 42;
+    ColumnIsNull column_is_null = 43;
+    ColumnOver column_over = 44;
+    ColumnTryCast column_try_cast = 45;
+    DataframeCol dataframe_col = 46;
+    Div div = 47;
+    Eq eq = 48;
+    ExtensionDataframeExpr extension_dataframe_expr = 49;
+    ExtensionExpr extension_expr = 50;
+    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 51;
+    Float64Val float64_val = 52;
+    Geq geq = 53;
+    Gt gt = 54;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 55;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 56;
+    Int64Val int64_val = 57;
+    Leq leq = 58;
+    ListVal list_val = 59;
+    Lt lt = 60;
+    Mod mod = 61;
+    Mul mul = 62;
+    NameRef name_ref = 63;
+    Neg neg = 64;
+    Neq neq = 65;
+    Not not = 66;
+    NullVal null_val = 67;
+    ObjectGetItem object_get_item = 68;
+    Or or = 69;
+    Pow pow = 70;
+    PythonDateVal python_date_val = 71;
+    PythonTimeVal python_time_val = 72;
+    PythonTimestampVal python_timestamp_val = 73;
+    RedactedConst redacted_const = 74;
+    SeqMapVal seq_map_val = 75;
     SpColumnStringCollate sp_column_string_collate = 76;
     SpColumnStringContains sp_column_string_contains = 77;
     SpColumnStringEndsWith sp_column_string_ends_with = 78;
@@ -1429,45 +1468,6 @@ message SfQueryResult {
 
 // ast.ir:86
 message ShowResult {
-}
-
-// column.ir:64
-message SpColumnEqualNan {
-  Expr col = 1;
-  SrcPosition src = 2;
-}
-
-// column.ir:66
-message SpColumnEqualNull {
-  Expr lhs = 1;
-  Expr rhs = 2;
-  SrcPosition src = 3;
-}
-
-// column.ir:71
-message SpColumnIn {
-  Expr col = 1;
-  SrcPosition src = 2;
-  repeated Expr values = 3;
-}
-
-// column.ir:75
-message SpColumnIsNotNull {
-  Expr col = 1;
-  SrcPosition src = 2;
-}
-
-// column.ir:77
-message SpColumnIsNull {
-  Expr col = 1;
-  SrcPosition src = 2;
-}
-
-// column.ir:79
-message SpColumnOver {
-  Expr col = 1;
-  SrcPosition src = 2;
-  SpWindowSpecExpr window_spec = 3;
 }
 
 // column.ir:106

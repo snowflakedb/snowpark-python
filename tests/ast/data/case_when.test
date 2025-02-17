@@ -617,7 +617,7 @@ body {
             column_case_expr {
               cases {
                 condition {
-                  sp_column_equal_nan {
+                  column_equal_nan {
                     col {
                       apply_expr {
                         fn {
@@ -747,7 +747,7 @@ body {
             column_case_expr {
               cases {
                 condition {
-                  sp_column_is_null {
+                  column_is_null {
                     col {
                       apply_expr {
                         fn {
