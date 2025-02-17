@@ -668,6 +668,7 @@ body {
         id {
           bitfield1: 9
         }
+        n: 10
       }
     }
     symbol {
