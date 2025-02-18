@@ -14,11 +14,11 @@
 #### Improvements
 
 - Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns.
+- Improved the random object name generation to avoid collisions.
 
 #### Deprecations
 
 - Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
-- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### Bug Fixes
 
@@ -26,10 +26,6 @@
 - Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
 - Fixed a bug in options sql generation that could cause multiple values to be formatted incorrectly.
 - Fixed a bug in `Session.catalog` where empty strings for database or schema were not handled correctly and were generating erroneous sql statements.
-
-#### Improvements
-
-- Improved the random object name generation to avoid collisions.
 
 #### Experimental Features
 
@@ -57,9 +53,6 @@
 
 - Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 - Fixed a bug in when statements that caused incorrect results in the otherwise clause.
-
-
-
 
 ### Snowpark Local Testing Updates
 
