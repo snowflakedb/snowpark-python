@@ -92,7 +92,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         block: true
         id {
           bitfield1: 1
@@ -157,7 +157,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         id {
           bitfield1: 4
         }
@@ -221,7 +221,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         id {
           bitfield1: 7
         }
@@ -289,7 +289,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         block: true
         condition {
           eq {
@@ -475,7 +475,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         block: true
         condition {
           eq {

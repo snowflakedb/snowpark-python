@@ -844,9 +844,9 @@ message Expr {
     FnIdRefExpr trait_fn_id_ref_expr = 6;
     FnNameRefExpr trait_fn_name_ref_expr = 7;
     FnRefExpr trait_fn_ref_expr = 8;
-    SpDataframeExpr trait_sp_dataframe_expr = 9;
-    SpDataframeWriter trait_sp_dataframe_writer = 10;
-    SpMatchedClause trait_sp_matched_clause = 11;
+    MatchedClause trait_matched_clause = 9;
+    SpDataframeExpr trait_sp_dataframe_expr = 10;
+    SpDataframeWriter trait_sp_dataframe_writer = 11;
     SpRelationalGroupedDataframeExpr trait_sp_relational_grouped_dataframe_expr = 12;
     SpWriteFile trait_sp_write_file = 13;
     UnaryOp trait_unary_op = 14;
@@ -900,91 +900,91 @@ message Expr {
     Leq leq = 62;
     ListVal list_val = 63;
     Lt lt = 64;
-    Mod mod = 65;
-    Mul mul = 66;
-    Neg neg = 67;
-    Neq neq = 68;
-    Not not = 69;
-    NullVal null_val = 70;
-    ObjectGetItem object_get_item = 71;
-    Or or = 72;
-    Pow pow = 73;
-    PythonDateVal python_date_val = 74;
-    PythonTimeVal python_time_val = 75;
-    PythonTimestampVal python_timestamp_val = 76;
-    RedactedConst redacted_const = 77;
-    SeqMapVal seq_map_val = 78;
-    SpCreateDataframe sp_create_dataframe = 79;
-    SpDataframeAgg sp_dataframe_agg = 80;
-    SpDataframeAlias sp_dataframe_alias = 81;
-    SpDataframeAnalyticsComputeLag sp_dataframe_analytics_compute_lag = 82;
-    SpDataframeAnalyticsComputeLead sp_dataframe_analytics_compute_lead = 83;
-    SpDataframeAnalyticsCumulativeAgg sp_dataframe_analytics_cumulative_agg = 84;
-    SpDataframeAnalyticsMovingAgg sp_dataframe_analytics_moving_agg = 85;
-    SpDataframeAnalyticsTimeSeriesAgg sp_dataframe_analytics_time_series_agg = 86;
-    SpDataframeCacheResult sp_dataframe_cache_result = 87;
-    SpDataframeCollect sp_dataframe_collect = 88;
-    SpDataframeCopyIntoTable sp_dataframe_copy_into_table = 89;
-    SpDataframeCount sp_dataframe_count = 90;
-    SpDataframeCreateOrReplaceDynamicTable sp_dataframe_create_or_replace_dynamic_table = 91;
-    SpDataframeCreateOrReplaceView sp_dataframe_create_or_replace_view = 92;
-    SpDataframeCrossJoin sp_dataframe_cross_join = 93;
-    SpDataframeCube sp_dataframe_cube = 94;
-    SpDataframeDescribe sp_dataframe_describe = 95;
-    SpDataframeDistinct sp_dataframe_distinct = 96;
-    SpDataframeDrop sp_dataframe_drop = 97;
-    SpDataframeDropDuplicates sp_dataframe_drop_duplicates = 98;
-    SpDataframeExcept sp_dataframe_except = 99;
-    SpDataframeFilter sp_dataframe_filter = 100;
-    SpDataframeFirst sp_dataframe_first = 101;
-    SpDataframeFlatten sp_dataframe_flatten = 102;
-    SpDataframeGroupBy sp_dataframe_group_by = 103;
-    SpDataframeGroupByGroupingSets sp_dataframe_group_by_grouping_sets = 104;
-    SpDataframeIntersect sp_dataframe_intersect = 105;
-    SpDataframeJoin sp_dataframe_join = 106;
-    SpDataframeJoinTableFunction sp_dataframe_join_table_function = 107;
-    SpDataframeLimit sp_dataframe_limit = 108;
-    SpDataframeNaDrop_Python sp_dataframe_na_drop__python = 109;
-    SpDataframeNaDrop_Scala sp_dataframe_na_drop__scala = 110;
-    SpDataframeNaFill sp_dataframe_na_fill = 111;
-    SpDataframeNaReplace sp_dataframe_na_replace = 112;
-    SpDataframeNaturalJoin sp_dataframe_natural_join = 113;
-    SpDataframePivot sp_dataframe_pivot = 114;
-    SpDataframeRandomSplit sp_dataframe_random_split = 115;
-    SpDataframeRef sp_dataframe_ref = 116;
-    SpDataframeRename sp_dataframe_rename = 117;
-    SpDataframeRollup sp_dataframe_rollup = 118;
-    SpDataframeSample sp_dataframe_sample = 119;
-    SpDataframeSelect_Columns sp_dataframe_select__columns = 120;
-    SpDataframeSelect_Exprs sp_dataframe_select__exprs = 121;
-    SpDataframeShow sp_dataframe_show = 122;
-    SpDataframeSort sp_dataframe_sort = 123;
-    SpDataframeStatApproxQuantile sp_dataframe_stat_approx_quantile = 124;
-    SpDataframeStatCorr sp_dataframe_stat_corr = 125;
-    SpDataframeStatCov sp_dataframe_stat_cov = 126;
-    SpDataframeStatCrossTab sp_dataframe_stat_cross_tab = 127;
-    SpDataframeStatSampleBy sp_dataframe_stat_sample_by = 128;
-    SpDataframeToDf sp_dataframe_to_df = 129;
-    SpDataframeToLocalIterator sp_dataframe_to_local_iterator = 130;
-    SpDataframeToPandas sp_dataframe_to_pandas = 131;
-    SpDataframeToPandasBatches sp_dataframe_to_pandas_batches = 132;
-    SpDataframeUnion sp_dataframe_union = 133;
-    SpDataframeUnionAll sp_dataframe_union_all = 134;
-    SpDataframeUnionAllByName sp_dataframe_union_all_by_name = 135;
-    SpDataframeUnionByName sp_dataframe_union_by_name = 136;
-    SpDataframeUnpivot sp_dataframe_unpivot = 137;
-    SpDataframeWithColumn sp_dataframe_with_column = 138;
-    SpDataframeWithColumnRenamed sp_dataframe_with_column_renamed = 139;
-    SpDataframeWithColumns sp_dataframe_with_columns = 140;
-    SpDataframeWrite sp_dataframe_write = 141;
-    SpDatatypeVal sp_datatype_val = 142;
-    SpFlatten sp_flatten = 143;
-    SpFnRef sp_fn_ref = 144;
-    SpGenerator sp_generator = 145;
-    SpGroupingSets sp_grouping_sets = 146;
-    SpMergeDeleteWhenMatchedClause sp_merge_delete_when_matched_clause = 147;
-    SpMergeInsertWhenNotMatchedClause sp_merge_insert_when_not_matched_clause = 148;
-    SpMergeUpdateWhenMatchedClause sp_merge_update_when_matched_clause = 149;
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 65;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 66;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 67;
+    Mod mod = 68;
+    Mul mul = 69;
+    Neg neg = 70;
+    Neq neq = 71;
+    Not not = 72;
+    NullVal null_val = 73;
+    ObjectGetItem object_get_item = 74;
+    Or or = 75;
+    Pow pow = 76;
+    PythonDateVal python_date_val = 77;
+    PythonTimeVal python_time_val = 78;
+    PythonTimestampVal python_timestamp_val = 79;
+    RedactedConst redacted_const = 80;
+    SeqMapVal seq_map_val = 81;
+    SpCreateDataframe sp_create_dataframe = 82;
+    SpDataframeAgg sp_dataframe_agg = 83;
+    SpDataframeAlias sp_dataframe_alias = 84;
+    SpDataframeAnalyticsComputeLag sp_dataframe_analytics_compute_lag = 85;
+    SpDataframeAnalyticsComputeLead sp_dataframe_analytics_compute_lead = 86;
+    SpDataframeAnalyticsCumulativeAgg sp_dataframe_analytics_cumulative_agg = 87;
+    SpDataframeAnalyticsMovingAgg sp_dataframe_analytics_moving_agg = 88;
+    SpDataframeAnalyticsTimeSeriesAgg sp_dataframe_analytics_time_series_agg = 89;
+    SpDataframeCacheResult sp_dataframe_cache_result = 90;
+    SpDataframeCollect sp_dataframe_collect = 91;
+    SpDataframeCopyIntoTable sp_dataframe_copy_into_table = 92;
+    SpDataframeCount sp_dataframe_count = 93;
+    SpDataframeCreateOrReplaceDynamicTable sp_dataframe_create_or_replace_dynamic_table = 94;
+    SpDataframeCreateOrReplaceView sp_dataframe_create_or_replace_view = 95;
+    SpDataframeCrossJoin sp_dataframe_cross_join = 96;
+    SpDataframeCube sp_dataframe_cube = 97;
+    SpDataframeDescribe sp_dataframe_describe = 98;
+    SpDataframeDistinct sp_dataframe_distinct = 99;
+    SpDataframeDrop sp_dataframe_drop = 100;
+    SpDataframeDropDuplicates sp_dataframe_drop_duplicates = 101;
+    SpDataframeExcept sp_dataframe_except = 102;
+    SpDataframeFilter sp_dataframe_filter = 103;
+    SpDataframeFirst sp_dataframe_first = 104;
+    SpDataframeFlatten sp_dataframe_flatten = 105;
+    SpDataframeGroupBy sp_dataframe_group_by = 106;
+    SpDataframeGroupByGroupingSets sp_dataframe_group_by_grouping_sets = 107;
+    SpDataframeIntersect sp_dataframe_intersect = 108;
+    SpDataframeJoin sp_dataframe_join = 109;
+    SpDataframeJoinTableFunction sp_dataframe_join_table_function = 110;
+    SpDataframeLimit sp_dataframe_limit = 111;
+    SpDataframeNaDrop_Python sp_dataframe_na_drop__python = 112;
+    SpDataframeNaDrop_Scala sp_dataframe_na_drop__scala = 113;
+    SpDataframeNaFill sp_dataframe_na_fill = 114;
+    SpDataframeNaReplace sp_dataframe_na_replace = 115;
+    SpDataframeNaturalJoin sp_dataframe_natural_join = 116;
+    SpDataframePivot sp_dataframe_pivot = 117;
+    SpDataframeRandomSplit sp_dataframe_random_split = 118;
+    SpDataframeRef sp_dataframe_ref = 119;
+    SpDataframeRename sp_dataframe_rename = 120;
+    SpDataframeRollup sp_dataframe_rollup = 121;
+    SpDataframeSample sp_dataframe_sample = 122;
+    SpDataframeSelect_Columns sp_dataframe_select__columns = 123;
+    SpDataframeSelect_Exprs sp_dataframe_select__exprs = 124;
+    SpDataframeShow sp_dataframe_show = 125;
+    SpDataframeSort sp_dataframe_sort = 126;
+    SpDataframeStatApproxQuantile sp_dataframe_stat_approx_quantile = 127;
+    SpDataframeStatCorr sp_dataframe_stat_corr = 128;
+    SpDataframeStatCov sp_dataframe_stat_cov = 129;
+    SpDataframeStatCrossTab sp_dataframe_stat_cross_tab = 130;
+    SpDataframeStatSampleBy sp_dataframe_stat_sample_by = 131;
+    SpDataframeToDf sp_dataframe_to_df = 132;
+    SpDataframeToLocalIterator sp_dataframe_to_local_iterator = 133;
+    SpDataframeToPandas sp_dataframe_to_pandas = 134;
+    SpDataframeToPandasBatches sp_dataframe_to_pandas_batches = 135;
+    SpDataframeUnion sp_dataframe_union = 136;
+    SpDataframeUnionAll sp_dataframe_union_all = 137;
+    SpDataframeUnionAllByName sp_dataframe_union_all_by_name = 138;
+    SpDataframeUnionByName sp_dataframe_union_by_name = 139;
+    SpDataframeUnpivot sp_dataframe_unpivot = 140;
+    SpDataframeWithColumn sp_dataframe_with_column = 141;
+    SpDataframeWithColumnRenamed sp_dataframe_with_column_renamed = 142;
+    SpDataframeWithColumns sp_dataframe_with_columns = 143;
+    SpDataframeWrite sp_dataframe_write = 144;
+    SpDatatypeVal sp_datatype_val = 145;
+    SpFlatten sp_flatten = 146;
+    SpFnRef sp_fn_ref = 147;
+    SpGenerator sp_generator = 148;
+    SpGroupingSets sp_grouping_sets = 149;
     SpRange sp_range = 150;
     SpReadAvro sp_read_avro = 151;
     SpReadCsv sp_read_csv = 152;
@@ -1002,24 +1002,24 @@ message Expr {
     SpSessionTableFunction sp_session_table_function = 164;
     SpSql sp_sql = 165;
     SpTable sp_table = 166;
-    SpTableDelete sp_table_delete = 167;
-    SpTableDropTable sp_table_drop_table = 168;
-    SpTableFnCallAlias sp_table_fn_call_alias = 169;
-    SpTableFnCallOver sp_table_fn_call_over = 170;
-    SpTableMerge sp_table_merge = 171;
-    SpTableSample sp_table_sample = 172;
-    SpTableUpdate sp_table_update = 173;
-    SpToSnowparkPandas sp_to_snowpark_pandas = 174;
-    SpWriteCopyIntoLocation sp_write_copy_into_location = 175;
-    SpWriteCsv sp_write_csv = 176;
-    SpWriteJson sp_write_json = 177;
-    SpWritePandas sp_write_pandas = 178;
-    SpWriteParquet sp_write_parquet = 179;
-    SpWriteTable sp_write_table = 180;
-    SqlExpr sql_expr = 181;
-    StoredProcedure stored_procedure = 182;
-    StringVal string_val = 183;
-    Sub sub = 184;
+    SpTableFnCallAlias sp_table_fn_call_alias = 167;
+    SpTableFnCallOver sp_table_fn_call_over = 168;
+    SpToSnowparkPandas sp_to_snowpark_pandas = 169;
+    SpWriteCopyIntoLocation sp_write_copy_into_location = 170;
+    SpWriteCsv sp_write_csv = 171;
+    SpWriteJson sp_write_json = 172;
+    SpWritePandas sp_write_pandas = 173;
+    SpWriteParquet sp_write_parquet = 174;
+    SpWriteTable sp_write_table = 175;
+    SqlExpr sql_expr = 176;
+    StoredProcedure stored_procedure = 177;
+    StringVal string_val = 178;
+    Sub sub = 179;
+    TableDelete table_delete = 180;
+    TableDropTable table_drop_table = 181;
+    TableMerge table_merge = 182;
+    TableSample table_sample = 183;
+    TableUpdate table_update = 184;
     TruncatedDataframeExpr truncated_dataframe_expr = 185;
     TruncatedExpr truncated_expr = 186;
     TruncatedRelationalGroupedDataframeExpr truncated_relational_grouped_dataframe_expr = 187;
@@ -1143,10 +1143,10 @@ message HasSrcPosition {
     FnIdRefExpr trait_fn_id_ref_expr = 7;
     FnNameRefExpr trait_fn_name_ref_expr = 8;
     FnRefExpr trait_fn_ref_expr = 9;
-    SpDataframeExpr trait_sp_dataframe_expr = 10;
-    SpDataframeReader trait_sp_dataframe_reader = 11;
-    SpDataframeWriter trait_sp_dataframe_writer = 12;
-    SpMatchedClause trait_sp_matched_clause = 13;
+    MatchedClause trait_matched_clause = 10;
+    SpDataframeExpr trait_sp_dataframe_expr = 11;
+    SpDataframeReader trait_sp_dataframe_reader = 12;
+    SpDataframeWriter trait_sp_dataframe_writer = 13;
     SpRelationalGroupedDataframeExpr trait_sp_relational_grouped_dataframe_expr = 14;
     SpWindowSpecExpr trait_sp_window_spec_expr = 15;
     SpWriteFile trait_sp_write_file = 16;
@@ -1202,97 +1202,97 @@ message HasSrcPosition {
     Leq leq = 66;
     ListVal list_val = 67;
     Lt lt = 68;
-    Mod mod = 69;
-    Mul mul = 70;
-    NameRef name_ref = 71;
-    Neg neg = 72;
-    Neq neq = 73;
-    Not not = 74;
-    NullVal null_val = 75;
-    ObjectGetItem object_get_item = 76;
-    Or or = 77;
-    Pow pow = 78;
-    PythonDateVal python_date_val = 79;
-    PythonTimeVal python_time_val = 80;
-    PythonTimestampVal python_timestamp_val = 81;
-    RedactedConst redacted_const = 82;
-    SeqMapVal seq_map_val = 83;
-    SpCreateDataframe sp_create_dataframe = 84;
-    SpDataframeAgg sp_dataframe_agg = 85;
-    SpDataframeAlias sp_dataframe_alias = 86;
-    SpDataframeAnalyticsComputeLag sp_dataframe_analytics_compute_lag = 87;
-    SpDataframeAnalyticsComputeLead sp_dataframe_analytics_compute_lead = 88;
-    SpDataframeAnalyticsCumulativeAgg sp_dataframe_analytics_cumulative_agg = 89;
-    SpDataframeAnalyticsMovingAgg sp_dataframe_analytics_moving_agg = 90;
-    SpDataframeAnalyticsTimeSeriesAgg sp_dataframe_analytics_time_series_agg = 91;
-    SpDataframeCacheResult sp_dataframe_cache_result = 92;
-    SpDataframeCollect sp_dataframe_collect = 93;
-    SpDataframeCopyIntoTable sp_dataframe_copy_into_table = 94;
-    SpDataframeCount sp_dataframe_count = 95;
-    SpDataframeCreateOrReplaceDynamicTable sp_dataframe_create_or_replace_dynamic_table = 96;
-    SpDataframeCreateOrReplaceView sp_dataframe_create_or_replace_view = 97;
-    SpDataframeCrossJoin sp_dataframe_cross_join = 98;
-    SpDataframeCube sp_dataframe_cube = 99;
-    SpDataframeDescribe sp_dataframe_describe = 100;
-    SpDataframeDistinct sp_dataframe_distinct = 101;
-    SpDataframeDrop sp_dataframe_drop = 102;
-    SpDataframeDropDuplicates sp_dataframe_drop_duplicates = 103;
-    SpDataframeExcept sp_dataframe_except = 104;
-    SpDataframeFilter sp_dataframe_filter = 105;
-    SpDataframeFirst sp_dataframe_first = 106;
-    SpDataframeFlatten sp_dataframe_flatten = 107;
-    SpDataframeGroupBy sp_dataframe_group_by = 108;
-    SpDataframeGroupByGroupingSets sp_dataframe_group_by_grouping_sets = 109;
-    SpDataframeIntersect sp_dataframe_intersect = 110;
-    SpDataframeJoin sp_dataframe_join = 111;
-    SpDataframeJoinTableFunction sp_dataframe_join_table_function = 112;
-    SpDataframeLimit sp_dataframe_limit = 113;
-    SpDataframeNaDrop_Python sp_dataframe_na_drop__python = 114;
-    SpDataframeNaDrop_Scala sp_dataframe_na_drop__scala = 115;
-    SpDataframeNaFill sp_dataframe_na_fill = 116;
-    SpDataframeNaReplace sp_dataframe_na_replace = 117;
-    SpDataframeNaturalJoin sp_dataframe_natural_join = 118;
-    SpDataframePivot sp_dataframe_pivot = 119;
-    SpDataframeRandomSplit sp_dataframe_random_split = 120;
-    SpDataframeReaderInit sp_dataframe_reader_init = 121;
-    SpDataframeReaderOption sp_dataframe_reader_option = 122;
-    SpDataframeReaderOptions sp_dataframe_reader_options = 123;
-    SpDataframeReaderSchema sp_dataframe_reader_schema = 124;
-    SpDataframeReaderWithMetadata sp_dataframe_reader_with_metadata = 125;
-    SpDataframeRef sp_dataframe_ref = 126;
-    SpDataframeRename sp_dataframe_rename = 127;
-    SpDataframeRollup sp_dataframe_rollup = 128;
-    SpDataframeSample sp_dataframe_sample = 129;
-    SpDataframeSelect_Columns sp_dataframe_select__columns = 130;
-    SpDataframeSelect_Exprs sp_dataframe_select__exprs = 131;
-    SpDataframeShow sp_dataframe_show = 132;
-    SpDataframeSort sp_dataframe_sort = 133;
-    SpDataframeStatApproxQuantile sp_dataframe_stat_approx_quantile = 134;
-    SpDataframeStatCorr sp_dataframe_stat_corr = 135;
-    SpDataframeStatCov sp_dataframe_stat_cov = 136;
-    SpDataframeStatCrossTab sp_dataframe_stat_cross_tab = 137;
-    SpDataframeStatSampleBy sp_dataframe_stat_sample_by = 138;
-    SpDataframeToDf sp_dataframe_to_df = 139;
-    SpDataframeToLocalIterator sp_dataframe_to_local_iterator = 140;
-    SpDataframeToPandas sp_dataframe_to_pandas = 141;
-    SpDataframeToPandasBatches sp_dataframe_to_pandas_batches = 142;
-    SpDataframeUnion sp_dataframe_union = 143;
-    SpDataframeUnionAll sp_dataframe_union_all = 144;
-    SpDataframeUnionAllByName sp_dataframe_union_all_by_name = 145;
-    SpDataframeUnionByName sp_dataframe_union_by_name = 146;
-    SpDataframeUnpivot sp_dataframe_unpivot = 147;
-    SpDataframeWithColumn sp_dataframe_with_column = 148;
-    SpDataframeWithColumnRenamed sp_dataframe_with_column_renamed = 149;
-    SpDataframeWithColumns sp_dataframe_with_columns = 150;
-    SpDataframeWrite sp_dataframe_write = 151;
-    SpDatatypeVal sp_datatype_val = 152;
-    SpFlatten sp_flatten = 153;
-    SpFnRef sp_fn_ref = 154;
-    SpGenerator sp_generator = 155;
-    SpGroupingSets sp_grouping_sets = 156;
-    SpMergeDeleteWhenMatchedClause sp_merge_delete_when_matched_clause = 157;
-    SpMergeInsertWhenNotMatchedClause sp_merge_insert_when_not_matched_clause = 158;
-    SpMergeUpdateWhenMatchedClause sp_merge_update_when_matched_clause = 159;
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 69;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 70;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 71;
+    Mod mod = 72;
+    Mul mul = 73;
+    NameRef name_ref = 74;
+    Neg neg = 75;
+    Neq neq = 76;
+    Not not = 77;
+    NullVal null_val = 78;
+    ObjectGetItem object_get_item = 79;
+    Or or = 80;
+    Pow pow = 81;
+    PythonDateVal python_date_val = 82;
+    PythonTimeVal python_time_val = 83;
+    PythonTimestampVal python_timestamp_val = 84;
+    RedactedConst redacted_const = 85;
+    SeqMapVal seq_map_val = 86;
+    SpCreateDataframe sp_create_dataframe = 87;
+    SpDataframeAgg sp_dataframe_agg = 88;
+    SpDataframeAlias sp_dataframe_alias = 89;
+    SpDataframeAnalyticsComputeLag sp_dataframe_analytics_compute_lag = 90;
+    SpDataframeAnalyticsComputeLead sp_dataframe_analytics_compute_lead = 91;
+    SpDataframeAnalyticsCumulativeAgg sp_dataframe_analytics_cumulative_agg = 92;
+    SpDataframeAnalyticsMovingAgg sp_dataframe_analytics_moving_agg = 93;
+    SpDataframeAnalyticsTimeSeriesAgg sp_dataframe_analytics_time_series_agg = 94;
+    SpDataframeCacheResult sp_dataframe_cache_result = 95;
+    SpDataframeCollect sp_dataframe_collect = 96;
+    SpDataframeCopyIntoTable sp_dataframe_copy_into_table = 97;
+    SpDataframeCount sp_dataframe_count = 98;
+    SpDataframeCreateOrReplaceDynamicTable sp_dataframe_create_or_replace_dynamic_table = 99;
+    SpDataframeCreateOrReplaceView sp_dataframe_create_or_replace_view = 100;
+    SpDataframeCrossJoin sp_dataframe_cross_join = 101;
+    SpDataframeCube sp_dataframe_cube = 102;
+    SpDataframeDescribe sp_dataframe_describe = 103;
+    SpDataframeDistinct sp_dataframe_distinct = 104;
+    SpDataframeDrop sp_dataframe_drop = 105;
+    SpDataframeDropDuplicates sp_dataframe_drop_duplicates = 106;
+    SpDataframeExcept sp_dataframe_except = 107;
+    SpDataframeFilter sp_dataframe_filter = 108;
+    SpDataframeFirst sp_dataframe_first = 109;
+    SpDataframeFlatten sp_dataframe_flatten = 110;
+    SpDataframeGroupBy sp_dataframe_group_by = 111;
+    SpDataframeGroupByGroupingSets sp_dataframe_group_by_grouping_sets = 112;
+    SpDataframeIntersect sp_dataframe_intersect = 113;
+    SpDataframeJoin sp_dataframe_join = 114;
+    SpDataframeJoinTableFunction sp_dataframe_join_table_function = 115;
+    SpDataframeLimit sp_dataframe_limit = 116;
+    SpDataframeNaDrop_Python sp_dataframe_na_drop__python = 117;
+    SpDataframeNaDrop_Scala sp_dataframe_na_drop__scala = 118;
+    SpDataframeNaFill sp_dataframe_na_fill = 119;
+    SpDataframeNaReplace sp_dataframe_na_replace = 120;
+    SpDataframeNaturalJoin sp_dataframe_natural_join = 121;
+    SpDataframePivot sp_dataframe_pivot = 122;
+    SpDataframeRandomSplit sp_dataframe_random_split = 123;
+    SpDataframeReaderInit sp_dataframe_reader_init = 124;
+    SpDataframeReaderOption sp_dataframe_reader_option = 125;
+    SpDataframeReaderOptions sp_dataframe_reader_options = 126;
+    SpDataframeReaderSchema sp_dataframe_reader_schema = 127;
+    SpDataframeReaderWithMetadata sp_dataframe_reader_with_metadata = 128;
+    SpDataframeRef sp_dataframe_ref = 129;
+    SpDataframeRename sp_dataframe_rename = 130;
+    SpDataframeRollup sp_dataframe_rollup = 131;
+    SpDataframeSample sp_dataframe_sample = 132;
+    SpDataframeSelect_Columns sp_dataframe_select__columns = 133;
+    SpDataframeSelect_Exprs sp_dataframe_select__exprs = 134;
+    SpDataframeShow sp_dataframe_show = 135;
+    SpDataframeSort sp_dataframe_sort = 136;
+    SpDataframeStatApproxQuantile sp_dataframe_stat_approx_quantile = 137;
+    SpDataframeStatCorr sp_dataframe_stat_corr = 138;
+    SpDataframeStatCov sp_dataframe_stat_cov = 139;
+    SpDataframeStatCrossTab sp_dataframe_stat_cross_tab = 140;
+    SpDataframeStatSampleBy sp_dataframe_stat_sample_by = 141;
+    SpDataframeToDf sp_dataframe_to_df = 142;
+    SpDataframeToLocalIterator sp_dataframe_to_local_iterator = 143;
+    SpDataframeToPandas sp_dataframe_to_pandas = 144;
+    SpDataframeToPandasBatches sp_dataframe_to_pandas_batches = 145;
+    SpDataframeUnion sp_dataframe_union = 146;
+    SpDataframeUnionAll sp_dataframe_union_all = 147;
+    SpDataframeUnionAllByName sp_dataframe_union_all_by_name = 148;
+    SpDataframeUnionByName sp_dataframe_union_by_name = 149;
+    SpDataframeUnpivot sp_dataframe_unpivot = 150;
+    SpDataframeWithColumn sp_dataframe_with_column = 151;
+    SpDataframeWithColumnRenamed sp_dataframe_with_column_renamed = 152;
+    SpDataframeWithColumns sp_dataframe_with_columns = 153;
+    SpDataframeWrite sp_dataframe_write = 154;
+    SpDatatypeVal sp_datatype_val = 155;
+    SpFlatten sp_flatten = 156;
+    SpFnRef sp_fn_ref = 157;
+    SpGenerator sp_generator = 158;
+    SpGroupingSets sp_grouping_sets = 159;
     SpRange sp_range = 160;
     SpReadAvro sp_read_avro = 161;
     SpReadCsv sp_read_csv = 162;
@@ -1310,29 +1310,29 @@ message HasSrcPosition {
     SpSessionTableFunction sp_session_table_function = 174;
     SpSql sp_sql = 175;
     SpTable sp_table = 176;
-    SpTableDelete sp_table_delete = 177;
-    SpTableDropTable sp_table_drop_table = 178;
-    SpTableFnCallAlias sp_table_fn_call_alias = 179;
-    SpTableFnCallOver sp_table_fn_call_over = 180;
-    SpTableMerge sp_table_merge = 181;
-    SpTableSample sp_table_sample = 182;
-    SpTableUpdate sp_table_update = 183;
-    SpToSnowparkPandas sp_to_snowpark_pandas = 184;
-    SpWindowSpecEmpty sp_window_spec_empty = 185;
-    SpWindowSpecOrderBy sp_window_spec_order_by = 186;
-    SpWindowSpecPartitionBy sp_window_spec_partition_by = 187;
-    SpWindowSpecRangeBetween sp_window_spec_range_between = 188;
-    SpWindowSpecRowsBetween sp_window_spec_rows_between = 189;
-    SpWriteCopyIntoLocation sp_write_copy_into_location = 190;
-    SpWriteCsv sp_write_csv = 191;
-    SpWriteJson sp_write_json = 192;
-    SpWritePandas sp_write_pandas = 193;
-    SpWriteParquet sp_write_parquet = 194;
-    SpWriteTable sp_write_table = 195;
-    SqlExpr sql_expr = 196;
-    StoredProcedure stored_procedure = 197;
-    StringVal string_val = 198;
-    Sub sub = 199;
+    SpTableFnCallAlias sp_table_fn_call_alias = 177;
+    SpTableFnCallOver sp_table_fn_call_over = 178;
+    SpToSnowparkPandas sp_to_snowpark_pandas = 179;
+    SpWindowSpecEmpty sp_window_spec_empty = 180;
+    SpWindowSpecOrderBy sp_window_spec_order_by = 181;
+    SpWindowSpecPartitionBy sp_window_spec_partition_by = 182;
+    SpWindowSpecRangeBetween sp_window_spec_range_between = 183;
+    SpWindowSpecRowsBetween sp_window_spec_rows_between = 184;
+    SpWriteCopyIntoLocation sp_write_copy_into_location = 185;
+    SpWriteCsv sp_write_csv = 186;
+    SpWriteJson sp_write_json = 187;
+    SpWritePandas sp_write_pandas = 188;
+    SpWriteParquet sp_write_parquet = 189;
+    SpWriteTable sp_write_table = 190;
+    SqlExpr sql_expr = 191;
+    StoredProcedure stored_procedure = 192;
+    StringVal string_val = 193;
+    Sub sub = 194;
+    TableDelete table_delete = 195;
+    TableDropTable table_drop_table = 196;
+    TableMerge table_merge = 197;
+    TableSample table_sample = 198;
+    TableUpdate table_update = 199;
     TruncatedDataframeExpr truncated_dataframe_expr = 200;
     TruncatedExpr truncated_expr = 201;
     TruncatedRelationalGroupedDataframeExpr truncated_relational_grouped_dataframe_expr = 202;
@@ -1379,6 +1379,35 @@ message Lt {
   Expr lhs = 1;
   Expr rhs = 2;
   SrcPosition src = 3;
+}
+
+message MatchedClause {
+  oneof variant {
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 1;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 2;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 3;
+  }
+}
+
+// table.ir:46
+message MergeDeleteWhenMatchedClause {
+  Expr condition = 1;
+  SrcPosition src = 2;
+}
+
+// table.ir:50
+message MergeInsertWhenNotMatchedClause {
+  Expr condition = 1;
+  List_Expr insert_keys = 2;
+  List_Expr insert_values = 3;
+  SrcPosition src = 4;
+}
+
+// table.ir:41
+message MergeUpdateWhenMatchedClause {
+  Expr condition = 1;
+  SrcPosition src = 2;
+  Map_Expr_Expr update_assignments = 3;
 }
 
 // op.ir:50
@@ -1799,12 +1828,12 @@ message SpDataframeExpr {
     SpSessionTableFunction sp_session_table_function = 70;
     SpSql sp_sql = 71;
     SpTable sp_table = 72;
-    SpTableDelete sp_table_delete = 73;
-    SpTableDropTable sp_table_drop_table = 74;
-    SpTableMerge sp_table_merge = 75;
-    SpTableSample sp_table_sample = 76;
-    SpTableUpdate sp_table_update = 77;
-    SpWritePandas sp_write_pandas = 78;
+    SpWritePandas sp_write_pandas = 73;
+    TableDelete table_delete = 74;
+    TableDropTable table_drop_table = 75;
+    TableMerge table_merge = 76;
+    TableSample table_sample = 77;
+    TableUpdate table_update = 78;
     TruncatedDataframeExpr truncated_dataframe_expr = 79;
   }
 }
@@ -2244,35 +2273,6 @@ message SpGroupingSets {
   SrcPosition src = 2;
 }
 
-message SpMatchedClause {
-  oneof variant {
-    SpMergeDeleteWhenMatchedClause sp_merge_delete_when_matched_clause = 1;
-    SpMergeInsertWhenNotMatchedClause sp_merge_insert_when_not_matched_clause = 2;
-    SpMergeUpdateWhenMatchedClause sp_merge_update_when_matched_clause = 3;
-  }
-}
-
-// table.ir:46
-message SpMergeDeleteWhenMatchedClause {
-  Expr condition = 1;
-  SrcPosition src = 2;
-}
-
-// table.ir:50
-message SpMergeInsertWhenNotMatchedClause {
-  Expr condition = 1;
-  List_Expr insert_keys = 2;
-  List_Expr insert_values = 3;
-  SrcPosition src = 4;
-}
-
-// table.ir:41
-message SpMergeUpdateWhenMatchedClause {
-  Expr condition = 1;
-  SrcPosition src = 2;
-  Map_Expr_Expr update_assignments = 3;
-}
-
 // dataframe.ir:99
 message SpRange {
   google.protobuf.Int64Value end = 1;
@@ -2410,22 +2410,6 @@ message SpTable {
   SpTableVariant variant = 4;
 }
 
-// table.ir:1
-message SpTableDelete {
-  bool block = 1;
-  Expr condition = 2;
-  VarId id = 3;
-  SpDataframeExpr source = 4;
-  SrcPosition src = 5;
-  repeated Tuple_String_String statement_params = 6;
-}
-
-// table.ir:9
-message SpTableDropTable {
-  VarId id = 1;
-  SrcPosition src = 2;
-}
-
 // fn.ir:160
 message SpTableFnCallAlias {
   ExprArgList aliases = 1;
@@ -2439,38 +2423,6 @@ message SpTableFnCallOver {
   repeated Expr order_by = 2;
   repeated Expr partition_by = 3;
   SrcPosition src = 4;
-}
-
-// table.ir:13
-message SpTableMerge {
-  bool block = 1;
-  repeated SpMatchedClause clauses = 2;
-  VarId id = 3;
-  Expr join_expr = 4;
-  SpDataframeExpr source = 5;
-  SrcPosition src = 6;
-  repeated Tuple_String_String statement_params = 7;
-}
-
-// table.ir:22
-message SpTableSample {
-  SpDataframeExpr df = 1;
-  google.protobuf.Int64Value num = 2;
-  google.protobuf.DoubleValue probability_fraction = 3;
-  google.protobuf.StringValue sampling_method = 4;
-  google.protobuf.Int64Value seed = 5;
-  SrcPosition src = 6;
-}
-
-// table.ir:30
-message SpTableUpdate {
-  repeated Tuple_String_Expr assignments = 1;
-  bool block = 2;
-  Expr condition = 3;
-  VarId id = 4;
-  SpDataframeExpr source = 5;
-  SrcPosition src = 6;
-  repeated Tuple_String_String statement_params = 7;
 }
 
 // dataframe.ir:370
@@ -2679,6 +2631,54 @@ message Sub {
   Expr lhs = 1;
   Expr rhs = 2;
   SrcPosition src = 3;
+}
+
+// table.ir:1
+message TableDelete {
+  bool block = 1;
+  Expr condition = 2;
+  VarId id = 3;
+  SpDataframeExpr source = 4;
+  SrcPosition src = 5;
+  repeated Tuple_String_String statement_params = 6;
+}
+
+// table.ir:9
+message TableDropTable {
+  VarId id = 1;
+  SrcPosition src = 2;
+}
+
+// table.ir:13
+message TableMerge {
+  bool block = 1;
+  repeated MatchedClause clauses = 2;
+  VarId id = 3;
+  Expr join_expr = 4;
+  SpDataframeExpr source = 5;
+  SrcPosition src = 6;
+  repeated Tuple_String_String statement_params = 7;
+}
+
+// table.ir:22
+message TableSample {
+  SpDataframeExpr df = 1;
+  google.protobuf.Int64Value num = 2;
+  google.protobuf.DoubleValue probability_fraction = 3;
+  google.protobuf.StringValue sampling_method = 4;
+  google.protobuf.Int64Value seed = 5;
+  SrcPosition src = 6;
+}
+
+// table.ir:30
+message TableUpdate {
+  repeated Tuple_String_Expr assignments = 1;
+  bool block = 2;
+  Expr condition = 3;
+  VarId id = 4;
+  SpDataframeExpr source = 5;
+  SrcPosition src = 6;
+  repeated Tuple_String_String statement_params = 7;
 }
 
 // dataframe.ir:12

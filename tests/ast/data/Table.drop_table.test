@@ -56,7 +56,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_drop_table {
+      table_drop_table {
         id {
           bitfield1: 1
         }

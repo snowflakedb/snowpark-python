@@ -84,7 +84,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         block: true
         id {
           bitfield1: 1
@@ -117,7 +117,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -164,7 +164,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -234,7 +234,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -403,7 +403,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -507,7 +507,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -610,7 +610,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {

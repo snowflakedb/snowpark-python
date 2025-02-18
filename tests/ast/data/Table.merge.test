@@ -283,10 +283,10 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             update_assignments {
               list {
                 _1 {
@@ -489,10 +489,10 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             condition {
               eq {
                 lhs {
@@ -566,7 +566,7 @@ body {
           }
         }
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             update_assignments {
               list {
                 _1 {
@@ -709,10 +709,10 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_insert_when_not_matched_clause {
+          merge_insert_when_not_matched_clause {
             insert_keys {
               list {
                 string_val {
@@ -915,10 +915,10 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_insert_when_not_matched_clause {
+          merge_insert_when_not_matched_clause {
             condition {
               eq {
                 lhs {
@@ -992,7 +992,7 @@ body {
           }
         }
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             update_assignments {
               list {
                 _1 {
@@ -1135,10 +1135,10 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_delete_when_matched_clause {
+          merge_delete_when_matched_clause {
           }
         }
         id {
@@ -1260,9 +1260,9 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         clauses {
-          sp_merge_delete_when_matched_clause {
+          merge_delete_when_matched_clause {
             condition {
               eq {
                 lhs {
@@ -1479,7 +1479,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         id {
           bitfield1: 20
         }

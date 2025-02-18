@@ -386,7 +386,7 @@ class Table(DataFrame):
         if _emit_ast:
             # AST.
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table_sample, stmt)
+            ast = with_src_position(stmt.expr.table_sample, stmt)
             if frac:
                 ast.probability_fraction.value = frac
             if n:
@@ -518,7 +518,7 @@ class Table(DataFrame):
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table_update, stmt)
+            ast = with_src_position(stmt.expr.table_update, stmt)
             debug_check_missing_ast(self._ast_id, self)
             ast.id.bitfield1 = self._ast_id
             if assignments is not None:
@@ -650,7 +650,7 @@ class Table(DataFrame):
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table_delete, stmt)
+            ast = with_src_position(stmt.expr.table_delete, stmt)
             debug_check_missing_ast(self._ast_id, self)
             ast.id.bitfield1 = self._ast_id
             if condition is not None:
@@ -781,7 +781,7 @@ class Table(DataFrame):
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table_merge, stmt)
+            ast = with_src_position(stmt.expr.table_merge, stmt)
             debug_check_missing_ast(self._ast_id, self)
             ast.id.bitfield1 = self._ast_id
             source._set_ast_ref(ast.source)
@@ -792,12 +792,12 @@ class Table(DataFrame):
                     matched_clause = ast.clauses.add()
                     if isinstance(value, WhenMatchedClause):
                         if isinstance(value._clause, UpdateMergeExpression):
-                            matched_clause.sp_merge_update_when_matched_clause.Clear()
+                            matched_clause.merge_update_when_matched_clause.Clear()
                             assignments = value._clause._assignments
                             if assignments is not None:
                                 for k, v in assignments.items():
                                     t = (
-                                        matched_clause.sp_merge_update_when_matched_clause.update_assignments.list.add()
+                                        matched_clause.merge_update_when_matched_clause.update_assignments.list.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(
                                         t._1, k
@@ -807,35 +807,35 @@ class Table(DataFrame):
                                     )
                             if value._condition is not None:
                                 build_expr_from_snowpark_column_or_python_val(
-                                    matched_clause.sp_merge_update_when_matched_clause.condition,
+                                    matched_clause.merge_update_when_matched_clause.condition,
                                     value._condition,
                                 )
                         elif isinstance(value._clause, DeleteMergeExpression):
-                            matched_clause.sp_merge_delete_when_matched_clause.Clear()
+                            matched_clause.merge_delete_when_matched_clause.Clear()
                             if value._condition is not None:
                                 build_expr_from_snowpark_column_or_python_val(
                                     # build_expr_from_snowpark_column_or_python_val(
-                                    matched_clause.sp_merge_delete_when_matched_clause.condition,
+                                    matched_clause.merge_delete_when_matched_clause.condition,
                                     value._condition,
                                 )
                     elif isinstance(value, WhenNotMatchedClause):
                         if isinstance(value._clause, InsertMergeExpression):
-                            matched_clause.sp_merge_insert_when_not_matched_clause.Clear()
+                            matched_clause.merge_insert_when_not_matched_clause.Clear()
                             if value._clause._keys is not None:
                                 for k in value._clause._keys:
                                     t = (
-                                        matched_clause.sp_merge_insert_when_not_matched_clause.insert_keys.list.add()
+                                        matched_clause.merge_insert_when_not_matched_clause.insert_keys.list.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(t, k)
                             if value._clause._values is not None:
                                 for v in value._clause._values:
                                     t = (
-                                        matched_clause.sp_merge_insert_when_not_matched_clause.insert_values.list.add()
+                                        matched_clause.merge_insert_when_not_matched_clause.insert_values.list.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(t, v)
                             if value._condition is not None:
                                 build_expr_from_snowpark_column_or_python_val(
-                                    matched_clause.sp_merge_insert_when_not_matched_clause.condition,
+                                    matched_clause.merge_insert_when_not_matched_clause.condition,
                                     value._condition,
                                 )
                     else:
@@ -901,7 +901,7 @@ class Table(DataFrame):
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table_drop_table, stmt)
+            ast = with_src_position(stmt.expr.table_drop_table, stmt)
             debug_check_missing_ast(self._ast_id, self)
             ast.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(stmt)
