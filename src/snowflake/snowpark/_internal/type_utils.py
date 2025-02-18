@@ -29,6 +29,7 @@ from typing import (  # noqa: F401
     Union,
     get_args,
     get_origin,
+    Protocol,
 )
 
 import snowflake.snowpark.context as context
@@ -341,6 +342,7 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     datetime.time: TimeType,
     bytes: BinaryType,
 }
+
 if installed_pandas:
     import numpy
 
