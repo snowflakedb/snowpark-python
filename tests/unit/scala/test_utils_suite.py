@@ -287,6 +287,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/testCSV.csv",
                 "resources/testCSVvariousData.csv",
                 "resources/testCSVcolon.csv",
+                "resources/testCSVformattedTime.csv",
                 "resources/testCSVheader.csv",
                 "resources/testCSVquotes.csv",
                 "resources/testCSVquotesSpecial.csv",

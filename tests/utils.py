@@ -1381,6 +1381,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
 
     @property
+    def test_file_csv_timestamps(self):
+        return os.path.join(self.resources_path, "testCSVformattedTime.csv")
+
+    @property
     def test_file_excel(self):
         return os.path.join(self.resources_path, "test_excel.xlsx")
 

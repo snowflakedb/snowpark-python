@@ -52,6 +52,7 @@ test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_header = "testCSVheader.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_csv_quotes_special = "testCSVquotesSpecial.csv"
+test_file_csv_timestamps = "testCSVformattedTime.csv"
 test_file_json = "testJson.json"
 test_file_json_same_schema = "testJsonSameSchema.json"
 test_file_json_new_schema = "testJsonNewSchema.json"
@@ -168,6 +169,12 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_csv_header,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_csv_timestamps,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -1834,6 +1841,53 @@ def test_read_csv_nulls(session):
         .csv(test_file_on_stage)
     )
     Utils.check_answer(df, [Row(A=1, B=None, C=1.2), Row(A=2, B=None, C=2.2)])
+
+
+def test_read_csv_alternate_time_formats(session):
+    # Test that a csv read with NULLVALUE set loads the configured representation as None
+    reader = get_reader(session, "copy")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_timestamps}"
+
+    time_format = "HH12.MI.SS.FF3"
+    date_format = "YYYYMONDD"
+    timestamp_format = f"{date_format}-{time_format}"
+
+    schema = StructType(
+        [
+            StructField("date", DateType()),
+            StructField("timestamp", TimestampType()),
+            StructField("time", TimeType()),
+        ]
+    )
+
+    df = (
+        reader.option("DATE_FORMAT", date_format)
+        .option("TIME_FORMAT", time_format)
+        .option("TIMESTAMP_FORMAT", timestamp_format)
+        .option("PARSE_HEADER", False)
+        .schema(schema)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                datetime.date(2024, 1, 1),
+                datetime.datetime(2025, 1, 1, 0, 0, 1),
+                datetime.time(0, 0, 1),
+            ),
+            Row(
+                datetime.date(2022, 2, 3),
+                datetime.datetime(2022, 2, 3, 1, 2, 3, 456),
+                datetime.time(1, 2, 3, 456),
+            ),
+            Row(
+                datetime.date(2025, 2, 13),
+                datetime.datetime(2025, 2, 13, 6, 33, 36, 348925),
+                datetime.time(6, 33, 36, 348925),
+            ),
+        ],
+    )
 
 
 @pytest.mark.skipif(
