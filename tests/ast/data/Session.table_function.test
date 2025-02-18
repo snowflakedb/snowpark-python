@@ -196,7 +196,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -342,7 +342,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -420,7 +420,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -599,7 +599,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -705,7 +705,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -878,7 +878,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -950,7 +950,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {

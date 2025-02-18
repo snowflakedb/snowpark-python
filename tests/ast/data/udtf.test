@@ -278,7 +278,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -427,9 +427,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -826,7 +826,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -1043,9 +1043,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -1210,7 +1210,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_df {
+      dataframe_to_df {
         col_names {
           args {
             string_val {

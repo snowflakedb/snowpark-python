@@ -1523,9 +1523,9 @@ def ClearTempTables(message: proto.Request) -> None:
     """Removes temp table when passing pandas data."""
     for stmt in message.body:
         if str(
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
+            stmt.assign.expr.create_dataframe.data.dataframe_data__pandas.v.temp_table
         ):
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
+            stmt.assign.expr.create_dataframe.data.dataframe_data__pandas.v.ClearField(
                 "temp_table"
             )
 

@@ -28,10 +28,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_write_pandas {
+      write_pandas {
         compression: "gzip"
         df {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
               temp_table {
                 name {
@@ -74,7 +74,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_pandas {
+      write_pandas {
         auto_create_table: true
         chunk_size {
           value: 7
@@ -82,7 +82,7 @@ body {
         compression: "brotli"
         create_temp_table: true
         df {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
               temp_table {
                 name {

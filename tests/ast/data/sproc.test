@@ -266,7 +266,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))"
         src {
           end_column: 155
@@ -323,9 +323,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
@@ -463,9 +463,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
@@ -591,7 +591,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "call my_copy_sp(\'test_from\', \'test_to\', 10)"
         src {
           end_column: 66
@@ -647,7 +647,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -663,7 +663,7 @@ body {
           start_line: 51
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -711,7 +711,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "drop table if exists test_to"
         src {
           end_column: 55
@@ -902,7 +902,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -918,7 +918,7 @@ body {
           start_line: 39
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -1043,7 +1043,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -1059,7 +1059,7 @@ body {
           start_line: 56
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -1191,7 +1191,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "select 1 + 1"
         src {
           end_column: 63
@@ -1255,7 +1255,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "select 1 + 2"
         src {
           end_column: 52
@@ -1311,7 +1311,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "create or replace temp stage mystage"
         src {
           end_column: 63
@@ -1425,7 +1425,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "call mul_sp(5, 6)"
         src {
           end_column: 40
@@ -1538,7 +1538,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "call mul_sp(5, 6)"
         src {
           end_column: 40
@@ -1661,7 +1661,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "call mul_sp(5, 6)"
         src {
           end_column: 40
@@ -1937,7 +1937,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "SELECT 1 as A, 2 as B"
         src {
           end_column: 61
@@ -2085,7 +2085,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "SELECT 1 as A, 2 as B"
         src {
           end_column: 61
@@ -2234,7 +2234,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "SELECT 1 as A, 2 as B"
         src {
           end_column: 61

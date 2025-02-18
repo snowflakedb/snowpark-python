@@ -24,7 +24,7 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_flatten {
+      flatten {
         input {
           apply_expr {
             fn {
@@ -82,7 +82,7 @@ body {
           }
         }
         mode {
-          sp_flatten_mode_both: true
+          flatten_mode_both: true
         }
         path {
           value: "a"
@@ -108,7 +108,7 @@ body {
 body {
   assign {
     expr {
-      sp_flatten {
+      flatten {
         input {
           apply_expr {
             fn {
@@ -144,7 +144,7 @@ body {
           }
         }
         mode {
-          sp_flatten_mode_array: true
+          flatten_mode_array: true
         }
         recursive: true
         src {

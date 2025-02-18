@@ -88,9 +88,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {

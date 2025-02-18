@@ -36,7 +36,7 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -52,7 +52,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -68,7 +68,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_pandas {
+      dataframe_to_pandas {
         block: true
         id {
           bitfield1: 1
@@ -101,7 +101,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_pandas {
+      dataframe_to_pandas {
         id {
           bitfield1: 1
         }
@@ -133,7 +133,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_pandas {
+      dataframe_to_pandas {
         block: true
         id {
           bitfield1: 1
@@ -170,7 +170,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_pandas {
+      dataframe_to_pandas {
         id {
           bitfield1: 1
         }

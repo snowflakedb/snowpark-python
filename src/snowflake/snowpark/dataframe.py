@@ -994,7 +994,7 @@ class DataFrame:
 
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_to_pandas, stmt)
+            ast = with_src_position(stmt.expr.dataframe_to_pandas, stmt)
             debug_check_missing_ast(self._ast_id, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
@@ -1098,7 +1098,7 @@ class DataFrame:
         """
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_to_pandas_batches, stmt)
+            ast = with_src_position(stmt.expr.dataframe_to_pandas_batches, stmt)
             debug_check_missing_ast(self._ast_id, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
@@ -1248,7 +1248,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
+            ast = with_src_position(stmt.expr.dataframe_to_df, stmt)
             for col in col_names:
                 build_expr_from_python_val(ast.col_names.args.add(), col)
             ast.col_names.variadic = is_variadic
@@ -4461,11 +4461,11 @@ class DataFrame:
 
             mode = mode.upper()
             if mode.upper() == "OBJECT":
-                expr.mode.sp_flatten_mode_object = True
+                expr.mode.flatten_mode_object = True
             elif mode.upper() == "ARRAY":
-                expr.mode.sp_flatten_mode_array = True
+                expr.mode.flatten_mode_array = True
             else:
-                expr.mode.sp_flatten_mode_both = True
+                expr.mode.flatten_mode_both = True
 
         if isinstance(input, str):
             input = self.col(input)

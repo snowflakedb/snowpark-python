@@ -28,7 +28,7 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         is_temp_table_for_cleanup: true
         name {
           name {
@@ -45,7 +45,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -61,7 +61,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -77,7 +77,7 @@ body {
           start_line: 26
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }

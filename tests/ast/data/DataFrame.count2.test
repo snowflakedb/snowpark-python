@@ -35,9 +35,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
             }
           }

@@ -292,9 +292,9 @@ class Table(DataFrame):
     ) -> None:
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.assign()
-            ast = with_src_position(_ast_stmt.expr.sp_table, _ast_stmt)
+            ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
             build_sp_table_name(ast.name, table_name)
-            ast.variant.sp_table_init = True
+            ast.variant.table_init = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
 
         snowflake_table_plan = SnowflakeTable(

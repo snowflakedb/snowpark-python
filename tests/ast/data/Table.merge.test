@@ -87,9 +87,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -251,7 +251,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -267,7 +267,7 @@ body {
           start_line: 32
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -457,7 +457,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -473,7 +473,7 @@ body {
           start_line: 37
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -677,7 +677,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -693,7 +693,7 @@ body {
           start_line: 42
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -883,7 +883,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -899,7 +899,7 @@ body {
           start_line: 46
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -1103,7 +1103,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -1119,7 +1119,7 @@ body {
           start_line: 52
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -1228,7 +1228,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -1244,7 +1244,7 @@ body {
           start_line: 57
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -1447,7 +1447,7 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -1463,7 +1463,7 @@ body {
           start_line: 62
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }

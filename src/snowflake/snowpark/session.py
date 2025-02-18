@@ -2337,9 +2337,9 @@ class Session:
         """
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table, stmt)
+            ast = with_src_position(stmt.expr.table, stmt)
             build_sp_table_name(ast.name, name)
-            ast.variant.sp_session_table = True
+            ast.variant.session_table = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
         else:
             stmt = None
@@ -2416,7 +2416,7 @@ class Session:
         if _emit_ast:
             add_intermediate_stmt(self._ast_batch, func_name)
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_session_table_function, stmt)
+            ast = with_src_position(stmt.expr.session_table_function, stmt)
             build_indirect_table_fn_apply(
                 ast.fn,
                 func_name,
@@ -2528,7 +2528,7 @@ class Session:
         stmt = None
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_generator, stmt)
+            ast = with_src_position(stmt.expr.generator, stmt)
             col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
                 *columns
             )
@@ -2632,7 +2632,7 @@ class Session:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._ast_batch.assign()
-                expr = with_src_position(stmt.expr.sp_sql, stmt)
+                expr = with_src_position(stmt.expr.sql, stmt)
                 expr.query = query
                 if params is not None:
                     for p in params:
@@ -3128,7 +3128,7 @@ class Session:
             if _emit_ast:
                 # Create AST statement.
                 stmt = self._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_write_pandas, stmt)  # noqa: F841
+                ast = with_src_position(stmt.expr.write_pandas, stmt)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
                 if chunk_size is not None and chunk_size != WRITE_PANDAS_CHUNK_SIZE:
@@ -3137,7 +3137,7 @@ class Session:
                 ast.create_temp_table = create_temp_table
                 if isinstance(df, pandas.DataFrame):
                     build_sp_table_name(
-                        ast.df.sp_dataframe_data__pandas.v.temp_table, table.table_name
+                        ast.df.dataframe_data__pandas.v.temp_table, table.table_name
                     )
                 else:
                     raise NotImplementedError(
@@ -3316,10 +3316,10 @@ class Session:
 
                 if _emit_ast:
                     stmt = self._ast_batch.assign()
-                    ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+                    ast = with_src_position(stmt.expr.create_dataframe, stmt)
                     # Save temp table and schema of it in AST (dataframe).
                     build_sp_table_name(
-                        ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
+                        ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                     )
                     build_proto_from_struct_type(
                         table.schema, ast.schema.sp_dataframe_schema__struct.v
@@ -3577,11 +3577,11 @@ class Session:
 
             # AST.
             if _emit_ast:
-                ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+                ast = with_src_position(stmt.expr.create_dataframe, stmt)
 
                 # Save temp table and schema of it in AST (dataframe).
                 build_sp_table_name(
-                    ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
+                    ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                 )
                 build_proto_from_struct_type(
                     table.schema, ast.schema.sp_dataframe_schema__struct.v
@@ -3593,17 +3593,17 @@ class Session:
 
         # AST.
         if _emit_ast:
-            ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+            ast = with_src_position(stmt.expr.create_dataframe, stmt)
 
             if isinstance(origin_data, tuple):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        ast.data.sp_dataframe_data__tuple.vs.add(), row
+                        ast.data.dataframe_data__tuple.vs.add(), row
                     )
             elif isinstance(origin_data, list):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        ast.data.sp_dataframe_data__list.vs.add(), row
+                        ast.data.dataframe_data__list.vs.add(), row
                     )
             # Note: pandas.DataFrame handled above.
             else:
@@ -3658,7 +3658,7 @@ class Session:
         stmt = None
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_range, stmt)
+            ast = with_src_position(stmt.expr.range, stmt)
             ast.start = start
             if end:
                 ast.end.value = end
@@ -4160,18 +4160,18 @@ class Session:
         stmt = None
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_flatten, stmt)
+            expr = with_src_position(stmt.expr.flatten, stmt)
             build_expr_from_python_val(expr.input, input)
             if path is not None:
                 expr.path.value = path
             expr.outer = outer
             expr.recursive = recursive
             if mode.upper() == "OBJECT":
-                expr.mode.sp_flatten_mode_object = True
+                expr.mode.flatten_mode_object = True
             elif mode.upper() == "ARRAY":
-                expr.mode.sp_flatten_mode_array = True
+                expr.mode.flatten_mode_array = True
             else:
-                expr.mode.sp_flatten_mode_both = True
+                expr.mode.flatten_mode_both = True
 
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:

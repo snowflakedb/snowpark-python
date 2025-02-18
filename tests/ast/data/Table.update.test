@@ -52,7 +52,7 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
             name_flat {
@@ -68,7 +68,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -324,9 +324,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {

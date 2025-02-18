@@ -30,7 +30,7 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_generator {
+      generator {
         columns {
           args {
             apply_expr {
@@ -123,7 +123,7 @@ body {
 body {
   assign {
     expr {
-      sp_generator {
+      generator {
         columns {
           args {
             apply_expr {
@@ -307,7 +307,7 @@ body {
 body {
   assign {
     expr {
-      sp_generator {
+      generator {
         columns {
           args {
             apply_expr {
