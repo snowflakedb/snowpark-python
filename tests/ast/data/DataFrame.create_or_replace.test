@@ -102,7 +102,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         comment {
           value: "foo"
         }
@@ -142,7 +142,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         df {
           sp_dataframe_ref {
             id {
@@ -181,7 +181,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         comment {
           value: "foo"
         }
@@ -222,7 +222,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         df {
           sp_dataframe_ref {
             id {
@@ -262,7 +262,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_copy_into_table {
+      dataframe_copy_into_table {
         copy_options {
           _1: "force"
           _2 {
@@ -457,7 +457,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_cache_result {
+      dataframe_cache_result {
         df {
           sp_dataframe_ref {
             id {
@@ -486,7 +486,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -515,7 +515,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_cache_result {
+      dataframe_cache_result {
         df {
           sp_dataframe_ref {
             id {
@@ -548,7 +548,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -577,7 +577,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_dynamic_table {
+      dataframe_create_or_replace_dynamic_table {
         comment {
           value: "foo"
         }
@@ -590,7 +590,7 @@ body {
         }
         lag: "1 hour"
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         name {
           name {

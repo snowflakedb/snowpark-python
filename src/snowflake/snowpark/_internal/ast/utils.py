@@ -1005,26 +1005,26 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def fill_sp_save_mode(
-    expr: proto.SpSaveMode, save_mode: Union[str, SaveMode]
+def fill_save_mode(
+    expr: proto.SaveMode, save_mode: Union[str, SaveMode]
 ) -> None:  # pragma: no cover
     if isinstance(save_mode, str):
         save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Enum", variable has type "Union[str, SaveMode]")
 
     if save_mode == SaveMode.APPEND:
-        expr.sp_save_mode_append = True
+        expr.save_mode_append = True
     elif save_mode == SaveMode.ERROR_IF_EXISTS:
-        expr.sp_save_mode_error_if_exists = True
+        expr.save_mode_error_if_exists = True
     elif save_mode == SaveMode.IGNORE:
-        expr.sp_save_mode_ignore = True
+        expr.save_mode_ignore = True
     elif save_mode == SaveMode.OVERWRITE:
-        expr.sp_save_mode_overwrite = True
+        expr.save_mode_overwrite = True
     elif save_mode == SaveMode.TRUNCATE:
-        expr.sp_save_mode_truncate = True
+        expr.save_mode_truncate = True
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def fill_sp_write_file(
+def fill_write_file(
     expr: proto.Expr,
     location: str,
     *,

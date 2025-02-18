@@ -54,10 +54,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_read_csv {
+      read_csv {
         path: "@resources/iris.csv"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 25
@@ -88,10 +88,10 @@ body {
 body {
   assign {
     expr {
-      sp_read_json {
+      read_json {
         path: "@resources/testJson.json"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 27
@@ -122,10 +122,10 @@ body {
 body {
   assign {
     expr {
-      sp_read_avro {
+      read_avro {
         path: "@resources/test.avro"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 29
@@ -156,10 +156,10 @@ body {
 body {
   assign {
     expr {
-      sp_read_parquet {
+      read_parquet {
         path: "@resources/test.parquet"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 31
@@ -190,10 +190,10 @@ body {
 body {
   assign {
     expr {
-      sp_read_xml {
+      read_xml {
         path: "@resources/test.xml"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 33
@@ -224,10 +224,10 @@ body {
 body {
   assign {
     expr {
-      sp_read_orc {
+      read_orc {
         path: "@resources/test.orc"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 35
@@ -258,16 +258,16 @@ body {
 body {
   assign {
     expr {
-      sp_read_csv {
+      read_csv {
         path: "@testCSVheader.csv"
         reader {
-          sp_dataframe_reader_option {
+          dataframe_reader_option {
             key: "PARSE_HEADER"
             reader {
-              sp_dataframe_reader_option {
+              dataframe_reader_option {
                 key: "INFER_SCHEMA"
                 reader {
-                  sp_dataframe_reader_init {
+                  dataframe_reader_init {
                     src {
                       end_column: 26
                       end_line: 37
@@ -340,10 +340,10 @@ body {
 body {
   assign {
     expr {
-      sp_read_csv {
+      read_csv {
         path: "@testCSVheader.csv"
         reader {
-          sp_dataframe_reader_options {
+          dataframe_reader_options {
             configs {
               _1: "INFER_SCHEMA"
               _2 {
@@ -375,7 +375,7 @@ body {
               }
             }
             reader {
-              sp_dataframe_reader_init {
+              dataframe_reader_init {
                 src {
                   end_column: 26
                   end_line: 39
@@ -415,12 +415,12 @@ body {
 body {
   assign {
     expr {
-      sp_read_csv {
+      read_csv {
         path: "@testCSVheader.csv"
         reader {
-          sp_dataframe_reader_schema {
+          dataframe_reader_schema {
             reader {
-              sp_dataframe_reader_with_metadata {
+              dataframe_reader_with_metadata {
                 metadata_columns {
                   args {
                     apply_expr {
@@ -471,7 +471,7 @@ body {
                   variadic: true
                 }
                 reader {
-                  sp_dataframe_reader_init {
+                  dataframe_reader_init {
                     src {
                       end_column: 26
                       end_line: 43

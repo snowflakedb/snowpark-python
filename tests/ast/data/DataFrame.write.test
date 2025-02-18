@@ -128,7 +128,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -156,7 +156,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -197,7 +197,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -206,7 +206,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -228,7 +228,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -270,7 +270,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -279,7 +279,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -301,14 +301,14 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
           bitfield1: 8
         }
         mode {
-          sp_save_mode_ignore: true
+          save_mode_ignore: true
         }
         src {
           end_column: 102
@@ -346,7 +346,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -355,7 +355,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_truncate: true
+          save_mode_truncate: true
         }
         src {
           end_column: 16
@@ -377,7 +377,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         clustering_keys {
           list {
@@ -474,7 +474,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -495,7 +495,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -517,7 +517,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -559,7 +559,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -602,7 +602,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -624,7 +624,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -666,7 +666,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -724,7 +724,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -746,7 +746,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -788,7 +788,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -891,7 +891,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -913,7 +913,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -1012,7 +1012,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -1040,7 +1040,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_copy_into_location {
+      write_copy_into_location {
         block: true
         id {
           bitfield1: 29
@@ -1074,7 +1074,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -1102,7 +1102,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_copy_into_location {
+      write_copy_into_location {
         block: true
         copy_options {
           _1: "overwrite"
@@ -1170,7 +1170,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -1198,7 +1198,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_copy_into_location {
+      write_copy_into_location {
         copy_options {
           _1: "INCLUDE_QUERY_ID"
           _2 {
@@ -1267,7 +1267,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -1295,7 +1295,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_copy_into_location {
+      write_copy_into_location {
         copy_options {
           _1: "INCLUDE_QUERY_ID"
           _2 {
@@ -1368,7 +1368,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -1396,7 +1396,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_csv {
+      write_csv {
         block: true
         copy_options {
           _1: "overwrite"
@@ -1465,7 +1465,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -1493,7 +1493,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_json {
+      write_json {
         block: true
         copy_options {
           _1: "overwrite"
@@ -1561,7 +1561,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -1589,7 +1589,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_parquet {
+      write_parquet {
         block: true
         copy_options {
           _1: "overwrite"

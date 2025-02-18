@@ -390,7 +390,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -418,14 +418,14 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
           bitfield1: 6
         }
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 90
@@ -518,7 +518,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -546,14 +546,14 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
           bitfield1: 10
         }
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 86
@@ -962,7 +962,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
           sp_dataframe_ref {
             id {
@@ -990,14 +990,14 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
           bitfield1: 26
         }
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 122

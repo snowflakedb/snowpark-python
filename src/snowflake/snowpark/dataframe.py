@@ -110,7 +110,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_proto_from_pivot_values,
     debug_check_missing_ast,
     fill_ast_for_column,
-    fill_sp_save_mode,
+    fill_save_mode,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
     build_sp_view_name,
@@ -4092,7 +4092,7 @@ class DataFrame:
         # AST.
         if self._ast_id is not None:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_write, stmt)
+            expr = with_src_position(stmt.expr.dataframe_write, stmt)
             self._set_ast_ref(expr.df)
             self._writer._ast_stmt = stmt
 
@@ -4187,7 +4187,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table, stmt)
+            expr = with_src_position(stmt.expr.dataframe_copy_into_table, stmt)
 
             build_sp_table_name(expr.table_name, table_name)
             if files is not None:
@@ -4807,9 +4807,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                stmt.expr.sp_dataframe_create_or_replace_view, stmt
-            )
+            expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = False
             self._set_ast_ref(expr.df)
             build_sp_view_name(expr.name, name)
@@ -4919,7 +4917,7 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(
-                stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt
+                stmt.expr.dataframe_create_or_replace_dynamic_table, stmt
             )
             self._set_ast_ref(expr.df)
             build_sp_table_name(expr.name, name)
@@ -4928,7 +4926,7 @@ class DataFrame:
             if comment is not None:
                 expr.comment.value = comment
 
-            fill_sp_save_mode(expr.mode, mode)
+            fill_save_mode(expr.mode, mode)
             if refresh_mode is not None:
                 expr.refresh_mode.value = refresh_mode
             if initialize is not None:
@@ -5020,9 +5018,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                stmt.expr.sp_dataframe_create_or_replace_view, stmt
-            )
+            expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = True
             self._set_ast_ref(expr.df)
             build_sp_view_name(expr.name, name)
@@ -5083,9 +5079,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                stmt.expr.sp_dataframe_create_or_replace_view, stmt
-            )
+            expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = True
             self._set_ast_ref(expr.df)
             build_sp_view_name(expr.name, name)
@@ -5709,7 +5703,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_cache_result, stmt)
+            expr = with_src_position(stmt.expr.dataframe_cache_result, stmt)
             self._set_ast_ref(expr.df)
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
