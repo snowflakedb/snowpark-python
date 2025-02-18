@@ -32,10 +32,6 @@ from snowflake.snowpark.types import (
     TimeType,
 )
 
-TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
-DATE_FORMAT = "%Y-%m-%d"
-TIME_FORMAT = "%H:%M:%S"
-
 
 def _integer_converter(
     value: str,
@@ -138,13 +134,14 @@ def _string_converter(
 def _date_converter(
     value: str,
     datatype: DataType,
+    format: str,
     field_optionally_enclosed_by: str = None,
     null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.date]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
-        return datetime.datetime.strptime(value, DATE_FORMAT).date()
+        return datetime.datetime.strptime(value, format).date()
     except Exception as exc:
         SnowparkLocalTestingException.raise_from_error(
             exc, error_message=f"DATE value '{value}' is not recognized."
@@ -154,13 +151,14 @@ def _date_converter(
 def _timestamp_converter(
     value: str,
     datatype: DataType,
+    format: str,
     field_optionally_enclosed_by: str = None,
     null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.datetime]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
-        return datetime.datetime.strptime(value, TIMESTAMP_FORMAT)
+        return datetime.datetime.strptime(value, format)
     except Exception as exc:
         SnowparkLocalTestingException.raise_from_error(
             exc, error_message=f"TIMESTAMP value '{value}' is not recognized."
@@ -170,13 +168,14 @@ def _timestamp_converter(
 def _time_converter(
     value: str,
     datatype: DataType,
+    format: str,
     field_optionally_enclosed_by: str = None,
     null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.time]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
-        return datetime.datetime.strptime(value, TIME_FORMAT).time()
+        return datetime.datetime.strptime(value, format).time()
     except Exception as exc:
         SnowparkLocalTestingException.raise_from_error(
             exc, error_message=f"TIMESTAMP value '{value}' is not recognized."
