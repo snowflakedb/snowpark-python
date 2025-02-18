@@ -1889,6 +1889,7 @@ def test_read_csv_alternate_time_formats(session):
         ],
     )
 
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="sql not supported in local testing mode",
