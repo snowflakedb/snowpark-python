@@ -9,11 +9,17 @@ import pytest
 
 from matplotlib.testing.decorators import check_figures_equal
 from tests.integ.utils.sql_counter import sql_count_checker
+from tests.utils import IS_IN_STORED_PROC
 
 fig_test = plt.figure()
 fig_ref = plt.figure()
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Creating a subdirectory for 'check_figures_equal' in the current (root) "
+    "directory is not supported in stored proc environment.",
+)
 @check_figures_equal()
 @sql_count_checker(query_count=2)
 @pytest.mark.parametrize("grid", [True, False])
