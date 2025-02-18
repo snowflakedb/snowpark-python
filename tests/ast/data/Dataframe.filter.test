@@ -68,7 +68,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_filter {
+      dataframe_filter {
         condition {
           and {
             lhs {
@@ -222,7 +222,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_filter {
+      dataframe_filter {
         condition {
           gt {
             lhs {
@@ -308,7 +308,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_filter {
+      dataframe_filter {
         condition {
           sql_expr {
             sql: "a > 1 and b < 100"
@@ -349,7 +349,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_filter {
+      dataframe_filter {
         condition {
           sql_expr {
             sql: "a > 1"

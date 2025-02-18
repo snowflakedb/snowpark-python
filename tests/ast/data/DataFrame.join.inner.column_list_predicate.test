@@ -94,7 +94,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_join {
+      dataframe_join {
         join_expr {
           and {
             lhs {
@@ -205,7 +205,7 @@ body {
           }
         }
         join_type {
-          sp_join_type__inner: true
+          join_type__inner: true
         }
         lhs {
           dataframe_ref {
@@ -242,7 +242,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             column_alias {

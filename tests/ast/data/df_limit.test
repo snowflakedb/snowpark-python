@@ -64,7 +64,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             sql_expr {
@@ -108,7 +108,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_limit {
+      dataframe_limit {
         df {
           dataframe_ref {
             id {
@@ -138,7 +138,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             sql_expr {
@@ -182,7 +182,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_limit {
+      dataframe_limit {
         df {
           dataframe_ref {
             id {

@@ -56,7 +56,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_distinct {
+      dataframe_distinct {
         df {
           dataframe_ref {
             id {

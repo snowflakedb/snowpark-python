@@ -93,7 +93,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union_all {
+      dataframe_union_all {
         df {
           dataframe_ref {
             id {
@@ -129,7 +129,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             apply_expr {

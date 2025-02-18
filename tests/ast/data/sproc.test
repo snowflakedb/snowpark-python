@@ -933,7 +933,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_limit {
+      dataframe_limit {
         df {
           dataframe_ref {
             id {

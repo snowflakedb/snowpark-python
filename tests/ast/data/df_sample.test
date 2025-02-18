@@ -60,7 +60,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sample {
+      dataframe_sample {
         df {
           dataframe_ref {
             id {
@@ -92,7 +92,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sample {
+      dataframe_sample {
         df {
           dataframe_ref {
             id {

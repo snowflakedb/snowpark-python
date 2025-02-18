@@ -92,7 +92,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_except {
+      dataframe_except {
         df {
           dataframe_ref {
             id {

@@ -57,7 +57,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_drop {
+      dataframe_drop {
         cols {
           args {
             apply_expr {

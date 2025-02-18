@@ -94,7 +94,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_join {
+      dataframe_join {
         join_expr {
           list_val {
             vs {
@@ -124,7 +124,7 @@ body {
           }
         }
         join_type {
-          sp_join_type__inner: true
+          join_type__inner: true
         }
         lhs {
           dataframe_ref {
@@ -161,7 +161,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             sql_expr {

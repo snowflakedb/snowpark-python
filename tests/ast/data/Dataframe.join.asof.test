@@ -457,7 +457,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_join {
+      dataframe_join {
         join_expr {
           and {
             lhs {
@@ -568,7 +568,7 @@ body {
           }
         }
         join_type {
-          sp_join_type__asof: true
+          join_type__asof: true
         }
         lhs {
           dataframe_ref {
@@ -659,7 +659,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
           args {
             string_val {

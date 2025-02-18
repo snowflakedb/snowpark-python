@@ -148,7 +148,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             sql_expr {
@@ -264,7 +264,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_filter {
+      dataframe_filter {
         condition {
           gt {
             lhs {

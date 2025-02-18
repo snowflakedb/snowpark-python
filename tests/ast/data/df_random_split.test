@@ -96,7 +96,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_random_split {
+      dataframe_random_split {
         df {
           dataframe_ref {
             id {
@@ -237,7 +237,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_random_split {
+      dataframe_random_split {
         df {
           dataframe_ref {
             id {
@@ -381,7 +381,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             gt {
@@ -525,7 +525,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_random_split {
+      dataframe_random_split {
         df {
           dataframe_ref {
             id {

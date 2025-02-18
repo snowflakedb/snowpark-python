@@ -72,7 +72,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_drop_duplicates {
+      dataframe_drop_duplicates {
         cols {
           variadic: true
         }
@@ -104,7 +104,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_drop_duplicates {
+      dataframe_drop_duplicates {
         cols {
           args {
             string_val {
@@ -148,7 +148,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_drop_duplicates {
+      dataframe_drop_duplicates {
         cols {
           args {
             string_val {
@@ -204,7 +204,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_drop_duplicates {
+      dataframe_drop_duplicates {
         cols {
           args {
             string_val {
@@ -259,7 +259,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_drop_duplicates {
+      dataframe_drop_duplicates {
         cols {
         }
         df {

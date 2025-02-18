@@ -82,7 +82,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_first {
+      dataframe_first {
         block: true
         df {
           dataframe_ref {
@@ -121,7 +121,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_first {
+      dataframe_first {
         block: true
         df {
           dataframe_ref {
@@ -160,7 +160,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_first {
+      dataframe_first {
         block: true
         df {
           dataframe_ref {
@@ -199,7 +199,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_first {
+      dataframe_first {
         df {
           dataframe_ref {
             id {
@@ -237,7 +237,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_first {
+      dataframe_first {
         df {
           dataframe_ref {
             id {

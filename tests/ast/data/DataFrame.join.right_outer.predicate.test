@@ -94,7 +94,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_join {
+      dataframe_join {
         join_expr {
           gt {
             lhs {
@@ -145,7 +145,7 @@ body {
           }
         }
         join_type {
-          sp_join_type__right_outer: true
+          join_type__right_outer: true
         }
         lhs {
           dataframe_ref {
@@ -182,7 +182,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             sql_expr {

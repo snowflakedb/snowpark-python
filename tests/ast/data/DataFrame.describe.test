@@ -64,7 +64,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_describe {
+      dataframe_describe {
         cols {
           variadic: true
         }
@@ -96,7 +96,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_describe {
+      dataframe_describe {
         cols {
           args {
             string_val {
@@ -140,7 +140,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_describe {
+      dataframe_describe {
         cols {
           args {
             string_val {

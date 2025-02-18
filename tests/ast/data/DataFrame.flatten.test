@@ -60,7 +60,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_flatten {
+      dataframe_flatten {
         df {
           dataframe_ref {
             id {
@@ -108,7 +108,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_flatten {
+      dataframe_flatten {
         df {
           dataframe_ref {
             id {

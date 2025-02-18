@@ -56,7 +56,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_alias {
+      dataframe_alias {
         df {
           dataframe_ref {
             id {

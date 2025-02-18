@@ -88,7 +88,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           div {
             lhs {
@@ -220,7 +220,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_columns {
+      dataframe_with_columns {
         col_names: "sum"
         df {
           dataframe_ref {
@@ -329,7 +329,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_columns {
+      dataframe_with_columns {
         col_names: "sum"
         col_names: "diff"
         df {
@@ -518,7 +518,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rename {
+      dataframe_rename {
         col_or_mapper {
           apply_expr {
             fn {
@@ -584,7 +584,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rename {
+      dataframe_rename {
         col_or_mapper {
           seq_map_val {
             kvs {
@@ -672,7 +672,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rename {
+      dataframe_rename {
         col_or_mapper {
           seq_map_val {
             kvs {
@@ -786,7 +786,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column_renamed {
+      dataframe_with_column_renamed {
         col {
           string_val {
             src {
@@ -828,7 +828,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column_renamed {
+      dataframe_with_column_renamed {
         col {
           apply_expr {
             fn {
@@ -892,7 +892,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column_renamed {
+      dataframe_with_column_renamed {
         col {
           apply_expr {
             fn {

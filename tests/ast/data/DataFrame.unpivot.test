@@ -178,7 +178,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_unpivot {
+      dataframe_unpivot {
         column_list {
           string_val {
             src {

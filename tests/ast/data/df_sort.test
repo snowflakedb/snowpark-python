@@ -76,7 +76,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         ascending {
           bool_val {
             v: true
@@ -147,7 +147,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         ascending {
           int64_val {
           }
@@ -217,7 +217,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         ascending {
           list_val {
             vs {
@@ -330,7 +330,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         ascending {
           list_val {
             vs {
@@ -443,7 +443,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         ascending {
           list_val {
             vs {
@@ -595,7 +595,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
           args {
             apply_expr {

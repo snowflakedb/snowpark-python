@@ -130,7 +130,7 @@ class GroupingSets:
         self._ast = None
         if _emit_ast:
             self._ast = proto.Expr()
-            grouping_sets_ast = with_src_position(self._ast.sp_grouping_sets)
+            grouping_sets_ast = with_src_position(self._ast.grouping_sets)
             (
                 set_list,
                 grouping_sets_ast.sets.variadic,

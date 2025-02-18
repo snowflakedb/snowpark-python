@@ -104,7 +104,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   apply_expr {
@@ -184,7 +184,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   apply_expr {
@@ -263,7 +263,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   list_val {
@@ -399,7 +399,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   list_val {
@@ -569,7 +569,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   list_val {
@@ -705,7 +705,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   list_val {
@@ -909,7 +909,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   apply_expr {
@@ -1022,7 +1022,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   apply_expr {

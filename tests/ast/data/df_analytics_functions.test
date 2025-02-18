@@ -427,7 +427,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           div {
             lhs {
@@ -845,7 +845,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           apply_expr {
             fn {

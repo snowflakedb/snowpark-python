@@ -171,7 +171,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_agg {
+      dataframe_agg {
         df {
           dataframe_ref {
             id {
@@ -315,7 +315,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_agg {
+      dataframe_agg {
         df {
           dataframe_ref {
             id {
@@ -417,7 +417,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_agg {
+      dataframe_agg {
         df {
           dataframe_ref {
             id {

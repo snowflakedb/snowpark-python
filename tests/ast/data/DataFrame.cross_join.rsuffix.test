@@ -92,7 +92,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_cross_join {
+      dataframe_cross_join {
         lhs {
           dataframe_ref {
             id {
@@ -130,7 +130,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             sql_expr {

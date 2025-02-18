@@ -93,7 +93,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_intersect {
+      dataframe_intersect {
         df {
           dataframe_ref {
             id {
