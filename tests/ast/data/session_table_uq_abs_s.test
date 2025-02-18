@@ -7,7 +7,7 @@ df = df.select("num")
 
 df = session.table("mock_database.mock_schema.table1")
 
-df = df.select(col("num"))
+df = df.select("num")
 
 ## EXPECTED ENCODED AST
 
@@ -57,38 +57,19 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "col"
-                    }
-                  }
-                }
+          args {
+            string_val {
+              src {
+                end_column: 29
+                end_line: 26
+                file: 2
+                start_column: 13
+                start_line: 26
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 29
-                  end_line: 26
-                  file: 2
-                  start_column: 13
-                  start_line: 26
-                }
-                v: "num"
-              }
-            }
-            src {
-              end_column: 29
-              end_line: 26
-              file: 2
-              start_column: 13
-              start_line: 26
+              v: "num"
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -104,7 +85,6 @@ body {
           start_column: 13
           start_line: 26
         }
-        variadic: true
       }
     }
     symbol {

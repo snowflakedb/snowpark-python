@@ -8785,21 +8785,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # we have named kwargs, which may be positional
             # in nature, and we need to align them to the snowpark
             # function call alongside the column reference
-            # Get the total arg count for the function
-            function_arg_count = snowpark_function.__code__.co_argcount
-            # Get all variables for the function and slice off only the arguments
-            positional_args = snowpark_function.__code__.co_varnames[
-                :function_arg_count
-            ]
+
+            params = inspect.signature(snowpark_function).parameters
             resolved_positional = []
-            col_specified = False
-            for arg in positional_args:
+            found_snowpark_column = False
+            for arg in params:
                 if arg in kwargs:
                     resolved_positional.append(kwargs[arg])
                 else:
-                    if not col_specified:
+                    if not found_snowpark_column:
                         resolved_positional.append(col)
-                        col_specified = True
+                        found_snowpark_column = True
+                    # TODO: SNOW-1927811 Kwargs "_emit_ast" and "_ast" appear in the function signature
+                    # and will be passed to the function by Snowpark Python so they should not be added as
+                    # positional args here
+                    elif arg in ("_emit_ast", "_ast"):
+                        continue
+                    elif (
+                        params[arg].default is not inspect.Parameter.empty
+                    ):  # pragma: no cover
+                        #  If the unspecified arg has a default value, that default value most likely needs to be added
+                        #  to the positional arguments. This however cannot be validated because this case
+                        #  is not applicable in any of the currently supported Snowpark Python functions yet.
+                        ErrorMessage.not_implemented(
+                            f"Function with default value parameter {arg} not passed as a kwarg is not currently supported."
+                        )
                     else:
                         ErrorMessage.not_implemented(
                             f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
@@ -16548,7 +16558,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument"
             )
 
-        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+        def output_col_string(column: SnowparkColumn) -> SnowparkColumn:
             col_len_exp = length(column)
             if i is None:
                 new_col = pandas_lit(None)
@@ -16573,9 +16583,44 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
-            output_col
-        )
+        def output_col_list(column: SnowparkColumn) -> SnowparkColumn:
+            col_len_exp = array_size(column)
+            if i is None:
+                new_col = pandas_lit(None)
+            elif i < 0:
+                # Index is relative to the end boundary.
+                # If it falls before the beginning boundary, Null is returned.
+                # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
+                new_col = iff(
+                    pandas_lit(i) + col_len_exp < pandas_lit(0),
+                    pandas_lit(None),
+                    get(column, pandas_lit(i) + col_len_exp),
+                )
+            else:
+                assert i >= 0
+                # Index is relative to the beginning boundary.
+                # If it falls after the end boundary, Null is returned.
+                # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
+                new_col = iff(
+                    pandas_lit(i) >= col_len_exp,
+                    pandas_lit(None),
+                    get(column, pandas_lit(i)),
+                )
+            return new_col
+
+        col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+        if isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            ArrayType,
+        ):
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                output_col_list
+            )
+        else:
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                output_col_string
+            )
+
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_get_dummies(self, sep: str) -> None:

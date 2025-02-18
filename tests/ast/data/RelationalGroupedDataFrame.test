@@ -1054,7 +1054,9 @@ body {
           fields {
             list {
               column_identifier {
-                name: "location"
+                sp_column_name {
+                  name: "location"
+                }
               }
               data_type {
                 sp_string_type {
@@ -1066,7 +1068,9 @@ body {
             }
             list {
               column_identifier {
-                name: "temp_c"
+                sp_column_name {
+                  name: "temp_c"
+                }
               }
               data_type {
                 sp_float_type: true
@@ -1075,7 +1079,9 @@ body {
             }
             list {
               column_identifier {
-                name: "temp_f"
+                sp_column_name {
+                  name: "temp_f"
+                }
               }
               data_type {
                 sp_float_type: true
@@ -1106,18 +1112,20 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 94
-              end_line: 46
-              file: 2
-              start_column: 76
-              start_line: 46
+          args {
+            string_val {
+              src {
+                end_column: 94
+                end_line: 46
+                file: 2
+                start_column: 76
+                start_line: 46
+              }
+              v: "temp_c"
             }
-            v: "temp_c"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
           sp_dataframe_ref {
             id {
@@ -1560,6 +1568,7 @@ body {
         id {
           bitfield1: 22
         }
+        n: 10
       }
     }
     symbol {
@@ -1721,30 +1730,32 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 89
-              end_line: 56
-              file: 2
-              start_column: 8
-              start_line: 56
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 56
+                file: 2
+                start_column: 8
+                start_line: 56
+              }
+              v: "empid"
             }
-            v: "empid"
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 89
-              end_line: 56
-              file: 2
-              start_column: 8
-              start_line: 56
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 56
+                file: 2
+                start_column: 8
+                start_line: 56
+              }
+              v: "team"
             }
-            v: "team"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
           sp_dataframe_ref {
             id {
@@ -1776,6 +1787,7 @@ body {
         id {
           bitfield1: 28
         }
+        n: 10
       }
     }
     symbol {

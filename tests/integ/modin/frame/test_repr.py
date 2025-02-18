@@ -37,7 +37,7 @@ _DATAFRAMES_TO_TEST = [
     ),
     (
         IRIS_DF,
-        6,
+        4,
     ),
     (
         native_pd.DataFrame(),
@@ -47,7 +47,7 @@ _DATAFRAMES_TO_TEST = [
         native_pd.DataFrame(
             {"A": list(range(10000)), "B": np.random.normal(size=10000)}
         ),
-        6,
+        4,
     ),
     (
         native_pd.DataFrame(columns=["A", "B", "C", "D", "C", "B", "A"]),
@@ -63,7 +63,7 @@ _DATAFRAMES_TO_TEST = [
         native_pd.DataFrame(
             data=np.zeros(shape=(300, 300)), columns=[f"x{i}" for i in range(300)]
         ),
-        6,
+        4,
     ),
 ]
 

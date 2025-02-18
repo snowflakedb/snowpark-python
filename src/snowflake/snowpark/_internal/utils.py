@@ -26,7 +26,7 @@ from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache
 from itertools import count
 from json import JSONEncoder
-from random import choice
+from random import Random
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -634,9 +634,12 @@ def create_or_update_statement_params_with_query_tag(
     statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
+    collect_stacktrace: bool = False,
 ) -> Dict[str, str]:
-    if exists_session_query_tag or (
-        statement_params and QUERY_TAG_STRING in statement_params
+    if (
+        exists_session_query_tag
+        or (statement_params and QUERY_TAG_STRING in statement_params)
+        or not collect_stacktrace
     ):
         return statement_params
 
@@ -690,7 +693,7 @@ def random_name_for_temp_object(object_type: TempObjectType) -> str:
 
 
 def generate_random_alphanumeric(length: int = 10) -> str:
-    return "".join(choice(ALPHANUMERIC) for _ in range(length))
+    return "".join(Random().choice(ALPHANUMERIC) for _ in range(length))
 
 
 def column_to_bool(col_):

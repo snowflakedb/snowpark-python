@@ -1,23 +1,35 @@
 # Release History
 
-# 1.28.0 (TBD)
+## 1.28.0 (TBD)
 
 ### Snowpark Python API Updates
-
-#### Deprecations:
-
-- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
-- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### New Features
 
 - Added support for the following functions in `functions.py`
   - `normal`
   - `randn`
+- Added support for `allow_missing_columns` parameter to `Dataframe.union_by_name` and `Dataframe.union_all_by_name`.
+
+#### Improvements
+
+- Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns.
+
+#### Deprecations
+
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### Bug Fixes
 
+- Fixed a bug where session-level query tag was overwritten by a stacktrace for dataframes that generate multiple queries. Now, the query tag will only be set to the stacktrace if `session.conf.set("collect_stacktrace_in_query_tag", True)`.
 - Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
+- Fixed a bug in options sql generation that could cause multiple values to be formatted incorrectly.
+- Fixed a bug in `Session.catalog` where empty strings for database or schema were not handled correctly and were generating erroneous sql statements.
+
+#### Improvements
+
+- Improved the random object name generation to avoid collisions.
 
 #### Experimental Features
 
@@ -29,6 +41,32 @@
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 - Added support for `Series.hist`.
+- Added support for list values in `Series.str.get`.
+
+#### Bug Fixes
+
+- Fixed a bug in `apply` where kwargs were not being correctly passed into the applied function.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+- Added support for the following functions
+    - `hour`
+    - `minute`
+
+#### Bug Fixes
+
+- Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
+- Fixed a bug in when statements that caused incorrect results in the otherwise clause.
+
+
+
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for NULL_IF parameter to csv reader
 
 ### Snowpark Local Testing Updates
 
@@ -102,7 +140,7 @@
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
 - Added support for `value_contains_null` parameter to MapType.
-- Added support for using `Column` object in `Column.in_` and `functions.in_`. 
+- Added support for using `Column` object in `Column.in_` and `functions.in_`.
 - Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
 - Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version
 - Added support for multiple aggregation functions after `DataFrame.pivot`.

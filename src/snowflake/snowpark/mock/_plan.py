@@ -899,6 +899,7 @@ def execute_mock_plan(
         order_by: Optional[List[Expression]] = source_plan.order_by
         limit_: Optional[int] = source_plan.limit_
         offset: Optional[int] = source_plan.offset
+        distinct_: bool = source_plan.distinct_
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
@@ -980,6 +981,9 @@ def execute_mock_plan(
             if offset is not None:
                 result_df = result_df.iloc[offset:]
             result_df = result_df.head(n=limit_)
+
+        if distinct_:
+            result_df = result_df.drop_duplicates()
 
         return result_df
     if isinstance(source_plan, MockSetStatement):
@@ -1362,6 +1366,8 @@ def execute_mock_plan(
                     col for col in result_df.columns.tolist() if col not in on
                 ]
                 result_df = result_df[reordered_cols]
+                sf_types = {col: result_df.sf_types[col] for col in reordered_cols}
+                result_df.sf_types = sf_types
 
         common_columns = set(L_expr_to_alias.keys()).intersection(
             R_expr_to_alias.keys()
@@ -2352,8 +2358,14 @@ def calculate_expression(
 
         if len(remaining) > 0 and exp.else_value:
             value = calculate_expression(
-                exp.else_value, remaining, analyzer, expr_to_alias
+                exp.else_value,
+                remaining.reset_index(drop=True),
+                analyzer,
+                expr_to_alias,
             )
+            # Index was reset in order to calculate expression correctly, but needs to be in the original
+            # order to replace the output data rows correctly.
+            value.index = remaining.index
             if output_data.sf_type is None:
                 output_data.sf_type = value.sf_type
             elif output_data.sf_type.datatype != value.sf_type.datatype:

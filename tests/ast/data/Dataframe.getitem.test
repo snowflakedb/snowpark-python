@@ -12,7 +12,7 @@ df = session.table("table1")
 
 df.select(df["STR"], df["STR"]).collect()
 
-df.select([col("STR"), col("STR")]).collect()
+df.select(["STR", "STR"]).collect()
 
 ## EXPECTED ENCODED AST
 
@@ -62,42 +62,45 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_dataframe_col {
-            col_name: "STR"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 1
+          args {
+            sp_dataframe_col {
+              col_name: "STR"
+              df {
+                sp_dataframe_ref {
+                  id {
+                    bitfield1: 1
+                  }
                 }
               }
-            }
-            src {
-              end_column: 24
-              end_line: 27
-              file: 2
-              start_column: 18
-              start_line: 27
-            }
-          }
-        }
-        cols {
-          sp_dataframe_col {
-            col_name: "STR"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 1
-                }
+              src {
+                end_column: 24
+                end_line: 27
+                file: 2
+                start_column: 18
+                start_line: 27
               }
             }
-            src {
-              end_column: 35
-              end_line: 27
-              file: 2
-              start_column: 26
-              start_line: 27
+          }
+          args {
+            sp_dataframe_col {
+              col_name: "STR"
+              df {
+                sp_dataframe_ref {
+                  id {
+                    bitfield1: 1
+                  }
+                }
+              }
+              src {
+                end_column: 35
+                end_line: 27
+                file: 2
+                start_column: 26
+                start_line: 27
+              }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -113,7 +116,6 @@ body {
           start_column: 8
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -163,70 +165,28 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "col"
-                    }
-                  }
-                }
+          args {
+            string_val {
+              src {
+                end_column: 26
+                end_line: 29
+                file: 2
+                start_column: 8
+                start_line: 29
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 26
-                  end_line: 29
-                  file: 2
-                  start_column: 8
-                  start_line: 29
-                }
-                v: "STR"
-              }
-            }
-            src {
-              end_column: 26
-              end_line: 29
-              file: 2
-              start_column: 8
-              start_line: 29
+              v: "STR"
             }
           }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "col"
-                    }
-                  }
-                }
+          args {
+            string_val {
+              src {
+                end_column: 26
+                end_line: 29
+                file: 2
+                start_column: 8
+                start_line: 29
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 26
-                  end_line: 29
-                  file: 2
-                  start_column: 8
-                  start_line: 29
-                }
-                v: "STR"
-              }
-            }
-            src {
-              end_column: 26
-              end_line: 29
-              file: 2
-              start_column: 8
-              start_line: 29
+              v: "STR"
             }
           }
         }

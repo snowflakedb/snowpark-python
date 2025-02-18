@@ -517,7 +517,6 @@ class StageEntity:
                     )
                     continue
                 converter = CONVERT_MAP[type(column_series.sf_type.datatype)]
-
                 kwargs = {
                     "datatype": column_series.sf_type.datatype,
                     "null_if": null_if,
@@ -533,7 +532,6 @@ class StageEntity:
                 if isinstance(column_series.sf_type.datatype, TimestampType):
                     kwargs["format"] = timestamp_format
                 converters_dict[i] = partial(converter, **kwargs)
-
             for local_file in local_files:
                 # pre-read to check columns number
                 df = pd.read_csv(

@@ -268,6 +268,10 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
 _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
     "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
 )
+# Flag to control sending snowflake plan telemetry data from get_result_set
+_PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION = (
+    "PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION"
+)
 # Flag for controlling the usage of scoped temp read only table.
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
@@ -366,6 +370,7 @@ class Session:
             self._conf = {
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
+                "collect_stacktrace_in_query_tag": False,
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
@@ -662,6 +667,11 @@ class Session:
         self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         self._custom_package_usage_config: Dict = {}
+        self._collect_snowflake_plan_telemetry_at_critical_path: bool = (
+            self.is_feature_enabled_for_version(
+                _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION
+            )
+        )
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
@@ -2175,6 +2185,13 @@ class Session:
             query to the Snowflake Database is called. For example, :meth:`DataFrame.collect`,
             :meth:`DataFrame.show`, :meth:`DataFrame.create_or_replace_view` and
             :meth:`DataFrame.create_or_replace_temp_view` will push down the SQL query.
+
+        Note:
+            The setter calls ``ALTER SESSION SET QUERY_TAG = <tag>`` which may be restricted
+            in some environments such as Owner's rights stored procedures. Refer to
+            `Owner's rights stored procedures <https://docs.snowflake.com/en/developer-guide/stored-procedure/stored-procedures-rights#owner-s-rights-stored-procedures>`_.
+            for more details.
+
         """
         return self._query_tag
 
@@ -2187,12 +2204,16 @@ class Session:
                 self._conn.run_query("alter session unset query_tag")
             self._query_tag = tag
 
-    def _get_remote_query_tag(self) -> None:
+    def _get_remote_query_tag(self) -> str:
         """
         Fetches the current sessions query tag.
         """
-        remote_tag_rows = self.sql("SHOW PARAMETERS LIKE 'QUERY_TAG'").collect()
+        remote_tag_rows = self.sql(
+            "SHOW PARAMETERS LIKE 'QUERY_TAG'"
+        )._internal_collect_with_tag_no_telemetry()
 
+        # Check if the result has the expected schema
+        # https://docs.snowflake.com/en/sql-reference/sql/show-parameters#examples
         if len(remote_tag_rows) != 1 or not hasattr(remote_tag_rows[0], "value"):
             raise ValueError(
                 "Snowflake server side query tag parameter has unexpected schema."
@@ -2508,12 +2529,13 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_generator, stmt)
-            col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+            col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
+                *columns
+            )
             for col_name in col_names:
-                ast.columns.append(col_name._ast)
+                ast.columns.args.append(col_name._ast)
             ast.row_count = rowcount
             ast.time_limit_seconds = timelimit
-            ast.variadic = is_variadic
 
         # TODO: Support generator in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection

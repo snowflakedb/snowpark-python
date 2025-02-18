@@ -410,7 +410,9 @@ body {
               fields {
                 list {
                   column_identifier {
-                    name: "id"
+                    sp_column_name {
+                      name: "id"
+                    }
                   }
                   data_type {
                     sp_integer_type: true
@@ -418,7 +420,9 @@ body {
                 }
                 list {
                   column_identifier {
-                    name: "name"
+                    sp_column_name {
+                      name: "name"
+                    }
                   }
                   data_type {
                     sp_string_type {
@@ -430,7 +434,9 @@ body {
                 }
                 list {
                   column_identifier {
-                    name: "age"
+                    sp_column_name {
+                      name: "age"
+                    }
                   }
                   data_type {
                     sp_integer_type: true
@@ -463,8 +469,32 @@ body {
   assign {
     expr {
       sp_dataframe_drop_duplicates {
-        cols: "name"
-        cols: "age"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 55
+                end_line: 46
+                file: 2
+                start_column: 20
+                start_line: 46
+              }
+              v: "name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 55
+                end_line: 46
+                file: 2
+                start_column: 20
+                start_line: 46
+              }
+              v: "age"
+            }
+          }
+        }
         df {
           sp_dataframe_ref {
             id {

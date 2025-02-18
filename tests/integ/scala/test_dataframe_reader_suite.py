@@ -1888,3 +1888,34 @@ def test_read_csv_alternate_time_formats(session):
             ),
         ],
     )
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+def test_read_multiple_csvs(session):
+    reader = get_reader(session, "copy")
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    user_schema = StructType(
+        [
+            StructField("A", LongType()),
+            StructField("B", StringType()),
+            StructField("C", DoubleType()),
+        ]
+    )
+    test_file_on_stage = f"@{tmp_stage_name1}/"
+    try:
+        Utils.create_table(session, table_name, "A float, B string, C double")
+        df = reader.schema(user_schema).csv(test_file_on_stage)
+        df.copy_into_table(table_name, files=[test_file_csv, test_file2_csv])
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(3.0, "three", 3.3),
+                Row(4.0, "four", 4.4),
+                Row(1.0, "one", 1.2),
+                Row(2.0, "two", 2.2),
+            ],
+        )
+    finally:
+        Utils.drop_table(session, table_name)

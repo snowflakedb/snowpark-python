@@ -175,6 +175,14 @@ def test_str_get(i):
     )
 
 
+@pytest.mark.parametrize("i", [None, -100, -2, -1, 0, 1, 2, 100])
+@sql_count_checker(query_count=1)
+def test_str_get_list(i):
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.get(i=i))
+
+
 @sql_count_checker(query_count=0)
 def test_str_get_neg():
     native_ser = native_pd.Series(TEST_DATA)

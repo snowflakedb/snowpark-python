@@ -13,7 +13,7 @@ For full data type spec, please refer to https://docs.snowflake.com/en/sql-refer
 
 import datetime
 from decimal import Decimal
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -37,7 +37,7 @@ def _integer_converter(
     value: str,
     datatype: DataType,
     field_optionally_enclosed_by: str = None,
-    null_if: Optional[bool] = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[int]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
@@ -53,7 +53,7 @@ def _fraction_converter(
     value: str,
     datatype: DataType,
     field_optionally_enclosed_by: str = None,
-    null_if: Optional[bool] = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[float]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
@@ -69,7 +69,7 @@ def _decimal_converter(
     value: str,
     datatype: DecimalType,
     field_optionally_enclosed_by: str = None,
-    null_if: Optional[bool] = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[Union[int, Decimal]]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
@@ -101,7 +101,7 @@ def _bool_converter(
     value: str,
     datatype: DataType,
     field_optionally_enclosed_by: str = None,
-    null_if: Optional[bool] = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[bool]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
@@ -122,7 +122,7 @@ def _string_converter(
     value: str,
     datatype: DataType,
     field_optionally_enclosed_by: str = None,
-    null_if: Optional[bool] = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[str]:
     if null_if is not None and value in null_if:
         return None
@@ -136,7 +136,7 @@ def _date_converter(
     datatype: DataType,
     format: str,
     field_optionally_enclosed_by: str = None,
-    null_if: Optional[bool] = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.date]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
@@ -153,7 +153,7 @@ def _timestamp_converter(
     datatype: DataType,
     format: str,
     field_optionally_enclosed_by: str = None,
-    null_if: Optional[bool] = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.datetime]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None
@@ -170,7 +170,7 @@ def _time_converter(
     datatype: DataType,
     format: str,
     field_optionally_enclosed_by: str = None,
-    null_if: Optional[bool] = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.time]:
     if value is None or value == "" or null_if is not None and value in null_if:
         return None

@@ -16,7 +16,7 @@ df5 = df.drop_duplicates([])
 
 df = session.table("table1")
 
-df1 = df.drop_duplicates([])
+df1 = df.drop_duplicates()
 
 df2 = df.drop_duplicates("NUM")
 
@@ -73,6 +73,9 @@ body {
   assign {
     expr {
       sp_dataframe_drop_duplicates {
+        cols {
+          variadic: true
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -102,7 +105,21 @@ body {
   assign {
     expr {
       sp_dataframe_drop_duplicates {
-        cols: "NUM"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 39
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
+              v: "NUM"
+            }
+          }
+          variadic: true
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -117,7 +134,6 @@ body {
           start_column: 14
           start_line: 29
         }
-        variadic: true
       }
     }
     symbol {
@@ -133,8 +149,33 @@ body {
   assign {
     expr {
       sp_dataframe_drop_duplicates {
-        cols: "NUM"
-        cols: "STR"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 46
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "NUM"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 46
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "STR"
+            }
+          }
+          variadic: true
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -149,7 +190,6 @@ body {
           start_column: 14
           start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
@@ -165,8 +205,32 @@ body {
   assign {
     expr {
       sp_dataframe_drop_duplicates {
-        cols: "NUM"
-        cols: "STR"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 48
+                end_line: 33
+                file: 2
+                start_column: 14
+                start_line: 33
+              }
+              v: "NUM"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 48
+                end_line: 33
+                file: 2
+                start_column: 14
+                start_line: 33
+              }
+              v: "STR"
+            }
+          }
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -196,6 +260,8 @@ body {
   assign {
     expr {
       sp_dataframe_drop_duplicates {
+        cols {
+        }
         df {
           sp_dataframe_ref {
             id {
