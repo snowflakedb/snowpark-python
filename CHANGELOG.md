@@ -48,18 +48,13 @@
 - Added support for the following functions
     - `hour`
     - `minute`
+- Added support for NULL_IF parameter to csv reader.
+- Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
 
 #### Bug Fixes
 
 - Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 - Fixed a bug in when statements that caused incorrect results in the otherwise clause.
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-- Added support for NULL_IF parameter to csv reader.
-- Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
 
 ## 1.27.0 (2025-02-03)
 
