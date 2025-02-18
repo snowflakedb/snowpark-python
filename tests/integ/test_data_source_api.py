@@ -77,6 +77,7 @@ def fake_task_fetch_from_data_source_with_retry(
     driver_info,
     query_timeout,
     fetch_size,
+    session_init_statement,
 ):
     time.sleep(2)
 
@@ -516,3 +517,31 @@ def test_predicates():
     ]
     res = generate_sql_with_predicates(select_query, predicates)
     assert res == expected_result
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_session_init_statement(session):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
+
+        df = session.read.dbapi(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            table_name,
+            custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+            session_init_statement="SELECT 1;",
+        )
+        assert df.collect() == assert_data
+
+        with pytest.raises(
+            SnowparkDataframeReaderException, match='near "FROM": syntax error'
+        ):
+            session.read.dbapi(
+                functools.partial(create_connection_to_sqlite3_db, dbpath),
+                table_name,
+                custom_schema="id INTEGER",
+                session_init_statement="SELECT FROM NOTHING;",
+            )
