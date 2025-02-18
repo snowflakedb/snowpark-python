@@ -203,7 +203,9 @@ body {
               fields {
                 list {
                   column_identifier {
-                    name: "num"
+                    sp_column_name {
+                      name: "num"
+                    }
                   }
                   data_type {
                     sp_integer_type: true
@@ -212,7 +214,9 @@ body {
                 }
                 list {
                   column_identifier {
-                    name: "str"
+                    sp_column_name {
+                      name: "str"
+                    }
                   }
                   data_type {
                     sp_string_type {

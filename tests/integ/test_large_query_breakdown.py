@@ -520,7 +520,7 @@ def test_multiple_query_plan(session):
         final_df = union_df.with_column("A", col("A") + lit(1))
 
         with SqlCounter(
-            query_count=15,
+            query_count=11,
             describe_count=0,
             high_count_expected=True,
             high_count_reason="low array bind threshold",

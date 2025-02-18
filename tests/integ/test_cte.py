@@ -216,7 +216,7 @@ def test_binary(session, type, action):
         session,
         df3,
         expect_cte_optimized=True,
-        query_count=6,
+        query_count=4,
         describe_count=0,
         union_count=union_count,
         join_count=join_count,
@@ -802,7 +802,9 @@ def test_aggregate(session, action):
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
         temp_table_name, table_type="temp"
     )
-    df = action(session.table(temp_table_name)).filter(col("a") == 1)
+    # add limit to add a layer of nesting for distinct()
+    base_df = session.table(temp_table_name).limit(10)
+    df = action(base_df).filter(col("a") == 1)
     df_result = df.union_by_name(df)
     check_result(
         session,
@@ -942,7 +944,7 @@ def test_in_with_subquery_multiple_query(session):
             session,
             df_result,
             expect_cte_optimized=True,
-            query_count=11,
+            query_count=7,
             describe_count=0,
             union_count=1,
             join_count=0,

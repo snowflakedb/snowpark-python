@@ -1841,7 +1841,9 @@ body {
             fields {
               list {
                 column_identifier {
-                  name: "A"
+                  sp_column_name {
+                    name: "A"
+                  }
                 }
                 data_type {
                   sp_integer_type: true
@@ -1850,7 +1852,9 @@ body {
               }
               list {
                 column_identifier {
-                  name: "B"
+                  sp_column_name {
+                    name: "B"
+                  }
                 }
                 data_type {
                   sp_integer_type: true
@@ -1959,6 +1963,7 @@ body {
         id {
           bitfield1: 62
         }
+        n: 10
       }
     }
     symbol {
@@ -2106,6 +2111,7 @@ body {
         id {
           bitfield1: 67
         }
+        n: 10
       }
     }
     symbol {
@@ -2254,6 +2260,7 @@ body {
         id {
           bitfield1: 72
         }
+        n: 10
       }
     }
     symbol {
