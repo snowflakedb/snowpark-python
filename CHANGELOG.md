@@ -1,6 +1,6 @@
 # Release History
 
-## 1.28.0 (2025-02-18)
+## 1.28.0 (2025-02-19)
 
 ### Snowpark Python API Updates
 
@@ -19,6 +19,7 @@
 #### Deprecations
 
 - Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### Bug Fixes
 
