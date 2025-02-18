@@ -84,7 +84,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_string_like {
+            column_string_like {
               col {
                 apply_expr {
                   fn {
@@ -173,7 +173,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_string_regexp {
+            column_regexp {
               col {
                 apply_expr {
                   fn {
@@ -262,7 +262,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_string_starts_with {
+            column_string_starts_with {
               col {
                 apply_expr {
                   fn {
@@ -351,7 +351,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_string_ends_with {
+            column_string_ends_with {
               col {
                 apply_expr {
                   fn {
@@ -440,7 +440,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_string_substr {
+            column_string_substr {
               col {
                 apply_expr {
                   fn {
@@ -585,7 +585,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_string_collate {
+            column_string_collate {
               col {
                 apply_expr {
                   fn {
@@ -674,7 +674,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_string_contains {
+            column_string_contains {
               col {
                 apply_expr {
                   fn {

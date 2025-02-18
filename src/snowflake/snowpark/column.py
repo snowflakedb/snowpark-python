@@ -1120,7 +1120,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_like)
+            ast = with_src_position(expr.column_string_like)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
         return Column(
@@ -1151,7 +1151,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_regexp)
+            ast = with_src_position(expr.column_regexp)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
             if parameters is not None:
@@ -1180,7 +1180,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_starts_with)
+            ast = with_src_position(expr.column_string_starts_with)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.prefix, other)
         other = (
@@ -1205,7 +1205,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_ends_with)
+            ast = with_src_position(expr.column_string_ends_with)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.suffix, other)
 
@@ -1238,7 +1238,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_substr)
+            ast = with_src_position(expr.column_string_substr)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.pos, start_pos)
             build_expr_from_snowpark_column_or_python_val(ast.len, length)
@@ -1260,7 +1260,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_collate)
+            ast = with_src_position(expr.column_string_collate)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(
                 ast.collation_spec, collation_spec
@@ -1279,7 +1279,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_contains)
+            ast = with_src_position(expr.column_string_contains)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.pattern, string)
         return Column(
@@ -1415,7 +1415,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_within_group)
+            ast = with_src_position(expr.column_within_group)
             ast.col.CopyFrom(self._ast)
             ast.cols.variadic = not (
                 len(cols) == 1 and isinstance(cols[0], (list, tuple, set))

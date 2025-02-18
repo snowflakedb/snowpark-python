@@ -1021,7 +1021,7 @@ body {
             column_case_expr {
               cases {
                 condition {
-                  sp_column_string_contains {
+                  column_string_contains {
                     col {
                       apply_expr {
                         fn {
@@ -1120,7 +1120,7 @@ body {
               }
               cases {
                 condition {
-                  sp_column_string_contains {
+                  column_string_contains {
                     col {
                       apply_expr {
                         fn {
