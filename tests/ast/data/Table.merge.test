@@ -328,7 +328,7 @@ body {
                   dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -347,7 +347,7 @@ body {
                   dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -377,7 +377,7 @@ body {
                   dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -423,7 +423,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -499,7 +499,7 @@ body {
                   dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -606,7 +606,7 @@ body {
               dataframe_col {
                 col_name: "str"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -643,7 +643,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -754,7 +754,7 @@ body {
                   dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 8
                         }
@@ -773,7 +773,7 @@ body {
                   dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -803,7 +803,7 @@ body {
                   dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 8
                         }
@@ -849,7 +849,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -925,7 +925,7 @@ body {
                   dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -1032,7 +1032,7 @@ body {
               dataframe_col {
                 col_name: "str"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -1069,7 +1069,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1150,7 +1150,7 @@ body {
               dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 14
                     }
@@ -1169,7 +1169,7 @@ body {
               dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -1194,7 +1194,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1269,7 +1269,7 @@ body {
                   dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -1318,7 +1318,7 @@ body {
                   dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -1360,7 +1360,7 @@ body {
                   dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 17
                         }
@@ -1379,7 +1379,7 @@ body {
                   dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -1413,7 +1413,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1489,7 +1489,7 @@ body {
               dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 20
                     }
@@ -1508,7 +1508,7 @@ body {
               dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -1533,7 +1533,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }

@@ -400,7 +400,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -434,7 +434,7 @@ body {
               dataframe_col {
                 col_name: "SALESAMOUNT"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 2
                     }
@@ -472,7 +472,7 @@ body {
         }
         col_name: "HALF_AMOUNT"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -506,7 +506,7 @@ body {
           _2: "AVG"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -547,7 +547,7 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -590,7 +590,7 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -628,7 +628,7 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -675,7 +675,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -720,7 +720,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -767,7 +767,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -812,7 +812,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -863,7 +863,7 @@ body {
               dataframe_col {
                 col_name: "ORDERDATE"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 2
                     }
@@ -889,7 +889,7 @@ body {
         }
         col_name: "ORDERDATE"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -923,7 +923,7 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 12
             }
@@ -962,7 +962,7 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 12
             }

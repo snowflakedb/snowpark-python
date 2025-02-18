@@ -311,7 +311,7 @@ def build_expr_from_python_val(
         for v in obj:
             build_expr_from_python_val(ast.vs.add(), v)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "vs"
     elif isinstance(obj, snowflake.snowpark.dataframe.DataFrame):
-        ast = with_src_position(expr_builder.sp_dataframe_ref)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpDataframeRef"; expected "Expr"
+        ast = with_src_position(expr_builder.dataframe_ref)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpDataframeRef"; expected "Expr"
         assert (
             obj._ast_id is not None
         ), "Dataframe object to encode as part of AST does not have an id assigned. Missing AST for object or previous operation?"

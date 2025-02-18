@@ -96,7 +96,7 @@ body {
     expr {
       dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -176,7 +176,7 @@ body {
     expr {
       dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -255,7 +255,7 @@ body {
     expr {
       dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -391,7 +391,7 @@ body {
     expr {
       dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -561,7 +561,7 @@ body {
     expr {
       dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -697,7 +697,7 @@ body {
     expr {
       dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -901,7 +901,7 @@ body {
     expr {
       dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1014,7 +1014,7 @@ body {
     expr {
       dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }

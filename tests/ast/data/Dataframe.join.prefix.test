@@ -324,7 +324,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -564,7 +564,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -596,14 +596,14 @@ body {
           sp_join_type__inner: true
         }
         lhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
           }
         }
         rhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 4
             }
@@ -766,7 +766,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
@@ -793,7 +793,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {

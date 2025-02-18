@@ -85,7 +85,7 @@ body {
       sp_dataframe_first {
         block: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -124,7 +124,7 @@ body {
       sp_dataframe_first {
         block: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -163,7 +163,7 @@ body {
       sp_dataframe_first {
         block: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -201,7 +201,7 @@ body {
     expr {
       sp_dataframe_first {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -239,7 +239,7 @@ body {
     expr {
       sp_dataframe_first {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }

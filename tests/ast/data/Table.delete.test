@@ -297,7 +297,7 @@ body {
               dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 10
                     }
@@ -483,7 +483,7 @@ body {
               dataframe_col {
                 col_name: "a"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 14
                     }
@@ -534,7 +534,7 @@ body {
           bitfield1: 13
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 14
             }

@@ -466,7 +466,7 @@ body {
                   dataframe_col {
                     col_name: "c1"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -485,7 +485,7 @@ body {
                   dataframe_col {
                     col_name: "c1"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -515,7 +515,7 @@ body {
                   dataframe_col {
                     col_name: "c2"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -534,7 +534,7 @@ body {
                   dataframe_col {
                     col_name: "c2"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -571,7 +571,7 @@ body {
           sp_join_type__asof: true
         }
         lhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -586,7 +586,7 @@ body {
               dataframe_col {
                 col_name: "c3"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -605,7 +605,7 @@ body {
               dataframe_col {
                 col_name: "c3"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 2
                     }
@@ -630,7 +630,7 @@ body {
           }
         }
         rhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -688,7 +688,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -714,7 +714,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {

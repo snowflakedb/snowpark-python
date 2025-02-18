@@ -66,7 +66,7 @@ body {
             dataframe_col {
               col_name: "STR"
               df {
-                sp_dataframe_ref {
+                dataframe_ref {
                   id {
                     bitfield1: 1
                   }
@@ -85,7 +85,7 @@ body {
             dataframe_col {
               col_name: "STR"
               df {
-                sp_dataframe_ref {
+                dataframe_ref {
                   id {
                     bitfield1: 1
                   }
@@ -103,7 +103,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -129,7 +129,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -235,7 +235,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -261,7 +261,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {

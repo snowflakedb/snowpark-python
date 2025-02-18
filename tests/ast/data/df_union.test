@@ -114,14 +114,14 @@ body {
     expr {
       sp_dataframe_union {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -150,14 +150,14 @@ body {
     expr {
       sp_dataframe_union_all {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -250,14 +250,14 @@ body {
     expr {
       sp_dataframe_union_by_name {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -286,14 +286,14 @@ body {
     expr {
       sp_dataframe_union_all_by_name {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }

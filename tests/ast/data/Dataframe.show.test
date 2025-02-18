@@ -278,7 +278,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_show {
+      dataframe_show {
         id {
           bitfield1: 1
         }
@@ -304,7 +304,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_show {
+      dataframe_show {
         id {
           bitfield1: 1
         }
@@ -330,7 +330,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_show {
+      dataframe_show {
         id {
           bitfield1: 1
         }
@@ -356,7 +356,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_show {
+      dataframe_show {
         id {
           bitfield1: 1
         }

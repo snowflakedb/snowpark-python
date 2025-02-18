@@ -71,7 +71,7 @@ body {
     expr {
       sp_dataframe_select__exprs {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -115,7 +115,7 @@ body {
     expr {
       sp_dataframe_select__exprs {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -158,7 +158,7 @@ body {
     expr {
       sp_dataframe_select__exprs {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -262,7 +262,7 @@ body {
     expr {
       sp_dataframe_select__exprs {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 4
             }

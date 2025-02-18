@@ -95,14 +95,14 @@ body {
     expr {
       sp_dataframe_intersect {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }

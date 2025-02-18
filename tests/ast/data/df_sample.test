@@ -62,7 +62,7 @@ body {
     expr {
       sp_dataframe_sample {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -94,7 +94,7 @@ body {
     expr {
       sp_dataframe_sample {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }

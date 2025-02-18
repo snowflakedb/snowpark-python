@@ -101,7 +101,7 @@ body {
               dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -120,7 +120,7 @@ body {
               dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 2
                     }
@@ -148,14 +148,14 @@ body {
           sp_join_type__inner: true
         }
         lhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         rhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -190,7 +190,7 @@ body {
                 dataframe_col {
                   col_name: "num"
                   df {
-                    sp_dataframe_ref {
+                    dataframe_ref {
                       id {
                         bitfield1: 1
                       }
@@ -224,7 +224,7 @@ body {
                 dataframe_col {
                   col_name: "num"
                   df {
-                    sp_dataframe_ref {
+                    dataframe_ref {
                       id {
                         bitfield1: 2
                       }
@@ -256,7 +256,7 @@ body {
             dataframe_col {
               col_name: "str"
               df {
-                sp_dataframe_ref {
+                dataframe_ref {
                   id {
                     bitfield1: 2
                   }
@@ -274,7 +274,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }

@@ -94,14 +94,14 @@ body {
     expr {
       sp_dataframe_except {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }

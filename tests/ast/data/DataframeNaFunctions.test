@@ -106,7 +106,7 @@ body {
     expr {
       sp_dataframe_na_drop__python {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -136,7 +136,7 @@ body {
     expr {
       sp_dataframe_na_drop__python {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -166,7 +166,7 @@ body {
     expr {
       sp_dataframe_na_drop__python {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -199,7 +199,7 @@ body {
     expr {
       sp_dataframe_na_drop__python {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -232,7 +232,7 @@ body {
     expr {
       sp_dataframe_na_drop__python {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -266,7 +266,7 @@ body {
     expr {
       sp_dataframe_na_drop__python {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -302,7 +302,7 @@ body {
     expr {
       sp_dataframe_na_fill {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -343,7 +343,7 @@ body {
     expr {
       sp_dataframe_na_fill {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -404,7 +404,7 @@ body {
     expr {
       sp_dataframe_na_fill {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -448,7 +448,7 @@ body {
     expr {
       sp_dataframe_na_fill {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -492,7 +492,7 @@ body {
     expr {
       sp_dataframe_na_replace {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -586,7 +586,7 @@ body {
     expr {
       sp_dataframe_na_replace {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -667,7 +667,7 @@ body {
     expr {
       sp_dataframe_na_replace {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }

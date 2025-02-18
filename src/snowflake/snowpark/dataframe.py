@@ -623,13 +623,13 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
-    def _set_ast_ref(self, sp_dataframe_expr_builder: Any) -> None:
+    def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """
-        Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
+        Given a field builder expression of the AST type DataframeExpr, points the builder to reference this dataframe.
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
         debug_check_missing_ast(self._ast_id, self)
-        sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        dataframe_expr_builder.dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -695,7 +695,7 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_collect)
+            expr = with_src_position(repr.expr.dataframe_collect)
             debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
@@ -745,7 +745,7 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_collect)
+            expr = with_src_position(repr.expr.dataframe_collect)
             debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
@@ -882,7 +882,7 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node that applies SpDataframeToLocalIterator() to the input, followed by its Eval.
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_to_local_iterator)
+            expr = with_src_position(stmt.expr.dataframe_to_local_iterator)
 
             debug_check_missing_ast(self._ast_id, self)
 
@@ -2206,7 +2206,7 @@ class DataFrame:
                 for c in col_list:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-                expr.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+                expr.df.dataframe_ref.id.bitfield1 = self._ast_id
             else:
                 stmt = _ast_stmt
 
@@ -4045,7 +4045,7 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node that applies SpDataframeCount() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_count)
+            expr = with_src_position(repr.expr.dataframe_count)
             debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
@@ -4520,8 +4520,8 @@ class DataFrame:
             repr = self._session._ast_batch.assign()
             debug_check_missing_ast(self._ast_id, self)
             if self._ast_id is not None:
-                repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
-            repr.expr.sp_dataframe_show.n = n
+                repr.expr.dataframe_show.id.bitfield1 = self._ast_id
+            repr.expr.dataframe_show.n = n
             self._session._ast_batch.eval(repr)
 
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()

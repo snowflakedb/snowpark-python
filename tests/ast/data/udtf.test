@@ -317,7 +317,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -543,7 +543,7 @@ body {
               dataframe_col {
                 col_name: "a"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 7
                     }
@@ -562,7 +562,7 @@ body {
               dataframe_col {
                 col_name: "b"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 7
                     }
@@ -588,7 +588,7 @@ body {
         }
         col_name: "total"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 7
             }
@@ -620,7 +620,7 @@ body {
             dataframe_col {
               col_name: "a"
               df {
-                sp_dataframe_ref {
+                dataframe_ref {
                   id {
                     bitfield1: 7
                   }
@@ -638,7 +638,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 8
             }
@@ -664,7 +664,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_show {
+      dataframe_show {
         id {
           bitfield1: 9
         }
@@ -865,7 +865,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -1250,7 +1250,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 18
             }
@@ -1414,7 +1414,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1440,7 +1440,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -1571,7 +1571,7 @@ body {
           dataframe_col {
             col_name: "a"
             df {
-              sp_dataframe_ref {
+              dataframe_ref {
                 id {
                   bitfield1: 19
                 }
@@ -1612,7 +1612,7 @@ body {
             dataframe_col {
               col_name: "a"
               df {
-                sp_dataframe_ref {
+                dataframe_ref {
                   id {
                     bitfield1: 19
                   }
@@ -1648,7 +1648,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1674,7 +1674,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -1877,7 +1877,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1903,7 +1903,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {

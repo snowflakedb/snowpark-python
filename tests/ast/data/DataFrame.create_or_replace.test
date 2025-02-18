@@ -107,7 +107,7 @@ body {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -144,7 +144,7 @@ body {
     expr {
       dataframe_create_or_replace_view {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -186,7 +186,7 @@ body {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -224,7 +224,7 @@ body {
     expr {
       dataframe_create_or_replace_view {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -279,7 +279,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -459,7 +459,7 @@ body {
     expr {
       dataframe_cache_result {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -488,7 +488,7 @@ body {
     expr {
       dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -517,7 +517,7 @@ body {
     expr {
       dataframe_cache_result {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -550,7 +550,7 @@ body {
     expr {
       dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -582,7 +582,7 @@ body {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
