@@ -191,7 +191,7 @@ def test_dbapi_retry(session):
         new=fake_detect_dbms_pyodbc,
     ), mock.patch(
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
-        side_effect=Exception("Test error"),
+        side_effect=RuntimeError("Test error"),
     ) as mock_task:
         result = _task_fetch_from_data_source_with_retry(
             create_connection=sql_server_create_connection,
@@ -203,14 +203,16 @@ def test_dbapi_retry(session):
             driver_info="pyodbc",
         )
         assert mock_task.call_count == MAX_RETRY_TIME
-        assert isinstance(result, Exception)
+        assert isinstance(
+            result, SnowparkDataframeReaderException
+        ) and "[RuntimeError] Test error" in str(result)
 
     with mock.patch(
         "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
         new=fake_detect_dbms_pyodbc,
     ), mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
-        side_effect=Exception("Test error"),
+        side_effect=RuntimeError("Test error"),
     ) as mock_task:
         result = session.read._upload_and_copy_into_table_with_retry(
             local_file="fake_file",
@@ -218,7 +220,9 @@ def test_dbapi_retry(session):
             snowflake_table_name="fake_table",
         )
         assert mock_task.call_count == MAX_RETRY_TIME
-        assert isinstance(result, Exception)
+        assert isinstance(
+            result, SnowparkDataframeReaderException
+        ) and "[RuntimeError] Test error" in str(result)
 
 
 @pytest.mark.skipif(
