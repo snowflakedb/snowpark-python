@@ -94,7 +94,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
           sp_dataframe_ref {
             id {
@@ -174,7 +174,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
           sp_dataframe_ref {
             id {
@@ -253,7 +253,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
           sp_dataframe_ref {
             id {
@@ -389,7 +389,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
           sp_dataframe_ref {
             id {
@@ -559,7 +559,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
           sp_dataframe_ref {
             id {
@@ -695,7 +695,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
           sp_dataframe_ref {
             id {
@@ -899,7 +899,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
           sp_dataframe_ref {
             id {
@@ -1012,7 +1012,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
           sp_dataframe_ref {
             id {

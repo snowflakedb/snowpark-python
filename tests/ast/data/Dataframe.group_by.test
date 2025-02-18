@@ -84,7 +84,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           variadic: true
         }
@@ -116,7 +116,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -160,7 +160,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -203,7 +203,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -258,7 +258,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             apply_expr {
@@ -324,7 +324,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             apply_expr {
@@ -389,7 +389,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             apply_expr {
@@ -467,7 +467,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             apply_expr {

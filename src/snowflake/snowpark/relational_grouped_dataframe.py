@@ -289,7 +289,7 @@ class RelationalGroupedDataFrame:
             if _ast_stmt is None:
                 stmt = self._dataframe._session._ast_batch.assign()
                 ast = with_src_position(
-                    stmt.expr.sp_relational_grouped_dataframe_agg, stmt
+                    stmt.expr.relational_grouped_dataframe_agg, stmt
                 )
                 self._set_ast_ref(ast.grouped_df)
                 ast.exprs.variadic = is_variadic
@@ -437,11 +437,9 @@ class RelationalGroupedDataFrame:
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
-                stmt.expr.sp_relational_grouped_dataframe_apply_in_pandas, stmt
+                stmt.expr.relational_grouped_dataframe_apply_in_pandas, stmt
             )
-            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
+            ast.grouped_df.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
             build_proto_from_callable(
                 ast.func, func, self._dataframe._session._ast_batch
             )
@@ -554,16 +552,12 @@ class RelationalGroupedDataFrame:
         # special case: This is an internal state modifying operation.
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(
-                stmt.expr.sp_relational_grouped_dataframe_pivot, stmt
-            )
+            ast = with_src_position(stmt.expr.relational_grouped_dataframe_pivot, stmt)
             if default_on_null is not None:
                 build_expr_from_python_val(ast.default_on_null, default_on_null)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
             build_proto_from_pivot_values(ast.values, values)
-            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
+            ast.grouped_df.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
 
             # Update self's id.
             self._ast_id = stmt.var_id.bitfield1
@@ -620,11 +614,9 @@ class RelationalGroupedDataFrame:
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
-                stmt.expr.sp_relational_grouped_dataframe_builtin, stmt
+                stmt.expr.relational_grouped_dataframe_builtin, stmt
             )
-            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
+            ast.grouped_df.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
             ast.agg_name = "count"
             df._ast_id = stmt.var_id.bitfield1
 
@@ -653,11 +645,9 @@ class RelationalGroupedDataFrame:
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
-                stmt.expr.sp_relational_grouped_dataframe_builtin, stmt
+                stmt.expr.relational_grouped_dataframe_builtin, stmt
             )
-            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
+            ast.grouped_df.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
             ast.agg_name = agg_name
             exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
             ast.cols.variadic = is_variadic
@@ -678,12 +668,10 @@ class RelationalGroupedDataFrame:
         else:
             return self.builtin(func_name, _emit_ast=_emit_ast)(*cols)
 
-    def _set_ast_ref(
-        self, expr_builder: proto.SpRelationalGroupedDataframeExpr
-    ) -> None:
+    def _set_ast_ref(self, expr_builder: proto.RelationalGroupedDataframeExpr) -> None:
         """
-        Given a field builder expression of the AST type SpRelationalGroupedDataframeExpr, points the builder to reference this RelationalGroupedDataFrame.
+        Given a field builder expression of the AST type RelationalGroupedDataframeExpr, points the builder to reference this RelationalGroupedDataFrame.
         """
         # TODO: remove the None guard below once we generate the correct AST.
         if self._ast_id is not None:
-            expr_builder.sp_relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
+            expr_builder.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id

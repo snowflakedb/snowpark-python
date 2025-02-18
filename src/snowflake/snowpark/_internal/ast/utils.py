@@ -1065,7 +1065,7 @@ def fill_sp_write_file(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_pivot_values(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.SpPivotValue,
+    expr_builder: proto.PivotValue,
     values: Optional[Union[Iterable["LiteralType"], "DataFrame"]],  # type: ignore[name-defined] # noqa: F821 # TODO(SNOW-1491199) # Name "LiteralType" is not defined, Name "DataFrame" is not defined
 ):  # pragma: no cover
     """Helper function to encode Snowpark pivot values that are used in various pivot operations to AST."""
@@ -1073,9 +1073,9 @@ def build_proto_from_pivot_values(  # type: ignore[no-untyped-def] # TODO(SNOW-1
         return
 
     if isinstance(values, snowflake.snowpark.dataframe.DataFrame):
-        expr_builder.sp_pivot_value__dataframe.v.id.bitfield1 = values._ast_id
+        expr_builder.pivot_value__dataframe.v.id.bitfield1 = values._ast_id
     else:
-        build_expr_from_python_val(expr_builder.sp_pivot_value__expr.v, values)
+        build_expr_from_python_val(expr_builder.pivot_value__expr.v, values)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.

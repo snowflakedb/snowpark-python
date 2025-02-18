@@ -2136,7 +2136,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_rollup, stmt)
+            expr = with_src_position(stmt.expr.dataframe_rollup, stmt)
             self._set_ast_ref(expr.df)
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
@@ -2199,7 +2199,7 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
+                expr = with_src_position(stmt.expr.dataframe_group_by, stmt)
                 col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
                     *cols
                 )
@@ -2266,9 +2266,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                stmt.expr.sp_dataframe_group_by_grouping_sets, stmt
-            )
+            expr = with_src_position(stmt.expr.dataframe_group_by_grouping_sets, stmt)
             self._set_ast_ref(expr.df)
             (
                 grouping_set_list,
@@ -2304,7 +2302,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_cube, stmt)
+            expr = with_src_position(stmt.expr.dataframe_cube, stmt)
             self._set_ast_ref(expr.df)
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
@@ -2483,7 +2481,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_pivot, stmt)
+            ast = with_src_position(stmt.expr.dataframe_pivot, stmt)
             self._set_ast_ref(ast.df)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
             build_proto_from_pivot_values(ast.values, values)

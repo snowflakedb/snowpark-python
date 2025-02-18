@@ -104,7 +104,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -148,12 +148,12 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -180,7 +180,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -241,7 +241,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -268,7 +268,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -328,7 +328,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -355,7 +355,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -472,7 +472,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -499,7 +499,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -615,7 +615,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -642,7 +642,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             list_val {
@@ -682,7 +682,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -709,7 +709,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             list_val {
@@ -771,7 +771,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -798,7 +798,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             tuple_val {
@@ -894,7 +894,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -921,7 +921,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -1130,7 +1130,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1157,7 +1157,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
@@ -1173,7 +1173,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1200,7 +1200,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
@@ -1242,7 +1242,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1269,7 +1269,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
@@ -1337,7 +1337,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }

@@ -311,7 +311,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -354,7 +354,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "median"
         cols {
           args {
@@ -372,7 +372,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -432,7 +432,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -475,7 +475,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "avg"
         cols {
           args {
@@ -493,7 +493,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -553,7 +553,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -596,10 +596,10 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "count"
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 10
             }
@@ -832,7 +832,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -955,13 +955,13 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_apply_in_pandas {
+      relational_grouped_dataframe_apply_in_pandas {
         func {
           id: 1
           name: "convert"
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 13
             }
@@ -1398,7 +1398,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -1441,9 +1441,9 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_pivot {
+      relational_grouped_dataframe_pivot {
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 20
             }
@@ -1469,7 +1469,7 @@ body {
           start_line: 54
         }
         values {
-          sp_pivot_value__expr {
+          pivot_value__expr {
             v {
               list_val {
                 src {
@@ -1520,7 +1520,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "sum"
         cols {
           args {
@@ -1538,7 +1538,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 21
             }
@@ -1590,7 +1590,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -1644,9 +1644,9 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_pivot {
+      relational_grouped_dataframe_pivot {
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 25
             }
@@ -1684,7 +1684,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "sum"
         cols {
           args {
@@ -1702,7 +1702,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 26
             }
