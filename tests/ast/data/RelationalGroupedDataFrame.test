@@ -979,7 +979,7 @@ body {
                 start_line: 43
               }
               vs {
-                sp_datatype_val {
+                datatype_val {
                   datatype {
                     sp_string_type {
                       length {
@@ -996,7 +996,7 @@ body {
                 }
               }
               vs {
-                sp_datatype_val {
+                datatype_val {
                   datatype {
                     sp_float_type: true
                   }

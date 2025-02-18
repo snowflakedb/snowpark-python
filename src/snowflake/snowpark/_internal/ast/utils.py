@@ -321,7 +321,7 @@ def build_expr_from_python_val(
             "TODO SNOW-1629946: Implement TableFunctionCall with args."
         )
     elif isinstance(obj, snowflake.snowpark._internal.type_utils.DataType):
-        ast = with_src_position(expr_builder.sp_datatype_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpDatatypeVal"; expected "Expr"
+        ast = with_src_position(expr_builder.datatype_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpDatatypeVal"; expected "Expr"
         obj._fill_ast(ast.datatype)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast", "Expr" has no attribute "datatype"
     elif isinstance(obj, snowflake.snowpark._internal.analyzer.expression.Literal):
         build_expr_from_python_val(expr_builder, obj.value)
