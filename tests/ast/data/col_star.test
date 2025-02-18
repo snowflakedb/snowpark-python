@@ -9,7 +9,7 @@ df = df.select(col("*"))
 
 df = session.table("table1")
 
-df = df.select("*")
+df = df.select(col("*"))
 
 ## EXPECTED ENCODED AST
 
@@ -60,8 +60,30 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            sp_column_sql_expr {
-              sql: "*"
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 31
+                    end_line: 27
+                    file: 2
+                    start_column: 23
+                    start_line: 27
+                  }
+                  v: "*"
+                }
+              }
               src {
                 end_column: 31
                 end_line: 27
