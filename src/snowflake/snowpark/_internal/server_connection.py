@@ -493,7 +493,7 @@ class ServerConnection:
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         if not get_transmit_query_to_server():
-            query = "SELECT 'This is a dummy query!!'; --No actual query sent, the server should rely on the provided AST!"
+            query = "SELECT 'This is a fake query!!'; --No actual query sent, the server should rely on the provided AST!"
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
