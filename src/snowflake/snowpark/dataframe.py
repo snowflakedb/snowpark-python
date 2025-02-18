@@ -19,6 +19,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Set,
     Tuple,
     Union,
     overload,
@@ -193,6 +194,7 @@ from snowflake.snowpark.table_function import (
 )
 from snowflake.snowpark.types import (
     ArrayType,
+    DataType,
     MapType,
     PandasDataFrameType,
     StringType,
@@ -2745,7 +2747,12 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
-    def union_by_name(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
+    def union_by_name(
+        self,
+        other: "DataFrame",
+        allow_missing_columns: bool = False,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows.
 
@@ -2765,8 +2772,22 @@ class DataFrame:
             -------------
             <BLANKLINE>
 
+        Example::
+
+            >>> df1 = session.create_dataframe([[1, 2]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[2, 1, 3]], schema=["b", "a", "c"])
+            >>> df1.union_by_name(df2, allow_missing_columns=True).show()
+            --------------------
+            |"A"  |"B"  |"C"   |
+            --------------------
+            |1    |2    |NULL  |
+            |1    |2    |3     |
+            --------------------
+            <BLANKLINE>
+
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
+            allow_missing_columns: When true includes missing columns in the final result. Missing values are Null filled. Default False.
         """
         # AST.
         stmt = None
@@ -2776,12 +2797,20 @@ class DataFrame:
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
-        return self._union_by_name_internal(other, is_all=False, _ast_stmt=stmt)
+        return self._union_by_name_internal(
+            other,
+            is_all=False,
+            allow_missing_columns=allow_missing_columns,
+            _ast_stmt=stmt,
+        )
 
     @df_api_usage
     @publicapi
     def union_all_by_name(
-        self, other: "DataFrame", _emit_ast: bool = True
+        self,
+        other: "DataFrame",
+        allow_missing_columns: bool = False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows.
@@ -2803,8 +2832,23 @@ class DataFrame:
             -------------
             <BLANKLINE>
 
+        Example::
+
+            >>> df1 = session.create_dataframe([[1, 2], [1, 2]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[2, 1, 3]], schema=["b", "a", "c"])
+            >>> df1.union_all_by_name(df2, allow_missing_columns=True).show()
+            --------------------
+            |"A"  |"B"  |"C"   |
+            --------------------
+            |1    |2    |NULL  |
+            |1    |2    |NULL  |
+            |1    |2    |3     |
+            --------------------
+            <BLANKLINE>
+
         Args:
             other: the other :class:`DataFrame` that contains the rows to include.
+            allow_missing_columns: When true includes missing columns in the final result. Missing values are Null filled. Default False.
         """
         # AST.
         stmt = None
@@ -2814,35 +2858,63 @@ class DataFrame:
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
-        return self._union_by_name_internal(other, is_all=True, _ast_stmt=stmt)
+        return self._union_by_name_internal(
+            other,
+            is_all=True,
+            allow_missing_columns=allow_missing_columns,
+            _ast_stmt=stmt,
+        )
 
     def _union_by_name_internal(
-        self, other: "DataFrame", is_all: bool = False, _ast_stmt: proto.Assign = None
+        self,
+        other: "DataFrame",
+        is_all: bool = False,
+        allow_missing_columns: bool = False,
+        _ast_stmt: proto.Assign = None,
     ) -> "DataFrame":
-        left_output_attrs = self._output
-        right_output_attrs = other._output
-        right_output_attr_by_name = {rattr.name: rattr for rattr in right_output_attrs}
+        left_cols = {attr.name for attr in self._output}
+        left_attr_map = {attr.name: attr for attr in self._output}
+        right_cols = {attr.name for attr in other._output}
+        right_attr_map = {attr.name: attr for attr in other._output}
 
-        try:
-            right_project_list = [
-                right_output_attr_by_name[lattr.name] for lattr in left_output_attrs
-            ]
-        except KeyError:
-            missing_lattrs = [
-                lattr.name
-                for lattr in left_output_attrs
-                if lattr.name not in right_output_attr_by_name
-            ]
-            raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
-                ", ".join(missing_lattrs),
-                ", ".join(list(right_output_attr_by_name.keys())),
+        missing_left = right_cols - left_cols
+        missing_right = left_cols - right_cols
+
+        def add_nulls(
+            missing_cols: Set[str], to_df: DataFrame, from_df: DataFrame
+        ) -> DataFrame:
+            """
+            Adds null filled columns to a dataframe using typing information from another dataframe.
+            """
+            # schema has to be resolved in order to get correct type information for missing columns
+            dt_map = {field.name: field.datatype for field in from_df.schema.fields}
+            # depending on how column names are handled names may differ from attributes to schema
+            materialized_names = {
+                StructField(col, DataType()).name for col in missing_cols
+            }
+
+            return to_df.select(
+                "*",
+                *[lit(None).cast(dt_map[col]).alias(col) for col in materialized_names],
             )
 
-        not_found_attrs = [
-            rattr for rattr in right_output_attrs if rattr not in right_project_list
-        ]
+        if missing_left or missing_right:
+            if allow_missing_columns:
+                left = self
+                right = other
+                if missing_left:
+                    left = add_nulls(missing_left, left, right)
+                if missing_right:
+                    right = add_nulls(missing_right, right, left)
+                return left._union_by_name_internal(
+                    right, is_all=is_all, _ast_stmt=_ast_stmt
+                )
+            else:
+                raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
+                    missing_left, missing_right
+                )
 
-        names = right_project_list + not_found_attrs
+        names = [right_attr_map[col] for col in left_attr_map.keys()]
         sql_simplifier_enabled = self._session.sql_simplifier_enabled
         if sql_simplifier_enabled and other._select_statement:
             right_child = self._with_plan(other._select_statement.select(names))

@@ -10,7 +10,7 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, parse_json, when
+from snowflake.snowpark.functions import col, lit, parse_json, when, hour, minute
 from tests.utils import TestData, Utils
 
 
@@ -156,6 +156,34 @@ def test_logical_operator_raise_error(session):
     with pytest.raises(TypeError) as execinfo:
         df.filter(df.a > 1 and df.b > 1)
     assert "Cannot convert a Column object into bool" in str(execinfo)
+
+
+def test_function_calls_inside_when(session):
+    df = session.create_dataframe(
+        [
+            (1, datetime.datetime(2020, 1, 1, 1, 1, 1)),
+            (1, datetime.datetime(2020, 1, 1, 23, 46, 1)),
+            (1, datetime.datetime(2020, 1, 1, 1, 46, 1)),
+        ],
+        schema=["id", "timestamp"],
+    )
+
+    df2 = df.withColumn(
+        "hour_rounded",
+        when(
+            minute("timestamp") > 45,
+            when(hour("timestamp") == 23, lit(0)).otherwise(hour("timestamp") + 1),
+        ).otherwise(hour("timestamp")),
+    )
+
+    Utils.check_answer(
+        df2,
+        [
+            Row(1, datetime.datetime(2020, 1, 1, 1, 1, 1), 1),
+            Row(1, datetime.datetime(2020, 1, 1, 23, 46, 1), 0),
+            Row(1, datetime.datetime(2020, 1, 1, 1, 46, 1), 2),
+        ],
+    )
 
 
 @pytest.mark.xfail(
