@@ -302,6 +302,20 @@ def test_str_slice(start, stop, step):
     )
 
 
+@pytest.mark.parametrize("start", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("stop", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("step", [None, 1])
+@sql_count_checker(query_count=1)
+def test_str_slice_list(start, stop, step):
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.slice(start=start, stop=stop, step=step),
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_str_slice_neg():
     native_ser = native_pd.Series(TEST_DATA)
@@ -311,6 +325,17 @@ def test_str_slice_neg():
         match="slice step cannot be zero",
     ):
         snow_ser.str.slice(start=None, stop=None, step=0)
+
+
+@sql_count_checker(query_count=0)
+def test_str_slice_list_neg():
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas method 'Series.str.slice' does not yet support 'step!=1' for list values",
+    ):
+        snow_ser.str.slice(start=None, stop=None, step=2)
 
 
 @pytest.mark.parametrize("func", ["strip", "lstrip", "rstrip"])
