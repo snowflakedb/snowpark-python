@@ -25,6 +25,7 @@
 - Fixed a bug where session-level query tag was overwritten by a stacktrace for dataframes that generate multiple queries. Now, the query tag will only be set to the stacktrace if `session.conf.set("collect_stacktrace_in_query_tag", True)`.
 - Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
 - Fixed a bug in options sql generation that could cause multiple values to be formatted incorrectly.
+- Fixed a bug in `Session.catalog` where empty strings for database or schema were not handled correctly and were generating erroneous sql statements.
 
 #### Improvements
 
