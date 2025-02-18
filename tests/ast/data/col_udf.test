@@ -179,7 +179,7 @@ body {
               col {
                 apply_expr {
                   fn {
-                    sp_fn_ref {
+                    fn_ref {
                       id {
                         bitfield1: 1
                       }
@@ -700,7 +700,7 @@ body {
           args {
             apply_expr {
               fn {
-                sp_fn_ref {
+                fn_ref {
                   id {
                     bitfield1: 10
                   }

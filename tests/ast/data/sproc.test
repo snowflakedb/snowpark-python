@@ -840,7 +840,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 1
             }
@@ -1153,7 +1153,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 33
             }
@@ -1768,7 +1768,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 57
             }
@@ -1887,7 +1887,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 60
             }
@@ -2035,7 +2035,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 65
             }
@@ -2184,7 +2184,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 70
             }

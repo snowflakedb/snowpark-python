@@ -452,7 +452,7 @@ def build_udf_apply(
     *args: Tuple[Union[proto.Expr, Any]],
 ) -> None:  # pragma: no cover
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
-    expr.fn.sp_fn_ref.id.bitfield1 = udf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+    expr.fn.fn_ref.id.bitfield1 = udf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
     build_fn_apply_args(ast, *args)
 
 
@@ -463,7 +463,7 @@ def build_udaf_apply(
     *args: Tuple[Union[proto.Expr, Any]],
 ) -> None:  # pragma: no cover
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
-    expr.fn.sp_fn_ref.id.bitfield1 = udaf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+    expr.fn.fn_ref.id.bitfield1 = udaf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
     build_fn_apply_args(ast, *args)
 
 
@@ -473,7 +473,7 @@ def build_udtf_apply(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Fun
 ) -> None:  # pragma: no cover
     """Encodes a call to UDTF into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
-    expr.fn.sp_fn_ref.id.bitfield1 = udtf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+    expr.fn.fn_ref.id.bitfield1 = udtf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
     build_fn_apply_args(ast, *args, **kwargs)
 
 
@@ -487,7 +487,7 @@ def build_sproc_apply(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Fu
 ) -> None:  # pragma: no cover
     """Encodes a call to stored procedure into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
-    expr.fn.sp_fn_ref.id.bitfield1 = sproc_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+    expr.fn.fn_ref.id.bitfield1 = sproc_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
     build_fn_apply_args(ast, *args, **kwargs)
 
 
@@ -1080,12 +1080,12 @@ def build_proto_from_pivot_values(  # type: ignore[no-untyped-def] # TODO(SNOW-1
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.SpCallable,
+    expr_builder: proto.Callable,
     func: Union[Callable, Tuple[str, str]],
     ast_batch: Optional[AstBatch] = None,
     object_name: Optional[Union[str, Iterable[str]]] = None,
 ):  # pragma: no cover
-    """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
+    """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as Callable protobuf."""
 
     udf_id = None
     if ast_batch is not None:

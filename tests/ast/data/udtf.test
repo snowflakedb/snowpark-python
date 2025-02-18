@@ -218,7 +218,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 1
             }
@@ -533,7 +533,7 @@ body {
         col {
           apply_expr {
             fn {
-              sp_fn_ref {
+              fn_ref {
                 id {
                   bitfield1: 6
                 }
@@ -766,7 +766,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 12
             }
@@ -1353,7 +1353,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 20
             }
@@ -1561,7 +1561,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 25
             }
@@ -1708,7 +1708,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_fn_call_alias {
+      table_fn_call_alias {
         aliases {
           args {
             string_val {
@@ -1739,7 +1739,7 @@ body {
         lhs {
           apply_expr {
             fn {
-              sp_fn_ref {
+              fn_ref {
                 id {
                   bitfield1: 25
                 }

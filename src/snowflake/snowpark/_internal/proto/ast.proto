@@ -68,6 +68,13 @@ message Tuple_String_String {
   string _2 = 2;
 }
 
+// fn.ir:28
+message Callable {
+  int64 id = 1;
+  string name = 2;
+  NameRef object_name = 3;
+}
+
 // column.ir:31
 message ColumnAliasFn {
   oneof variant {
@@ -208,13 +215,6 @@ message SaveMode {
     bool save_mode_overwrite = 4;
     bool save_mode_truncate = 5;
   }
-}
-
-// fn.ir:28
-message SpCallable {
-  int64 id = 1;
-  string name = 2;
-  NameRef object_name = 3;
 }
 
 // type.ir:31
@@ -1643,59 +1643,59 @@ message Expr {
     ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 119;
     Flatten flatten = 120;
     Float64Val float64_val = 121;
-    Generator generator = 122;
-    Geq geq = 123;
-    GroupingSets grouping_sets = 124;
-    Gt gt = 125;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 126;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 127;
-    Int64Val int64_val = 128;
-    Leq leq = 129;
-    ListVal list_val = 130;
-    Lt lt = 131;
-    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 132;
-    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 133;
-    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 134;
-    Mod mod = 135;
-    Mul mul = 136;
-    Neg neg = 137;
-    Neq neq = 138;
-    Not not = 139;
-    NullVal null_val = 140;
-    ObjectGetItem object_get_item = 141;
-    Or or = 142;
-    Pow pow = 143;
-    PythonDateVal python_date_val = 144;
-    PythonTimeVal python_time_val = 145;
-    PythonTimestampVal python_timestamp_val = 146;
-    Range range = 147;
-    ReadAvro read_avro = 148;
-    ReadCsv read_csv = 149;
-    ReadJson read_json = 150;
-    ReadOrc read_orc = 151;
-    ReadParquet read_parquet = 152;
-    ReadTable read_table = 153;
-    ReadXml read_xml = 154;
-    RedactedConst redacted_const = 155;
-    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 156;
-    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 157;
-    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 158;
-    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 159;
-    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 160;
-    Row row = 161;
-    SeqMapVal seq_map_val = 162;
-    SessionTableFunction session_table_function = 163;
-    SpFnRef sp_fn_ref = 164;
-    SpTableFnCallAlias sp_table_fn_call_alias = 165;
-    SpTableFnCallOver sp_table_fn_call_over = 166;
-    Sql sql = 167;
-    SqlExpr sql_expr = 168;
-    StoredProcedure stored_procedure = 169;
-    StringVal string_val = 170;
-    Sub sub = 171;
-    Table table = 172;
-    TableDelete table_delete = 173;
-    TableDropTable table_drop_table = 174;
+    FnRef fn_ref = 122;
+    Generator generator = 123;
+    Geq geq = 124;
+    GroupingSets grouping_sets = 125;
+    Gt gt = 126;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 127;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 128;
+    Int64Val int64_val = 129;
+    Leq leq = 130;
+    ListVal list_val = 131;
+    Lt lt = 132;
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 133;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 134;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 135;
+    Mod mod = 136;
+    Mul mul = 137;
+    Neg neg = 138;
+    Neq neq = 139;
+    Not not = 140;
+    NullVal null_val = 141;
+    ObjectGetItem object_get_item = 142;
+    Or or = 143;
+    Pow pow = 144;
+    PythonDateVal python_date_val = 145;
+    PythonTimeVal python_time_val = 146;
+    PythonTimestampVal python_timestamp_val = 147;
+    Range range = 148;
+    ReadAvro read_avro = 149;
+    ReadCsv read_csv = 150;
+    ReadJson read_json = 151;
+    ReadOrc read_orc = 152;
+    ReadParquet read_parquet = 153;
+    ReadTable read_table = 154;
+    ReadXml read_xml = 155;
+    RedactedConst redacted_const = 156;
+    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 157;
+    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 158;
+    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 159;
+    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 160;
+    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 161;
+    Row row = 162;
+    SeqMapVal seq_map_val = 163;
+    SessionTableFunction session_table_function = 164;
+    Sql sql = 165;
+    SqlExpr sql_expr = 166;
+    StoredProcedure stored_procedure = 167;
+    StringVal string_val = 168;
+    Sub sub = 169;
+    Table table = 170;
+    TableDelete table_delete = 171;
+    TableDropTable table_drop_table = 172;
+    TableFnCallAlias table_fn_call_alias = 173;
+    TableFnCallOver table_fn_call_over = 174;
     TableMerge table_merge = 175;
     TableSample table_sample = 176;
     TableUpdate table_update = 177;
@@ -1781,8 +1781,8 @@ message Float64Val {
 
 message FnIdRefExpr {
   oneof variant {
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 1;
-    SpFnRef sp_fn_ref = 2;
+    FnRef fn_ref = 1;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 2;
   }
 }
 
@@ -1798,15 +1798,21 @@ message FnNameRefExpr {
   }
 }
 
+// fn.ir:22
+message FnRef {
+  VarId id = 1;
+  SrcPosition src = 2;
+}
+
 message FnRefExpr {
   oneof variant {
     FnIdRefExpr trait_fn_id_ref_expr = 1;
     FnNameRefExpr trait_fn_name_ref_expr = 2;
     BuiltinFn builtin_fn = 3;
     CallTableFunctionExpr call_table_function_expr = 4;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 5;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 6;
-    SpFnRef sp_fn_ref = 7;
+    FnRef fn_ref = 5;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 6;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 7;
     StoredProcedure stored_procedure = 8;
     Udaf udaf = 9;
     Udf udf = 10;
@@ -1974,65 +1980,65 @@ message HasSrcPosition {
     ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 128;
     Flatten flatten = 129;
     Float64Val float64_val = 130;
-    Generator generator = 131;
-    Geq geq = 132;
-    GroupingSets grouping_sets = 133;
-    Gt gt = 134;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 135;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 136;
-    Int64Val int64_val = 137;
-    Leq leq = 138;
-    ListVal list_val = 139;
-    Lt lt = 140;
-    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 141;
-    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 142;
-    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 143;
-    Mod mod = 144;
-    Mul mul = 145;
-    NameRef name_ref = 146;
-    Neg neg = 147;
-    Neq neq = 148;
-    Not not = 149;
-    NullVal null_val = 150;
-    ObjectGetItem object_get_item = 151;
-    Or or = 152;
-    Pow pow = 153;
-    PythonDateVal python_date_val = 154;
-    PythonTimeVal python_time_val = 155;
-    PythonTimestampVal python_timestamp_val = 156;
-    Range range = 157;
-    ReadAvro read_avro = 158;
-    ReadCsv read_csv = 159;
-    ReadJson read_json = 160;
-    ReadOrc read_orc = 161;
-    ReadParquet read_parquet = 162;
-    ReadTable read_table = 163;
-    ReadXml read_xml = 164;
-    RedactedConst redacted_const = 165;
-    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 166;
-    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 167;
-    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 168;
-    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 169;
-    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 170;
-    Row row = 171;
-    SeqMapVal seq_map_val = 172;
-    SessionTableFunction session_table_function = 173;
-    SpFnRef sp_fn_ref = 174;
-    SpTableFnCallAlias sp_table_fn_call_alias = 175;
-    SpTableFnCallOver sp_table_fn_call_over = 176;
-    SpWindowSpecEmpty sp_window_spec_empty = 177;
-    SpWindowSpecOrderBy sp_window_spec_order_by = 178;
-    SpWindowSpecPartitionBy sp_window_spec_partition_by = 179;
-    SpWindowSpecRangeBetween sp_window_spec_range_between = 180;
-    SpWindowSpecRowsBetween sp_window_spec_rows_between = 181;
-    Sql sql = 182;
-    SqlExpr sql_expr = 183;
-    StoredProcedure stored_procedure = 184;
-    StringVal string_val = 185;
-    Sub sub = 186;
-    Table table = 187;
-    TableDelete table_delete = 188;
-    TableDropTable table_drop_table = 189;
+    FnRef fn_ref = 131;
+    Generator generator = 132;
+    Geq geq = 133;
+    GroupingSets grouping_sets = 134;
+    Gt gt = 135;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 136;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 137;
+    Int64Val int64_val = 138;
+    Leq leq = 139;
+    ListVal list_val = 140;
+    Lt lt = 141;
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 142;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 143;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 144;
+    Mod mod = 145;
+    Mul mul = 146;
+    NameRef name_ref = 147;
+    Neg neg = 148;
+    Neq neq = 149;
+    Not not = 150;
+    NullVal null_val = 151;
+    ObjectGetItem object_get_item = 152;
+    Or or = 153;
+    Pow pow = 154;
+    PythonDateVal python_date_val = 155;
+    PythonTimeVal python_time_val = 156;
+    PythonTimestampVal python_timestamp_val = 157;
+    Range range = 158;
+    ReadAvro read_avro = 159;
+    ReadCsv read_csv = 160;
+    ReadJson read_json = 161;
+    ReadOrc read_orc = 162;
+    ReadParquet read_parquet = 163;
+    ReadTable read_table = 164;
+    ReadXml read_xml = 165;
+    RedactedConst redacted_const = 166;
+    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 167;
+    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 168;
+    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 169;
+    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 170;
+    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 171;
+    Row row = 172;
+    SeqMapVal seq_map_val = 173;
+    SessionTableFunction session_table_function = 174;
+    SpWindowSpecEmpty sp_window_spec_empty = 175;
+    SpWindowSpecOrderBy sp_window_spec_order_by = 176;
+    SpWindowSpecPartitionBy sp_window_spec_partition_by = 177;
+    SpWindowSpecRangeBetween sp_window_spec_range_between = 178;
+    SpWindowSpecRowsBetween sp_window_spec_rows_between = 179;
+    Sql sql = 180;
+    SqlExpr sql_expr = 181;
+    StoredProcedure stored_procedure = 182;
+    StringVal string_val = 183;
+    Sub sub = 184;
+    Table table = 185;
+    TableDelete table_delete = 186;
+    TableDropTable table_drop_table = 187;
+    TableFnCallAlias table_fn_call_alias = 188;
+    TableFnCallOver table_fn_call_over = 189;
     TableMerge table_merge = 190;
     TableSample table_sample = 191;
     TableUpdate table_update = 192;
@@ -2288,7 +2294,7 @@ message RelationalGroupedDataframeAgg {
 
 // dataframe-grouped.ir:57
 message RelationalGroupedDataframeApplyInPandas {
-  SpCallable func = 1;
+  Callable func = 1;
   RelationalGroupedDataframeExpr grouped_df = 2;
   repeated Tuple_String_Expr kwargs = 3;
   SpStructType output_schema = 4;
@@ -2389,27 +2395,6 @@ message SfQueryResult {
 message ShowResult {
 }
 
-// fn.ir:22
-message SpFnRef {
-  VarId id = 1;
-  SrcPosition src = 2;
-}
-
-// fn.ir:160
-message SpTableFnCallAlias {
-  ExprArgList aliases = 1;
-  Expr lhs = 2;
-  SrcPosition src = 3;
-}
-
-// fn.ir:154
-message SpTableFnCallOver {
-  Expr lhs = 1;
-  repeated Expr order_by = 2;
-  repeated Expr partition_by = 3;
-  SrcPosition src = 4;
-}
-
 // window.ir:18
 message SpWindowSpecEmpty {
   SrcPosition src = 1;
@@ -2483,7 +2468,7 @@ message StoredProcedure {
   google.protobuf.StringValue comment = 1;
   string execute_as = 2;
   repeated string external_access_integrations = 3;
-  SpCallable func = 4;
+  Callable func = 4;
   bool if_not_exists = 5;
   repeated NameRef imports = 6;
   List_SpDataType input_types = 7;
@@ -2538,6 +2523,21 @@ message TableDelete {
 message TableDropTable {
   VarId id = 1;
   SrcPosition src = 2;
+}
+
+// fn.ir:160
+message TableFnCallAlias {
+  ExprArgList aliases = 1;
+  Expr lhs = 2;
+  SrcPosition src = 3;
+}
+
+// fn.ir:154
+message TableFnCallOver {
+  Expr lhs = 1;
+  repeated Expr order_by = 2;
+  repeated Expr partition_by = 3;
+  SrcPosition src = 4;
 }
 
 // table.ir:13
@@ -2608,7 +2608,7 @@ message TupleVal {
 message Udaf {
   google.protobuf.StringValue comment = 1;
   repeated string external_access_integrations = 2;
-  SpCallable handler = 3;
+  Callable handler = 3;
   bool if_not_exists = 4;
   bool immutable = 5;
   repeated NameRef imports = 6;
@@ -2630,7 +2630,7 @@ message Udaf {
 message Udf {
   google.protobuf.StringValue comment = 1;
   repeated string external_access_integrations = 2;
-  SpCallable func = 3;
+  Callable func = 3;
   bool if_not_exists = 4;
   bool immutable = 5;
   repeated NameRef imports = 6;
@@ -2656,7 +2656,7 @@ message Udf {
 message Udtf {
   google.protobuf.StringValue comment = 1;
   repeated string external_access_integrations = 2;
-  SpCallable handler = 3;
+  Callable handler = 3;
   bool if_not_exists = 4;
   bool immutable = 5;
   repeated NameRef imports = 6;
