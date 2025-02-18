@@ -39,7 +39,6 @@
 #### New Features
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
-- Added support for `Series.hist`.
 - Added support for list values in `Series.str.get`.
 
 #### Bug Fixes

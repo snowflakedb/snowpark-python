@@ -147,6 +147,7 @@ def test_unsupported_df(df_method, kwargs):
         ["explode", {}],
         ["factorize", {}],
         ["filter", {}],
+        ["hist", {}],
         ["infer_objects", {}],
         ["interpolate", {}],
         ["item", {}],
