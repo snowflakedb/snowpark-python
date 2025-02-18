@@ -206,7 +206,7 @@ def build_expr_from_python_val(
             expr_builder.CopyFrom(obj._ast)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Column" has no attribute "_ast"; maybe "_cast"?
 
     elif isinstance(obj, Row):
-        ast = with_src_position(expr_builder.sp_row)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpRow"; expected "Expr"
+        ast = with_src_position(expr_builder.row)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpRow"; expected "Expr"
         if hasattr(obj, "_named_values") and obj._named_values is not None:
             for field in obj._fields:
                 ast.names.list.append(field)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "names"

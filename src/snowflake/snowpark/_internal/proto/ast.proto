@@ -1682,10 +1682,10 @@ message Expr {
     RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 158;
     RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 159;
     RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 160;
-    SeqMapVal seq_map_val = 161;
-    SessionTableFunction session_table_function = 162;
-    SpFnRef sp_fn_ref = 163;
-    SpRow sp_row = 164;
+    Row row = 161;
+    SeqMapVal seq_map_val = 162;
+    SessionTableFunction session_table_function = 163;
+    SpFnRef sp_fn_ref = 164;
     SpTableFnCallAlias sp_table_fn_call_alias = 165;
     SpTableFnCallOver sp_table_fn_call_over = 166;
     Sql sql = 167;
@@ -2014,10 +2014,10 @@ message HasSrcPosition {
     RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 168;
     RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 169;
     RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 170;
-    SeqMapVal seq_map_val = 171;
-    SessionTableFunction session_table_function = 172;
-    SpFnRef sp_fn_ref = 173;
-    SpRow sp_row = 174;
+    Row row = 171;
+    SeqMapVal seq_map_val = 172;
+    SessionTableFunction session_table_function = 173;
+    SpFnRef sp_fn_ref = 174;
     SpTableFnCallAlias sp_table_fn_call_alias = 175;
     SpTableFnCallOver sp_table_fn_call_over = 176;
     SpWindowSpecEmpty sp_window_spec_empty = 177;
@@ -2355,6 +2355,13 @@ message Result {
   }
 }
 
+// expr.ir:19
+message Row {
+  List_String names = 1;
+  SrcPosition src = 2;
+  repeated Expr vs = 3;
+}
+
 // expr.ir:14
 message SeqMapVal {
   repeated TupleVal kvs = 1;
@@ -2386,13 +2393,6 @@ message ShowResult {
 message SpFnRef {
   VarId id = 1;
   SrcPosition src = 2;
-}
-
-// expr.ir:19
-message SpRow {
-  List_String names = 1;
-  SrcPosition src = 2;
-  repeated Expr vs = 3;
 }
 
 // fn.ir:160
