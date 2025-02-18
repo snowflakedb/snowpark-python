@@ -35,6 +35,7 @@ WITH = "WITH "
 CREATE_TEMP_TABLE = "CREATE  TEMPORARY  TABLE"
 UNION = " UNION "
 WINDOW = " OVER "
+WITH_SNOWPARK_TEMP_CTE = "WITH SNOWPARK_TEMP_CTE_"
 
 NO_CHECK = "no_check"
 
@@ -350,7 +351,8 @@ class SqlCounter(QueryListener):
 
     def actual_udtf_count(self):
         return self._count_by_query_substr(
-            [SELECT, INSERT, CREATE_TEMP_TABLE], [TEMP_TABLE_FUNCTION]
+            [SELECT, INSERT, CREATE_TEMP_TABLE, WITH_SNOWPARK_TEMP_CTE],
+            [TEMP_TABLE_FUNCTION],
         )
 
     def actual_udf_count(self):
