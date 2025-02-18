@@ -57,6 +57,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     DBMS_TYPE,
     STATEMENT_PARAMS_DATA_SOURCE,
     DATA_SOURCE_SQL_COMMENT,
+    generate_sql_with_predicates,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -1083,6 +1084,7 @@ class DataFrameReader:
         query_timeout: Optional[int] = 0,
         fetch_size: Optional[int] = 0,
         custom_schema: Optional[Union[str, StructType]] = None,
+        predicates: Optional[List[str]] = None,
     ) -> DataFrame:
         """Reads data from a database table using a DBAPI connection."""
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
@@ -1114,7 +1116,12 @@ class DataFrameReader:
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
-            partitioned_queries = [select_query]
+            if predicates is None:
+                partitioned_queries = [select_query]
+            else:
+                partitioned_queries = generate_sql_with_predicates(
+                    select_query, predicates
+                )
         else:
             if lower_bound is None or upper_bound is None or num_partitions is None:
                 raise ValueError(

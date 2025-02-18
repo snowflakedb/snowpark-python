@@ -301,11 +301,7 @@ def data_source_data_to_pandas_df(
         # apply read to LOB object, we currently have FakeOracleLOB because CLOB and BLOB is represented by an
         # oracledb object and we cannot add it as our dependency in test, so we fake it in this way
         # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
-        df = df.map(
-            lambda x: x.read()
-            if (hasattr(x, "__name__") and x.__name__.lower() == "lob")
-            else x
-        )
+        df = df.map(lambda x: x.read() if (type(x).__name__.lower() == "lob") else x)
 
     else:
         raise NotImplementedError(
@@ -342,3 +338,7 @@ def generate_select_query(table: str, schema: StructType, conn: Connection) -> s
         raise NotImplementedError(
             f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
         )
+
+
+def generate_sql_with_predicates(select_query: str, predicates: List[str]):
+    return [select_query + f" WHERE {predicate}" for predicate in predicates]
