@@ -499,7 +499,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_moving_agg {
+      dataframe_analytics_moving_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -537,7 +537,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_moving_agg {
+      dataframe_analytics_moving_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -582,7 +582,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_cumulative_agg {
+      dataframe_analytics_cumulative_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -620,7 +620,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_cumulative_agg {
+      dataframe_analytics_cumulative_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -661,7 +661,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_compute_lag {
+      dataframe_analytics_compute_lag {
         cols {
           string_val {
             src {
@@ -706,7 +706,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_compute_lag {
+      dataframe_analytics_compute_lag {
         cols {
           string_val {
             src {
@@ -753,7 +753,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_compute_lead {
+      dataframe_analytics_compute_lead {
         cols {
           string_val {
             src {
@@ -798,7 +798,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_compute_lead {
+      dataframe_analytics_compute_lead {
         cols {
           string_val {
             src {
@@ -916,7 +916,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_time_series_agg {
+      dataframe_analytics_time_series_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -955,7 +955,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_time_series_agg {
+      dataframe_analytics_time_series_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"

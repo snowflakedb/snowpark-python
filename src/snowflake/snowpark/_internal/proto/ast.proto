@@ -771,6 +771,62 @@ message Const {
   }
 }
 
+// dataframe-analytics.ir:27
+message DataframeAnalyticsComputeLag {
+  repeated Expr cols = 1;
+  SpDataframeExpr df = 2;
+  repeated string formatted_col_names = 3;
+  repeated string group_by = 4;
+  repeated int64 lags = 5;
+  repeated string order_by = 6;
+  SrcPosition src = 7;
+}
+
+// dataframe-analytics.ir:36
+message DataframeAnalyticsComputeLead {
+  repeated Expr cols = 1;
+  SpDataframeExpr df = 2;
+  repeated string formatted_col_names = 3;
+  repeated string group_by = 4;
+  repeated int64 leads = 5;
+  repeated string order_by = 6;
+  SrcPosition src = 7;
+}
+
+// dataframe-analytics.ir:18
+message DataframeAnalyticsCumulativeAgg {
+  repeated Tuple_String_List_String aggs = 1;
+  SpDataframeExpr df = 2;
+  repeated string formatted_col_names = 3;
+  repeated string group_by = 4;
+  bool is_forward = 5;
+  repeated string order_by = 6;
+  SrcPosition src = 7;
+}
+
+// dataframe-analytics.ir:9
+message DataframeAnalyticsMovingAgg {
+  repeated Tuple_String_List_String aggs = 1;
+  SpDataframeExpr df = 2;
+  repeated string formatted_col_names = 3;
+  repeated string group_by = 4;
+  repeated string order_by = 5;
+  SrcPosition src = 6;
+  repeated int64 window_sizes = 7;
+}
+
+// dataframe-analytics.ir:45
+message DataframeAnalyticsTimeSeriesAgg {
+  repeated Tuple_String_List_String aggs = 1;
+  SpDataframeExpr df = 2;
+  repeated string formatted_col_names = 3;
+  repeated string group_by = 4;
+  string sliding_interval = 5;
+  SrcPosition src = 6;
+  string time_col = 7;
+  repeated string windows = 8;
+}
+
 // column.ir:1
 message DataframeCol {
   string col_name = 1;
@@ -891,47 +947,47 @@ message Expr {
     ColumnStringSubstr column_string_substr = 47;
     ColumnTryCast column_try_cast = 48;
     ColumnWithinGroup column_within_group = 49;
-    DataframeCol dataframe_col = 50;
-    DatatypeVal datatype_val = 51;
-    Div div = 52;
-    Eq eq = 53;
-    ExtensionDataframeExpr extension_dataframe_expr = 54;
-    ExtensionExpr extension_expr = 55;
-    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 56;
-    Float64Val float64_val = 57;
-    Geq geq = 58;
-    Gt gt = 59;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 60;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 61;
-    Int64Val int64_val = 62;
-    Leq leq = 63;
-    ListVal list_val = 64;
-    Lt lt = 65;
-    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 66;
-    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 67;
-    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 68;
-    Mod mod = 69;
-    Mul mul = 70;
-    Neg neg = 71;
-    Neq neq = 72;
-    Not not = 73;
-    NullVal null_val = 74;
-    ObjectGetItem object_get_item = 75;
-    Or or = 76;
-    Pow pow = 77;
-    PythonDateVal python_date_val = 78;
-    PythonTimeVal python_time_val = 79;
-    PythonTimestampVal python_timestamp_val = 80;
-    RedactedConst redacted_const = 81;
-    SeqMapVal seq_map_val = 82;
-    SpCreateDataframe sp_create_dataframe = 83;
-    SpDataframeAgg sp_dataframe_agg = 84;
-    SpDataframeAlias sp_dataframe_alias = 85;
-    SpDataframeAnalyticsComputeLag sp_dataframe_analytics_compute_lag = 86;
-    SpDataframeAnalyticsComputeLead sp_dataframe_analytics_compute_lead = 87;
-    SpDataframeAnalyticsCumulativeAgg sp_dataframe_analytics_cumulative_agg = 88;
-    SpDataframeAnalyticsMovingAgg sp_dataframe_analytics_moving_agg = 89;
-    SpDataframeAnalyticsTimeSeriesAgg sp_dataframe_analytics_time_series_agg = 90;
+    DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 50;
+    DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 51;
+    DataframeAnalyticsCumulativeAgg dataframe_analytics_cumulative_agg = 52;
+    DataframeAnalyticsMovingAgg dataframe_analytics_moving_agg = 53;
+    DataframeAnalyticsTimeSeriesAgg dataframe_analytics_time_series_agg = 54;
+    DataframeCol dataframe_col = 55;
+    DatatypeVal datatype_val = 56;
+    Div div = 57;
+    Eq eq = 58;
+    ExtensionDataframeExpr extension_dataframe_expr = 59;
+    ExtensionExpr extension_expr = 60;
+    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 61;
+    Float64Val float64_val = 62;
+    Geq geq = 63;
+    Gt gt = 64;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 65;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 66;
+    Int64Val int64_val = 67;
+    Leq leq = 68;
+    ListVal list_val = 69;
+    Lt lt = 70;
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 71;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 72;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 73;
+    Mod mod = 74;
+    Mul mul = 75;
+    Neg neg = 76;
+    Neq neq = 77;
+    Not not = 78;
+    NullVal null_val = 79;
+    ObjectGetItem object_get_item = 80;
+    Or or = 81;
+    Pow pow = 82;
+    PythonDateVal python_date_val = 83;
+    PythonTimeVal python_time_val = 84;
+    PythonTimestampVal python_timestamp_val = 85;
+    RedactedConst redacted_const = 86;
+    SeqMapVal seq_map_val = 87;
+    SpCreateDataframe sp_create_dataframe = 88;
+    SpDataframeAgg sp_dataframe_agg = 89;
+    SpDataframeAlias sp_dataframe_alias = 90;
     SpDataframeCacheResult sp_dataframe_cache_result = 91;
     SpDataframeCollect sp_dataframe_collect = 92;
     SpDataframeCopyIntoTable sp_dataframe_copy_into_table = 93;
@@ -1193,48 +1249,48 @@ message HasSrcPosition {
     ColumnStringSubstr column_string_substr = 51;
     ColumnTryCast column_try_cast = 52;
     ColumnWithinGroup column_within_group = 53;
-    DataframeCol dataframe_col = 54;
-    DatatypeVal datatype_val = 55;
-    Div div = 56;
-    Eq eq = 57;
-    ExtensionDataframeExpr extension_dataframe_expr = 58;
-    ExtensionExpr extension_expr = 59;
-    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 60;
-    Float64Val float64_val = 61;
-    Geq geq = 62;
-    Gt gt = 63;
-    IndirectTableFnIdRef indirect_table_fn_id_ref = 64;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 65;
-    Int64Val int64_val = 66;
-    Leq leq = 67;
-    ListVal list_val = 68;
-    Lt lt = 69;
-    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 70;
-    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 71;
-    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 72;
-    Mod mod = 73;
-    Mul mul = 74;
-    NameRef name_ref = 75;
-    Neg neg = 76;
-    Neq neq = 77;
-    Not not = 78;
-    NullVal null_val = 79;
-    ObjectGetItem object_get_item = 80;
-    Or or = 81;
-    Pow pow = 82;
-    PythonDateVal python_date_val = 83;
-    PythonTimeVal python_time_val = 84;
-    PythonTimestampVal python_timestamp_val = 85;
-    RedactedConst redacted_const = 86;
-    SeqMapVal seq_map_val = 87;
-    SpCreateDataframe sp_create_dataframe = 88;
-    SpDataframeAgg sp_dataframe_agg = 89;
-    SpDataframeAlias sp_dataframe_alias = 90;
-    SpDataframeAnalyticsComputeLag sp_dataframe_analytics_compute_lag = 91;
-    SpDataframeAnalyticsComputeLead sp_dataframe_analytics_compute_lead = 92;
-    SpDataframeAnalyticsCumulativeAgg sp_dataframe_analytics_cumulative_agg = 93;
-    SpDataframeAnalyticsMovingAgg sp_dataframe_analytics_moving_agg = 94;
-    SpDataframeAnalyticsTimeSeriesAgg sp_dataframe_analytics_time_series_agg = 95;
+    DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 54;
+    DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 55;
+    DataframeAnalyticsCumulativeAgg dataframe_analytics_cumulative_agg = 56;
+    DataframeAnalyticsMovingAgg dataframe_analytics_moving_agg = 57;
+    DataframeAnalyticsTimeSeriesAgg dataframe_analytics_time_series_agg = 58;
+    DataframeCol dataframe_col = 59;
+    DatatypeVal datatype_val = 60;
+    Div div = 61;
+    Eq eq = 62;
+    ExtensionDataframeExpr extension_dataframe_expr = 63;
+    ExtensionExpr extension_expr = 64;
+    ExtensionRelationalGroupedDataframeExpr extension_relational_grouped_dataframe_expr = 65;
+    Float64Val float64_val = 66;
+    Geq geq = 67;
+    Gt gt = 68;
+    IndirectTableFnIdRef indirect_table_fn_id_ref = 69;
+    IndirectTableFnNameRef indirect_table_fn_name_ref = 70;
+    Int64Val int64_val = 71;
+    Leq leq = 72;
+    ListVal list_val = 73;
+    Lt lt = 74;
+    MergeDeleteWhenMatchedClause merge_delete_when_matched_clause = 75;
+    MergeInsertWhenNotMatchedClause merge_insert_when_not_matched_clause = 76;
+    MergeUpdateWhenMatchedClause merge_update_when_matched_clause = 77;
+    Mod mod = 78;
+    Mul mul = 79;
+    NameRef name_ref = 80;
+    Neg neg = 81;
+    Neq neq = 82;
+    Not not = 83;
+    NullVal null_val = 84;
+    ObjectGetItem object_get_item = 85;
+    Or or = 86;
+    Pow pow = 87;
+    PythonDateVal python_date_val = 88;
+    PythonTimeVal python_time_val = 89;
+    PythonTimestampVal python_timestamp_val = 90;
+    RedactedConst redacted_const = 91;
+    SeqMapVal seq_map_val = 92;
+    SpCreateDataframe sp_create_dataframe = 93;
+    SpDataframeAgg sp_dataframe_agg = 94;
+    SpDataframeAlias sp_dataframe_alias = 95;
     SpDataframeCacheResult sp_dataframe_cache_result = 96;
     SpDataframeCollect sp_dataframe_collect = 97;
     SpDataframeCopyIntoTable sp_dataframe_copy_into_table = 98;
@@ -1584,62 +1640,6 @@ message SpDataframeAlias {
   SrcPosition src = 3;
 }
 
-// dataframe-analytics.ir:27
-message SpDataframeAnalyticsComputeLag {
-  repeated Expr cols = 1;
-  SpDataframeExpr df = 2;
-  repeated string formatted_col_names = 3;
-  repeated string group_by = 4;
-  repeated int64 lags = 5;
-  repeated string order_by = 6;
-  SrcPosition src = 7;
-}
-
-// dataframe-analytics.ir:36
-message SpDataframeAnalyticsComputeLead {
-  repeated Expr cols = 1;
-  SpDataframeExpr df = 2;
-  repeated string formatted_col_names = 3;
-  repeated string group_by = 4;
-  repeated int64 leads = 5;
-  repeated string order_by = 6;
-  SrcPosition src = 7;
-}
-
-// dataframe-analytics.ir:18
-message SpDataframeAnalyticsCumulativeAgg {
-  repeated Tuple_String_List_String aggs = 1;
-  SpDataframeExpr df = 2;
-  repeated string formatted_col_names = 3;
-  repeated string group_by = 4;
-  bool is_forward = 5;
-  repeated string order_by = 6;
-  SrcPosition src = 7;
-}
-
-// dataframe-analytics.ir:9
-message SpDataframeAnalyticsMovingAgg {
-  repeated Tuple_String_List_String aggs = 1;
-  SpDataframeExpr df = 2;
-  repeated string formatted_col_names = 3;
-  repeated string group_by = 4;
-  repeated string order_by = 5;
-  SrcPosition src = 6;
-  repeated int64 window_sizes = 7;
-}
-
-// dataframe-analytics.ir:45
-message SpDataframeAnalyticsTimeSeriesAgg {
-  repeated Tuple_String_List_String aggs = 1;
-  SpDataframeExpr df = 2;
-  repeated string formatted_col_names = 3;
-  repeated string group_by = 4;
-  string sliding_interval = 5;
-  SrcPosition src = 6;
-  string time_col = 7;
-  repeated string windows = 8;
-}
-
 // dataframe-io.ir:187
 message SpDataframeCacheResult {
   SpDataframeExpr df = 1;
@@ -1762,15 +1762,15 @@ message SpDataframeExcept {
 
 message SpDataframeExpr {
   oneof variant {
-    ExtensionDataframeExpr extension_dataframe_expr = 1;
-    SpCreateDataframe sp_create_dataframe = 2;
-    SpDataframeAgg sp_dataframe_agg = 3;
-    SpDataframeAlias sp_dataframe_alias = 4;
-    SpDataframeAnalyticsComputeLag sp_dataframe_analytics_compute_lag = 5;
-    SpDataframeAnalyticsComputeLead sp_dataframe_analytics_compute_lead = 6;
-    SpDataframeAnalyticsCumulativeAgg sp_dataframe_analytics_cumulative_agg = 7;
-    SpDataframeAnalyticsMovingAgg sp_dataframe_analytics_moving_agg = 8;
-    SpDataframeAnalyticsTimeSeriesAgg sp_dataframe_analytics_time_series_agg = 9;
+    DataframeAnalyticsComputeLag dataframe_analytics_compute_lag = 1;
+    DataframeAnalyticsComputeLead dataframe_analytics_compute_lead = 2;
+    DataframeAnalyticsCumulativeAgg dataframe_analytics_cumulative_agg = 3;
+    DataframeAnalyticsMovingAgg dataframe_analytics_moving_agg = 4;
+    DataframeAnalyticsTimeSeriesAgg dataframe_analytics_time_series_agg = 5;
+    ExtensionDataframeExpr extension_dataframe_expr = 6;
+    SpCreateDataframe sp_create_dataframe = 7;
+    SpDataframeAgg sp_dataframe_agg = 8;
+    SpDataframeAlias sp_dataframe_alias = 9;
     SpDataframeCollect sp_dataframe_collect = 10;
     SpDataframeCount sp_dataframe_count = 11;
     SpDataframeCrossJoin sp_dataframe_cross_join = 12;
