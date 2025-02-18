@@ -8486,11 +8486,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with args == '{args}'"
                 )
-            if kwargs:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with kwargs == '{kwargs}'"
-                )
-            return self._apply_snowflake_cortex_function_to_columns(func)
+            # if kwargs:
+            #     ErrorMessage.not_implemented(
+            #         f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with kwargs == '{kwargs}'"
+            #     )
+            return self._apply_snowflake_cortex_function_to_columns(func, kwargs)
         elif func in ALL_SNOWFLAKE_CORTEX_FUNCTIONS:
             ErrorMessage.not_implemented(
                 f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
@@ -8824,13 +8824,49 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _apply_snowflake_cortex_function_to_columns(
         self,
         snowflake_function: Callable,
+        kwargs: dict[str, Any],  # possible named arguments which need to be added
     ) -> "SnowflakeQueryCompiler":
         """Apply Snowflake Cortex function to columns."""
 
         def sf_function(col: SnowparkColumn) -> SnowparkColumn:
-            resolved_positional = []
-            resolved_positional.append(col)
+            if not kwargs:
+                return snowflake_function(col)
+            # we have named kwargs, which may be positional
+            # in nature, and we need to align them to the Snowflake Cortex
+            # function call alongside the column reference
 
+            params = inspect.signature(snowflake_function).parameters
+            resolved_positional = []
+            found_snowpark_column = False
+            kwargs_list = kwargs
+            for arg in params:
+                if arg in kwargs:
+                    resolved_positional.append(kwargs[arg])
+                    kwargs_list.pop(arg)
+                else:
+                    if not found_snowpark_column:
+                        resolved_positional.append(col)
+                        found_snowpark_column = True
+                    # TODO: SNOW-1927811 Kwargs "_emit_ast" and "_ast" appear in the function signature
+                    # and will be passed to the function by Snowpark Python so they should not be added as
+                    # positional args here
+                    elif arg in ("_emit_ast", "_ast"):
+                        continue
+                    elif (
+                        params[arg].default is not inspect.Parameter.empty
+                    ):  # pragma: no cover
+                        #  If the unspecified arg has a default value, that default value is added
+                        #  to the positional arguments.
+                        resolved_positional.append(params[arg].default)
+
+                    else:
+                        ErrorMessage.not_implemented(
+                            f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
+                        )
+            if kwargs_list:
+                ErrorMessage.not_implemented(
+                    f"Unspecified kwargs: {kwargs_list} are not part of function arguments."
+                )
             return snowflake_function(*resolved_positional)
 
         return SnowflakeQueryCompiler(
@@ -8879,11 +8915,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with args == '{args}'"
                 )
-            if kwargs:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with kwargs == '{kwargs}'"
-                )
-            return self._apply_snowflake_cortex_function_to_columns(func)
+            # if kwargs:
+            #     ErrorMessage.not_implemented(
+            #         f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with kwargs == '{kwargs}'"
+            #     )
+            return self._apply_snowflake_cortex_function_to_columns(func, kwargs)
         elif func in ALL_SNOWFLAKE_CORTEX_FUNCTIONS:
             ErrorMessage.not_implemented(
                 f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
