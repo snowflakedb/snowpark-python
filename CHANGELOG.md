@@ -40,7 +40,6 @@
 #### New Features
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
-- Added support for `Series.hist`.
 - Added support for list values in `Series.str.get`.
 - Added support for applying Snowflake Cortex functions `ClassifyText`, `Translate`, and `ExtractAnswer`.
 
@@ -68,6 +67,13 @@
 #### New Features
 
 - Added support for NULL_IF parameter to csv reader
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for NULL_IF parameter to csv reader.
+- Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
 
 ## 1.27.0 (2025-02-03)
 
