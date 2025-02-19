@@ -55,12 +55,12 @@ def test_build_expr_from_python_val_tuple():
 def test_build_name():
     expr = proto.Name()
     build_name("foo", expr)
-    assert expr.HasField("sp_name_flat")
-    assert expr.sp_name_flat.name == "foo"
+    assert expr.HasField("name_flat")
+    assert expr.name_flat.name == "foo"
     expr = proto.Name()
     build_name(["foo", "bar", "baz"], expr)
-    assert expr.HasField("sp_name_structured")
-    assert expr.sp_name_structured.name == ["foo", "bar", "baz"]
+    assert expr.HasField("name_structured")
+    assert expr.name_structured.name == ["foo", "bar", "baz"]
     try:
         expr = proto.Name()
         build_name(123, expr)
