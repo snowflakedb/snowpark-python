@@ -8800,12 +8800,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     elif (
                         params[arg].default is not inspect.Parameter.empty
                     ):  # pragma: no cover
-                        #  If the unspecified arg has a default value, that default value most likely needs to be added
-                        #  to the positional arguments. This however cannot be validated because this case
-                        #  is not applicable in any of the currently supported Snowpark Python functions yet.
-                        ErrorMessage.not_implemented(
-                            f"Function with default value parameter {arg} not passed as a kwarg is not currently supported."
-                        )
+                        #  If the unspecified arg has a default value, that default value is added
+                        #  to the positional arguments.
+                        resolved_positional.append(params[arg].default)
                     else:
                         ErrorMessage.not_implemented(
                             f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
