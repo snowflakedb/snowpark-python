@@ -2600,7 +2600,7 @@ class Series(BasePandasDataset):
         Series
 
         >>> s = pd.Series(["dog", "cat", "monkey"])
-        s
+        >>> s
         0       dog
         1       cat
         2    monkey
