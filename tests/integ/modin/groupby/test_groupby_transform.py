@@ -145,6 +145,9 @@ def test_dataframe_groupby_transform_conflicting_labels_negative():
 
 @sql_count_checker(
     query_count=7,
+    # Pivot step performs force materialization of the dataframe. So joins in subquery
+    # are not carried over but after removing the pivot step subquery is present
+    # multiple times resulting to increase in join count.
     join_count=12,
     udtf_count=1,
     high_count_expected=True,
