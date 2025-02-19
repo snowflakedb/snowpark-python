@@ -77,6 +77,7 @@ def fake_task_fetch_from_data_source_with_retry(
     driver_info,
     query_timeout,
     fetch_size,
+    session_init_statement,
 ):
     time.sleep(2)
 
@@ -190,34 +191,38 @@ def test_dbapi_retry(session):
         new=fake_detect_dbms_pyodbc,
     ), mock.patch(
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
-        side_effect=Exception("Test error"),
+        side_effect=RuntimeError("Test error"),
     ) as mock_task:
-        result = _task_fetch_from_data_source_with_retry(
-            create_connection=sql_server_create_connection,
-            query="SELECT * FROM test_table",
-            schema=StructType([StructField("col1", IntegerType(), False)]),
-            i=0,
-            tmp_dir="/tmp",
-            current_db=DBMS_TYPE.SQL_SERVER_DB,
-            driver_info="pyodbc",
-        )
+        with pytest.raises(
+            SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
+        ):
+            _task_fetch_from_data_source_with_retry(
+                create_connection=sql_server_create_connection,
+                query="SELECT * FROM test_table",
+                schema=StructType([StructField("col1", IntegerType(), False)]),
+                i=0,
+                tmp_dir="/tmp",
+                current_db=DBMS_TYPE.SQL_SERVER_DB,
+                driver_info="pyodbc",
+            )
         assert mock_task.call_count == MAX_RETRY_TIME
-        assert isinstance(result, Exception)
 
     with mock.patch(
         "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
         new=fake_detect_dbms_pyodbc,
     ), mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
-        side_effect=Exception("Test error"),
+        side_effect=RuntimeError("Test error"),
     ) as mock_task:
-        result = session.read._upload_and_copy_into_table_with_retry(
-            local_file="fake_file",
-            snowflake_stage_name="fake_stage",
-            snowflake_table_name="fake_table",
-        )
+        with pytest.raises(
+            SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
+        ):
+            session.read._upload_and_copy_into_table_with_retry(
+                local_file="fake_file",
+                snowflake_stage_name="fake_stage",
+                snowflake_table_name="fake_table",
+            )
         assert mock_task.call_count == MAX_RETRY_TIME
-        assert isinstance(result, Exception)
 
 
 @pytest.mark.skipif(
@@ -516,3 +521,31 @@ def test_predicates():
     ]
     res = generate_sql_with_predicates(select_query, predicates)
     assert res == expected_result
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_session_init_statement(session):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
+
+        df = session.read.dbapi(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            table_name,
+            custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+            session_init_statement="SELECT 1;",
+        )
+        assert df.collect() == assert_data
+
+        with pytest.raises(
+            SnowparkDataframeReaderException, match='near "FROM": syntax error'
+        ):
+            session.read.dbapi(
+                functools.partial(create_connection_to_sqlite3_db, dbpath),
+                table_name,
+                custom_schema="id INTEGER",
+                session_init_statement="SELECT FROM NOTHING;",
+            )
