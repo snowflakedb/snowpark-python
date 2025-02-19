@@ -8481,7 +8481,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
         if sf_func is not None:
-            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+            return self._apply_snowflake_function_to_columns(sf_func, kwargs)
 
         if get_snowflake_agg_func(func, {}, axis) is not None:
             # np.std and np.var 'ddof' parameter defaults to 0 but
@@ -8851,7 +8851,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # to Snowflake function.
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
         if sf_func is not None:
-            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+            return self._apply_snowflake_function_to_columns(sf_func, kwargs)
 
         if func in (np.sum, np.min, np.max):
             # Aggregate functions applied element-wise to columns are no-op.
