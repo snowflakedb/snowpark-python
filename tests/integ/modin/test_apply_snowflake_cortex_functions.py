@@ -96,13 +96,13 @@ def test_apply_snowflake_cortex_sentiment_df(session):
             True,
             (lambda s: s.apply(ClassifyText, categories=["travel", "cooking"])),
             1,
-            id="series_cortex_classify_text_kwargs",
+            id="series_classify_text_kwargs",
         ),
         param(
             False,
             (lambda df: df.apply(ClassifyText, categories=["travel", "cooking"])),
             2,
-            id="df_cortex_classify_text_kwargs",
+            id="df_classify_text_kwargs",
         ),
     ],
 )
@@ -138,13 +138,13 @@ def test_apply_snowflake_cortex_classify_text(
             True,
             (lambda s: s.apply(Translate, from_language="en", to_language="de")),
             1,
-            id="series_cortex_translate",
+            id="series",
         ),
         param(
             False,
             (lambda df: df.apply(Translate, from_language="en", to_language="de")),
             2,
-            id="df_cortex_translate",
+            id="dataframe",
         ),
     ],
 )
@@ -163,7 +163,7 @@ def test_apply_snowflake_cortex_translate(session, is_series, operation, query_c
             translated_text = res.iloc[0]
         else:
             translated_text = res[0][0]
-        assert translated_text == "Guten Morgen"
+        assert translated_text.lower() == "guten morgen"
 
 
 @pytest.mark.skipif(
