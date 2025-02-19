@@ -1927,3 +1927,24 @@ def test_register_sproc_after_switch_schema(session):
             Utils.drop_database(session, db)
         session.use_database(current_database)
         session.use_schema(current_schema)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_sproc_artifact_repository(session):
+    def artifact_repo_test(_):
+        import urllib3
+
+        return str(urllib3.exceptions.HTTPError("test"))
+
+    artifact_repo_sproc = sproc(
+        artifact_repo_test,
+        session=session,
+        return_type=StringType(),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+    assert artifact_repo_sproc(session=session) == "test"

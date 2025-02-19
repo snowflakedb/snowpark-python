@@ -52,6 +52,7 @@ from snowflake.snowpark._internal.utils import (
     random_number,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warning,
 )
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
@@ -101,6 +102,8 @@ REGISTER_KWARGS_ALLOWLIST = {
     "input_names",  # for pandas_udtf
     "max_batch_size",  # for pandas_udtf
     "_registered_object_name",  # object name within Snowflake (post registration)
+    "artifact_repository",
+    "artifact_repository_packages",
 }
 
 
@@ -1256,6 +1259,8 @@ def create_python_udf_or_sp(
     native_app_params: Optional[Dict[str, Any]] = None,
     copy_grants: bool = False,
     runtime_version: Optional[str] = None,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
 ) -> None:
     runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
 
@@ -1276,6 +1281,22 @@ def create_python_udf_or_sp(
     )
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+    artifact_repository_in_sql = (
+        f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
+    )
+    artifact_repository_packages_str = (
+        "','".join(artifact_repository_packages) if artifact_repository_packages else ""
+    )
+    artifact_repository_packages_in_sql = (
+        f"ARTIFACT_REPOSITORY_PACKAGES=('{artifact_repository_packages_str}')"
+        if artifact_repository_packages
+        else ""
+    )
+    if artifact_repository_in_sql or artifact_repository_packages_in_sql:
+        warning(
+            "artifact_repository_support",
+            "Support for artifact_repository udxf options is experimental since v1.29.0. Do not use it in production.",
+        )
     # Since this function is called for UDFs and Stored Procedures we need to
     #  make execute_as_sql a multi-line string for cases when we need it.
     #  This makes sure that when we don't need it we don't end up inserting
@@ -1353,6 +1374,8 @@ LANGUAGE PYTHON {strict_as_sql}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
 {packages_in_sql}
+{artifact_repository_in_sql}
+{artifact_repository_packages_in_sql}
 {external_access_integrations_in_sql}
 {secrets_in_sql}
 HANDLER='{handler}'{execute_as_sql}
