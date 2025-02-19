@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_table_name,
     build_view_name,
-    build_sp_name,
+    build_name,
 )
 from snowflake.snowpark._internal.proto.generated import ast_pb2 as proto
 
@@ -52,18 +52,18 @@ def test_build_expr_from_python_val_tuple():
     assert expr.tuple_val.vs[2].int64_val.v == 3
 
 
-def test_build_sp_name():
+def test_build_name():
     expr = proto.SpName()
-    build_sp_name("foo", expr)
+    build_name("foo", expr)
     assert expr.HasField("sp_name_flat")
     assert expr.sp_name_flat.name == "foo"
     expr = proto.SpName()
-    build_sp_name(["foo", "bar", "baz"], expr)
+    build_name(["foo", "bar", "baz"], expr)
     assert expr.HasField("sp_name_structured")
     assert expr.sp_name_structured.name == ["foo", "bar", "baz"]
     try:
         expr = proto.SpName()
-        build_sp_name(123, expr)
+        build_name(123, expr)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError:
         pass
