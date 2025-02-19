@@ -61,10 +61,15 @@ def set_up_external_access_integration_resources(
     session, rule1, rule2, key1, key2, integration1, integration2
 ):
     session.sql(
-        """CREATE API INTEGRATION IF NOT EXISTS SNOWPARK_PYTHON_TEST_INTEGRATION API_PROVIDER = pypi ENABLED = TRUE"""
+        "CREATE API INTEGRATION IF NOT EXISTS "
+        "SNOWPARK_PYTHON_TEST_INTEGRATION API_PROVIDER = pypi "
+        "ENABLED = TRUE"
     ).collect()
+
     session.sql(
-        """CREATE ARTIFACT REPOSITORY IF NOT EXISTS SNOWPARK_PYTHON_TEST_REPOSITORY TYPE = pip API_INTEGRATION = SNOWPARK_PYTHON_TEST_INTEGRATION"""
+        "CREATE ARTIFACT REPOSITORY IF NOT EXISTS "
+        f'{CONNECTION_PARAMETERS["database"]}.{CONNECTION_PARAMETERS["schema"]}.SNOWPARK_PYTHON_TEST_REPOSITORY '
+        "TYPE = pip API_INTEGRATION = SNOWPARK_PYTHON_TEST_INTEGRATION"
     ).collect()
 
     # IMPORTANT SETUP NOTES: the test role needs to be granted the creation privilege
