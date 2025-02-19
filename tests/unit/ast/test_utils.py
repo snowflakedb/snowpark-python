@@ -8,8 +8,8 @@ import pytest
 
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
-    build_sp_table_name,
-    build_sp_view_name,
+    build_table_name,
+    build_view_name,
     build_sp_name,
 )
 from snowflake.snowpark._internal.proto.generated import ast_pb2 as proto
@@ -69,19 +69,19 @@ def test_build_sp_name():
         pass
 
 
-def test_build_sp_table_name_error():
+def test_build_table_name_error():
     try:
         expr = proto.SpNameRef()
-        build_sp_table_name(expr, 42)
+        build_table_name(expr, 42)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError as e:
         assert "Invalid table name" in str(e)
 
 
-def test_build_sp_view_name_error():
+def test_build_view_name_error():
     try:
         expr = proto.SpNameRef()
-        build_sp_view_name(expr, 42)
+        build_view_name(expr, 42)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError as e:
         assert "Invalid view name" in str(e)

@@ -19,7 +19,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_proto_from_struct_type,
-    build_sp_table_name,
+    build_table_name,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -407,7 +407,7 @@ class DataFrameReader:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.read_table, stmt)
             ast.reader.CopyFrom(self._ast)
-            build_sp_table_name(ast.name, name)
+            build_table_name(ast.name, name)
 
         table = self._session.table(name)
 

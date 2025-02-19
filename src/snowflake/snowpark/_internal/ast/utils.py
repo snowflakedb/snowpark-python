@@ -206,7 +206,7 @@ def build_expr_from_python_val(
             expr_builder.CopyFrom(obj._ast)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Column" has no attribute "_ast"; maybe "_cast"?
 
     elif isinstance(obj, Row):
-        ast = with_src_position(expr_builder.row)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpRow"; expected "Expr"
+        ast = with_src_position(expr_builder.row)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Row"; expected "Expr"
         if hasattr(obj, "_named_values") and obj._named_values is not None:
             for field in obj._fields:
                 ast.names.list.append(field)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "names"
@@ -381,7 +381,7 @@ def _set_fn_name(
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def build_sp_table_name(
+def build_table_name(
     expr_builder: proto.NameRef, name: Union[str, Iterable[str]]
 ) -> None:  # pragma: no cover
     try:
@@ -390,7 +390,7 @@ def build_sp_table_name(
         raise ValueError("Invalid table name") from e
 
 
-def build_sp_view_name(expr: proto.NameRef, name: Union[str, Iterable[str]]) -> None:
+def build_view_name(expr: proto.NameRef, name: Union[str, Iterable[str]]) -> None:
     try:
         build_name(name, expr.name)
     except ValueError as e:
@@ -829,7 +829,7 @@ def build_expr_from_snowpark_column_or_sql_str(
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, str):
-        expr = with_src_position(expr_builder.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        expr = with_src_position(expr_builder.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ColumnSqlExpr"; expected "Expr"
         expr.sql = value  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
     else:
         raise TypeError(
@@ -907,14 +907,14 @@ def fill_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # 
 
     # Handle the special case * (as a SQL column expr).
     if name2 == "*":
-        ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ColumnSqlExpr"; expected "Expr"
         ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
         if name1 is not None:
             ast.df_alias.value = name1  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "df_alias"
         return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
 
     if name1 == "*" and name2 is None:
-        ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ColumnSqlExpr"; expected "Expr"
         ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
         return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
 
@@ -971,7 +971,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
     elif isinstance(expr, UnresolvedAttribute):
         # Unresolved means treatment as sql expression.
         ast = proto.Expr()
-        sql_expr_ast = with_src_position(ast.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        sql_expr_ast = with_src_position(ast.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ColumnSqlExpr"; expected "Expr"
         sql_expr_ast.sql = expr.sql  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
         return ast
     elif isinstance(expr, MultipleExpression):
@@ -1109,7 +1109,7 @@ def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-14911
         expr_builder.name = func.__name__  # type: ignore[union-attr] # TODO(SNOW-1491199) # error: Item "Tuple[str, ...]" of "Union[Callable[..., Any], Tuple[str, str]]" has no attribute "__name__"
 
     if object_name is not None:
-        build_sp_table_name(expr_builder.object_name, object_name)
+        build_table_name(expr_builder.object_name, object_name)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -1163,7 +1163,7 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     if imports is not None and len(imports) != 0:
         for import_ in imports:
             import_expr = proto.NameRef()
-            build_sp_table_name(import_expr, import_)
+            build_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:
@@ -1252,7 +1252,7 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     if imports is not None and len(imports) != 0:
         for import_ in imports:
             import_expr = proto.NameRef()
-            build_sp_table_name(import_expr, import_)
+            build_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:
@@ -1349,7 +1349,7 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     if imports is not None and len(imports) != 0:
         for import_ in imports:
             import_expr = proto.NameRef()
-            build_sp_table_name(import_expr, import_)
+            build_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:
@@ -1461,7 +1461,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     if imports is not None and len(imports) != 0:
         for import_ in imports:
             import_expr = proto.NameRef()
-            build_sp_table_name(import_expr, import_)
+            build_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:

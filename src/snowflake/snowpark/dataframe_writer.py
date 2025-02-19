@@ -23,7 +23,7 @@ from snowflake.snowpark._internal.ast.utils import (
     fill_write_file,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
-    build_sp_table_name,
+    build_table_name,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -316,7 +316,7 @@ class DataFrameWriter:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies SpWriteTable() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_table)
             debug_check_missing_ast(self._ast_stmt, self)
@@ -340,7 +340,7 @@ class DataFrameWriter:
             # copy_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
 
-            build_sp_table_name(expr.table_name, table_name)
+            build_table_name(expr.table_name, table_name)
 
             if mode is not None:
                 fill_save_mode(expr.mode, mode)
@@ -566,7 +566,7 @@ class DataFrameWriter:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies SpWriteCopyIntoLocation() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_copy_into_location)
             debug_check_missing_ast(self._ast_stmt, self)
@@ -758,7 +758,7 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast:
-            # Add an Assign node that applies SpWriteCsv() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteCsv() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_csv)
             debug_check_missing_ast(self._ast_stmt, self)
@@ -830,7 +830,7 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast:
-            # Add an Assign node that applies SpWriteJson() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteJson() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_json)
             debug_check_missing_ast(self._ast_stmt, self)
@@ -902,7 +902,7 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast:
-            # Add an Assign node that applies SpWriteParquet() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteParquet() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_parquet)
             debug_check_missing_ast(self._ast_stmt, self)

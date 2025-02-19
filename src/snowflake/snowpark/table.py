@@ -27,7 +27,7 @@ from snowflake.snowpark._internal.ast.utils import (
     debug_check_missing_ast,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
-    build_sp_table_name,
+    build_table_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
@@ -293,7 +293,7 @@ class Table(DataFrame):
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.assign()
             ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
-            build_sp_table_name(ast.name, table_name)
+            build_table_name(ast.name, table_name)
             ast.variant.table_init = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
 

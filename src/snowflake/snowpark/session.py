@@ -70,7 +70,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_indirect_table_fn_apply,
     build_proto_from_struct_type,
-    build_sp_table_name,
+    build_table_name,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -2338,7 +2338,7 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.table, stmt)
-            build_sp_table_name(ast.name, name)
+            build_table_name(ast.name, name)
             ast.variant.session_table = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
         else:
@@ -3136,7 +3136,7 @@ class Session:
                 ast.compression = compression
                 ast.create_temp_table = create_temp_table
                 if isinstance(df, pandas.DataFrame):
-                    build_sp_table_name(
+                    build_table_name(
                         ast.df.dataframe_data__pandas.v.temp_table, table.table_name
                     )
                 else:
@@ -3163,7 +3163,7 @@ class Session:
                         raise ValueError("Need to set schema when using database.")
                     table_location = [database] + table_location
 
-                build_sp_table_name(ast.table_name, table_location)
+                build_table_name(ast.table_name, table_location)
                 ast.table_type = table_type
 
                 table._ast_id = stmt.var_id.bitfield1
@@ -3318,7 +3318,7 @@ class Session:
                     stmt = self._ast_batch.assign()
                     ast = with_src_position(stmt.expr.create_dataframe, stmt)
                     # Save temp table and schema of it in AST (dataframe).
-                    build_sp_table_name(
+                    build_table_name(
                         ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                     )
                     build_proto_from_struct_type(
@@ -3580,7 +3580,7 @@ class Session:
                 ast = with_src_position(stmt.expr.create_dataframe, stmt)
 
                 # Save temp table and schema of it in AST (dataframe).
-                build_sp_table_name(
+                build_table_name(
                     ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                 )
                 build_proto_from_struct_type(
