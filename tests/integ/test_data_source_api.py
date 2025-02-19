@@ -193,19 +193,19 @@ def test_dbapi_retry(session):
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
-        result = _task_fetch_from_data_source_with_retry(
-            create_connection=sql_server_create_connection,
-            query="SELECT * FROM test_table",
-            schema=StructType([StructField("col1", IntegerType(), False)]),
-            i=0,
-            tmp_dir="/tmp",
-            current_db=DBMS_TYPE.SQL_SERVER_DB,
-            driver_info="pyodbc",
-        )
+        with pytest.raises(
+            SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
+        ):
+            _task_fetch_from_data_source_with_retry(
+                create_connection=sql_server_create_connection,
+                query="SELECT * FROM test_table",
+                schema=StructType([StructField("col1", IntegerType(), False)]),
+                i=0,
+                tmp_dir="/tmp",
+                current_db=DBMS_TYPE.SQL_SERVER_DB,
+                driver_info="pyodbc",
+            )
         assert mock_task.call_count == MAX_RETRY_TIME
-        assert isinstance(
-            result, SnowparkDataframeReaderException
-        ) and "[RuntimeError] Test error" in str(result)
 
     with mock.patch(
         "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
@@ -214,15 +214,15 @@ def test_dbapi_retry(session):
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
-        result = session.read._upload_and_copy_into_table_with_retry(
-            local_file="fake_file",
-            snowflake_stage_name="fake_stage",
-            snowflake_table_name="fake_table",
-        )
+        with pytest.raises(
+            SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
+        ):
+            session.read._upload_and_copy_into_table_with_retry(
+                local_file="fake_file",
+                snowflake_stage_name="fake_stage",
+                snowflake_table_name="fake_table",
+            )
         assert mock_task.call_count == MAX_RETRY_TIME
-        assert isinstance(
-            result, SnowparkDataframeReaderException
-        ) and "[RuntimeError] Test error" in str(result)
 
 
 @pytest.mark.skipif(

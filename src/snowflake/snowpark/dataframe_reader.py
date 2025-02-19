@@ -1197,13 +1197,12 @@ class DataFrameReader:
                     for i, query in enumerate(partitioned_queries)
                 ]
                 for future in as_completed(process_pool_futures):
-                    if isinstance(future.result(), Exception):
-                        logger.error(
-                            "fetch from data source failed, canceling all running tasks"
-                        )
+                    try:
+                        future.result()
+                    except BaseException:
                         process_executor.shutdown(wait=False)
                         thread_executor.shutdown(wait=False)
-                        raise future.result()
+                        raise
                     else:
                         thread_pool_futures.append(
                             thread_executor.submit(
@@ -1217,13 +1216,12 @@ class DataFrameReader:
                         )
                 completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
                 for f in completed_futures.done:
-                    if f.result() is not None and isinstance(f.result(), Exception):
-                        logger.error(
-                            "upload and copy into table failed, canceling all running tasks"
-                        )
+                    try:
+                        f.result()
+                    except BaseException:
                         process_executor.shutdown(wait=False)
                         thread_executor.shutdown(wait=False)
-                        raise f.result()
+                        raise
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
                 DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
             )
@@ -1359,7 +1357,7 @@ class DataFrameReader:
         snowflake_table_name: str,
         on_error: Optional[str] = "abort_statement",
         statements_params: Optional[Dict[str, str]] = None,
-    ) -> Optional[Exception]:
+    ):
         retry_count = 0
         last_error = None
         error_trace = ""
@@ -1392,7 +1390,7 @@ class DataFrameReader:
             f"Failed to load data to snowflake after {MAX_RETRY_TIME} attempts.\n"
             f"Last encountered error: [{type(last_error).__name__}] {str(last_error)}"
         )
-        return final_error
+        raise final_error
 
 
 def _task_fetch_from_data_source(
@@ -1444,7 +1442,7 @@ def _task_fetch_from_data_source_with_retry(
     query_timeout: int = 0,
     fetch_size: int = 0,
     session_init_statement: Optional[str] = None,
-) -> Union[str, Exception]:
+) -> str:
     retry_count = 0
     last_error = None
     error_trace = ""
@@ -1484,4 +1482,4 @@ def _task_fetch_from_data_source_with_retry(
         f"Last encountered error: [{type(last_error).__name__}] {str(last_error)}"
     )
 
-    return final_error
+    raise final_error
