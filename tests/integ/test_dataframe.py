@@ -234,9 +234,11 @@ def test_show_using_with_select_statement(session):
     )
 
 
-def test_distinct(session):
+@pytest.mark.parametrize("use_simplification", [True, False])
+def test_distinct(session, use_simplification):
     """Tests df.distinct()."""
 
+    session.conf.set("use_simplified_query_generation", use_simplification)
     df = session.create_dataframe(
         [
             [1, 1],
@@ -268,6 +270,12 @@ def test_distinct(session):
 
     res = df.select(col("v")).distinct().sort(["v"]).collect()
     assert res == [Row(None), Row(1), Row(2), Row(3), Row(4), Row(5)]
+
+    queries = df.distinct().queries["queries"]
+    if use_simplification:
+        assert "SELECT  DISTINCT" in queries[0]
+    else:
+        assert "GROUP BY" in queries[0]
 
 
 def test_first(session):
