@@ -9,6 +9,8 @@ import pytest
 from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.exceptions import SnowparkSQLException
+
 from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
@@ -230,3 +232,25 @@ def test_timedelta_input(pandas_df):
         *create_test_dfs(pandas_df),
         lambda df: df.groupby(0).transform(lambda series: 1),
     )
+
+
+@sql_count_checker(query_count=3)
+def test_groupby_transform_single_output_col():
+    native_df = native_pd.DataFrame(
+        {
+            "A": [1, 2, 3, 1, 2, 2],
+            "B": [4, 5, 6, 7, 8, 9],
+            "C": [10, 11, 12, 13, 14, 15],
+        }
+    )
+    error = "transform must return a scalar value for each group"
+    with pytest.raises(ValueError, match=error):
+        native_df.groupby("A").transform(
+            lambda x: native_pd.DataFrame({"x": x, "y": x})
+        )
+
+    snow_df = pd.DataFrame(native_df)
+    with pytest.raises(SnowparkSQLException, match=error):
+        snow_df.groupby("A").transform(
+            lambda x: native_pd.DataFrame({"x": x, "y": x})
+        ).to_pandas()
