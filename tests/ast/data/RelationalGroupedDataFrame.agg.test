@@ -36,13 +36,13 @@ rgdf2 = df1.group_by("str")
 
 df3 = rgdf2.agg()
 
-df4 = rgdf2.agg(sum(col("num")))
+df4 = rgdf2.agg(sum("num"))
 
-df5 = rgdf2.agg([max(col("num"))])
+df5 = rgdf2.agg([max("num")])
 
-df6 = rgdf2.agg(sum(col("num")), max(col("num")))
+df6 = rgdf2.agg(sum("num"), max("num"))
 
-df7 = rgdf2.agg([sum(col("num")), max(col("num"))])
+df7 = rgdf2.agg([sum("num"), max("num")])
 
 df8 = rgdf2.agg(["num", "max"])
 
@@ -50,7 +50,7 @@ df9 = rgdf2.agg([col("num"), "max"])
 
 df10 = rgdf2.agg([("num", "max"), [col("num"), "sum"]])
 
-df11 = rgdf2.agg(sum(col("num")), ("num", "max"), max(col("num")), [col("num"), "sum"])
+df11 = rgdf2.agg(sum("num"), ("num", "max"), max("num"), [col("num"), "sum"])
 
 df12 = rgdf2.agg({})
 
@@ -196,30 +196,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 31
-                        file: 2
-                        start_column: 24
-                        start_line: 31
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 31
@@ -227,6 +204,7 @@ body {
                     start_column: 24
                     start_line: 31
                   }
+                  v: "num"
                 }
               }
               src {
@@ -284,30 +262,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 33
-                        file: 2
-                        start_column: 25
-                        start_line: 33
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 33
@@ -315,6 +270,7 @@ body {
                     start_column: 25
                     start_line: 33
                   }
+                  v: "num"
                 }
               }
               src {
@@ -371,30 +327,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 35
-                        file: 2
-                        start_column: 24
-                        start_line: 35
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 35
@@ -402,6 +335,7 @@ body {
                     start_column: 24
                     start_line: 35
                   }
+                  v: "num"
                 }
               }
               src {
@@ -427,30 +361,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 46
-                        end_line: 35
-                        file: 2
-                        start_column: 36
-                        start_line: 35
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 46
                     end_line: 35
@@ -458,6 +369,7 @@ body {
                     start_column: 36
                     start_line: 35
                   }
+                  v: "num"
                 }
               }
               src {
@@ -515,30 +427,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 37
-                        file: 2
-                        start_column: 25
-                        start_line: 37
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 37
@@ -546,6 +435,7 @@ body {
                     start_column: 25
                     start_line: 37
                   }
+                  v: "num"
                 }
               }
               src {
@@ -571,30 +461,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 37
-                        file: 2
-                        start_column: 37
-                        start_line: 37
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 37
@@ -602,6 +469,7 @@ body {
                     start_column: 37
                     start_line: 37
                   }
+                  v: "num"
                 }
               }
               src {
@@ -937,30 +805,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 45
-                        file: 2
-                        start_column: 25
-                        start_line: 45
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 45
@@ -968,6 +813,7 @@ body {
                     start_column: 25
                     start_line: 45
                   }
+                  v: "num"
                 }
               }
               src {
@@ -1028,30 +874,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 63
-                        end_line: 45
-                        file: 2
-                        start_column: 53
-                        start_line: 45
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 63
                     end_line: 45
@@ -1059,6 +882,7 @@ body {
                     start_column: 53
                     start_line: 45
                   }
+                  v: "num"
                 }
               }
               src {

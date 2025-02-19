@@ -191,7 +191,6 @@ from snowflake.snowpark._internal.ast.utils import (
     build_call_table_function_apply,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
-    create_ast_for_column,
     set_builtin_fn_alias,
     snowpark_expression_to_ast,
     with_src_position,
@@ -310,14 +309,21 @@ def col(
 
     _check_column_parameters(name1, name2)
 
-    ast = None
-    if _emit_ast:
-        ast = create_ast_for_column(name1, name2, "col")
-
     if name2 is None:
-        return Column(name1, _is_qualified_name=_is_qualified_name, _ast=ast)
+        return Column(
+            name1,
+            _is_qualified_name=_is_qualified_name,
+            _emit_ast=_emit_ast,
+            _caller_name="col",
+        )
     else:
-        return Column(name1, name2, _is_qualified_name=_is_qualified_name, _ast=ast)
+        return Column(
+            name1,
+            name2,
+            _is_qualified_name=_is_qualified_name,
+            _emit_ast=_emit_ast,
+            _caller_name="col",
+        )
 
 
 @overload
@@ -367,12 +373,21 @@ def column(
 ) -> Column:
     _check_column_parameters(name1, name2)
 
-    ast = create_ast_for_column(name1, name2, "column") if _emit_ast else None
-
     if name2 is None:
-        return Column(name1, _is_qualified_name=_is_qualified_name, _ast=ast)
+        return Column(
+            name1,
+            _is_qualified_name=_is_qualified_name,
+            _emit_ast=_emit_ast,
+            _caller_name="column",
+        )
     else:
-        return Column(name1, name2, _is_qualified_name=_is_qualified_name, _ast=ast)
+        return Column(
+            name1,
+            name2,
+            _is_qualified_name=_is_qualified_name,
+            _emit_ast=_emit_ast,
+            _caller_name="column",
+        )
 
 
 @publicapi
@@ -434,8 +449,8 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
 
     Example::
         >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
-        >>> df.filter("a > 1").collect()  # use SQL expression
-        [Row(A=3, B=4)]
+        >>> df.select(sql_expr("a + 1").as_("c"), sql_expr("a = 1").as_("d")).collect()  # use SQL expression
+        [Row(C=2, D=True), Row(C=4, D=False)]
     """
     ast = None
     if _emit_ast:

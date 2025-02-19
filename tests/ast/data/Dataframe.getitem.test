@@ -12,7 +12,7 @@ df = session.table("table1")
 
 df.select(df["STR"], df["STR"]).collect()
 
-df.select([col("STR"), col("STR")]).collect()
+df.select(["STR", "STR"]).collect()
 
 ## EXPECTED ENCODED AST
 
@@ -166,30 +166,7 @@ body {
       dataframe_select__columns {
         cols {
           args {
-            apply_expr {
-              fn {
-                builtin_fn {
-                  name {
-                    name {
-                      name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 26
-                    end_line: 29
-                    file: 2
-                    start_column: 8
-                    start_line: 29
-                  }
-                  v: "STR"
-                }
-              }
+            string_val {
               src {
                 end_column: 26
                 end_line: 29
@@ -197,33 +174,11 @@ body {
                 start_column: 8
                 start_line: 29
               }
+              v: "STR"
             }
           }
           args {
-            apply_expr {
-              fn {
-                builtin_fn {
-                  name {
-                    name {
-                      name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 26
-                    end_line: 29
-                    file: 2
-                    start_column: 8
-                    start_line: 29
-                  }
-                  v: "STR"
-                }
-              }
+            string_val {
               src {
                 end_column: 26
                 end_line: 29
@@ -231,6 +186,7 @@ body {
                 start_column: 8
                 start_line: 29
               }
+              v: "STR"
             }
           }
         }

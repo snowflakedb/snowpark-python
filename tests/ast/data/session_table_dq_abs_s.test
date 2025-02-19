@@ -7,7 +7,7 @@ df = df.select("num")
 
 df = session.table("mock_database.mock_schema.\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\"")
 
-df = df.select(col("num"))
+df = df.select("num")
 
 ## EXPECTED ENCODED AST
 
@@ -58,30 +58,7 @@ body {
       dataframe_select__columns {
         cols {
           args {
-            apply_expr {
-              fn {
-                builtin_fn {
-                  name {
-                    name {
-                      name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 29
-                    end_line: 26
-                    file: 2
-                    start_column: 13
-                    start_line: 26
-                  }
-                  v: "num"
-                }
-              }
+            string_val {
               src {
                 end_column: 29
                 end_line: 26
@@ -89,6 +66,7 @@ body {
                 start_column: 13
                 start_line: 26
               }
+              v: "num"
             }
           }
           variadic: true

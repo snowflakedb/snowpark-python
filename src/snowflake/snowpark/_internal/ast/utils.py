@@ -893,7 +893,7 @@ def build_expr_from_snowpark_column_or_table_fn(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def fill_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a type annotation for one or more arguments
-    expr: proto.Expr, name1: str, name2: Optional[str], fn_name="col"
+    expr: proto.Expr, name1: str, name2: Optional[str], fn_name=None
 ) -> None:  # pragma: no cover
     """
     Fill in expr node to encode Snowpark Column created through col(...) / column(...).
@@ -904,19 +904,29 @@ def fill_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # 
         fn_name: alias to use when encoding Snowpark column (should be "col" or "column").
 
     """
+    # Internal calls to the Column constructor will set the fn_name parameter only if an AST for a builtin_fn needs to be generated (e.g. calls from functions.col or functions.column)
+    # Otherwise, all internal calls to the Column constructor will leave the fn_name parameter as None (e.g. calls from Column._to_col_if_<other> private methods), meaning that only
+    # a string or other type was provided, and we internally generate Snowpark.Column instance with the name provided, which should not generate a builtin_fn AST.
+    if fn_name is None:
+        # Handle the special case * (as a SQL column expr).
+        if name2 == "*":
+            ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+            ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
+            if name1 is not None:
+                ast.df_alias.value = name1  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "df_alias"
+            return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
 
-    # Handle the special case * (as a SQL column expr).
-    if name2 == "*":
-        ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ColumnSqlExpr"; expected "Expr"
-        ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
-        if name1 is not None:
-            ast.df_alias.value = name1  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "df_alias"
-        return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
+        if name1 == "*" and name2 is None:
+            ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+            ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
+            return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
 
-    if name1 == "*" and name2 is None:
-        ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ColumnSqlExpr"; expected "Expr"
-        ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
-        return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
+        # Correctly captures all cases in which a Snowpark public API accepts a string or a Column object. If a Column object was provided, then its AST should have been used,
+        # otherwise the string value will be passed to the Column constructor internally, but the fn_name parameter will be None, meaning only a string was provided to the public API.
+        if name2 is None:
+            ast = with_src_position(expr.string_val)
+            ast.v = name1
+            return expr
 
     # Regular form (without *): build as function ApplyExpr.
     kwargs = (
@@ -935,7 +945,7 @@ def fill_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def create_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a type annotation for one or more arguments
-    name1: str, name2: Optional[str], fn_name="col"
+    name1: str, name2: Optional[str], fn_name=None
 ) -> proto.Expr:  # pragma: no cover
     """
     Helper function to create Ast for Snowpark Column. Cf. fill_ast_for_column on parameter details.
