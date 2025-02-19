@@ -13,7 +13,7 @@
 
 #### Improvements
 
-- Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns.
+- Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns. To disable this feature, set `session.conf.set("use_simplified_query_generation", False)`.
 
 #### Deprecations
 
