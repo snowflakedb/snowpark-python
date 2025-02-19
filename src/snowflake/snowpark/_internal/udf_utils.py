@@ -1281,6 +1281,12 @@ def create_python_udf_or_sp(
     )
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+
+    if artifact_repository_packages and not artifact_repository:
+        raise ValueError(
+            "artifact_repository must be specified when artifact_repository_packages has been specified"
+        )
+
     artifact_repository_in_sql = (
         f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
     )
