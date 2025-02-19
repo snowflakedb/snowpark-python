@@ -6,6 +6,7 @@ import decimal
 import os
 import tempfile
 import time
+import traceback
 from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
@@ -74,7 +75,7 @@ from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
-    SnowparkClientException,
+    SnowparkDataframeReaderException,
 )
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -1085,6 +1086,7 @@ class DataFrameReader:
         fetch_size: Optional[int] = 0,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
+        session_init_statement: Optional[str] = None,
     ) -> DataFrame:
         """Reads data from a database table using a DBAPI connection."""
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
@@ -1191,17 +1193,17 @@ class DataFrameReader:
                         driver_info,
                         query_timeout,
                         fetch_size,
+                        session_init_statement,
                     )
                     for i, query in enumerate(partitioned_queries)
                 ]
                 for future in as_completed(process_pool_futures):
-                    if isinstance(future.result(), Exception):
-                        logger.error(
-                            "fetch from data source failed, canceling all running tasks"
-                        )
+                    try:
+                        future.result()
+                    except BaseException:
                         process_executor.shutdown(wait=False)
                         thread_executor.shutdown(wait=False)
-                        raise future.result()
+                        raise
                     else:
                         thread_pool_futures.append(
                             thread_executor.submit(
@@ -1215,13 +1217,12 @@ class DataFrameReader:
                         )
                 completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
                 for f in completed_futures.done:
-                    if f.result() is not None and isinstance(f.result(), Exception):
-                        logger.error(
-                            "upload and copy into table failed, canceling all running tasks"
-                        )
+                    try:
+                        f.result()
+                    except BaseException:
                         process_executor.shutdown(wait=False)
                         thread_executor.shutdown(wait=False)
-                        raise f.result()
+                        raise
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
                 DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
             )
@@ -1357,9 +1358,10 @@ class DataFrameReader:
         snowflake_table_name: str,
         on_error: Optional[str] = "abort_statement",
         statements_params: Optional[Dict[str, str]] = None,
-    ) -> Optional[Exception]:
+    ):
         retry_count = 0
-        error = None
+        last_error = None
+        error_trace = ""
         while retry_count < MAX_RETRY_TIME:
             try:
                 self._upload_and_copy_into_table(
@@ -1371,18 +1373,25 @@ class DataFrameReader:
                 )
                 return
             except Exception as e:
-                error = e
+                last_error = e
+                error_trace = traceback.format_exc()
                 retry_count += 1
                 logger.debug(
-                    f"upload and copy into table failed with {error.__repr__()}, retry count: {retry_count}, retrying ..."
+                    f"Attempt {retry_count}/{MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
                 )
-        error = SnowparkClientException(
-            message=f"failed to load data to snowflake, got {error.__repr__()}"
+
+        final_error = SnowparkDataframeReaderException(
+            message=(
+                f"Failed to load data to snowflake after {MAX_RETRY_TIME} attempts.\n"
+                f"Last error: [{type(last_error).__name__}] {str(last_error)}\n"
+                f"Traceback:\n{error_trace}"
+            )
         )
         logger.error(
-            f"upload and copy into table failed with {error.__repr__()}, exceed max retry time"
+            f"Failed to load data to snowflake after {MAX_RETRY_TIME} attempts.\n"
+            f"Last encountered error: [{type(last_error).__name__}] {str(last_error)}"
         )
-        return error
+        raise final_error
 
 
 def _task_fetch_from_data_source(
@@ -1395,6 +1404,7 @@ def _task_fetch_from_data_source(
     driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
+    session_init_statement: Optional[str] = None,
 ) -> str:
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
@@ -1402,6 +1412,8 @@ def _task_fetch_from_data_source(
         conn.timeout = query_timeout
     result = []
     cursor = conn.cursor()
+    if session_init_statement:
+        cursor.execute(session_init_statement)
     if fetch_size == 0:
         cursor.execute(query)
         result = cursor.fetchall()
@@ -1430,9 +1442,11 @@ def _task_fetch_from_data_source_with_retry(
     driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
-) -> Union[str, Exception]:
+    session_init_statement: Optional[str] = None,
+) -> str:
     retry_count = 0
-    error = None
+    last_error = None
+    error_trace = ""
     while retry_count < MAX_RETRY_TIME:
         try:
             path = _task_fetch_from_data_source(
@@ -1445,18 +1459,28 @@ def _task_fetch_from_data_source_with_retry(
                 driver_info,
                 query_timeout,
                 fetch_size,
+                session_init_statement,
             )
             return path
         except Exception as e:
-            error = e
+            last_error = e
+            error_trace = traceback.format_exc()
             retry_count += 1
             logger.debug(
-                f"fetch from data source failed with {error.__repr__()}, retry count: {retry_count}, retrying ..."
+                f"Attempt {retry_count}/{MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
             )
-    error = SnowparkClientException(
-        message=f"failed to fetch from data source, got {error.__repr__()}"
+
+    final_error = SnowparkDataframeReaderException(
+        message=(
+            f"Failed to fetch from data source after {MAX_RETRY_TIME} attempts.\n"
+            f"Last error: [{type(last_error).__name__}] {str(last_error)}\n"
+            f"Traceback:\n{error_trace}"
+        )
     )
+
     logger.error(
-        f"fetch from data source failed with {error.__repr__()}, exceed max retry time"
+        f"Failed to fetch from data source after {MAX_RETRY_TIME} attempts.\n"
+        f"Last encountered error: [{type(last_error).__name__}] {str(last_error)}"
     )
-    return error
+
+    raise final_error
