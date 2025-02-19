@@ -2607,8 +2607,8 @@ class Series(BasePandasDataset):
         dtype: object
         >>> s.rename_axis("animal")
         animal
-        0    dog
-        1    cat
+        0       dog
+        1       cat
         2    monkey
         dtype: object
         """
