@@ -9,7 +9,11 @@ from pytest import param
 
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_jenkins
-from snowflake.cortex import Sentiment, Summarize, Translate
+
+cortex = pytest.importorskip("snowflake.cortex")
+Sentiment = cortex.Sentiment
+Summarize = cortex.Summarize
+Translate = cortex.Translate
 
 
 @pytest.mark.skipif(
