@@ -43,6 +43,7 @@ def _set_axis_name(
     -------
     DataFrame or None
     """
+    assert axis == 0, f"Expected 'axis=0', got 'axis={axis}'"
     renamed = self if inplace else self.copy()
     renamed.index = renamed.index.set_names(name)
     if not inplace:
