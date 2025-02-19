@@ -10,7 +10,6 @@ import pytest
 import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.ast.ast_test_utils import (
     close_full_ast_validation_mode,
@@ -61,73 +60,69 @@ CONNECTION_PARAMETERS = {
 def set_up_external_access_integration_resources(
     session, rule1, rule2, key1, key2, integration1, integration2
 ):
-    try:
-        # IMPORTANT SETUP NOTES: the test role needs to be granted the creation privilege
-        # log into the admin account and run the following sql to grant the privilege
-        # GRANT CREATE INTEGRATION ON ACCOUNT TO ROLE <test_role>;
-        # prepare external access resource
-        session.sql(
-            f"""
-    CREATE NETWORK RULE  IF NOT EXISTS {rule1}
-      MODE = EGRESS
-      TYPE = HOST_PORT
-      VALUE_LIST = ('www.google.com')
-    """
-        ).collect()
-        session.sql(
-            f"""
-    CREATE NETWORK RULE IF NOT EXISTS {rule2}
-      MODE = EGRESS
-      TYPE = HOST_PORT
-      VALUE_LIST = ('www.microsoft.com')
-    """
-        ).collect()
-        session.sql(
-            f"""
-    CREATE SECRET IF NOT EXISTS {key1}
-      TYPE = GENERIC_STRING
-      SECRET_STRING = 'replace-with-your-api-key'
-    """
-        ).collect()
-        session.sql(
-            f"""
-    CREATE SECRET IF NOT EXISTS {key2}
-      TYPE = GENERIC_STRING
-      SECRET_STRING = 'replace-with-your-api-key_2'
-    """
-        ).collect()
-        session.sql(
-            f"""
-    CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration1}
-      ALLOWED_NETWORK_RULES = ({rule1})
-      ALLOWED_AUTHENTICATION_SECRETS = ({key1})
-      ENABLED = true
-    """
-        ).collect()
-        session.sql(
-            f"""
-    CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration2}
-      ALLOWED_NETWORK_RULES = ({rule2})
-      ALLOWED_AUTHENTICATION_SECRETS = ({key2})
-      ENABLED = true
-    """
-        ).collect()
-        session.sql(
-            """CREATE API INTEGRATION IF NOT EXISTS SNOWPARK_PYTHON_TEST_INTEGRATION API_PROVIDER = pypi ENABLED = TRUE"""
-        ).collect()
-        session.sql(
-            """CREATE ARTIFACT REPOSITORY IF NOT EXISTS SNOWPARK_PYTHON_TEST_REPOSITORY TYPE = pip API_INTEGRATION = SNOWPARK_PYTHON_TEST_INTEGRATION"""
-        ).collect()
-        CONNECTION_PARAMETERS["external_access_rule1"] = rule1
-        CONNECTION_PARAMETERS["external_access_rule2"] = rule2
-        CONNECTION_PARAMETERS["external_access_key1"] = key1
-        CONNECTION_PARAMETERS["external_access_key2"] = key2
-        CONNECTION_PARAMETERS["external_access_integration1"] = integration1
-        CONNECTION_PARAMETERS["external_access_integration2"] = integration2
-    except SnowparkSQLException:
-        # GCP currently does not support external access integration
-        # we can remove the exception once the integration is available on GCP
-        pass
+    session.sql(
+        """CREATE API INTEGRATION IF NOT EXISTS SNOWPARK_PYTHON_TEST_INTEGRATION API_PROVIDER = pypi ENABLED = TRUE"""
+    ).collect()
+    session.sql(
+        """CREATE ARTIFACT REPOSITORY IF NOT EXISTS SNOWPARK_PYTHON_TEST_REPOSITORY TYPE = pip API_INTEGRATION = SNOWPARK_PYTHON_TEST_INTEGRATION"""
+    ).collect()
+
+    # IMPORTANT SETUP NOTES: the test role needs to be granted the creation privilege
+    # log into the admin account and run the following sql to grant the privilege
+    # GRANT CREATE INTEGRATION ON ACCOUNT TO ROLE <test_role>;
+    # prepare external access resource
+    session.sql(
+        f"""
+CREATE NETWORK RULE  IF NOT EXISTS {rule1}
+  MODE = EGRESS
+  TYPE = HOST_PORT
+  VALUE_LIST = ('www.google.com')
+"""
+    ).collect()
+    session.sql(
+        f"""
+CREATE NETWORK RULE IF NOT EXISTS {rule2}
+  MODE = EGRESS
+  TYPE = HOST_PORT
+  VALUE_LIST = ('www.microsoft.com')
+"""
+    ).collect()
+    session.sql(
+        f"""
+CREATE SECRET IF NOT EXISTS {key1}
+  TYPE = GENERIC_STRING
+  SECRET_STRING = 'replace-with-your-api-key'
+"""
+    ).collect()
+    session.sql(
+        f"""
+CREATE SECRET IF NOT EXISTS {key2}
+  TYPE = GENERIC_STRING
+  SECRET_STRING = 'replace-with-your-api-key_2'
+"""
+    ).collect()
+    session.sql(
+        f"""
+CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration1}
+  ALLOWED_NETWORK_RULES = ({rule1})
+  ALLOWED_AUTHENTICATION_SECRETS = ({key1})
+  ENABLED = true
+"""
+    ).collect()
+    session.sql(
+        f"""
+CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration2}
+  ALLOWED_NETWORK_RULES = ({rule2})
+  ALLOWED_AUTHENTICATION_SECRETS = ({key2})
+  ENABLED = true
+"""
+    ).collect()
+    CONNECTION_PARAMETERS["external_access_rule1"] = rule1
+    CONNECTION_PARAMETERS["external_access_rule2"] = rule2
+    CONNECTION_PARAMETERS["external_access_key1"] = key1
+    CONNECTION_PARAMETERS["external_access_key2"] = key2
+    CONNECTION_PARAMETERS["external_access_integration1"] = integration1
+    CONNECTION_PARAMETERS["external_access_integration2"] = integration2
 
 
 def clean_up_external_access_integration_resources():
