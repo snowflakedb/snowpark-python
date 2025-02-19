@@ -53,16 +53,16 @@ def test_build_expr_from_python_val_tuple():
 
 
 def test_build_name():
-    expr = proto.SpName()
+    expr = proto.Name()
     build_name("foo", expr)
     assert expr.HasField("sp_name_flat")
     assert expr.sp_name_flat.name == "foo"
-    expr = proto.SpName()
+    expr = proto.Name()
     build_name(["foo", "bar", "baz"], expr)
     assert expr.HasField("sp_name_structured")
     assert expr.sp_name_structured.name == ["foo", "bar", "baz"]
     try:
-        expr = proto.SpName()
+        expr = proto.Name()
         build_name(123, expr)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError:
@@ -71,7 +71,7 @@ def test_build_name():
 
 def test_build_table_name_error():
     try:
-        expr = proto.SpNameRef()
+        expr = proto.NameRef()
         build_table_name(expr, 42)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError as e:
@@ -80,7 +80,7 @@ def test_build_table_name_error():
 
 def test_build_view_name_error():
     try:
-        expr = proto.SpNameRef()
+        expr = proto.NameRef()
         build_view_name(expr, 42)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError as e:
