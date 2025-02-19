@@ -324,9 +324,9 @@ body {
                     start_line: 37
                   }
                   window_spec {
-                    sp_window_spec_rows_between {
+                    window_spec_rows_between {
                       end {
-                        sp_window_relative_position__position {
+                        window_relative_position__position {
                           n {
                             int64_val {
                               src {
@@ -349,10 +349,10 @@ body {
                         start_line: 33
                       }
                       start {
-                        sp_window_relative_position__current_row: true
+                        window_relative_position__current_row: true
                       }
                       wnd {
-                        sp_window_spec_order_by {
+                        window_spec_order_by {
                           cols {
                             apply_expr {
                               fn {
@@ -395,7 +395,7 @@ body {
                             start_line: 33
                           }
                           wnd {
-                            sp_window_spec_partition_by {
+                            window_spec_partition_by {
                               cols {
                                 apply_expr {
                                   fn {
@@ -438,7 +438,7 @@ body {
                                 start_line: 33
                               }
                               wnd {
-                                sp_window_spec_empty {
+                                window_spec_empty {
                                   src {
                                     end_column: 46
                                     end_line: 33
@@ -537,9 +537,9 @@ body {
                     start_line: 37
                   }
                   window_spec {
-                    sp_window_spec_range_between {
+                    window_spec_range_between {
                       end {
-                        sp_window_relative_position__unbounded_following: true
+                        window_relative_position__unbounded_following: true
                       }
                       src {
                         end_column: 122
@@ -549,10 +549,10 @@ body {
                         start_line: 35
                       }
                       start {
-                        sp_window_relative_position__unbounded_preceding: true
+                        window_relative_position__unbounded_preceding: true
                       }
                       wnd {
-                        sp_window_spec_order_by {
+                        window_spec_order_by {
                           cols {
                             column_desc {
                               col {
@@ -609,7 +609,7 @@ body {
                             start_line: 35
                           }
                           wnd {
-                            sp_window_spec_empty {
+                            window_spec_empty {
                               src {
                                 end_column: 52
                                 end_line: 35
@@ -736,7 +736,7 @@ body {
                 start_line: 39
               }
               window_spec {
-                sp_window_spec_order_by {
+                window_spec_order_by {
                   cols {
                     apply_expr {
                       fn {
@@ -779,7 +779,7 @@ body {
                     start_line: 39
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 66
                         end_line: 39
@@ -891,7 +891,7 @@ body {
                 start_line: 41
               }
               window_spec {
-                sp_window_spec_order_by {
+                window_spec_order_by {
                   cols {
                     apply_expr {
                       fn {
@@ -968,7 +968,7 @@ body {
                     start_line: 41
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 76
                         end_line: 41
@@ -1080,7 +1080,7 @@ body {
                 start_line: 43
               }
               window_spec {
-                sp_window_spec_partition_by {
+                window_spec_partition_by {
                   cols {
                     apply_expr {
                       fn {
@@ -1123,7 +1123,7 @@ body {
                     start_line: 43
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 67
                         end_line: 43
@@ -1235,7 +1235,7 @@ body {
                 start_line: 45
               }
               window_spec {
-                sp_window_spec_partition_by {
+                window_spec_partition_by {
                   cols {
                     apply_expr {
                       fn {
@@ -1278,7 +1278,7 @@ body {
                     start_line: 45
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 68
                         end_line: 45
@@ -1390,9 +1390,9 @@ body {
                 start_line: 47
               }
               window_spec {
-                sp_window_spec_range_between {
+                window_spec_range_between {
                   end {
-                    sp_window_relative_position__position {
+                    window_relative_position__position {
                       n {
                         int64_val {
                           src {
@@ -1415,7 +1415,7 @@ body {
                     start_line: 47
                   }
                   start {
-                    sp_window_relative_position__position {
+                    window_relative_position__position {
                       n {
                         int64_val {
                           src {
@@ -1430,7 +1430,7 @@ body {
                     }
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 67
                         end_line: 47
@@ -1542,9 +1542,9 @@ body {
                 start_line: 49
               }
               window_spec {
-                sp_window_spec_range_between {
+                window_spec_range_between {
                   end {
-                    sp_window_relative_position__position {
+                    window_relative_position__position {
                       n {
                         int64_val {
                           src {
@@ -1567,7 +1567,7 @@ body {
                     start_line: 49
                   }
                   start {
-                    sp_window_relative_position__position {
+                    window_relative_position__position {
                       n {
                         int64_val {
                           src {
@@ -1583,7 +1583,7 @@ body {
                     }
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 68
                         end_line: 49
@@ -1695,9 +1695,9 @@ body {
                 start_line: 51
               }
               window_spec {
-                sp_window_spec_rows_between {
+                window_spec_rows_between {
                   end {
-                    sp_window_relative_position__position {
+                    window_relative_position__position {
                       n {
                         int64_val {
                           src {
@@ -1720,7 +1720,7 @@ body {
                     start_line: 51
                   }
                   start {
-                    sp_window_relative_position__position {
+                    window_relative_position__position {
                       n {
                         int64_val {
                           src {
@@ -1735,7 +1735,7 @@ body {
                     }
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 67
                         end_line: 51
@@ -1847,9 +1847,9 @@ body {
                 start_line: 53
               }
               window_spec {
-                sp_window_spec_rows_between {
+                window_spec_rows_between {
                   end {
-                    sp_window_relative_position__position {
+                    window_relative_position__position {
                       n {
                         int64_val {
                           src {
@@ -1872,7 +1872,7 @@ body {
                     start_line: 53
                   }
                   start {
-                    sp_window_relative_position__position {
+                    window_relative_position__position {
                       n {
                         int64_val {
                           src {
@@ -1888,7 +1888,7 @@ body {
                     }
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 68
                         end_line: 53
@@ -2000,9 +2000,9 @@ body {
                 start_line: 55
               }
               window_spec {
-                sp_window_spec_range_between {
+                window_spec_range_between {
                   end {
-                    sp_window_relative_position__unbounded_following: true
+                    window_relative_position__unbounded_following: true
                   }
                   src {
                     end_column: 110
@@ -2012,10 +2012,10 @@ body {
                     start_line: 55
                   }
                   start {
-                    sp_window_relative_position__current_row: true
+                    window_relative_position__current_row: true
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 110
                         end_line: 55
@@ -2127,9 +2127,9 @@ body {
                 start_line: 57
               }
               window_spec {
-                sp_window_spec_range_between {
+                window_spec_range_between {
                   end {
-                    sp_window_relative_position__unbounded_preceding: true
+                    window_relative_position__unbounded_preceding: true
                   }
                   src {
                     end_column: 109
@@ -2139,10 +2139,10 @@ body {
                     start_line: 57
                   }
                   start {
-                    sp_window_relative_position__current_row: true
+                    window_relative_position__current_row: true
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 109
                         end_line: 57
@@ -2254,9 +2254,9 @@ body {
                 start_line: 59
               }
               window_spec {
-                sp_window_spec_range_between {
+                window_spec_range_between {
                   end {
-                    sp_window_relative_position__unbounded_following: true
+                    window_relative_position__unbounded_following: true
                   }
                   src {
                     end_column: 109
@@ -2266,10 +2266,10 @@ body {
                     start_line: 59
                   }
                   start {
-                    sp_window_relative_position__current_row: true
+                    window_relative_position__current_row: true
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 109
                         end_line: 59
@@ -2381,9 +2381,9 @@ body {
                 start_line: 61
               }
               window_spec {
-                sp_window_spec_range_between {
+                window_spec_range_between {
                   end {
-                    sp_window_relative_position__unbounded_preceding: true
+                    window_relative_position__unbounded_preceding: true
                   }
                   src {
                     end_column: 108
@@ -2393,10 +2393,10 @@ body {
                     start_line: 61
                   }
                   start {
-                    sp_window_relative_position__current_row: true
+                    window_relative_position__current_row: true
                   }
                   wnd {
-                    sp_window_spec_empty {
+                    window_spec_empty {
                       src {
                         end_column: 108
                         end_line: 61

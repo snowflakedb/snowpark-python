@@ -342,21 +342,6 @@ message SaveMode {
   }
 }
 
-// window.ir:6
-message SpWindowRelativePosition {
-  oneof variant {
-    bool sp_window_relative_position__current_row = 1;
-    SpWindowRelativePosition_Position sp_window_relative_position__position = 2;
-    bool sp_window_relative_position__unbounded_following = 3;
-    bool sp_window_relative_position__unbounded_preceding = 4;
-  }
-}
-
-// window.ir:10
-message SpWindowRelativePosition_Position {
-  Expr n = 1;
-}
-
 // src.ir:1
 message SrcPosition {
   int64 end_column = 1;
@@ -418,6 +403,21 @@ message Version {
   int64 major = 2;
   int64 minor = 3;
   int64 patch = 4;
+}
+
+// window.ir:6
+message WindowRelativePosition {
+  oneof variant {
+    bool window_relative_position__current_row = 1;
+    WindowRelativePosition_Position window_relative_position__position = 2;
+    bool window_relative_position__unbounded_following = 3;
+    bool window_relative_position__unbounded_preceding = 4;
+  }
+}
+
+// window.ir:10
+message WindowRelativePosition_Position {
+  Expr n = 1;
 }
 
 message AbstractExtension {
@@ -685,7 +685,7 @@ message ColumnIsNull {
 message ColumnOver {
   Expr col = 1;
   SrcPosition src = 2;
-  SpWindowSpecExpr window_spec = 3;
+  WindowSpecExpr window_spec = 3;
 }
 
 // column.ir:83
@@ -1864,8 +1864,8 @@ message HasSrcPosition {
     FnRefExpr trait_fn_ref_expr = 12;
     MatchedClause trait_matched_clause = 13;
     RelationalGroupedDataframeExpr trait_relational_grouped_dataframe_expr = 14;
-    SpWindowSpecExpr trait_sp_window_spec_expr = 15;
-    UnaryOp trait_unary_op = 16;
+    UnaryOp trait_unary_op = 15;
+    WindowSpecExpr trait_window_spec_expr = 16;
     WriteFile trait_write_file = 17;
     Add add = 18;
     And and = 19;
@@ -2024,32 +2024,32 @@ message HasSrcPosition {
     Row row = 172;
     SeqMapVal seq_map_val = 173;
     SessionTableFunction session_table_function = 174;
-    SpWindowSpecEmpty sp_window_spec_empty = 175;
-    SpWindowSpecOrderBy sp_window_spec_order_by = 176;
-    SpWindowSpecPartitionBy sp_window_spec_partition_by = 177;
-    SpWindowSpecRangeBetween sp_window_spec_range_between = 178;
-    SpWindowSpecRowsBetween sp_window_spec_rows_between = 179;
-    Sql sql = 180;
-    SqlExpr sql_expr = 181;
-    StoredProcedure stored_procedure = 182;
-    StringVal string_val = 183;
-    Sub sub = 184;
-    Table table = 185;
-    TableDelete table_delete = 186;
-    TableDropTable table_drop_table = 187;
-    TableFnCallAlias table_fn_call_alias = 188;
-    TableFnCallOver table_fn_call_over = 189;
-    TableMerge table_merge = 190;
-    TableSample table_sample = 191;
-    TableUpdate table_update = 192;
-    ToSnowparkPandas to_snowpark_pandas = 193;
-    TruncatedDataframeExpr truncated_dataframe_expr = 194;
-    TruncatedExpr truncated_expr = 195;
-    TruncatedRelationalGroupedDataframeExpr truncated_relational_grouped_dataframe_expr = 196;
-    TupleVal tuple_val = 197;
-    Udaf udaf = 198;
-    Udf udf = 199;
-    Udtf udtf = 200;
+    Sql sql = 175;
+    SqlExpr sql_expr = 176;
+    StoredProcedure stored_procedure = 177;
+    StringVal string_val = 178;
+    Sub sub = 179;
+    Table table = 180;
+    TableDelete table_delete = 181;
+    TableDropTable table_drop_table = 182;
+    TableFnCallAlias table_fn_call_alias = 183;
+    TableFnCallOver table_fn_call_over = 184;
+    TableMerge table_merge = 185;
+    TableSample table_sample = 186;
+    TableUpdate table_update = 187;
+    ToSnowparkPandas to_snowpark_pandas = 188;
+    TruncatedDataframeExpr truncated_dataframe_expr = 189;
+    TruncatedExpr truncated_expr = 190;
+    TruncatedRelationalGroupedDataframeExpr truncated_relational_grouped_dataframe_expr = 191;
+    TupleVal tuple_val = 192;
+    Udaf udaf = 193;
+    Udf udf = 194;
+    Udtf udtf = 195;
+    WindowSpecEmpty window_spec_empty = 196;
+    WindowSpecOrderBy window_spec_order_by = 197;
+    WindowSpecPartitionBy window_spec_partition_by = 198;
+    WindowSpecRangeBetween window_spec_range_between = 199;
+    WindowSpecRowsBetween window_spec_rows_between = 200;
     WriteCopyIntoLocation write_copy_into_location = 201;
     WriteCsv write_csv = 202;
     WriteJson write_json = 203;
@@ -2395,52 +2395,6 @@ message SfQueryResult {
 message ShowResult {
 }
 
-// window.ir:18
-message SpWindowSpecEmpty {
-  SrcPosition src = 1;
-  SpWindowSpecExpr wnd = 2;
-}
-
-message SpWindowSpecExpr {
-  oneof variant {
-    SpWindowSpecEmpty sp_window_spec_empty = 1;
-    SpWindowSpecOrderBy sp_window_spec_order_by = 2;
-    SpWindowSpecPartitionBy sp_window_spec_partition_by = 3;
-    SpWindowSpecRangeBetween sp_window_spec_range_between = 4;
-    SpWindowSpecRowsBetween sp_window_spec_rows_between = 5;
-  }
-}
-
-// window.ir:20
-message SpWindowSpecOrderBy {
-  repeated Expr cols = 1;
-  SrcPosition src = 2;
-  SpWindowSpecExpr wnd = 3;
-}
-
-// window.ir:24
-message SpWindowSpecPartitionBy {
-  repeated Expr cols = 1;
-  SrcPosition src = 2;
-  SpWindowSpecExpr wnd = 3;
-}
-
-// window.ir:28
-message SpWindowSpecRangeBetween {
-  SpWindowRelativePosition end = 1;
-  SrcPosition src = 2;
-  SpWindowRelativePosition start = 3;
-  SpWindowSpecExpr wnd = 4;
-}
-
-// window.ir:33
-message SpWindowSpecRowsBetween {
-  SpWindowRelativePosition end = 1;
-  SrcPosition src = 2;
-  SpWindowRelativePosition start = 3;
-  SpWindowSpecExpr wnd = 4;
-}
-
 // dataframe.ir:105
 message Sql {
   repeated Expr params = 1;
@@ -2681,6 +2635,52 @@ message UnaryOp {
     Neg neg = 1;
     Not not = 2;
   }
+}
+
+// window.ir:18
+message WindowSpecEmpty {
+  SrcPosition src = 1;
+  WindowSpecExpr wnd = 2;
+}
+
+message WindowSpecExpr {
+  oneof variant {
+    WindowSpecEmpty window_spec_empty = 1;
+    WindowSpecOrderBy window_spec_order_by = 2;
+    WindowSpecPartitionBy window_spec_partition_by = 3;
+    WindowSpecRangeBetween window_spec_range_between = 4;
+    WindowSpecRowsBetween window_spec_rows_between = 5;
+  }
+}
+
+// window.ir:20
+message WindowSpecOrderBy {
+  repeated Expr cols = 1;
+  SrcPosition src = 2;
+  WindowSpecExpr wnd = 3;
+}
+
+// window.ir:24
+message WindowSpecPartitionBy {
+  repeated Expr cols = 1;
+  SrcPosition src = 2;
+  WindowSpecExpr wnd = 3;
+}
+
+// window.ir:28
+message WindowSpecRangeBetween {
+  WindowRelativePosition end = 1;
+  SrcPosition src = 2;
+  WindowRelativePosition start = 3;
+  WindowSpecExpr wnd = 4;
+}
+
+// window.ir:33
+message WindowSpecRowsBetween {
+  WindowRelativePosition end = 1;
+  SrcPosition src = 2;
+  WindowRelativePosition start = 3;
+  WindowSpecExpr wnd = 4;
 }
 
 // dataframe-io.ir:135
