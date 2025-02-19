@@ -285,7 +285,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -806,7 +806,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "location"
             vs: "temp_c"
           }
@@ -888,13 +888,13 @@ body {
         }
         input_types {
           list {
-            sp_string_type {
+            string_type {
               length {
               }
             }
           }
           list {
-            sp_float_type: true
+            float_type: true
           }
         }
         kwargs {
@@ -914,21 +914,21 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_pandas_data_frame_type {
+              pandas_data_frame_type {
                 col_names: "LOCATION"
                 col_names: "TEMP_C"
                 col_names: "TEMP_F"
                 col_types {
-                  sp_string_type {
+                  string_type {
                     length {
                     }
                   }
                 }
                 col_types {
-                  sp_float_type: true
+                  float_type: true
                 }
                 col_types {
-                  sp_float_type: true
+                  float_type: true
                 }
               }
             }
@@ -981,7 +981,7 @@ body {
               vs {
                 datatype_val {
                   datatype {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -998,7 +998,7 @@ body {
               vs {
                 datatype_val {
                   datatype {
-                    sp_float_type: true
+                    float_type: true
                   }
                   src {
                     end_column: 75
@@ -1054,12 +1054,12 @@ body {
           fields {
             list {
               column_identifier {
-                sp_column_name {
+                column_name {
                   name: "location"
                 }
               }
               data_type {
-                sp_string_type {
+                string_type {
                   length {
                   }
                 }
@@ -1068,23 +1068,23 @@ body {
             }
             list {
               column_identifier {
-                sp_column_name {
+                column_name {
                   name: "temp_c"
                 }
               }
               data_type {
-                sp_float_type: true
+                float_type: true
               }
               nullable: true
             }
             list {
               column_identifier {
-                sp_column_name {
+                column_name {
                   name: "temp_f"
                 }
               }
               data_type {
-                sp_float_type: true
+                float_type: true
               }
               nullable: true
             }
@@ -1370,7 +1370,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "empid"
             vs: "team"
             vs: "amount"

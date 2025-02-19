@@ -19,20 +19,20 @@ message InternedValueTable {
   map<int32, string> string_values = 1;
 }
 
+message List_DataType {
+  repeated DataType list = 1;
+}
+
 message List_Expr {
   repeated Expr list = 1;
 }
 
-message List_SpDataType {
-  repeated SpDataType list = 1;
-}
-
-message List_SpStructField {
-  repeated SpStructField list = 1;
-}
-
 message List_String {
   repeated string list = 1;
+}
+
+message List_StructField {
+  repeated StructField list = 1;
 }
 
 message Map_Expr_Expr {
@@ -84,6 +84,113 @@ message ColumnAliasFn {
   }
 }
 
+// type.ir:31
+message ColumnRef {
+  oneof sealed_value {
+    ColumnIdentifier column_identifier = 1;
+    ColumnName column_name = 2;
+  }
+}
+
+// type.ir:32
+message ColumnIdentifier {
+  string name = 1;
+}
+
+// type.ir:33
+message ColumnName {
+  string name = 1;
+}
+
+// type.ir:1
+message DataType {
+  oneof variant {
+    ArrayType array_type = 1;
+    bool binary_type = 2;
+    bool boolean_type = 3;
+    bool byte_type = 4;
+    bool date_type = 5;
+    DecimalType decimal_type = 6;
+    bool double_type = 7;
+    bool float_type = 8;
+    bool geography_type = 9;
+    bool geometry_type = 10;
+    bool integer_type = 11;
+    bool long_type = 12;
+    MapType map_type = 13;
+    bool null_type = 14;
+    PandasDataFrameType pandas_data_frame_type = 15;
+    PandasSeriesType pandas_series_type = 16;
+    bool short_type = 17;
+    StringType string_type = 18;
+    StructField struct_field = 19;
+    StructType struct_type = 20;
+    bool time_type = 21;
+    TimestampType timestamp_type = 22;
+    bool variant_type = 23;
+    VectorType vector_type = 24;
+  }
+}
+
+// type.ir:3
+message ArrayType {
+  bool structured = 1;
+  DataType ty = 2;
+}
+
+// type.ir:8
+message DecimalType {
+  int64 precision = 1;
+  int64 scale = 2;
+}
+
+// type.ir:15
+message MapType {
+  DataType key_ty = 1;
+  bool structured = 2;
+  DataType value_ty = 3;
+}
+
+// type.ir:18
+message StringType {
+  google.protobuf.Int64Value length = 1;
+}
+
+// type.ir:19
+message StructField {
+  ColumnRef column_identifier = 1;
+  DataType data_type = 2;
+  bool nullable = 3;
+}
+
+// type.ir:20
+message StructType {
+  List_StructField fields = 1;
+  bool structured = 2;
+}
+
+// type.ir:22
+message TimestampType {
+  TimestampTimeZone time_zone = 1;
+}
+
+// type.ir:24
+message VectorType {
+  int64 dimension = 1;
+  DataType ty = 2;
+}
+
+// type.ir:26
+message PandasSeriesType {
+  DataType el_ty = 1;
+}
+
+// type.ir:27
+message PandasDataFrameType {
+  repeated string col_names = 1;
+  repeated DataType col_types = 2;
+}
+
 // dataframe.ir:73
 message DataframeData {
   oneof sealed_value {
@@ -106,6 +213,24 @@ message DataframeData_Tuple {
 // dataframe.ir:76
 message DataframeData_Pandas {
   StagedPandasDataframe v = 1;
+}
+
+// type.ir:43
+message DataframeSchema {
+  oneof sealed_value {
+    DataframeSchema_List dataframe_schema__list = 1;
+    DataframeSchema_Struct dataframe_schema__struct = 2;
+  }
+}
+
+// type.ir:44
+message DataframeSchema_List {
+  repeated string vs = 1;
+}
+
+// type.ir:45
+message DataframeSchema_Struct {
+  StructType v = 1;
 }
 
 // dataframe.ir:91
@@ -217,141 +342,6 @@ message SaveMode {
   }
 }
 
-// type.ir:31
-message SpColumnRef {
-  oneof sealed_value {
-    SpColumnIdentifier sp_column_identifier = 1;
-    SpColumnName sp_column_name = 2;
-  }
-}
-
-// type.ir:32
-message SpColumnIdentifier {
-  string name = 1;
-}
-
-// type.ir:33
-message SpColumnName {
-  string name = 1;
-}
-
-// type.ir:1
-message SpDataType {
-  oneof variant {
-    SpArrayType sp_array_type = 1;
-    bool sp_binary_type = 2;
-    bool sp_boolean_type = 3;
-    bool sp_byte_type = 4;
-    bool sp_date_type = 5;
-    SpDecimalType sp_decimal_type = 6;
-    bool sp_double_type = 7;
-    bool sp_float_type = 8;
-    bool sp_geography_type = 9;
-    bool sp_geometry_type = 10;
-    bool sp_integer_type = 11;
-    bool sp_long_type = 12;
-    SpMapType sp_map_type = 13;
-    bool sp_null_type = 14;
-    SpPandasDataFrameType sp_pandas_data_frame_type = 15;
-    SpPandasSeriesType sp_pandas_series_type = 16;
-    bool sp_short_type = 17;
-    SpStringType sp_string_type = 18;
-    SpStructField sp_struct_field = 19;
-    SpStructType sp_struct_type = 20;
-    bool sp_time_type = 21;
-    SpTimestampType sp_timestamp_type = 22;
-    bool sp_variant_type = 23;
-    SpVectorType sp_vector_type = 24;
-  }
-}
-
-// type.ir:3
-message SpArrayType {
-  bool structured = 1;
-  SpDataType ty = 2;
-}
-
-// type.ir:8
-message SpDecimalType {
-  int64 precision = 1;
-  int64 scale = 2;
-}
-
-// type.ir:15
-message SpMapType {
-  SpDataType key_ty = 1;
-  bool structured = 2;
-  SpDataType value_ty = 3;
-}
-
-// type.ir:18
-message SpStringType {
-  google.protobuf.Int64Value length = 1;
-}
-
-// type.ir:19
-message SpStructField {
-  SpColumnRef column_identifier = 1;
-  SpDataType data_type = 2;
-  bool nullable = 3;
-}
-
-// type.ir:20
-message SpStructType {
-  List_SpStructField fields = 1;
-  bool structured = 2;
-}
-
-// type.ir:22
-message SpTimestampType {
-  SpTimestampTimeZone time_zone = 1;
-}
-
-// type.ir:24
-message SpVectorType {
-  int64 dimension = 1;
-  SpDataType ty = 2;
-}
-
-// type.ir:26
-message SpPandasSeriesType {
-  SpDataType el_ty = 1;
-}
-
-// type.ir:27
-message SpPandasDataFrameType {
-  repeated string col_names = 1;
-  repeated SpDataType col_types = 2;
-}
-
-// type.ir:43
-message SpDataframeSchema {
-  oneof sealed_value {
-    SpDataframeSchema_List sp_dataframe_schema__list = 1;
-    SpDataframeSchema_Struct sp_dataframe_schema__struct = 2;
-  }
-}
-
-// type.ir:44
-message SpDataframeSchema_List {
-  repeated string vs = 1;
-}
-
-// type.ir:45
-message SpDataframeSchema_Struct {
-  SpStructType v = 1;
-}
-
-// type.ir:36
-message SpTimestampTimeZone {
-  oneof variant {
-    bool sp_timestamp_time_zone_default = 1;
-    bool sp_timestamp_time_zone_ltz = 2;
-    bool sp_timestamp_time_zone_ntz = 3;
-    bool sp_timestamp_time_zone_tz = 4;
-  }
-}
-
 // window.ir:6
 message SpWindowRelativePosition {
   oneof variant {
@@ -389,6 +379,16 @@ message TableVariant {
   }
 }
 
+// type.ir:36
+message TimestampTimeZone {
+  oneof variant {
+    bool timestamp_time_zone_default = 1;
+    bool timestamp_time_zone_ltz = 2;
+    bool timestamp_time_zone_ntz = 3;
+    bool timestamp_time_zone_tz = 4;
+  }
+}
+
 // fn.ir:86
 message UdtfSchema {
   oneof sealed_value {
@@ -399,7 +399,7 @@ message UdtfSchema {
 
 // fn.ir:87
 message UdtfSchema_Type {
-  SpDataType return_type = 1;
+  DataType return_type = 1;
 }
 
 // fn.ir:88
@@ -613,7 +613,7 @@ message ColumnCaseExprClause {
 message ColumnCast {
   Expr col = 1;
   SrcPosition src = 2;
-  SpDataType to = 3;
+  DataType to = 3;
 }
 
 // column.ir:58
@@ -743,7 +743,7 @@ message ColumnStringSubstr {
 message ColumnTryCast {
   Expr col = 1;
   SrcPosition src = 2;
-  SpDataType to = 3;
+  DataType to = 3;
 }
 
 // column.ir:113
@@ -774,7 +774,7 @@ message Const {
 // dataframe.ir:53
 message CreateDataframe {
   DataframeData data = 1;
-  SpDataframeSchema schema = 2;
+  DataframeSchema schema = 2;
   SrcPosition src = 3;
 }
 
@@ -1231,7 +1231,7 @@ message DataframeReaderOptions {
 // dataframe-io.ir:23
 message DataframeReaderSchema {
   DataframeReader reader = 1;
-  SpStructType schema = 2;
+  StructType schema = 2;
   SrcPosition src = 3;
 }
 
@@ -1460,7 +1460,7 @@ message DataframeWriter {
 
 // const.ir:46
 message DatatypeVal {
-  SpDataType datatype = 1;
+  DataType datatype = 1;
   SrcPosition src = 2;
 }
 
@@ -2297,7 +2297,7 @@ message RelationalGroupedDataframeApplyInPandas {
   Callable func = 1;
   RelationalGroupedDataframeExpr grouped_df = 2;
   repeated Tuple_String_Expr kwargs = 3;
-  SpStructType output_schema = 4;
+  StructType output_schema = 4;
   SrcPosition src = 5;
 }
 
@@ -2471,7 +2471,7 @@ message StoredProcedure {
   Callable func = 4;
   bool if_not_exists = 5;
   repeated NameRef imports = 6;
-  List_SpDataType input_types = 7;
+  List_DataType input_types = 7;
   bool is_permanent = 8;
   repeated Tuple_String_Expr kwargs = 9;
   google.protobuf.BoolValue log_on_exception = 10;
@@ -2479,7 +2479,7 @@ message StoredProcedure {
   repeated string packages = 12;
   int64 parallel = 13;
   bool replace = 14;
-  SpDataType return_type = 15;
+  DataType return_type = 15;
   repeated Tuple_String_String secrets = 16;
   bool source_code_display = 17;
   SrcPosition src = 18;
@@ -2612,14 +2612,14 @@ message Udaf {
   bool if_not_exists = 4;
   bool immutable = 5;
   repeated NameRef imports = 6;
-  List_SpDataType input_types = 7;
+  List_DataType input_types = 7;
   bool is_permanent = 8;
   repeated Tuple_String_Expr kwargs = 9;
   NameRef name = 10;
   repeated string packages = 11;
   int64 parallel = 12;
   bool replace = 13;
-  SpDataType return_type = 14;
+  DataType return_type = 14;
   repeated Tuple_String_String secrets = 15;
   SrcPosition src = 16;
   google.protobuf.StringValue stage_location = 17;
@@ -2634,7 +2634,7 @@ message Udf {
   bool if_not_exists = 4;
   bool immutable = 5;
   repeated NameRef imports = 6;
-  List_SpDataType input_types = 7;
+  List_DataType input_types = 7;
   bool is_permanent = 8;
   repeated Tuple_String_Expr kwargs = 9;
   google.protobuf.Int64Value max_batch_size = 10;
@@ -2642,7 +2642,7 @@ message Udf {
   repeated string packages = 12;
   int64 parallel = 13;
   bool replace = 14;
-  SpDataType return_type = 15;
+  DataType return_type = 15;
   repeated Tuple_String_String secrets = 16;
   bool secure = 17;
   bool source_code_display = 18;
@@ -2660,7 +2660,7 @@ message Udtf {
   bool if_not_exists = 4;
   bool immutable = 5;
   repeated NameRef imports = 6;
-  List_SpDataType input_types = 7;
+  List_DataType input_types = 7;
   bool is_permanent = 8;
   repeated Tuple_String_Expr kwargs = 9;
   NameRef name = 10;

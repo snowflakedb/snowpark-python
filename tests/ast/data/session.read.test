@@ -494,23 +494,23 @@ body {
               fields {
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "a"
                     }
                   }
                   data_type {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                   nullable: true
                 }
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "b"
                     }
                   }
                   data_type {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -519,12 +519,12 @@ body {
                 }
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "c"
                     }
                   }
                   data_type {
-                    sp_float_type: true
+                    float_type: true
                   }
                   nullable: true
                 }

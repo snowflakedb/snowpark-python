@@ -214,19 +214,19 @@ body {
         }
         input_types {
           list {
-            sp_string_type {
+            string_type {
               length {
               }
             }
           }
           list {
-            sp_string_type {
+            string_type {
               length {
               }
             }
           }
           list {
-            sp_long_type: true
+            long_type: true
           }
         }
         name {
@@ -239,7 +239,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_string_type {
+          string_type {
             length {
             }
           }
@@ -365,7 +365,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -493,7 +493,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -1122,12 +1122,12 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         parallel: 2
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -1383,10 +1383,10 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         is_permanent: true
@@ -1400,7 +1400,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -1497,10 +1497,10 @@ body {
         if_not_exists: true
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         is_permanent: true
@@ -1513,7 +1513,7 @@ body {
         }
         parallel: 4
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -1610,10 +1610,10 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         is_permanent: true
@@ -1627,7 +1627,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         secrets {
           _1: "a"
@@ -1732,14 +1732,14 @@ body {
         }
         input_types {
           list {
-            sp_float_type: true
+            float_type: true
           }
         }
         packages: "snowflake-snowpark-python"
         packages: "numpy"
         parallel: 4
         return_type {
-          sp_float_type: true
+          float_type: true
         }
         source_code_display: true
         src {
@@ -1829,35 +1829,35 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         parallel: 4
         return_type {
-          sp_struct_type {
+          struct_type {
             fields {
               list {
                 column_identifier {
-                  sp_column_name {
+                  column_name {
                     name: "A"
                   }
                 }
                 data_type {
-                  sp_integer_type: true
+                  integer_type: true
                 }
                 nullable: true
               }
               list {
                 column_identifier {
-                  sp_column_name {
+                  column_name {
                     name: "B"
                   }
                 }
                 data_type {
-                  sp_integer_type: true
+                  integer_type: true
                 }
                 nullable: true
               }
@@ -2000,15 +2000,15 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         parallel: 4
         return_type {
-          sp_struct_type {
+          struct_type {
             fields {
             }
           }
@@ -2148,15 +2148,15 @@ body {
         }
         input_types {
           list {
-            sp_long_type: true
+            long_type: true
           }
           list {
-            sp_long_type: true
+            long_type: true
           }
         }
         parallel: 4
         return_type {
-          sp_struct_type {
+          struct_type {
             fields {
             }
           }

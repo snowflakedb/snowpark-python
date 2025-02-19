@@ -135,7 +135,7 @@ body {
                 start_line: 27
               }
               to {
-                sp_string_type {
+                string_type {
                   length {
                     value: 42
                   }
@@ -219,9 +219,9 @@ body {
                 start_line: 29
               }
               to {
-                sp_timestamp_type {
+                timestamp_type {
                   time_zone {
-                    sp_timestamp_time_zone_ntz: true
+                    timestamp_time_zone_ntz: true
                   }
                 }
               }
@@ -303,9 +303,9 @@ body {
                 start_line: 31
               }
               to {
-                sp_timestamp_type {
+                timestamp_type {
                   time_zone {
-                    sp_timestamp_time_zone_ltz: true
+                    timestamp_time_zone_ltz: true
                   }
                 }
               }
@@ -387,9 +387,9 @@ body {
                 start_line: 33
               }
               to {
-                sp_timestamp_type {
+                timestamp_type {
                   time_zone {
-                    sp_timestamp_time_zone_tz: true
+                    timestamp_time_zone_tz: true
                   }
                 }
               }
@@ -471,10 +471,10 @@ body {
                 start_line: 35
               }
               to {
-                sp_array_type {
+                array_type {
                   structured: true
                   ty {
-                    sp_geometry_type: true
+                    geometry_type: true
                   }
                 }
               }
@@ -556,13 +556,13 @@ body {
                 start_line: 37
               }
               to {
-                sp_map_type {
+                map_type {
                   key_ty {
-                    sp_geography_type: true
+                    geography_type: true
                   }
                   structured: true
                   value_ty {
-                    sp_variant_type: true
+                    variant_type: true
                   }
                 }
               }
@@ -644,10 +644,10 @@ body {
                 start_line: 39
               }
               to {
-                sp_vector_type {
+                vector_type {
                   dimension: 64
                   ty {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                 }
               }
@@ -729,16 +729,16 @@ body {
                 start_line: 41
               }
               to {
-                sp_struct_type {
+                struct_type {
                   fields {
                     list {
                       column_identifier {
-                        sp_column_identifier {
+                        column_identifier {
                           name: "test1"
                         }
                       }
                       data_type {
-                        sp_string_type {
+                        string_type {
                           length {
                           }
                         }
@@ -746,25 +746,25 @@ body {
                     }
                     list {
                       column_identifier {
-                        sp_column_name {
+                        column_name {
                           name: "test2"
                         }
                       }
                       data_type {
-                        sp_integer_type: true
+                        integer_type: true
                       }
                       nullable: true
                     }
                     list {
                       column_identifier {
-                        sp_column_identifier {
+                        column_identifier {
                           name: "test3"
                         }
                       }
                       data_type {
-                        sp_array_type {
+                        array_type {
                           ty {
-                            sp_long_type: true
+                            long_type: true
                           }
                         }
                       }
@@ -772,23 +772,23 @@ body {
                     }
                     list {
                       column_identifier {
-                        sp_column_name {
+                        column_name {
                           name: "test4"
                         }
                       }
                       data_type {
-                        sp_map_type {
+                        map_type {
                           key_ty {
-                            sp_decimal_type {
+                            decimal_type {
                               precision: 42
                               scale: 23
                             }
                           }
                           value_ty {
-                            sp_vector_type {
+                            vector_type {
                               dimension: 64
                               ty {
-                                sp_float_type: true
+                                float_type: true
                               }
                             }
                           }

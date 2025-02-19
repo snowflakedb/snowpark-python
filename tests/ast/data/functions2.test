@@ -18046,7 +18046,7 @@ body {
               pos_args {
                 datatype_val {
                   datatype {
-                    sp_long_type: true
+                    long_type: true
                   }
                   src {
                     end_column: 65
@@ -18172,7 +18172,7 @@ body {
               pos_args {
                 datatype_val {
                   datatype {
-                    sp_long_type: true
+                    long_type: true
                   }
                   src {
                     end_column: 73

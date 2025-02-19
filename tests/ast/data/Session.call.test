@@ -54,24 +54,24 @@ body {
         }
         input_types {
           list {
-            sp_long_type: true
+            long_type: true
           }
           list {
-            sp_string_type {
+            string_type {
               length {
               }
             }
           }
           list {
-            sp_map_type {
+            map_type {
               key_ty {
-                sp_string_type {
+                string_type {
                   length {
                   }
                 }
               }
               value_ty {
-                sp_string_type {
+                string_type {
                   length {
                   }
                 }
@@ -79,7 +79,7 @@ body {
             }
           }
           list {
-            sp_boolean_type: true
+            boolean_type: true
           }
         }
         name {
@@ -92,7 +92,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_string_type {
+          string_type {
             length {
             }
           }

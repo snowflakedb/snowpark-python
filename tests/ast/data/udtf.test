@@ -156,7 +156,7 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         kwargs {
@@ -176,16 +176,16 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
                   list {
                     column_identifier {
-                      sp_column_name {
+                      column_name {
                         name: "number"
                       }
                     }
                     data_type {
-                      sp_integer_type: true
+                      integer_type: true
                     }
                     nullable: true
                   }
@@ -365,10 +365,10 @@ body {
         }
         input_types {
           list {
-            sp_long_type: true
+            long_type: true
           }
           list {
-            sp_long_type: true
+            long_type: true
           }
         }
         kwargs {
@@ -388,16 +388,16 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
                   list {
                     column_identifier {
-                      sp_column_name {
+                      column_name {
                         name: "number"
                       }
                     }
                     data_type {
-                      sp_long_type: true
+                      long_type: true
                     }
                     nullable: true
                   }
@@ -503,7 +503,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -704,7 +704,7 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         kwargs {
@@ -724,16 +724,16 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
                   list {
                     column_identifier {
-                      sp_column_name {
+                      column_name {
                         name: "number"
                       }
                     }
                     data_type {
-                      sp_integer_type: true
+                      integer_type: true
                     }
                     nullable: true
                   }
@@ -933,10 +933,10 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_long_type: true
+            long_type: true
           }
         }
         is_permanent: true
@@ -979,27 +979,27 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
                   list {
                     column_identifier {
-                      sp_column_name {
+                      column_name {
                         name: "a"
                       }
                     }
                     data_type {
-                      sp_long_type: true
+                      long_type: true
                     }
                     nullable: true
                   }
                   list {
                     column_identifier {
-                      sp_column_name {
+                      column_name {
                         name: "b"
                       }
                     }
                     data_type {
-                      sp_long_type: true
+                      long_type: true
                     }
                     nullable: true
                   }
@@ -1291,7 +1291,7 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         kwargs {
@@ -1311,16 +1311,16 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
                   list {
                     column_identifier {
-                      sp_column_name {
+                      column_name {
                         name: "two_x"
                       }
                     }
                     data_type {
-                      sp_integer_type: true
+                      integer_type: true
                     }
                     nullable: true
                   }
@@ -1488,7 +1488,7 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         kwargs {
@@ -1508,27 +1508,27 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
                   list {
                     column_identifier {
-                      sp_column_name {
+                      column_name {
                         name: "two_x"
                       }
                     }
                     data_type {
-                      sp_integer_type: true
+                      integer_type: true
                     }
                     nullable: true
                   }
                   list {
                     column_identifier {
-                      sp_column_name {
+                      column_name {
                         name: "six_x"
                       }
                     }
                     data_type {
-                      sp_integer_type: true
+                      integer_type: true
                     }
                     nullable: true
                   }

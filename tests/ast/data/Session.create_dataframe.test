@@ -418,7 +418,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -520,28 +520,28 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "a"
                     }
                   }
                   data_type {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                   nullable: true
                 }
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "b"
                     }
                   }
                   data_type {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -627,7 +627,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -717,7 +717,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
             vs: "c"
@@ -821,7 +821,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }

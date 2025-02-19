@@ -207,7 +207,7 @@ body {
                 start_line: 27
               }
               to {
-                sp_null_type: true
+                null_type: true
               }
             }
           }
@@ -287,7 +287,7 @@ body {
                 start_line: 29
               }
               to {
-                sp_binary_type: true
+                binary_type: true
               }
             }
           }
@@ -367,7 +367,7 @@ body {
                 start_line: 31
               }
               to {
-                sp_boolean_type: true
+                boolean_type: true
               }
             }
           }
@@ -447,7 +447,7 @@ body {
                 start_line: 33
               }
               to {
-                sp_date_type: true
+                date_type: true
               }
             }
           }
@@ -527,7 +527,7 @@ body {
                 start_line: 35
               }
               to {
-                sp_string_type {
+                string_type {
                   length {
                   }
                 }
@@ -610,7 +610,7 @@ body {
                 start_line: 37
               }
               to {
-                sp_byte_type: true
+                byte_type: true
               }
             }
           }
@@ -690,7 +690,7 @@ body {
                 start_line: 39
               }
               to {
-                sp_short_type: true
+                short_type: true
               }
             }
           }
@@ -770,7 +770,7 @@ body {
                 start_line: 41
               }
               to {
-                sp_integer_type: true
+                integer_type: true
               }
             }
           }
@@ -850,7 +850,7 @@ body {
                 start_line: 43
               }
               to {
-                sp_long_type: true
+                long_type: true
               }
             }
           }
@@ -930,7 +930,7 @@ body {
                 start_line: 45
               }
               to {
-                sp_float_type: true
+                float_type: true
               }
             }
           }
@@ -1010,7 +1010,7 @@ body {
                 start_line: 47
               }
               to {
-                sp_double_type: true
+                double_type: true
               }
             }
           }
@@ -1090,9 +1090,9 @@ body {
                 start_line: 49
               }
               to {
-                sp_timestamp_type {
+                timestamp_type {
                   time_zone {
-                    sp_timestamp_time_zone_default: true
+                    timestamp_time_zone_default: true
                   }
                 }
               }
@@ -1174,7 +1174,7 @@ body {
                 start_line: 51
               }
               to {
-                sp_time_type: true
+                time_type: true
               }
             }
           }
@@ -1254,9 +1254,9 @@ body {
                 start_line: 53
               }
               to {
-                sp_array_type {
+                array_type {
                   ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -1341,15 +1341,15 @@ body {
                 start_line: 55
               }
               to {
-                sp_map_type {
+                map_type {
                   key_ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
                   }
                   value_ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -1434,10 +1434,10 @@ body {
                 start_line: 57
               }
               to {
-                sp_vector_type {
+                vector_type {
                   dimension: 42
                   ty {
-                    sp_float_type: true
+                    float_type: true
                   }
                 }
               }
@@ -1519,7 +1519,7 @@ body {
                 start_line: 59
               }
               to {
-                sp_struct_type {
+                struct_type {
                   fields {
                   }
                 }
@@ -1602,7 +1602,7 @@ body {
                 start_line: 61
               }
               to {
-                sp_variant_type: true
+                variant_type: true
               }
             }
           }
@@ -1682,7 +1682,7 @@ body {
                 start_line: 63
               }
               to {
-                sp_geography_type: true
+                geography_type: true
               }
             }
           }
@@ -1762,7 +1762,7 @@ body {
                 start_line: 65
               }
               to {
-                sp_geometry_type: true
+                geometry_type: true
               }
             }
           }
@@ -1842,7 +1842,7 @@ body {
                 start_line: 67
               }
               to {
-                sp_integer_type: true
+                integer_type: true
               }
             }
           }
@@ -1922,7 +1922,7 @@ body {
                 start_line: 69
               }
               to {
-                sp_short_type: true
+                short_type: true
               }
             }
           }
@@ -2002,7 +2002,7 @@ body {
                 start_line: 71
               }
               to {
-                sp_byte_type: true
+                byte_type: true
               }
             }
           }
@@ -2082,7 +2082,7 @@ body {
                 start_line: 73
               }
               to {
-                sp_long_type: true
+                long_type: true
               }
             }
           }
@@ -2162,7 +2162,7 @@ body {
                 start_line: 75
               }
               to {
-                sp_decimal_type {
+                decimal_type {
                   precision: 38
                 }
               }
@@ -2244,7 +2244,7 @@ body {
                 start_line: 77
               }
               to {
-                sp_decimal_type {
+                decimal_type {
                   precision: 38
                 }
               }
@@ -2326,15 +2326,15 @@ body {
                 start_line: 79
               }
               to {
-                sp_map_type {
+                map_type {
                   key_ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
                   }
                   value_ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }

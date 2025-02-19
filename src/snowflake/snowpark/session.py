@@ -3322,7 +3322,7 @@ class Session:
                         ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                     )
                     build_proto_from_struct_type(
-                        table.schema, ast.schema.sp_dataframe_schema__struct.v
+                        table.schema, ast.schema.dataframe_schema__struct.v
                     )
                     table._ast_id = stmt.var_id.bitfield1
 
@@ -3584,7 +3584,7 @@ class Session:
                     ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                 )
                 build_proto_from_struct_type(
-                    table.schema, ast.schema.sp_dataframe_schema__struct.v
+                    table.schema, ast.schema.dataframe_schema__struct.v
                 )
 
                 table._ast_id = stmt.var_id.bitfield1
@@ -3614,10 +3614,10 @@ class Session:
             if schema is not None:
                 if isinstance(schema, list):
                     for name in schema:
-                        ast.schema.sp_dataframe_schema__list.vs.append(name)
+                        ast.schema.dataframe_schema__list.vs.append(name)
                 elif isinstance(schema, StructType):
                     build_proto_from_struct_type(
-                        schema, ast.schema.sp_dataframe_schema__struct.v
+                        schema, ast.schema.dataframe_schema__struct.v
                     )
 
             df._ast_id = stmt.var_id.bitfield1

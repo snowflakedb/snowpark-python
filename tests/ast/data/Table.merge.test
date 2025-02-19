@@ -198,28 +198,28 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "num"
                     }
                   }
                   data_type {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                   nullable: true
                 }
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "str"
                     }
                   }
                   data_type {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }

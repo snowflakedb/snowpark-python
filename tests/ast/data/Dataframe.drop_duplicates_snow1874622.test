@@ -405,27 +405,27 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "id"
                     }
                   }
                   data_type {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                 }
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "name"
                     }
                   }
                   data_type {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -434,12 +434,12 @@ body {
                 }
                 list {
                   column_identifier {
-                    sp_column_name {
+                    column_name {
                       name: "age"
                     }
                   }
                   data_type {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                   nullable: true
                 }

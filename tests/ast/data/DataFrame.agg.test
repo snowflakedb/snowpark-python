@@ -145,7 +145,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "A"
             vs: "B"
           }

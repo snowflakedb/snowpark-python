@@ -76,12 +76,12 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         parallel: 4
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -147,7 +147,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -318,7 +318,7 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         name {
@@ -331,7 +331,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -529,10 +529,10 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_float_type: true
+            float_type: true
           }
         }
         is_permanent: true
@@ -565,7 +565,7 @@ body {
         parallel: 8
         replace: true
         return_type {
-          sp_variant_type: true
+          variant_type: true
         }
         secrets {
           _1: "a"
@@ -626,10 +626,10 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_float_type: true
+            float_type: true
           }
         }
         is_permanent: true
@@ -661,7 +661,7 @@ body {
         packages: "bla"
         parallel: 8
         return_type {
-          sp_variant_type: true
+          variant_type: true
         }
         secrets {
           _1: "a"

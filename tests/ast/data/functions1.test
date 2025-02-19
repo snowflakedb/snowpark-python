@@ -8572,7 +8572,7 @@ body {
                     start_line: 163
                   }
                   to {
-                    sp_float_type: true
+                    float_type: true
                   }
                 }
               }
@@ -8676,7 +8676,7 @@ body {
                     start_line: 163
                   }
                   to {
-                    sp_float_type: true
+                    float_type: true
                   }
                 }
               }

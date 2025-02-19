@@ -321,7 +321,7 @@ def build_expr_from_python_val(
             "TODO SNOW-1629946: Implement TableFunctionCall with args."
         )
     elif isinstance(obj, snowflake.snowpark._internal.type_utils.DataType):
-        ast = with_src_position(expr_builder.datatype_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpDatatypeVal"; expected "Expr"
+        ast = with_src_position(expr_builder.datatype_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "DataTypeVal"; expected "Expr"
         obj._fill_ast(ast.datatype)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast", "Expr" has no attribute "datatype"
     elif isinstance(obj, snowflake.snowpark._internal.analyzer.expression.Literal):
         build_expr_from_python_val(expr_builder, obj.value)
@@ -331,7 +331,7 @@ def build_expr_from_python_val(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_struct_type(
-    schema: "snowflake.snowpark.types.StructType", expr: proto.SpStructType
+    schema: "snowflake.snowpark.types.StructType", expr: proto.StructType
 ) -> None:  # pragma: no cover
     from snowflake.snowpark.types import StructType
 
@@ -341,11 +341,11 @@ def build_proto_from_struct_type(
     for field in schema.fields:
         ast_field = expr.fields.list.add()
         if isinstance(field.original_column_identifier, str):
-            ast_field.column_identifier.sp_column_name.name = (
+            ast_field.column_identifier.column_name.name = (
                 field.original_column_identifier
             )
         else:
-            field.column_identifier._fill_ast(ast_field.column_identifier.sp_column_identifier)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "ColumnIdentifier" has no attribute "_fill_ast"
+            field.column_identifier._fill_ast(ast_field.column_identifier.column_identifier)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "ColumnIdentifier" has no attribute "_fill_ast"
         field.datatype._fill_ast(ast_field.data_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
         ast_field.nullable = field.nullable
 
