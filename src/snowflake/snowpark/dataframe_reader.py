@@ -1294,6 +1294,9 @@ class DataFrameReader:
                 thread_executor.shutdown(wait=True)
                 raise
 
+            logger.info(
+                "All data has been successfully loaded into the Snowflake table."
+            )
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
                 DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
             )
