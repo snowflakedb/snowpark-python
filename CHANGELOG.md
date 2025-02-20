@@ -59,7 +59,7 @@
 
 - Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 - Fixed a bug in when statements that caused incorrect results in the otherwise clause.
-
+- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
 
 
 
