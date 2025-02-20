@@ -2,7 +2,9 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import functools
+import math
 import os
+import queue
 import tempfile
 import time
 import datetime
@@ -15,6 +17,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.dataframe_reader import (
     _task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
+    _task_fetch_from_data_source,
 )
 from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
@@ -22,6 +25,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     STATEMENT_PARAMS_DATA_SOURCE,
     DBMS_TYPE,
     generate_sql_with_predicates,
+    infer_data_source_schema,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -48,13 +52,13 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_all_type_small_data,
     sql_server_create_connection,
     sql_server_create_connection_small_data,
+    sql_server_create_connection_with_exception,
     sqlite3_db,
     create_connection_to_sqlite3_db,
     oracledb_all_type_data_result,
     oracledb_create_connection,
     oracledb_all_type_small_data_result,
     oracledb_create_connection_small_data,
-    fake_detect_dbms_pyodbc,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -68,6 +72,7 @@ ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
 
 
 def fake_task_fetch_from_data_source_with_retry(
+    parquet_file_queue,
     create_connection,
     query,
     schema,
@@ -93,103 +98,52 @@ def upload_and_copy_into_table_with_retry(
 
 
 def test_dbapi_with_temp_table(session):
-    with mock.patch(
-        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
-        new=fake_detect_dbms_pyodbc,
-    ):
-        df = session.read.dbapi(
-            sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
-        )
-        assert df.collect() == sql_server_all_type_data
+    df = session.read.dbapi(
+        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
+    )
+    assert df.collect() == sql_server_all_type_data
 
 
 def test_dbapi_oracledb(session):
-    with mock.patch(
-        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
-        new=fake_detect_dbms_pyodbc,
-    ):
-        df = session.read.dbapi(
-            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
-        )
-        assert df.collect() == oracledb_all_type_data_result
+    df = session.read.dbapi(
+        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
+    )
+    assert df.collect() == oracledb_all_type_data_result
 
 
-def test_dbapi_batch_fetch_oracledb(session):
-    with mock.patch(
-        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
-        new=fake_detect_dbms_pyodbc,
-    ):
-        df = session.read.dbapi(
-            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=1
-        )
-        assert df.collect() == oracledb_all_type_data_result
-
-        df = session.read.dbapi(
-            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=3
-        )
-        assert df.collect() == oracledb_all_type_data_result
-
-        df = session.read.dbapi(
+@pytest.mark.parametrize(
+    "create_connection, table_name, expected_result",
+    [
+        (
+            oracledb_create_connection,
+            ORACLEDB_TABLE_NAME,
+            oracledb_all_type_data_result,
+        ),
+        (
             oracledb_create_connection_small_data,
             ORACLEDB_TABLE_NAME,
-            max_workers=4,
-            fetch_size=1,
-        )
-        assert df.collect() == oracledb_all_type_small_data_result
-
-        df = session.read.dbapi(
-            oracledb_create_connection_small_data,
-            ORACLEDB_TABLE_NAME,
-            max_workers=4,
-            fetch_size=3,
-        )
-        assert df.collect() == oracledb_all_type_small_data_result
-
-
-def test_dbapi_batch_fetch(session):
-    with mock.patch(
-        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
-        new=fake_detect_dbms_pyodbc,
-    ):
-        df = session.read.dbapi(
-            sql_server_create_connection,
-            SQL_SERVER_TABLE_NAME,
-            max_workers=4,
-            fetch_size=1,
-        )
-        assert df.collect() == sql_server_all_type_data
-
-        df = session.read.dbapi(
-            sql_server_create_connection,
-            SQL_SERVER_TABLE_NAME,
-            max_workers=4,
-            fetch_size=3,
-        )
-        assert df.collect() == sql_server_all_type_data
-
-        df = session.read.dbapi(
+            oracledb_all_type_small_data_result,
+        ),
+        (sql_server_create_connection, SQL_SERVER_TABLE_NAME, sql_server_all_type_data),
+        (
             sql_server_create_connection_small_data,
             SQL_SERVER_TABLE_NAME,
-            max_workers=4,
-            fetch_size=1,
-        )
-        assert df.collect() == sql_server_all_type_small_data
-
-        df = session.read.dbapi(
-            sql_server_create_connection_small_data,
-            SQL_SERVER_TABLE_NAME,
-            max_workers=4,
-            fetch_size=3,
-        )
-        assert df.collect() == sql_server_all_type_small_data
+            sql_server_all_type_small_data,
+        ),
+    ],
+)
+@pytest.mark.parametrize("fetch_size", [1, 3])
+def test_dbapi_batch_fetch(
+    session, create_connection, table_name, expected_result, fetch_size
+):
+    df = session.read.dbapi(
+        create_connection, table_name, max_workers=4, fetch_size=fetch_size
+    )
+    assert df.order_by("ID").collect() == expected_result
 
 
 def test_dbapi_retry(session):
-
     with mock.patch(
-        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
-        new=fake_detect_dbms_pyodbc,
-    ), mock.patch(
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
@@ -197,10 +151,11 @@ def test_dbapi_retry(session):
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
             _task_fetch_from_data_source_with_retry(
+                parquet_file_queue=queue.Queue(),
                 create_connection=sql_server_create_connection,
                 query="SELECT * FROM test_table",
                 schema=StructType([StructField("col1", IntegerType(), False)]),
-                i=0,
+                partition_idx=0,
                 tmp_dir="/tmp",
                 current_db=DBMS_TYPE.SQL_SERVER_DB,
                 driver_info="pyodbc",
@@ -208,9 +163,6 @@ def test_dbapi_retry(session):
         assert mock_task.call_count == MAX_RETRY_TIME
 
     with mock.patch(
-        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
-        new=fake_detect_dbms_pyodbc,
-    ), mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
@@ -226,39 +178,35 @@ def test_dbapi_retry(session):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
 )
 def test_parallel(session):
     num_partitions = 3
-    # this test meant to test whether ingest is fully parallelized
-    # we cannot mock this function as process pool does not all mock object
-    with mock.patch(
-        "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source_with_retry",
-        new=fake_task_fetch_from_data_source_with_retry,
-    ), mock.patch(
-        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
-        new=fake_detect_dbms_pyodbc,
-    ), mock.patch(
-        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
-        wrap=upload_and_copy_into_table_with_retry,
-    ) as mock_upload_and_copy:
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, _ = sqlite3_db(dbpath)
 
         start = time.time()
-        session.read.dbapi(
-            sql_server_create_connection,
-            SQL_SERVER_TABLE_NAME,
-            column="Id",
-            upper_bound=100,
-            lower_bound=0,
-            num_partitions=num_partitions,
-            max_workers=4,
-        )
-        end = time.time()
-        # totally time without parallel is 12 seconds
-        assert end - start < 12
-        # verify that mocked function is called for each partition
-        assert mock_upload_and_copy.call_count == num_partitions
+
+        with mock.patch(
+            "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
+            wrap=upload_and_copy_into_table_with_retry,
+        ) as mock_upload_and_copy:
+            session.read.dbapi(
+                functools.partial(create_connection_to_sqlite3_db, dbpath),
+                table_name,
+                column="id",
+                upper_bound=100,
+                lower_bound=0,
+                num_partitions=num_partitions,
+                max_workers=4,
+                custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+            )
+            # totally time without parallel is 12 seconds
+            assert time.time() - start < 12
+            assert mock_upload_and_copy.call_count == num_partitions
 
 
 def test_partition_logic(session):
@@ -426,9 +374,6 @@ def test_telemetry_tracking(caplog, session):
         "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
         side_effect=assert_datasource_statement_params_run_query,
     ), mock.patch(
-        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
-        new=fake_detect_dbms_pyodbc,
-    ), mock.patch(
         "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
     ) as mock_telemetry:
         df = session.read.dbapi(sql_server_create_connection, SQL_SERVER_TABLE_NAME)
@@ -549,3 +494,77 @@ def test_session_init_statement(session):
                 custom_schema="id INTEGER",
                 session_init_statement="SELECT FROM NOTHING;",
             )
+
+
+def test_negative_case(session):
+    # error happening in fetching
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="RuntimeError: Fake exception"
+    ):
+        session.read.dbapi(
+            sql_server_create_connection_with_exception, SQL_SERVER_TABLE_NAME
+        )
+
+    # error happening during ingestion
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
+        side_effect=ValueError("Ingestion exception"),
+    ):
+        with pytest.raises(
+            SnowparkDataframeReaderException, match="ValueError: Ingestion exception"
+        ):
+            session.read.dbapi(
+                sql_server_create_connection_small_data, SQL_SERVER_TABLE_NAME
+            )
+
+
+@pytest.mark.parametrize(
+    "fetch_size, partition_idx, expected_error",
+    [(0, 1, False), (2, 100, False), (10, 2, False), (-1, 1001, True)],
+)
+def test_task_fetch_from_data_source_with_fetch_size(
+    fetch_size, partition_idx, expected_error
+):
+
+    parquet_file_queue = queue.Queue()
+    schema = infer_data_source_schema(
+        sql_server_create_connection_small_data(), SQL_SERVER_TABLE_NAME
+    )
+    file_count = (
+        math.ceil(len(sql_server_all_type_small_data) / fetch_size)
+        if fetch_size != 0
+        else 1
+    )
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+
+        params = {
+            "parquet_file_queue": parquet_file_queue,
+            "create_connection": sql_server_create_connection_small_data,
+            "query": "SELECT * FROM test_table",
+            "schema": schema,
+            "partition_idx": partition_idx,
+            "tmp_dir": tmp_dir,
+            "current_db": DBMS_TYPE.SQL_SERVER_DB,
+            "driver_info": "pyodbc",
+            "fetch_size": fetch_size,
+        }
+
+        if expected_error:
+            with pytest.raises(
+                ValueError,
+                match="fetch size cannot be smaller than 0",
+            ):
+                _task_fetch_from_data_source(**params)
+        else:
+            _task_fetch_from_data_source(**params)
+
+            file_idx = 0
+            while not parquet_file_queue.empty():
+                file_path = parquet_file_queue.get()
+                assert (
+                    f"data_partition{partition_idx}_fetch{file_idx}.parquet"
+                    in file_path
+                )
+                file_idx += 1
+            assert file_idx == file_count

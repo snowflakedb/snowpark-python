@@ -1,9 +1,10 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
 import datetime
 import sqlite3
 from _decimal import Decimal
 from dateutil import parser
-
-from snowflake.snowpark._internal.data_source_utils import DBMS_TYPE
 
 
 # we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
@@ -42,16 +43,21 @@ class FakeConnection:
         return "sqlserver"
 
 
+class FakeConnectionWithException(FakeConnection):
+    def execute(self, sql: str):
+        self.sql = sql
+        if sql.lower().startswith("select *"):
+            raise RuntimeError("Fake exception")
+        else:
+            return self
+
+
 class LOB:
     def __init__(self, value) -> None:
         self.value = value
 
     def read(self, offset: int = 1, amount: int = None):
         return self.value
-
-
-def fake_detect_dbms_pyodbc(conn):
-    return DBMS_TYPE.SQL_SERVER_DB
 
 
 sql_server_all_type_schema = (
@@ -601,6 +607,12 @@ def sql_server_create_connection():
 def sql_server_create_connection_small_data():
     return FakeConnection(
         sql_server_all_type_small_data, sql_server_all_type_schema, "pyodbc"
+    )
+
+
+def sql_server_create_connection_with_exception():
+    return FakeConnectionWithException(
+        sql_server_all_type_data, sql_server_all_type_schema, "pyodbc"
     )
 
 
