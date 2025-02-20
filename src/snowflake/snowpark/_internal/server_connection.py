@@ -504,12 +504,12 @@ class ServerConnection:
                 results_cursor = self.execute_and_notify_query_listener(
                     query, params=params, **kwargs
                 )
-                logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
+                logger.info(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
             else:
                 results_cursor = self.execute_async_and_notify_query_listener(
                     query, params=params, num_statements=num_statements, **kwargs
                 )
-                logger.debug(
+                logger.info(
                     f"Execute async query [queryID: {results_cursor['queryId']}] {query}"
                 )
         except Exception as ex:
