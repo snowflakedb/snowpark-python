@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import json
 import math
 import os
 import sys
@@ -489,6 +490,27 @@ def sample_statement(
         raise ValueError(
             "Either 'probability_fraction' or 'row_count' must not be None."
         )
+
+
+def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> str:
+    PERCENT_RANK_COL = "__SNOWPARK_SEQ_RND"
+    LEFT_ALIAS = "SNOWPARK_LEFT"
+    RIGHT_ALIAS = "SNOWPARK_RIGHT"
+    child_with_percentage_rank_stmt = f"SELECT *, PERCENT_RANK() OVER (PARTITION BY {col} ORDER BY RANDOM()) AS {PERCENT_RANK_COL} FROM ({child})"
+
+    # PERCENT_RANK assigns values between 0.0 - 1.0 both inclusive. In our, query we only
+    # select values where percent_rank <= value. If value = 0, then we will select one sample
+    # unless we update the fractions as done below. This update ensures that, if the original
+    # stratified sample fraction = 0, we select 0 rows for the given key.
+    updated_fractions = {k: v if v > 0 else -1 for k, v in fractions.items()}
+    fraction_flatten_stmt = f"SELECT KEY, VALUE FROM TABLE(FLATTEN(input => parse_json('{json.dumps(updated_fractions)}')))"
+
+    return (
+        f"{SELECT} {LEFT_ALIAS}.* EXCLUDE {PERCENT_RANK_COL} {FROM} ({child_with_percentage_rank_stmt}) {LEFT_ALIAS}"
+        f"{JOIN} ({fraction_flatten_stmt}) {RIGHT_ALIAS}"
+        f"{ON} {LEFT_ALIAS}.{col} = {RIGHT_ALIAS}.KEY"
+        f"{WHERE} {LEFT_ALIAS}.{PERCENT_RANK_COL} <= {RIGHT_ALIAS}.VALUE"
+    )
 
 
 def aggregate_statement(

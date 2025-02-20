@@ -67,6 +67,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     project_statement,
     rename_statement,
     result_scan_statement,
+    sample_by_statement,
     sample_statement,
     schema_cast_named,
     schema_cast_seq,
@@ -788,6 +789,20 @@ class SnowflakePlanBuilder:
             ),
             child,
             source_plan,
+        )
+
+    def sample_by(
+        self,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        col: str,
+        fractions: Dict[Any, float],
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: sample_by_statement(x, col=col, fractions=fractions),
+            child,
+            source_plan,
+            schema_query=child.schema_query,
         )
 
     def sort(

@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
+from snowflake.snowpark._internal.analyzer.unary_plan_node import SampleBy
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
@@ -369,6 +370,47 @@ class DataFrameStatFunctions:
 
         return df
 
+    def _sample_by_with_union_all(
+        self,
+        col: ColumnOrName,
+        fractions: Dict[LiteralType, float],
+    ) -> "snowflake.snowpark.DataFrame":
+        res_df = reduce(
+            lambda x, y: x.union_all(y, _emit_ast=False),
+            [
+                self._dataframe.filter(col == k, _emit_ast=False).sample(
+                    v, _emit_ast=False
+                )
+                for k, v in fractions.items()
+            ],
+        )
+        adjust_api_subcalls(
+            res_df,
+            "DataFrameStatFunctions.sample_by",
+            precalls=self._dataframe._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+        )
+        return res_df
+
+    def _sample_by_with_percent_rank(
+        self,
+        col: Column,
+        fractions: Dict[LiteralType, float],
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+
+        sample_by_plan = SampleBy(self._dataframe._plan, col._expression, fractions)
+        if self._dataframe._select_statement:
+            session = self._dataframe.session
+            select_plan = session._analyzer.create_select_statement(
+                from_=session._analyzer.create_select_snowflake_plan(
+                    sample_by_plan, analyzer=session._analyzer
+                ),
+                analyzer=session._analyzer,
+            )
+            return self._dataframe._with_plan(select_plan)
+        return self._dataframe._with_plan(sample_by_plan)
+
     @publicapi
     def sample_by(
         self,
@@ -447,21 +489,11 @@ class DataFrameStatFunctions:
                     "`seed` argument is ignored on `DataFrame` object. Save this DataFrame to a temporary table "
                     "to get a `Table` object and specify a seed.",
                 )
-            res_df = reduce(
-                lambda x, y: x.union_all(y, _emit_ast=False),
-                [
-                    self._dataframe.filter(col == k, _emit_ast=False).sample(
-                        v, _emit_ast=False
-                    )
-                    for k, v in fractions.items()
-                ],
-            )
-        adjust_api_subcalls(
-            res_df,
-            "DataFrameStatFunctions.sample_by",
-            precalls=self._dataframe._plan.api_calls,
-            subcalls=res_df._plan.api_calls.copy(),
-        )
+
+            if self._dataframe._session.conf.get("use_simplified_query_generation"):
+                res_df = self._sample_by_with_percent_rank(col=col, fractions=fractions)
+            else:
+                res_df = self._sample_by_with_union_all(col=col, fractions=fractions)
 
         if _emit_ast:
             res_df._ast_id = stmt.var_id.bitfield1

@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -48,6 +48,42 @@ class Sample(UnaryNode):
             PlanNodeCategory.SAMPLE: 1,
             PlanNodeCategory.LITERAL: 1,
             PlanNodeCategory.COLUMN: 1,
+        }
+
+
+class SampleBy(UnaryNode):
+    def __init__(
+        self, child: LogicalPlan, col: Expression, fractions: Dict[Any, float]
+    ) -> None:
+        super().__init__(child)
+        self.col = col
+        self.fractions = fractions
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        """
+        select SNOWPARK_LEFT.* exclude __SNOWPARK_SEQ_RND from (    -- col 2
+            select *,                                               -- col 1
+                percent_rank() over                                 -- function 1, window 1
+                    (partition by <col> order by random())          -- col 1, partition_by 1, order_by 1, function 1
+                    as __SNOWPARK_SEQ_RND                           -- col 1
+            from <child>
+        ) SNOWPARK_LEFT
+        join (                                                      -- join 1
+            select KEY, VALUE                                       -- col 2
+            from TABLE(FLATTEN(input => parse_json('<fractions>'))) -- function 1
+        ) SNOWPARK_RIGHT
+        on SNOWPARK_LEFT.<col> = SNOWPARK_RIGHT.KEY                 -- col 2
+        where SNOWPARK_LEFT.__SNOWPARK_SEQ_RND <= SNOWPARK_RIGHT.VALUE;     -- col 2
+        """
+        return {
+            PlanNodeCategory.COLUMN: 11,
+            PlanNodeCategory.FUNCTION: 3,
+            PlanNodeCategory.WINDOW: 1,
+            PlanNodeCategory.ORDER_BY: 1,
+            PlanNodeCategory.PARTITION_BY: 1,
+            PlanNodeCategory.JOIN: 1,
+            PlanNodeCategory.FILTER: 1,
         }
 
 
