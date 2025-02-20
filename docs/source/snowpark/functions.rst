@@ -22,6 +22,7 @@ Functions
     acos
     acosh
     add_months
+    ai_filter
     any_value
     approx_count_distinct
     approx_percentile

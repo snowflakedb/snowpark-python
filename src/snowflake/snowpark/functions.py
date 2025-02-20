@@ -212,6 +212,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    private_preview,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -11543,4 +11544,46 @@ def randn(
         seed,
         _emit_ast=False,
         _ast=ast,
+    )
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def ai_filter(
+    predicate: ColumnOrLiteralStr, expr: ColumnOrLiteralStr, _emit_ast: bool = True
+) -> Column:
+    """
+    Classifies free-form text into boolean based on a natural language predicate.
+    Returns a boolean value representing whether the predicate is valid for the provided text.
+    ``ai_filter`` will return NULL if the text is NULL.
+
+    Args:
+        predicate: The natural language condition that determines the result of the text string.
+        expr: A string containing the text to be classified.
+
+    Example::
+
+        >>> df = session.create_dataframe(["Switzerland", "Korea", "Panama"], schema=["country"])
+        >>> df.select(
+        ...     ai_filter("Is the country in Asia?", col("country")).as_("asia"),
+        ...     ai_filter("Is the country in Europe?", col("country")).as_("europe"),
+        ...     ai_filter("Is the country in North America?", col("country")).as_("north_america"),
+        ...     ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
+        ... ).show()
+        -----------------------------------------------------------
+        |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
+        -----------------------------------------------------------
+        |False   |True      |False            |False              |
+        |True    |False     |False            |False              |
+        |False   |False     |False            |True               |
+        -----------------------------------------------------------
+        <BLANKLINE>
+    """
+    ast = build_function_expr("ai_filter", [predicate, expr]) if _emit_ast else None
+
+    sql_func_name = "snowflake.cortex.ai_filter"
+    predicate_col = _to_col_if_lit(predicate, sql_func_name)
+    expr_col = _to_col_if_lit(expr, sql_func_name)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(
+        predicate_col, expr_col
     )

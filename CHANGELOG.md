@@ -3,6 +3,9 @@
 
 ### Snowpark Python API Updates
 
+- Added support for the following AI-powered functions in `functions.py`
+  - `ai_filter`
+
 ### Snowpark pandas API Updates
 
 ### Snowpark Local Testing Updates
