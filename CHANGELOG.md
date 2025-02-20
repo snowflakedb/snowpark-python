@@ -5,6 +5,8 @@
 
 - Added support for the following AI-powered functions in `functions.py`
   - `ai_filter`
+  - `ai_agg`
+  - `summarize_agg`
 
 ### Snowpark pandas API Updates
 
