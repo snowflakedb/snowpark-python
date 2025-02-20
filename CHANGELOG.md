@@ -3,10 +3,6 @@
 
 ### Snowpark Python API Updates
 
-#### Improvements
-
-- Improved the random object name generation to avoid collisions.
-
 ### Snowpark pandas API Updates
 
 ### Snowpark Local Testing Updates
@@ -16,7 +12,7 @@
 - Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
 
 
-## 1.28.0 (2025-02-19)
+## 1.28.0 (2025-02-20)
 
 ### Snowpark Python API Updates
 
