@@ -5,7 +5,7 @@
 import datetime
 import logging
 from enum import Enum
-from typing import List, Any, Tuple, Protocol, Union
+from typing import List, Any, Tuple, Protocol
 from snowflake.connector.options import pandas as pd
 
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
@@ -109,9 +109,10 @@ class DBMS_TYPE(Enum):
     SQL_SERVER_DB = "SQL_SERVER_DB"
     ORACLE_DB = "ORACLE_DB"
     SQLITE_DB = "SQLITE3_DB"
+    UNKNOWN = "UNKNOWN"
 
 
-def detect_dbms(dbapi2_conn) -> Union[DBMS_TYPE, str]:
+def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, str]:
     """Detects the DBMS type from a DBAPI2 connection."""
 
     # Get the Python driver name
@@ -129,14 +130,17 @@ def detect_dbms(dbapi2_conn) -> Union[DBMS_TYPE, str]:
         return dbms_mapping[python_driver_name](dbapi2_conn), python_driver_name
 
     _logger.debug(f"Unsupported database driver: {python_driver_name}")
-    return None
+    return DBMS_TYPE.UNKNOWN, ""
 
 
 def detect_dbms_pyodbc(dbapi2_conn):
     """Detects the DBMS type for a pyodbc connection."""
-    import pyodbc
-
-    dbms_name = dbapi2_conn.getinfo(pyodbc.SQL_DBMS_NAME).lower()
+    # pyodbc.SQL_DBMS_NAME is a constant used to get the DBMS name by calling dbapi2_conn.getinfo(pyodbc.SQL_DBMS_NAME)
+    # and according to the ODBC spec, SQL_DBMS_NAME is an integer value 17
+    # https://github.com/microsoft/ODBC-Specification/blob/4dda95986bda5d3b55d7749315d3e5a0951c1e50/Windows/inc/sql.h#L467
+    # here we are using pyodbc_conn.getinfo(17) to get the DBMS name to avoid importing pyodbc
+    # which helps our test while achieving the same goal
+    dbms_name = dbapi2_conn.getinfo(17).lower()  # pyodbc.SQL_DBMS_NAME = 17
 
     # Set-based lookup for SQL Server
     sqlserver_keywords = {"sql server", "mssql", "sqlserver"}
@@ -144,7 +148,7 @@ def detect_dbms_pyodbc(dbapi2_conn):
         return DBMS_TYPE.SQL_SERVER_DB
 
     _logger.debug(f"Unsupported DBMS for pyodbc: {dbms_name}")
-    return None
+    return DBMS_TYPE.UNKNOWN
 
 
 class Connection(Protocol):
@@ -310,9 +314,10 @@ def data_source_data_to_pandas_df(
     return df
 
 
-def generate_select_query(table: str, schema: StructType, conn: Connection) -> str:
-    current_db, driver_info = detect_dbms(conn)
-    if current_db == DBMS_TYPE.ORACLE_DB:
+def generate_select_query(
+    table: str, schema: StructType, dbms: DBMS_TYPE, driver_info: str
+) -> str:
+    if dbms == DBMS_TYPE.ORACLE_DB:
         cols = []
         for field in schema.fields:
             if (
@@ -332,7 +337,7 @@ def generate_select_query(table: str, schema: StructType, conn: Connection) -> s
             else:
                 cols.append(field.name)
         return f"""select {" , ".join(cols)} from {table}"""
-    elif current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
+    elif dbms == DBMS_TYPE.SQL_SERVER_DB or dbms == DBMS_TYPE.SQLITE_DB:
         return f"select * from {table}"
     else:
         raise NotImplementedError(
