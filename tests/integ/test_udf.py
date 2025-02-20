@@ -2825,7 +2825,7 @@ def test_register_artifact_repository(session):
         session.udf.register(
             func=test_urllib,
             name=temp_func_name,
-            artifact_repository="SNOWPARK_PYTHON_TEST_INTEGRATION",
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
             artifact_repository_packages=["urllib3", "requests"],
         )
 
