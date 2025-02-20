@@ -11578,6 +11578,13 @@ def ai_filter(
         |False   |False     |False            |True               |
         -----------------------------------------------------------
         <BLANKLINE>
+        >>> df.filter(ai_filter("Is the country in Asia?", col("country"))).show()
+        -------------
+        |"COUNTRY"  |
+        -------------
+        |Korea      |
+        -------------
+        <BLANKLINE>
     """
     ast = build_function_expr("ai_filter", [predicate, expr]) if _emit_ast else None
 
