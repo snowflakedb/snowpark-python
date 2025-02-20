@@ -1,6 +1,6 @@
 # Release History
 
-## 1.28.0 (TBD)
+## 1.28.0 (2025-02-19)
 
 ### Snowpark Python API Updates
 
@@ -13,6 +13,7 @@
 
 #### Improvements
 
+- Improved the random object name generation to avoid collisions.
 - Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns. To disable this feature, set `session.conf.set("use_simplified_query_generation", False)`.
 
 #### Deprecations
@@ -26,10 +27,6 @@
 - Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
 - Fixed a bug in options sql generation that could cause multiple values to be formatted incorrectly.
 - Fixed a bug in `Session.catalog` where empty strings for database or schema were not handled correctly and were generating erroneous sql statements.
-
-#### Improvements
-
-- Improved the random object name generation to avoid collisions.
 
 #### Experimental Features
 
@@ -52,27 +49,13 @@
 - Added support for the following functions
     - `hour`
     - `minute`
+- Added support for NULL_IF parameter to csv reader.
+- Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
 
 #### Bug Fixes
 
 - Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 - Fixed a bug in when statements that caused incorrect results in the otherwise clause.
-
-
-
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-- Added support for NULL_IF parameter to csv reader
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-- Added support for NULL_IF parameter to csv reader.
-- Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
 
 ## 1.27.0 (2025-02-03)
 
