@@ -11644,14 +11644,14 @@ def ai_agg(
 
     Args:
         expr: A column or literal string containing the text data on which the aggregation operation
-              is to be performed.
+            is to be performed.
         task_description: A plain English string that describes the aggregation task, such as
-                          "Summarize the product reviews for a blog post targeting consumers" or
-                          "Identify the most positive review and translate it into French and Polish, one word only".
+            "Summarize the product reviews for a blog post targeting consumers" or
+            "Identify the most positive review and translate it into French and Polish, one word only".
 
     Example::
 
-         >>> df = session.create_dataframe([
+        >>> df = session.create_dataframe([
         ...     [1, "Excellent"],
         ...     [1, "Excellent"],
         ...     [1, "Great"],
