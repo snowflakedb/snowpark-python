@@ -105,6 +105,9 @@ try:
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = {
         snowflake.cortex.Summarize,
         snowflake.cortex.Sentiment,
+        snowflake.cortex.ClassifyText,
+        snowflake.cortex.Translate,
+        snowflake.cortex.ExtractAnswer,
     }
 
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple(
