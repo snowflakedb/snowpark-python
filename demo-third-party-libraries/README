@@ -1,0 +1,25 @@
+```bash
+# OPTIONAL: can skip this step if you are confident that your snowpark 1.25.0 environment works.
+# recommend preparing environment beforehand because 1) conda solve is slow 2) some libraries
+# are slow the first time they run on a new environment.
+# From this location
+conda env create --force -y -f demo_py39_1_25_0_before.yml
+
+# Now Run demo_py39_1_25_0_before_empty.ipynb using the environment
+# demo-py39-1.25.0-before and use demo_py39_1_25_0_before_full.ipynb as a backup.
+
+# OPTIONAL: can skip this step if you are confident that your snowpark 1.27.0 environment works.
+# From this location
+conda env create --force -y -f demo_py39_1_27_0_after.yml
+
+# Run demo_py39_1_27_0_before_empty.ipynb using the environment
+# demo-py39-1.27.0-after and use demo_py39_1_27_0_after_full.ipynb as a backup.
+```
+
+
+
+to fix the 1.27.0 env:
+
+```bash
+conda env export | grep -v "^prefix: " > demo-third-party-libraries/demo_py39_1_27_0_after.yml
+```
