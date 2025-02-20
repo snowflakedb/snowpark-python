@@ -63,6 +63,10 @@ def test_apply_snowflake_cortex_sentiment_series(session):
         assert -1 <= sentiment <= 0
 
 
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
 def test_apply_snowflake_cortex_sentiment_df(session):
 
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
