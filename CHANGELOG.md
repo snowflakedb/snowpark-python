@@ -42,6 +42,7 @@
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 - Added support for list values in `Series.str.get`.
 - Added support for list values in `Series.str.slice`.
+- Added support for applying Snowflake Cortex functions `ClassifyText`, `Translate`, and `ExtractAnswer`.
 
 #### Bug Fixes
 
