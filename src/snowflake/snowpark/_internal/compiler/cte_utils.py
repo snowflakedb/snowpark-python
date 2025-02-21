@@ -107,8 +107,8 @@ def find_duplicate_subtrees(
         """
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
-        # Top down level order traversal to populate parent map
-        # and encoded id node map
+        # Top down level order traversal to populate the
+        # id_parents_map and encoded id_node_map
         current_level = [root]
         while len(current_level) > 0:
             next_level = []
@@ -118,15 +118,15 @@ def find_duplicate_subtrees(
                 if is_read_file_node(node):
                     invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
 
-                for child_id in node.children_plan_nodes:
-                    id_parents_map[child_id.encoded_node_id_with_query].add(
+                for child in node.children_plan_nodes:
+                    id_parents_map[child.encoded_node_id_with_query].add(
                         node.encoded_node_id_with_query
                     )
-                    next_level.append(child_id)
+                    next_level.append(child)
             current_level = next_level
 
         # Bottom-up level order traversal to mark parent nodes
-        # invalid for deduplication
+        # invalid for deduplication if the child is marked
         current_level = list(invalid_ids_for_deduplication)
         while len(current_level) > 0:
             next_level = []
