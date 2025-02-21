@@ -354,7 +354,7 @@ def handle_range_frame_indexing(
             lower, upper = range_bounds
             if not isinstance(types[group_col].datatype, _NumericType):
                 raise SnowparkLocalTestingException(
-                    "range_between only operates on numeric group_by numeric columns."
+                    "range_between only operates on numeric group_by columns."
                 )
 
             # TableEmulator breaks loc comparisons
