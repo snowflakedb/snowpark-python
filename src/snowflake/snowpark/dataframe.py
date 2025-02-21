@@ -2339,10 +2339,19 @@ class DataFrame:
                 stmt = _ast_stmt
                 ast = None
 
-        if self._select_statement:
-            df = self._with_plan(self._select_statement.distinct(), _ast_stmt=stmt)
+        if self._session.conf.get("use_simplified_query_generation"):
+            if self._select_statement:
+                df = self._with_plan(self._select_statement.distinct(), _ast_stmt=stmt)
+            else:
+                df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
         else:
-            df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
+            df = self.group_by(
+                [
+                    self.col(quote_name(f.name), _emit_ast=False)
+                    for f in self.schema.fields
+                ],
+                _emit_ast=False,
+            ).agg(_emit_ast=False)
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1

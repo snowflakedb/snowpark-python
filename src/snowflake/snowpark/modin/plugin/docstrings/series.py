@@ -2594,6 +2594,23 @@ class Series(BasePandasDataset):
         -------
         Series or None
             Series, or None if ``inplace=True``.
+
+        Examples
+        --------
+        Series
+
+        >>> s = pd.Series(["dog", "cat", "monkey"])
+        >>> s
+        0       dog
+        1       cat
+        2    monkey
+        dtype: object
+        >>> s.rename_axis("animal")
+        animal
+        0       dog
+        1       cat
+        2    monkey
+        dtype: object
         """
 
     def rename():
