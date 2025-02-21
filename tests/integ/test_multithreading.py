@@ -810,8 +810,11 @@ def test_temp_name_placeholder_for_sync(db_parameters, thread_safe_enabled):
 
             with session.query_history() as history:
                 with ThreadPoolExecutor(max_workers=5) as executor:
+                    futures = []
                     for i in range(10):
-                        executor.submit(process_data, df, i)
+                        futures.append(executor.submit(process_data, df, i))
+                    for future in as_completed(futures):
+                        future.result()
 
             queries_sent = [query.sql_text for query in history.queries]
             unique_create_table_queries = set()
