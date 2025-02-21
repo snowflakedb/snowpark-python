@@ -90,7 +90,7 @@ def find_duplicate_subtrees(
 
         return False
 
-    def is_read_file_node(node: "TreeNode") -> bool:
+    def is_select_from_file_node(node: "TreeNode") -> bool:
         """
         Check if the current node is a SelectFromFileNode. Currently, we do not support
         deduplication for SelectFromFileNode due to SNOW-1911967.
@@ -99,7 +99,7 @@ def find_duplicate_subtrees(
             return isinstance(node.source_plan, SelectFromFileNode)
 
         if isinstance(node, SelectSnowflakePlan):
-            return is_read_file_node(node.snowflake_plan)
+            return is_select_from_file_node(node.snowflake_plan)
 
         return False
 
@@ -107,32 +107,22 @@ def find_duplicate_subtrees(
         """
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
-<<<<<<< HEAD
         # Top down level order traversal to populate the
         # id_parents_map and encoded id_node_map
-=======
-        # Top down level order traversal to populate parent map
-        # and encoded id node map
->>>>>>> 9e186e7c0 (Stack PR)
         current_level = [root]
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
                 id_node_map[node.encoded_node_id_with_query].append(node)
 
-                if is_read_file_node(node):
+                if is_select_from_file_node(node):
                     invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
 
-<<<<<<< HEAD
                 for child in node.children_plan_nodes:
                     id_parents_map[child.encoded_node_id_with_query].add(
-=======
-                for child_id in node.children_plan_nodes:
-                    id_parents_map[child_id.encoded_node_id_with_query].add(
->>>>>>> 9e186e7c0 (Stack PR)
                         node.encoded_node_id_with_query
                     )
-                    next_level.append(child_id)
+                    next_level.append(child)
             current_level = next_level
 
         # Bottom-up level order traversal to mark parent nodes
