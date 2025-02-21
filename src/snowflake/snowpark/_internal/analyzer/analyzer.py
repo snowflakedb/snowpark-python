@@ -1217,6 +1217,7 @@ class Analyzer:
                 schema_to_cast=logical_plan.schema_to_cast,
                 transformations=logical_plan.transformations,
                 metadata_project=logical_plan.metadata_project,
+                metadata_schema=logical_plan.metadata_schema,
                 use_user_schema=logical_plan.use_user_schema,
                 source_plan=logical_plan,
             )
