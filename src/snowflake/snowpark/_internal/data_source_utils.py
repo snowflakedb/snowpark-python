@@ -253,11 +253,12 @@ def oracledb_to_snowpark_type(schema: List[tuple]) -> StructType:
     return StructType(fields)
 
 
-def infer_data_source_schema(conn: Connection, table: str) -> StructType:
+def infer_data_source_schema(
+    conn: Connection, table: str, dbms_type: DBMS_TYPE, driver_info: str
+) -> StructType:
     try:
-        current_db, driver_info = detect_dbms(conn)
         cursor = conn.cursor()
-        if current_db == DBMS_TYPE.SQL_SERVER_DB:
+        if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
             query = f"""
                     SELECT COLUMN_NAME, DATA_TYPE, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
                     FROM INFORMATION_SCHEMA.COLUMNS
@@ -266,7 +267,7 @@ def infer_data_source_schema(conn: Connection, table: str) -> StructType:
             cursor.execute(query)
             raw_schema = cursor.fetchall()
             return sql_server_to_snowpark_type(raw_schema)
-        elif current_db == DBMS_TYPE.ORACLE_DB:
+        elif dbms_type == DBMS_TYPE.ORACLE_DB:
             query = f"""
                     SELECT COLUMN_NAME, DATA_TYPE, DATA_PRECISION, DATA_SCALE, NULLABLE
                     FROM USER_TAB_COLUMNS

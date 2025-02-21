@@ -1094,10 +1094,12 @@ class DataFrameReader:
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
-        current_db, driver_info = detect_dbms(conn)
-        logger.info(f"Detected DBMS: {current_db}, Driver Info: {driver_info}")
+        dbms_type, driver_info = detect_dbms(conn)
+        logger.info(f"Detected DBMS: {dbms_type}, Driver Info: {driver_info}")
         if custom_schema is None:
-            struct_schema = infer_data_source_schema(conn, table)
+            struct_schema = infer_data_source_schema(
+                conn, table, dbms_type, driver_info
+            )
         else:
             if isinstance(custom_schema, str):
                 struct_schema = type_string_to_type_object(custom_schema)
@@ -1114,7 +1116,7 @@ class DataFrameReader:
                 raise TypeError(f"Invalid schema type: {type(custom_schema)}. ")
 
         select_query = generate_select_query(
-            table, struct_schema, current_db, driver_info
+            table, struct_schema, dbms_type, driver_info
         )
         logger.debug(f"Generated select query: {select_query}")
         if column is None:
@@ -1208,6 +1210,7 @@ class DataFrameReader:
                         # clean the local temp file after ingestion to avoid consuming too much temp disk space
                         shutil.rmtree(parquet_file_path, ignore_errors=True)
 
+                    logger.info("Starting to fetch data from the data source.")
                     for partition_idx, query in enumerate(partitioned_queries):
                         process_future = process_executor.submit(
                             _task_fetch_from_data_source_with_retry,
@@ -1217,7 +1220,7 @@ class DataFrameReader:
                             struct_schema,
                             partition_idx,
                             tmp_dir,
-                            current_db,
+                            dbms_type,
                             driver_info,
                             query_timeout,
                             fetch_size,
@@ -1476,7 +1479,7 @@ def _task_fetch_from_data_source(
     schema: StructType,
     partition_idx: int,
     tmp_dir: str,
-    current_db: DBMS_TYPE,
+    dbms_type: DBMS_TYPE,
     driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
@@ -1492,7 +1495,7 @@ def _task_fetch_from_data_source(
 
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
-    if current_db == DBMS_TYPE.SQL_SERVER_DB:
+    if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
         conn.timeout = query_timeout
 
     cursor = conn.cursor()
@@ -1501,7 +1504,7 @@ def _task_fetch_from_data_source(
     if fetch_size == 0:
         cursor.execute(query)
         result = cursor.fetchall()
-        parquet_file_queue.put(convert_to_parquet(result, current_db, 0))
+        parquet_file_queue.put(convert_to_parquet(result, dbms_type, 0))
     elif fetch_size > 0:
         cursor = cursor.execute(query)
         fetch_idx = 0
@@ -1509,7 +1512,7 @@ def _task_fetch_from_data_source(
             rows = cursor.fetchmany(fetch_size)
             if not rows:
                 break
-            parquet_file_queue.put(convert_to_parquet(rows, current_db, fetch_idx))
+            parquet_file_queue.put(convert_to_parquet(rows, dbms_type, fetch_idx))
             fetch_idx += 1
     else:
         raise ValueError("fetch size cannot be smaller than 0")
@@ -1522,7 +1525,7 @@ def _task_fetch_from_data_source_with_retry(
     schema: StructType,
     partition_idx: int,
     tmp_dir: str,
-    current_db: DBMS_TYPE,
+    dbms_type: DBMS_TYPE,
     driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
@@ -1540,7 +1543,7 @@ def _task_fetch_from_data_source_with_retry(
                 schema,
                 partition_idx,
                 tmp_dir,
-                current_db,
+                dbms_type,
                 driver_info,
                 query_timeout,
                 fetch_size,
