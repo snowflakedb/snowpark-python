@@ -344,6 +344,12 @@ df325 = df.select(normal(1, 2, "A"))
 
 df326 = df.select(randn(1))
 
+df327 = df.select(ai_filter("A", "B"))
+
+df328 = df.select(ai_agg("A", "B"))
+
+df329 = df.select(summarize_agg("A"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -687,6 +693,12 @@ df324 = df.select(snowflake_cortex_sentiment(col("A")), snowflake_cortex_sentime
 df325 = df.select(normal(1, 2, "A"))
 
 df326 = df.select(randn(1))
+
+df327 = df.select(ai_filter("A", "B"))
+
+df328 = df.select(ai_agg("A", "B"))
+
+df329 = df.select(summarize_agg("A"))
 
 ## EXPECTED ENCODED AST
 
@@ -24134,6 +24146,228 @@ body {
     uid: 171
     var_id {
       bitfield1: 171
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      sp_name_flat {
+                        name: "ai_filter"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 45
+                    end_line: 369
+                    file: 2
+                    start_column: 26
+                    start_line: 369
+                  }
+                  v: "A"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 45
+                    end_line: 369
+                    file: 2
+                    start_column: 26
+                    start_line: 369
+                  }
+                  v: "B"
+                }
+              }
+              src {
+                end_column: 45
+                end_line: 369
+                file: 2
+                start_column: 26
+                start_line: 369
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 46
+          end_line: 369
+          file: 2
+          start_column: 16
+          start_line: 369
+        }
+      }
+    }
+    symbol {
+      value: "df327"
+    }
+    uid: 172
+    var_id {
+      bitfield1: 172
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      sp_name_flat {
+                        name: "ai_agg"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 42
+                    end_line: 371
+                    file: 2
+                    start_column: 26
+                    start_line: 371
+                  }
+                  v: "A"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 42
+                    end_line: 371
+                    file: 2
+                    start_column: 26
+                    start_line: 371
+                  }
+                  v: "B"
+                }
+              }
+              src {
+                end_column: 42
+                end_line: 371
+                file: 2
+                start_column: 26
+                start_line: 371
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 371
+          file: 2
+          start_column: 16
+          start_line: 371
+        }
+      }
+    }
+    symbol {
+      value: "df328"
+    }
+    uid: 173
+    var_id {
+      bitfield1: 173
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      sp_name_flat {
+                        name: "summarize_agg"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 44
+                    end_line: 373
+                    file: 2
+                    start_column: 26
+                    start_line: 373
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 44
+                end_line: 373
+                file: 2
+                start_column: 26
+                start_line: 373
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 373
+          file: 2
+          start_column: 16
+          start_line: 373
+        }
+      }
+    }
+    symbol {
+      value: "df329"
+    }
+    uid: 174
+    var_id {
+      bitfield1: 174
     }
   }
 }
