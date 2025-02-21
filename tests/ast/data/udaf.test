@@ -120,7 +120,7 @@ body {
           name: "PythonSumUDAF"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "sum_int"
               }
             }
@@ -128,7 +128,7 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         kwargs {
@@ -147,7 +147,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "sum_int"
             }
           }
@@ -155,7 +155,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         src {
           end_column: 9
@@ -178,9 +178,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -344,7 +344,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_df {
+      dataframe_to_df {
         col_names {
           args {
             string_val {
@@ -373,7 +373,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -400,9 +400,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_agg {
+      dataframe_agg {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -412,7 +412,7 @@ body {
           args {
             apply_expr {
               fn {
-                sp_fn_ref {
+                fn_ref {
                   id {
                     bitfield1: 1
                   }
@@ -461,7 +461,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -505,7 +505,7 @@ body {
           name: "PythonTopK"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "top_k"
               }
             }
@@ -514,14 +514,14 @@ body {
         immutable: true
         imports {
           name {
-            sp_name_flat {
+            name_flat {
               name: "numpy"
             }
           }
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         is_permanent: true
@@ -556,7 +556,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "top_k"
             }
           }
@@ -565,7 +565,7 @@ body {
         parallel: 8
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         secrets {
           _1: "a"
@@ -607,9 +607,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_agg {
+      dataframe_agg {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -619,7 +619,7 @@ body {
           args {
             apply_expr {
               fn {
-                sp_fn_ref {
+                fn_ref {
                   id {
                     bitfield1: 7
                   }
@@ -678,5 +678,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 28
+  minor: 29
 }

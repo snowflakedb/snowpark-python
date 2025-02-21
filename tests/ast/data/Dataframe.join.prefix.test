@@ -40,9 +40,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -129,7 +129,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "\"A\""
             vs: "\"B\""
             vs: "\"C\""
@@ -159,9 +159,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -236,7 +236,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "\"A\""
             vs: "\"B\""
             vs: "\"C\""
@@ -265,7 +265,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_filter {
+      dataframe_filter {
         condition {
           eq {
             lhs {
@@ -274,7 +274,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "col"
                         }
                       }
@@ -324,7 +324,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -351,10 +351,10 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 add {
                   lhs {
@@ -363,7 +363,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -413,7 +413,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "\"A\""
               src {
@@ -431,7 +431,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -465,7 +465,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -499,7 +499,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -533,7 +533,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -564,7 +564,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -591,19 +591,19 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_join {
+      dataframe_join {
         join_type {
-          sp_join_type__inner: true
+          join_type__inner: true
         }
         lhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
           }
         }
         rhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 4
             }
@@ -630,7 +630,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
           args {
             string_val {
@@ -766,7 +766,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
@@ -793,7 +793,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -837,5 +837,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 28
+  minor: 29
 }

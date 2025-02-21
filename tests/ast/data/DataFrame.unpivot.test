@@ -26,9 +26,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -150,7 +150,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "empid"
             vs: "dept"
             vs: "jan"
@@ -178,7 +178,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_unpivot {
+      dataframe_unpivot {
         column_list {
           string_val {
             src {
@@ -204,7 +204,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -243,5 +243,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 28
+  minor: 29
 }
