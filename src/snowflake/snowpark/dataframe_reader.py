@@ -1281,7 +1281,7 @@ class DataFrameReader:
                                 )
                                 break
                             process_pool_futures = unfinished_process_pool_futures
-                            time.sleep(0.05)
+                            time.sleep(0.5)
 
                     for future in as_completed(thread_pool_futures):
                         try:

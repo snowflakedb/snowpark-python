@@ -157,7 +157,7 @@ def test_dbapi_retry(session):
                 schema=StructType([StructField("col1", IntegerType(), False)]),
                 partition_idx=0,
                 tmp_dir="/tmp",
-                current_db=DBMS_TYPE.SQL_SERVER_DB,
+                dbms_type=DBMS_TYPE.SQL_SERVER_DB,
                 driver_info="pyodbc",
             )
         assert mock_task.call_count == MAX_RETRY_TIME
@@ -528,7 +528,10 @@ def test_task_fetch_from_data_source_with_fetch_size(
 
     parquet_file_queue = queue.Queue()
     schema = infer_data_source_schema(
-        sql_server_create_connection_small_data(), SQL_SERVER_TABLE_NAME
+        sql_server_create_connection_small_data(),
+        SQL_SERVER_TABLE_NAME,
+        DBMS_TYPE.SQL_SERVER_DB,
+        "pyodbc",
     )
     file_count = (
         math.ceil(len(sql_server_all_type_small_data) / fetch_size)
@@ -545,7 +548,7 @@ def test_task_fetch_from_data_source_with_fetch_size(
             "schema": schema,
             "partition_idx": partition_idx,
             "tmp_dir": tmp_dir,
-            "current_db": DBMS_TYPE.SQL_SERVER_DB,
+            "dbms_type": DBMS_TYPE.SQL_SERVER_DB,
             "driver_info": "pyodbc",
             "fetch_size": fetch_size,
         }
