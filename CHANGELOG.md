@@ -19,6 +19,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### New Features
+
+- Added support for literal values to `range_between` window function.
+
 #### Bug Fixes
 
 - Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
