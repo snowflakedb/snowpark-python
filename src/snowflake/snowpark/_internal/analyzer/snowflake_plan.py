@@ -1340,9 +1340,8 @@ class SnowflakePlanBuilder:
                 schema_value_statement((metadata_schema or []) + schema),
                 post_queries,
                 {},
-                None,
+                source_plan,
                 session=self.session,
-                source_plan=source_plan,
             )
         else:  # otherwise use COPY
             if "FORCE" in copy_options and str(copy_options["FORCE"]).lower() != "true":
@@ -1424,9 +1423,8 @@ class SnowflakePlanBuilder:
                 schema_value_statement(schema),
                 post_actions,
                 {},
-                None,
+                source_plan,
                 session=self.session,
-                source_plan=source_plan,
             )
 
     def copy_into_table(
