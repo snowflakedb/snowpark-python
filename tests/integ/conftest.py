@@ -68,7 +68,7 @@ def set_up_external_access_integration_resources(
         # prepare external access resource
         session.sql(
             f"""
-    CREATE IF NOT EXISTS NETWORK RULE {rule1}
+    CREATE NETWORK RULE {rule1}
       MODE = EGRESS
       TYPE = HOST_PORT
       VALUE_LIST = ('www.google.com');
@@ -76,7 +76,7 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE IF NOT EXISTS NETWORK RULE {rule2}
+    CREATE NETWORK RULE {rule2}
       MODE = EGRESS
       TYPE = HOST_PORT
       VALUE_LIST = ('www.microsoft.com');
@@ -84,21 +84,21 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE IF NOT EXISTS SECRET {key1}
+    CREATE SECRET IF NOT EXISTS {key1}
       TYPE = GENERIC_STRING
       SECRET_STRING = 'replace-with-your-api-key';
     """
         ).collect()
         session.sql(
             f"""
-    CREATE IF NOT EXISTS SECRET {key2}
+    CREATE SECRET IF NOT EXISTS {key2}
       TYPE = GENERIC_STRING
       SECRET_STRING = 'replace-with-your-api-key_2';
     """
         ).collect()
         session.sql(
             f"""
-    CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration1}
+    CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration1}
       ALLOWED_NETWORK_RULES = ({rule1})
       ALLOWED_AUTHENTICATION_SECRETS = ({key1})
       ENABLED = true;
@@ -106,7 +106,7 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration2}
+    CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration2}
       ALLOWED_NETWORK_RULES = ({rule2})
       ALLOWED_AUTHENTICATION_SECRETS = ({key2})
       ENABLED = true;
