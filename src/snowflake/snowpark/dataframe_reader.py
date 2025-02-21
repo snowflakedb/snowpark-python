@@ -60,7 +60,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     DBMS_TYPE,
     STATEMENT_PARAMS_DATA_SOURCE,
     DATA_SOURCE_SQL_COMMENT,
-    generate_sql_with_predicates,
+    generate_sql_with_predicates, output_type_handler,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -1497,7 +1497,9 @@ def _task_fetch_from_data_source(
     # this is specified to pyodbc, need other way to manage timeout on other drivers
     if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
         conn.timeout = query_timeout
-
+    result = []
+    if dbms_type == DBMS_TYPE.ORACLE_DB:
+        conn.outputtypehandler = output_type_handler
     cursor = conn.cursor()
     if session_init_statement:
         cursor.execute(session_init_statement)
