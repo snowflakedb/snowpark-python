@@ -329,6 +329,28 @@ class ReadFileNode(LeafNode):
         self.metadata_schema = metadata_schema
         self.use_user_schema = use_user_schema
 
+    @classmethod
+    def from_read_file_node(cls, read_file_node: "ReadFileNode"):
+        return cls(
+            read_file_node.path,
+            read_file_node.format,
+            read_file_node.options,
+            read_file_node.schema,
+            read_file_node.schema_to_cast,
+            read_file_node.transformations,
+            read_file_node.metadata_project,
+            read_file_node.metadata_schema,
+            read_file_node.use_user_schema,
+        )
+
+
+class SelectFromFileNode(ReadFileNode):
+    pass
+
+
+class SelectWithCopyIntoTableNode(ReadFileNode):
+    pass
+
 
 class CopyIntoTableNode(LeafNode):
     def __init__(

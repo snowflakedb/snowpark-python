@@ -93,6 +93,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
     LogicalPlan,
     SaveMode,
+    SelectFromFileNode,
+    SelectWithCopyIntoTableNode,
     TableCreationSource,
     WithQueryBlock,
 )
@@ -1340,7 +1342,7 @@ class SnowflakePlanBuilder:
                 schema_value_statement((metadata_schema or []) + schema),
                 post_queries,
                 {},
-                source_plan,
+                SelectFromFileNode.from_read_file_node(source_plan),
                 session=self.session,
             )
         else:  # otherwise use COPY
@@ -1423,7 +1425,7 @@ class SnowflakePlanBuilder:
                 schema_value_statement(schema),
                 post_actions,
                 {},
-                source_plan,
+                SelectWithCopyIntoTableNode.from_read_file_node(source_plan),
                 session=self.session,
             )
 
