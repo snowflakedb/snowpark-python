@@ -1,7 +1,12 @@
 # Release History
+
 ## 1.29.0 (TBD)
 
 ### Snowpark Python API Updates
+
+#### Bug Fixed
+
+- Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
 
 ### Snowpark pandas API Updates
 
