@@ -6,7 +6,6 @@ import importlib
 import inspect
 import json
 import math
-import numbers
 import re
 import statistics
 import typing
@@ -353,16 +352,9 @@ def handle_range_frame_indexing(
         if range_bounds:
             group_col = analyzer.analyze(order_spec[0].child, expr_to_alias)
             lower, upper = range_bounds
-            if (lower is not None and not isinstance(lower, numbers.Number)) or (
-                upper is not None and not isinstance(upper, numbers.Number)
-            ):
+            if not isinstance(types[group_col].datatype, _NumericType):
                 raise SnowparkLocalTestingException(
-                    "range_between only works with numeric group_by columns."
-                )
-
-            if not isinstance(types[group_col], _NumericType):
-                raise SnowparkLocalTestingException(
-                    "range_between only operates on numeric columns."
+                    "range_between only operates on numeric group_by numeric columns."
                 )
 
             # TableEmulator breaks loc comparisons

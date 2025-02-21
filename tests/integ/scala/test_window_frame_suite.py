@@ -19,6 +19,7 @@ from snowflake.snowpark.functions import (
     lag,
     last_value,
     lead,
+    lit,
     make_interval,
     min as min_,
     sum as sum_,
@@ -593,6 +594,16 @@ def test_range_between_date(
 )
 def test_range_between_negative(session):
     df = session.range(10)
+    window = Window.order_by("id").range_between(-make_interval(mins=1), 0)
+    with pytest.raises(
+        SnowparkSQLException,
+        match="numeric ORDER BY clause only allows numeric window frame boundaries",
+    ):
+        df.select(count("id").over(window)).collect()
+
+
+def test_range_between_negative_local_testing_compatible(session):
+    df = session.range(10).with_column("str", lit("string"))
 
     with pytest.raises(
         ValueError,
@@ -606,11 +617,8 @@ def test_range_between_negative(session):
     ):
         Window.order_by("id").range_between(0, 1.1)
 
-    window = Window.order_by("id").range_between(-make_interval(mins=1), 0)
-    with pytest.raises(
-        SnowparkSQLException,
-        match="numeric ORDER BY clause only allows numeric window frame boundaries",
-    ):
+    with pytest.raises(SnowparkSQLException):
+        window = Window.order_by("str").range_between(-1, 1)
         df.select(count("id").over(window)).collect()
 
 
