@@ -802,7 +802,12 @@ def test_temp_name_placeholder_for_sync(db_parameters, thread_safe_enabled):
 
         def process_data(df_, thread_id):
             df_cleaned = df_.filter(df.A == thread_id)
-            return df_cleaned.collect()
+            try:
+                df_cleaned.collect()
+            finally:
+                # when thread_safe is disable, this will throw an error
+                # because the temp table is already dropped by another thread
+                pass
 
         try:
             analyzer.ARRAY_BIND_THRESHOLD = 4
