@@ -1,7 +1,12 @@
 # Release History
+
 ## 1.29.0 (TBD)
 
 ### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
 
 ### Snowpark pandas API Updates
 
