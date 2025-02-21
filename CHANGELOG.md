@@ -72,7 +72,6 @@
     - `minute`
 - Added support for NULL_IF parameter to csv reader.
 - Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
-- Added support for literal values to `range_between` window function.
 
 #### Bug Fixes
 
