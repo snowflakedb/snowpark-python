@@ -129,6 +129,17 @@ CREATE EXTERNAL ACCESS INTEGRATION IF NOT EXISTS {integration2}
     CONNECTION_PARAMETERS["external_access_integration1"] = integration1
     CONNECTION_PARAMETERS["external_access_integration2"] = integration2
 
+    session.sql(
+        "CREATE API INTEGRATION IF NOT EXISTS "
+        "SNOWPARK_PYTHON_TEST_INTEGRATION API_PROVIDER = pypi "
+        "ENABLED = TRUE"
+    ).collect()
+    session.sql(
+        "CREATE ARTIFACT REPOSITORY IF NOT EXISTS "
+        f'{CONNECTION_PARAMETERS["database"]}.{CONNECTION_PARAMETERS["schema"]}.SNOWPARK_PYTHON_TEST_REPOSITORY '
+        "TYPE = pip API_INTEGRATION = SNOWPARK_PYTHON_TEST_INTEGRATION"
+    ).collect()
+
 
 def clean_up_external_access_integration_resources():
     CONNECTION_PARAMETERS.pop("external_access_rule1", None)

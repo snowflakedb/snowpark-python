@@ -2822,7 +2822,7 @@ def test_register_artifact_repository(session):
 
     try:
         # Test function registration
-        session.udf.register(
+        udf(
             func=test_urllib,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
