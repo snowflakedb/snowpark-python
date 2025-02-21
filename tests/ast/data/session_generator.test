@@ -30,7 +30,7 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_generator {
+      generator {
         columns {
           args {
             apply_expr {
@@ -38,7 +38,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -72,7 +72,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -123,7 +123,7 @@ body {
 body {
   assign {
     expr {
-      sp_generator {
+      generator {
         columns {
           args {
             apply_expr {
@@ -131,7 +131,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "seq1"
                       }
                     }
@@ -165,7 +165,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "uniform"
                       }
                     }
@@ -178,7 +178,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -212,7 +212,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -246,7 +246,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -307,7 +307,7 @@ body {
 body {
   assign {
     expr {
-      sp_generator {
+      generator {
         columns {
           args {
             apply_expr {
@@ -315,7 +315,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "seq8"
                       }
                     }
@@ -348,7 +348,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "uniform"
                       }
                     }
@@ -361,7 +361,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -395,7 +395,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -429,7 +429,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }

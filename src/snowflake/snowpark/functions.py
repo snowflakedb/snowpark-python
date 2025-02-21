@@ -456,7 +456,7 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
     ast = None
     if _emit_ast:
         sql_expr_ast = proto.Expr()
-        ast = with_src_position(sql_expr_ast.sp_column_sql_expr)
+        ast = with_src_position(sql_expr_ast.sql_expr)
         ast.sql = sql
 
         # Capture with ApplyFn in order to restore sql_expr(...) function.
@@ -8590,7 +8590,7 @@ def when(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        expr = with_src_position(ast.sp_column_case_when)
+        expr = with_src_position(ast.column_case_expr)
         case_expr = with_src_position(expr.cases.add())
         build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
         build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
