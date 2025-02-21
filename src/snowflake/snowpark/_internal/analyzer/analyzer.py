@@ -102,6 +102,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
     Range,
+    ReadFileNode,
     SnowflakeCreateTable,
     SnowflakeTable,
     SnowflakeValues,
@@ -1205,6 +1206,19 @@ class Analyzer:
                 child=resolved_children[logical_plan.child],
                 source_plan=logical_plan,
                 iceberg_config=logical_plan.iceberg_config,
+            )
+
+        if isinstance(logical_plan, ReadFileNode):
+            return self.plan_builder.read_file(
+                path=logical_plan.path,
+                format=logical_plan.format,
+                options=logical_plan.options,
+                schema=logical_plan.schema,
+                schema_to_cast=logical_plan.schema_to_cast,
+                transformations=logical_plan.transformations,
+                metadata_project=logical_plan.metadata_project,
+                use_user_schema=logical_plan.use_user_schema,
+                source_plan=logical_plan,
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
