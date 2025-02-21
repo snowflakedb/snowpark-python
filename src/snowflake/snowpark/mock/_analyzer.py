@@ -82,6 +82,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
     Range,
+    ReadFileNode,
     SnowflakeCreateTable,
     SnowflakeTable,
     SnowflakeValues,
@@ -925,6 +926,19 @@ class MockAnalyzer:
 
         if isinstance(logical_plan, CreateViewCommand):
             return MockExecutionPlan(logical_plan, self.session)
+
+        if isinstance(logical_plan, ReadFileNode):
+            return self.plan_builder.read_file(
+                path=logical_plan.path,
+                format=logical_plan.format,
+                options=logical_plan.options,
+                schema=logical_plan.schema,
+                schema_to_cast=logical_plan.schema_to_cast,
+                transformations=logical_plan.transformations,
+                metadata_project=logical_plan.metadata_project,
+                metadata_schema=logical_plan.metadata_schema,
+                use_user_schema=logical_plan.use_user_schema,
+            )
 
         if isinstance(logical_plan, CopyIntoTableNode):
             self._conn.log_not_supported_error(
