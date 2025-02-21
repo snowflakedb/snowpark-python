@@ -3,23 +3,26 @@
 #
 import datetime
 import decimal
+import functools
+import multiprocessing as mp
 import os
+import shutil
 import tempfile
 import time
 import traceback
 from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
-    wait,
-    ALL_COMPLETED,
     ThreadPoolExecutor,
     as_completed,
 )
+
 
 import pytz
 from dateutil import parser
 import sys
 from logging import getLogger
+import queue
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
 import snowflake.snowpark
@@ -1092,13 +1095,17 @@ class DataFrameReader:
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
-        current_db, driver_info = detect_dbms(conn)
+        dbms_type, driver_info = detect_dbms(conn)
+        logger.info(f"Detected DBMS: {dbms_type}, Driver Info: {driver_info}")
         if custom_schema is None:
-            struct_schema = infer_data_source_schema(conn, table)
+            struct_schema = infer_data_source_schema(
+                conn, table, dbms_type, driver_info
+            )
         else:
             if isinstance(custom_schema, str):
                 struct_schema = type_string_to_type_object(custom_schema)
                 if not isinstance(struct_schema, StructType):
+                    logger.error(f"Invalid schema string: {custom_schema}")
                     raise ValueError(
                         f"Invalid schema string: {custom_schema}. "
                         f"You should provide a valid schema string representing a struct type."
@@ -1106,15 +1113,20 @@ class DataFrameReader:
             elif isinstance(custom_schema, StructType):
                 struct_schema = custom_schema
             else:
+                logger.error(f"Invalid schema type: {type(custom_schema)}")
                 raise TypeError(f"Invalid schema type: {type(custom_schema)}. ")
 
-        select_query = generate_select_query(table, struct_schema, conn)
+        select_query = generate_select_query(
+            table, struct_schema, dbms_type, driver_info
+        )
+        logger.debug(f"Generated select query: {select_query}")
         if column is None:
             if (
                 lower_bound is not None
                 or upper_bound is not None
                 or num_partitions is not None
             ):
+                logger.error("column is None but bounds or partitions are specified")
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
@@ -1126,6 +1138,7 @@ class DataFrameReader:
                 )
         else:
             if lower_bound is None or upper_bound is None or num_partitions is None:
+                logger.error("column is specified but bounds or partitions are missing")
                 raise ValueError(
                     "when column is specified, lower_bound, upper_bound, num_partitions must be specified"
                 )
@@ -1135,11 +1148,13 @@ class DataFrameReader:
                 if field.name.lower() == column.lower():
                     column_type = field.datatype
             if column_type is None:
+                logger.error("Specified column does not exist in schema")
                 raise ValueError("Column does not exist")
 
             if not isinstance(column_type, _NumericType) and not isinstance(
                 column_type, DateType
             ):
+                logger.error(f"Unsupported column type: {column_type}")
                 raise ValueError(f"unsupported type {column_type}")
             partitioned_queries = self._generate_partition(
                 select_query,
@@ -1161,11 +1176,10 @@ class DataFrameReader:
                 f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
                 f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
+            logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
             self._session.sql(create_table_sql).collect(
                 statement_params=statements_params_for_telemetry
             )
-            res_df = self.table(snowflake_table_name)
-
             # create temp stage
             snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
             sql_create_temp_stage = (
@@ -1175,57 +1189,122 @@ class DataFrameReader:
             self._session.sql(sql_create_temp_stage).collect(
                 statement_params=statements_params_for_telemetry
             )
-            with ProcessPoolExecutor(
-                max_workers=max_workers
-            ) as process_executor, ThreadPoolExecutor(
-                max_workers=max_workers
-            ) as thread_executor:
-                thread_pool_futures = []
-                process_pool_futures = [
-                    process_executor.submit(
-                        _task_fetch_from_data_source_with_retry,
-                        create_connection,
-                        query,
-                        struct_schema,
-                        i,
-                        tmp_dir,
-                        current_db,
-                        driver_info,
-                        query_timeout,
-                        fetch_size,
-                        session_init_statement,
+
+            try:
+
+                with mp.Manager() as process_manager, ProcessPoolExecutor(
+                    max_workers=max_workers
+                ) as process_executor, ThreadPoolExecutor(
+                    max_workers=max_workers
+                ) as thread_executor:
+                    thread_pool_futures, process_pool_futures = [], []
+                    parquet_file_queue, process_error_queue = (
+                        process_manager.Queue(),
+                        process_manager.Queue(),
                     )
-                    for i, query in enumerate(partitioned_queries)
-                ]
-                for future in as_completed(process_pool_futures):
-                    try:
-                        future.result()
-                    except BaseException:
-                        process_executor.shutdown(wait=False)
-                        thread_executor.shutdown(wait=False)
-                        raise
-                    else:
-                        thread_pool_futures.append(
-                            thread_executor.submit(
+
+                    def fetch_process_error_handling_callback(fetch_process_future):
+                        if fetch_process_future.exception():
+                            process_error_queue.put(fetch_process_future.exception())
+
+                    def ingestion_thread_cleanup_callback(parquet_file_path, _):
+                        # clean the local temp file after ingestion to avoid consuming too much temp disk space
+                        shutil.rmtree(parquet_file_path, ignore_errors=True)
+
+                    logger.info("Starting to fetch data from the data source.")
+                    for partition_idx, query in enumerate(partitioned_queries):
+                        process_future = process_executor.submit(
+                            _task_fetch_from_data_source_with_retry,
+                            parquet_file_queue,
+                            create_connection,
+                            query,
+                            struct_schema,
+                            partition_idx,
+                            tmp_dir,
+                            dbms_type,
+                            driver_info,
+                            query_timeout,
+                            fetch_size,
+                            session_init_statement,
+                        )
+                        process_future.add_done_callback(
+                            fetch_process_error_handling_callback
+                        )
+                        process_pool_futures.append(process_future)
+                    # Monitor queue while tasks are running
+                    while True:
+                        try:
+                            file = parquet_file_queue.get_nowait()
+                            logger.debug(f"Retrieved file from parquet queue: {file}")
+                            thread_future = thread_executor.submit(
                                 self._upload_and_copy_into_table_with_retry,
-                                future.result(),
+                                file,
                                 snowflake_stage_name,
                                 snowflake_table_name,
                                 "abort_statement",
                                 statements_params_for_telemetry,
                             )
-                        )
-                completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
-                for f in completed_futures.done:
-                    try:
-                        f.result()
-                    except BaseException:
-                        process_executor.shutdown(wait=False)
-                        thread_executor.shutdown(wait=False)
-                        raise
+                            thread_future.add_done_callback(
+                                functools.partial(
+                                    ingestion_thread_cleanup_callback, file
+                                )
+                            )
+                            thread_pool_futures.append(thread_future)
+                            logger.debug(
+                                f"Submitted file {file} to thread executor for ingestion."
+                            )
+                        except queue.Empty:
+                            all_job_done = True
+                            unfinished_process_pool_futures = []
+                            logger.debug(
+                                "Parquet queue is empty, checking unfinished process pool futures."
+                            )
+                            for future in process_pool_futures:
+                                if future.done():
+                                    try:
+                                        future.result()  # Throw error if the process failed
+                                        logger.debug(
+                                            "A process future completed successfully."
+                                        )
+                                    except Exception as e:
+                                        logger.error(
+                                            f"Process future failed with error: {e}"
+                                        )
+                                        raise
+                                else:
+                                    unfinished_process_pool_futures.append(future)
+                                    all_job_done = False
+                            if all_job_done and parquet_file_queue.empty():
+                                # all jod is done and parquet file queue is empty, we finished all the fetch work
+                                # now we just need to wait for all ingestion threads to complete
+                                logger.debug(
+                                    "All jobs are done, and the parquet file queue is empty. Fetching work is complete."
+                                )
+                                break
+                            process_pool_futures = unfinished_process_pool_futures
+                            time.sleep(0.5)
+
+                    for future in as_completed(thread_pool_futures):
+                        try:
+                            future.result()  # Throw error if the thread failed
+                            logger.debug("A thread future completed successfully.")
+                        except BaseException as e:
+                            logger.error(f"Thread future failed with error: {e}")
+                            raise
+
+            except BaseException:
+                # graceful shutdown
+                process_executor.shutdown(wait=True)
+                thread_executor.shutdown(wait=True)
+                raise
+
+            logger.info(
+                "All data has been successfully loaded into the Snowflake table."
+            )
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
                 DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
             )
+            res_df = self.table(snowflake_table_name)
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df
 
@@ -1395,67 +1474,77 @@ class DataFrameReader:
 
 
 def _task_fetch_from_data_source(
+    parquet_file_queue: queue.Queue,
     create_connection: Callable[[], "Connection"],
     query: str,
     schema: StructType,
-    i: int,
+    partition_idx: int,
     tmp_dir: str,
-    current_db: DBMS_TYPE,
+    dbms_type: DBMS_TYPE,
     driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
     session_init_statement: Optional[str] = None,
-) -> str:
+):
+    def convert_to_parquet(fetched_data, database, fetch_idx):
+        df = data_source_data_to_pandas_df(fetched_data, schema, database, driver_info)
+        path = os.path.join(
+            tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
+        )
+        df.to_parquet(path)
+        return path
+
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
-    if current_db == DBMS_TYPE.SQL_SERVER_DB:
+    if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
         conn.timeout = query_timeout
-    result = []
+
     cursor = conn.cursor()
     if session_init_statement:
         cursor.execute(session_init_statement)
     if fetch_size == 0:
         cursor.execute(query)
         result = cursor.fetchall()
+        parquet_file_queue.put(convert_to_parquet(result, dbms_type, 0))
     elif fetch_size > 0:
         cursor = cursor.execute(query)
-        rows = cursor.fetchmany(fetch_size)
-        while rows:
-            result.extend(rows)
+        fetch_idx = 0
+        while True:
             rows = cursor.fetchmany(fetch_size)
+            if not rows:
+                break
+            parquet_file_queue.put(convert_to_parquet(rows, dbms_type, fetch_idx))
+            fetch_idx += 1
     else:
         raise ValueError("fetch size cannot be smaller than 0")
 
-    df = data_source_data_to_pandas_df(result, schema, current_db, driver_info)
-    path = os.path.join(tmp_dir, f"data_{i}.parquet")
-    df.to_parquet(path)
-    return path
-
 
 def _task_fetch_from_data_source_with_retry(
+    parquet_file_queue: queue.Queue,
     create_connection: Callable[[], "Connection"],
     query: str,
     schema: StructType,
-    i: int,
+    partition_idx: int,
     tmp_dir: str,
-    current_db: DBMS_TYPE,
+    dbms_type: DBMS_TYPE,
     driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
     session_init_statement: Optional[str] = None,
-) -> str:
+):
     retry_count = 0
     last_error = None
     error_trace = ""
     while retry_count < MAX_RETRY_TIME:
         try:
             path = _task_fetch_from_data_source(
+                parquet_file_queue,
                 create_connection,
                 query,
                 schema,
-                i,
+                partition_idx,
                 tmp_dir,
-                current_db,
+                dbms_type,
                 driver_info,
                 query_timeout,
                 fetch_size,
