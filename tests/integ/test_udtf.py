@@ -1305,3 +1305,32 @@ def test_udtf_external_access_integration(session, db_parameters):
         )
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+def test_udtf_artifact_repository(session, resources_path):
+    class ArtifactRepositoryUDTF:
+        def process(self) -> Iterable[Tuple[str]]:
+            import urllib3
+
+            return [(str(urllib3.exceptions.HTTPError("test")),)]
+
+    ar_udtf = session.udtf.register(
+        ArtifactRepositoryUDTF,
+        output_schema=StructType([StructField("a", StringType())]),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+
+    Utils.check_answer(
+        session.table_function(ar_udtf()),
+        [
+            Row(
+                "test",
+            )
+        ],
+    )
