@@ -811,6 +811,8 @@ class UDAFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
+                artifact_repository=kwargs.get("artifact_repository"),
+                artifact_repository_packages=kwargs.get("artifact_repository_packages"),
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),
