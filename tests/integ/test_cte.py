@@ -836,7 +836,7 @@ def test_df_reader(session, mode, resources_path):
     check_result(
         session,
         df_result,
-        expect_cte_optimized=True,
+        expect_cte_optimized=False,
         query_count=expected_query_count,
         describe_count=0,
         union_count=1,
