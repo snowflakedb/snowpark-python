@@ -63,10 +63,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -79,7 +79,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -95,10 +95,10 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   apply_expr {
@@ -106,7 +106,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -166,7 +166,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -193,10 +193,10 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   eq {
@@ -206,7 +206,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -284,7 +284,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -386,7 +386,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -413,20 +413,20 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
-                  sp_column_between {
+                  column_between {
                     col {
                       apply_expr {
                         fn {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -500,7 +500,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -543,7 +543,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -584,7 +584,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -611,20 +611,20 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
-                  sp_column_equal_nan {
+                  column_equal_nan {
                     col {
                       apply_expr {
                         fn {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -714,7 +714,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 4
             }
@@ -741,20 +741,20 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
-                  sp_column_is_null {
+                  column_is_null {
                     col {
                       apply_expr {
                         fn {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -804,7 +804,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "lit"
                             }
                           }
@@ -842,7 +842,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -904,7 +904,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "lit"
                             }
                           }
@@ -947,7 +947,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "lit"
                             }
                           }
@@ -988,7 +988,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
@@ -1015,20 +1015,20 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
-                  sp_column_string_contains {
+                  column_string_contains {
                     col {
                       apply_expr {
                         fn {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1120,14 +1120,14 @@ body {
               }
               cases {
                 condition {
-                  sp_column_string_contains {
+                  column_string_contains {
                     col {
                       apply_expr {
                         fn {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1208,7 +1208,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -1235,10 +1235,10 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   and {
@@ -1248,7 +1248,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1282,7 +1282,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1372,7 +1372,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 7
             }
@@ -1399,10 +1399,10 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_case_when {
+            column_case_expr {
               cases {
                 condition {
                   eq {
@@ -1412,7 +1412,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1511,7 +1511,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1610,7 +1610,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1709,7 +1709,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1808,7 +1808,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -1910,7 +1910,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 8
             }
@@ -1947,5 +1947,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 28
+  minor: 29
 }

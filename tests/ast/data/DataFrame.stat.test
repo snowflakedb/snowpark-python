@@ -84,10 +84,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -100,7 +100,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -116,7 +116,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_approx_quantile {
+      dataframe_stat_approx_quantile {
         cols {
           string_val {
             src {
@@ -162,7 +162,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_approx_quantile {
+      dataframe_stat_approx_quantile {
         cols {
           string_val {
             src {
@@ -226,9 +226,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -337,7 +337,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -363,7 +363,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_cov {
+      dataframe_stat_cov {
         col1 {
           string_val {
             src {
@@ -420,7 +420,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_cov {
+      dataframe_stat_cov {
         col1 {
           string_val {
             src {
@@ -481,7 +481,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_corr {
+      dataframe_stat_corr {
         col1 {
           string_val {
             src {
@@ -538,7 +538,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_corr {
+      dataframe_stat_corr {
         col1 {
           string_val {
             src {
@@ -599,9 +599,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -850,7 +850,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "key"
             vs: "value"
           }
@@ -876,7 +876,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_cross_tab {
+      dataframe_stat_cross_tab {
         col1 {
           string_val {
             src {
@@ -925,7 +925,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_cross_tab {
+      dataframe_stat_cross_tab {
         col1 {
           string_val {
             src {
@@ -978,9 +978,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -1124,7 +1124,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "name"
             vs: "age"
           }
@@ -1150,7 +1150,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_sample_by {
+      dataframe_stat_sample_by {
         col {
           string_val {
             src {
@@ -1164,7 +1164,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 18
             }
@@ -1239,5 +1239,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 28
+  minor: 29
 }

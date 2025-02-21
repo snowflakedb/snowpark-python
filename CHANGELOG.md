@@ -4,6 +4,13 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for the following AI-powered functions in `functions.py`
+  - `ai_filter`
+  - `ai_agg`
+  - `summarize_agg`
+
 #### Bug Fixes
 
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.

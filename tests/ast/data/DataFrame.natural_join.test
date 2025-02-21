@@ -28,10 +28,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -44,7 +44,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -60,10 +60,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -76,7 +76,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -92,19 +92,19 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_natural_join {
+      dataframe_natural_join {
         join_type {
-          sp_join_type__inner: true
+          join_type__inner: true
         }
         lhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         rhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -130,10 +130,10 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_sql_expr {
+            sql_expr {
               sql: "*"
               src {
                 end_column: 41
@@ -147,7 +147,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -183,5 +183,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 28
+  minor: 29
 }
