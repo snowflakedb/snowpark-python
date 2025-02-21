@@ -47,9 +47,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -382,7 +382,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "k"
             vs: "t"
             vs: "mo"
@@ -409,7 +409,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_pivot {
+      dataframe_pivot {
         default_on_null {
           null_val {
             src {
@@ -422,7 +422,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -448,7 +448,7 @@ body {
           start_line: 38
         }
         values {
-          sp_pivot_value__expr {
+          pivot_value__expr {
             v {
               list_val {
                 src {
@@ -500,7 +500,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "sum"
         cols {
           args {
@@ -518,7 +518,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -545,7 +545,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
           args {
             string_val {
@@ -562,7 +562,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -589,7 +589,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_pivot {
+      dataframe_pivot {
         default_on_null {
           string_val {
             src {
@@ -603,7 +603,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -629,7 +629,7 @@ body {
           start_line: 40
         }
         values {
-          sp_pivot_value__expr {
+          pivot_value__expr {
             v {
               list_val {
                 src {
@@ -681,7 +681,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "sum"
         cols {
           args {
@@ -699,7 +699,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 5
             }
@@ -726,7 +726,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
           args {
             string_val {
@@ -743,7 +743,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }

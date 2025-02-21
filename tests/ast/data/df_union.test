@@ -48,10 +48,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "df1"
             }
           }
@@ -64,7 +64,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -80,10 +80,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "df2"
             }
           }
@@ -96,7 +96,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -112,16 +112,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union {
+      dataframe_union {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -148,16 +148,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union_all {
+      dataframe_union_all {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -184,10 +184,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "df3"
             }
           }
@@ -200,7 +200,7 @@ body {
           start_line: 33
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -216,10 +216,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "df4"
             }
           }
@@ -232,7 +232,7 @@ body {
           start_line: 35
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -248,16 +248,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union_by_name {
+      dataframe_union_by_name {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -284,16 +284,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union_all_by_name {
+      dataframe_union_all_by_name {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }

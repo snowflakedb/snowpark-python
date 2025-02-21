@@ -19,7 +19,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_proto_from_struct_type,
-    build_sp_table_name,
+    build_table_name,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -347,8 +347,8 @@ class DataFrameReader:
 
         self._ast = None
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            with_src_position(reader.sp_dataframe_reader_init)
+            reader = proto.DataframeReader()
+            with_src_position(reader.dataframe_reader_init)
             self._ast = reader
 
     @property
@@ -405,9 +405,9 @@ class DataFrameReader:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_table, stmt)
+            ast = with_src_position(stmt.expr.read_table, stmt)
             ast.reader.CopyFrom(self._ast)
-            build_sp_table_name(ast.name, name)
+            build_table_name(ast.name, name)
 
         table = self._session.table(name)
 
@@ -429,8 +429,8 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            ast = with_src_position(reader.sp_dataframe_reader_schema)
+            reader = proto.DataframeReader()
+            ast = with_src_position(reader.dataframe_reader_schema)
             ast.reader.CopyFrom(self._ast)
             build_proto_from_struct_type(schema, ast.schema)
             self._ast = reader
@@ -458,8 +458,8 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            ast = with_src_position(reader.sp_dataframe_reader_with_metadata)
+            reader = proto.DataframeReader()
+            ast = with_src_position(reader.dataframe_reader_with_metadata)
             ast.reader.CopyFrom(self._ast)
             col_names, is_variadic = parse_positional_args_to_list_variadic(
                 *metadata_cols
@@ -618,7 +618,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_csv, stmt)
+            ast = with_src_position(stmt.expr.read_csv, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -643,7 +643,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_json, stmt)
+            ast = with_src_position(stmt.expr.read_json, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -671,7 +671,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_avro, stmt)
+            ast = with_src_position(stmt.expr.read_avro, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -700,7 +700,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_parquet, stmt)
+            ast = with_src_position(stmt.expr.read_parquet, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -728,7 +728,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_orc, stmt)
+            ast = with_src_position(stmt.expr.read_orc, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -750,7 +750,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_xml, stmt)
+            ast = with_src_position(stmt.expr.read_xml, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -775,8 +775,8 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            ast = with_src_position(reader.sp_dataframe_reader_option)
+            reader = proto.DataframeReader()
+            ast = with_src_position(reader.dataframe_reader_option)
             ast.reader.CopyFrom(self._ast)
             ast.key = key
             build_expr_from_python_val(ast.value, value)
@@ -809,8 +809,8 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            ast = with_src_position(reader.sp_dataframe_reader_options)
+            reader = proto.DataframeReader()
+            ast = with_src_position(reader.dataframe_reader_options)
             ast.reader.CopyFrom(self._ast)
             for k, v in configs.items():
                 t = ast.configs.add()

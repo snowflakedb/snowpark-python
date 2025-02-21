@@ -96,10 +96,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -112,7 +112,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -128,9 +128,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -156,7 +156,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -171,7 +171,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "saved_table"
             }
           }
@@ -197,16 +197,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -228,7 +228,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -243,7 +243,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "saved_table"
             }
           }
@@ -270,16 +270,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -301,14 +301,14 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
           bitfield1: 8
         }
         mode {
-          sp_save_mode_ignore: true
+          save_mode_ignore: true
         }
         src {
           end_column: 102
@@ -319,7 +319,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "saved_table"
             }
           }
@@ -346,16 +346,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         save_mode {
-          sp_save_mode_truncate: true
+          save_mode_truncate: true
         }
         src {
           end_column: 16
@@ -377,7 +377,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         clustering_keys {
           list {
@@ -398,7 +398,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -447,7 +447,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_destination"
             }
           }
@@ -474,16 +474,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         partition_by {
-          sp_column_sql_expr {
+          sql_expr {
             sql: "value"
             src {
               end_column: 38
@@ -495,7 +495,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -517,7 +517,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -532,7 +532,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "saved_table"
             }
           }
@@ -559,9 +559,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -573,7 +573,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -602,7 +602,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -624,7 +624,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -639,7 +639,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "saved_table"
             }
           }
@@ -666,9 +666,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -695,7 +695,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -724,7 +724,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -746,7 +746,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -761,7 +761,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "saved_table"
             }
           }
@@ -788,9 +788,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -862,7 +862,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -891,7 +891,7 @@ body {
           }
         }
         save_mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 16
@@ -913,7 +913,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
@@ -928,7 +928,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "saved_table"
             }
           }
@@ -955,7 +955,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "create temp stage if not exists test_stage"
         src {
           end_column: 88
@@ -978,7 +978,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -1012,9 +1012,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1040,7 +1040,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_copy_into_location {
+      write_copy_into_location {
         block: true
         id {
           bitfield1: 29
@@ -1074,9 +1074,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1102,7 +1102,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_copy_into_location {
+      write_copy_into_location {
         block: true
         copy_options {
           _1: "overwrite"
@@ -1170,9 +1170,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1198,7 +1198,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_copy_into_location {
+      write_copy_into_location {
         copy_options {
           _1: "INCLUDE_QUERY_ID"
           _2 {
@@ -1267,9 +1267,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1295,7 +1295,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_copy_into_location {
+      write_copy_into_location {
         copy_options {
           _1: "INCLUDE_QUERY_ID"
           _2 {
@@ -1368,9 +1368,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1396,7 +1396,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_csv {
+      write_csv {
         block: true
         copy_options {
           _1: "overwrite"
@@ -1465,9 +1465,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1493,7 +1493,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_json {
+      write_json {
         block: true
         copy_options {
           _1: "overwrite"
@@ -1561,9 +1561,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1589,7 +1589,7 @@ body {
 body {
   assign {
     expr {
-      sp_write_parquet {
+      write_parquet {
         block: true
         copy_options {
           _1: "overwrite"

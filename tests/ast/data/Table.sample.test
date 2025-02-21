@@ -32,10 +32,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -48,7 +48,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -64,9 +64,9 @@ body {
 body {
   assign {
     expr {
-      sp_table_sample {
+      table_sample {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -99,9 +99,9 @@ body {
 body {
   assign {
     expr {
-      sp_table_sample {
+      table_sample {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -137,9 +137,9 @@ body {
 body {
   assign {
     expr {
-      sp_table_sample {
+      table_sample {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }

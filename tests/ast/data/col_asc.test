@@ -34,10 +34,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -50,7 +50,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -66,17 +66,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_asc {
+            column_asc {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -105,7 +105,7 @@ body {
                 }
               }
               null_order {
-                sp_null_order_default: true
+                null_order_default: true
               }
               src {
                 end_column: 37
@@ -119,7 +119,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -146,17 +146,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_asc {
+            column_asc {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -185,7 +185,7 @@ body {
                 }
               }
               null_order {
-                sp_null_order_nulls_first: true
+                null_order_nulls_first: true
               }
               src {
                 end_column: 49
@@ -199,7 +199,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -226,17 +226,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_asc {
+            column_asc {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -265,7 +265,7 @@ body {
                 }
               }
               null_order {
-                sp_null_order_nulls_last: true
+                null_order_nulls_last: true
               }
               src {
                 end_column: 48
@@ -279,7 +279,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
