@@ -305,7 +305,7 @@ class Limit(LogicalPlan):
         )
 
 
-class SelectFromFileNode(LeafNode):
+class ReadFileNode(LeafNode):
     def __init__(
         self,
         path: str,

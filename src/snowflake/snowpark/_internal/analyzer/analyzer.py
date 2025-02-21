@@ -102,7 +102,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
     Range,
-    SelectFromFileNode,
+    ReadFileNode,
     SnowflakeCreateTable,
     SnowflakeTable,
     SnowflakeValues,
@@ -1208,7 +1208,7 @@ class Analyzer:
                 iceberg_config=logical_plan.iceberg_config,
             )
 
-        if isinstance(logical_plan, SelectFromFileNode):
+        if isinstance(logical_plan, ReadFileNode):
             return self.plan_builder.read_file(
                 path=logical_plan.path,
                 format=logical_plan.format,
