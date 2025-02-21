@@ -7,6 +7,7 @@ from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import ReadFileNode
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_file_format_statement,
@@ -583,7 +584,7 @@ class DataFrameReader:
                 self._session,
                 self._session._analyzer.create_select_statement(
                     from_=self._session._analyzer.create_select_snowflake_plan(
-                        self._session._analyzer.plan_builder.read_file(
+                        ReadFileNode(
                             path,
                             self._file_type,
                             self._cur_options,
@@ -601,7 +602,7 @@ class DataFrameReader:
         else:
             df = DataFrame(
                 self._session,
-                self._session._plan_builder.read_file(
+                ReadFileNode(
                     path,
                     self._file_type,
                     self._cur_options,
@@ -989,7 +990,7 @@ class DataFrameReader:
                 self._session,
                 self._session._analyzer.create_select_statement(
                     from_=self._session._analyzer.create_select_snowflake_plan(
-                        self._session._plan_builder.read_file(
+                        ReadFileNode(
                             path,
                             format,
                             self._cur_options,
@@ -1008,7 +1009,7 @@ class DataFrameReader:
         else:
             df = DataFrame(
                 self._session,
-                self._session._plan_builder.read_file(
+                ReadFileNode(
                     path,
                     format,
                     self._cur_options,

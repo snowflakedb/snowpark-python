@@ -1252,7 +1252,8 @@ class SnowflakePlanBuilder:
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
         use_user_schema: bool = False,
-    ):
+        source_plan: Optional[LogicalPlan] = None,
+    ) -> SnowflakePlan:
         thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
         format_type_options, copy_options = get_copy_into_table_options(options)
         format_type_options = self._merge_file_format_options(
@@ -1339,7 +1340,7 @@ class SnowflakePlanBuilder:
                 schema_value_statement((metadata_schema or []) + schema),
                 post_queries,
                 {},
-                None,
+                source_plan,
                 session=self.session,
             )
         else:  # otherwise use COPY
@@ -1422,7 +1423,7 @@ class SnowflakePlanBuilder:
                 schema_value_statement(schema),
                 post_actions,
                 {},
-                None,
+                source_plan,
                 session=self.session,
             )
 
