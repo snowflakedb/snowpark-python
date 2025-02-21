@@ -1,6 +1,18 @@
 # Release History
+## 1.29.0 (TBD)
 
-## 1.28.0 (TBD)
+### Snowpark Python API Updates
+
+### Snowpark pandas API Updates
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
+
+
+## 1.28.0 (2025-02-20)
 
 ### Snowpark Python API Updates
 
@@ -27,10 +39,6 @@
 - Fixed a bug in options sql generation that could cause multiple values to be formatted incorrectly.
 - Fixed a bug in `Session.catalog` where empty strings for database or schema were not handled correctly and were generating erroneous sql statements.
 
-#### Improvements
-
-- Improved the random object name generation to avoid collisions.
-
 #### Experimental Features
 
 - Added support for writing pyarrow Tables to Snowflake tables.
@@ -42,6 +50,7 @@
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 - Added support for list values in `Series.str.get`.
 - Added support for list values in `Series.str.slice`.
+- Added support for applying Snowflake Cortex functions `ClassifyText`, `Translate`, and `ExtractAnswer`.
 
 #### Bug Fixes
 
@@ -57,27 +66,14 @@
 - Added support for the following functions
     - `hour`
     - `minute`
+- Added support for NULL_IF parameter to csv reader.
+- Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
 
 #### Bug Fixes
 
 - Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 - Fixed a bug in when statements that caused incorrect results in the otherwise clause.
-- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
 
-
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-- Added support for NULL_IF parameter to csv reader
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-- Added support for NULL_IF parameter to csv reader.
-- Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
 
 ## 1.27.0 (2025-02-03)
 
