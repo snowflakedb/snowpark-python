@@ -14,7 +14,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial, reduce
-from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union, Tuple
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.select_statement import SelectTableFunction
@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.window_expression import (
+    CurrentRow,
     FirstValue,
     Lag,
     LastValue,
@@ -320,38 +321,60 @@ def handle_range_frame_indexing(
     expr_to_alias: Dict[str, str],
     unbounded_preceding: bool,
     unbounded_following: bool,
+    range_bounds: Optional[Tuple[int]] = None,
 ) -> "pd.api.typing.RollingGroupby":
     """Return a list of range between window frames based on the dataframe paritions `res` and the ORDER BY clause `order_spec`."""
+
+    def search_boundary_idx(idx, delta, _win):
+        while 0 <= idx + delta < len(_win):
+            cur_expr = list(
+                calculate_expression(exp.child, _win.iloc[idx], analyzer, expr_to_alias)
+                for exp in order_spec
+            )
+            next_expr = list(
+                calculate_expression(
+                    exp.child, _win.iloc[idx + delta], analyzer, expr_to_alias
+                )
+                for exp in order_spec
+            )
+            if not cur_expr == next_expr:
+                break
+            idx += delta
+        return idx
+
     if order_spec:
+        ordered_windows = [
+            handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
+            for win in res.rolling(EntireWindowIndexer())
+        ]
         windows = []
-        for current_row, win in zip(res_index, res.rolling(EntireWindowIndexer())):
-            _win = handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
-            row_idx = list(_win.index).index(current_row)
-            start_idx = 0 if unbounded_preceding else row_idx
-            end_idx = len(_win) - 1 if unbounded_following else row_idx
+        if range_bounds:
+            group_col = analyzer.analyze(order_spec[0].child, expr_to_alias)
+            lower, upper = range_bounds
+            # TableEmulator breaks loc comparisons
+            cast_windows = [pd.DataFrame(win) for win in ordered_windows]
+            for current_row, win in zip(res_index, cast_windows):
+                cond = True
+                if lower is not None:
+                    cond &= win[group_col] >= win.loc[current_row][group_col] + lower
+                if upper is not None:
+                    cond &= win[group_col] <= win.loc[current_row][group_col] + upper
 
-            def search_boundary_idx(idx, delta, _win):
-                while 0 <= idx + delta < len(_win):
-                    cur_expr = list(
-                        calculate_expression(
-                            exp.child, _win.iloc[idx], analyzer, expr_to_alias
-                        )
-                        for exp in order_spec
-                    )
-                    next_expr = list(
-                        calculate_expression(
-                            exp.child, _win.iloc[idx + delta], analyzer, expr_to_alias
-                        )
-                        for exp in order_spec
-                    )
-                    if not cur_expr == next_expr:
-                        break
-                    idx += delta
-                return idx
+                # Cast back to TableEmulator so downstream can infer types correctly
+                windows.append(
+                    TableEmulator(win.loc[cond], sf_types=ordered_windows[0].sf_types)
+                )
+        else:
+            for current_row, win in zip(res_index, ordered_windows):
+                row_idx = list(win.index).index(current_row)
 
-            start_idx = search_boundary_idx(start_idx, -1, _win)
-            end_idx = search_boundary_idx(end_idx, 1, _win)
-            windows.append(_win[start_idx : end_idx + 1])
+                start_idx = 0 if unbounded_preceding else row_idx
+                end_idx = len(win) - 1 if unbounded_following else row_idx
+
+                start_idx = search_boundary_idx(start_idx, -1, win)
+                end_idx = search_boundary_idx(end_idx, 1, win)
+
+                windows.append(win[start_idx : end_idx + 1])
     else:  # If order by is not specified, just use the entire window
         windows = res.rolling(EntireWindowIndexer())
     return windows
@@ -2456,20 +2479,22 @@ def calculate_expression(
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
             upper = window_spec.frame_spec.upper
             lower = window_spec.frame_spec.lower
+            range_bounds = None
 
             if isinstance(upper, Literal) or isinstance(lower, Literal):
-                analyzer.session._conn.log_not_supported_error(
-                    external_feature_name="Range for sliding window frames",
-                    internal_feature_name=type(exp).__name__,
-                    parameters_info={
-                        "window_spec.frame_spec.frame_type": type(
-                            window_spec.frame_spec.frame_type
-                        ).__name__,
-                        "upper": type(upper).__name__,
-                        "lower": type(lower).__name__,
-                    },
-                    raise_error=SnowparkLocalTestingException,
-                )
+                if len(window_spec.order_spec) > 1:
+                    raise SnowparkLocalTestingException(
+                        "range_between requires exactly one order_by column."
+                    )
+
+                def get_bound(bound):
+                    if isinstance(bound, Literal):
+                        return bound.value
+                    if isinstance(bound, CurrentRow):
+                        return 0
+                    return None
+
+                range_bounds = (get_bound(lower), get_bound(upper))
 
             windows = handle_range_frame_indexing(
                 window_spec.order_spec,
@@ -2479,6 +2504,7 @@ def calculate_expression(
                 expr_to_alias,
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
+                range_bounds,
             )
 
         # compute window function:
