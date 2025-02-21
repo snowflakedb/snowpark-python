@@ -826,24 +826,24 @@ def test_df_reader(session, mode, resources_path):
 
     1.
                         UNION (invalid)
-                ________/    |________
+                ________/    |_________
                 |                      |
         SelectFromFileNode        SelectFromFileNode
 
     2.
                         UNION (invalid)
-                ________/    |________
+                ________/    |_________
                 |                      |
-        WithColumn (invalid)           WithColumn (invalid)
+        WithColumn (invalid)        WithColumn (invalid)
                 |                      |
         SelectFromFileNode        SelectFromFileNode
 
     3.
                             UNION (invalid)
-            __________________/    |___________________________
+            __________________/    |____________________________
             |                                                  |
         UNION (invalid)                                 UNION (invalid)
-         /     |____________                             ____/    |____________
+         /     |_____________                             ____/    |____________
         |                   |                           |                      |
     WithColumn(invalid)    WithColumn(valid)        WithColumn(invalid)    WithColumn (valid)
         |                     |                         |                       |
@@ -873,7 +873,7 @@ def test_df_reader(session, mode, resources_path):
     check_result(
         session,
         df_result,
-        expect_cte_optimized=False,
+        expect_cte_optimized=(mode == "copy"),
         query_count=expected_query_count,
         describe_count=0,
         union_count=1,
@@ -887,7 +887,7 @@ def test_df_reader(session, mode, resources_path):
     check_result(
         session,
         df_result,
-        expect_cte_optimized=False,
+        expect_cte_optimized=(mode == "copy"),
         query_count=expected_query_count,
         describe_count=0,
         union_count=1,
@@ -902,36 +902,7 @@ def test_df_reader(session, mode, resources_path):
     check_result(
         session,
         df_result,
-        expect_cte_optimized=False,
-        query_count=expected_query_count,
-        describe_count=0,
-        union_count=3,
-        join_count=0,
-    )
-
-    # Case 2
-    df_with_column1 = df_reader.with_column("a1", col("a") + 1)
-    df_result = df_with_column1.union_by_name(df_with_column1)
-    expected_query_count = 4 if mode == "copy" else 3
-    check_result(
-        session,
-        df_result,
-        expect_cte_optimized=False,
-        query_count=expected_query_count,
-        describe_count=0,
-        union_count=1,
-        join_count=0,
-    )
-
-    # Case 3
-    df_with_column2 = df_select.filter(col("a") == 3).with_column("a1", col("a") + 1)
-    df_union = df_with_column1.union_by_name(df_with_column2)
-    df_result = df_union.union_by_name(df_union)
-    expected_query_count = 4 if mode == "copy" else 3
-    check_result(
-        session,
-        df_result,
-        expect_cte_optimized=False,
+        expect_cte_optimized=True,
         query_count=expected_query_count,
         describe_count=0,
         union_count=3,
