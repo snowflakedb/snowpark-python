@@ -138,19 +138,6 @@ def find_duplicate_subtrees(
                         node._invalid_for_with_query_block_child = True
             current_level = next_level
 
-        # Bottom-up level order traversal to mark parent nodes
-        # invalid for deduplication if the child is marked
-        current_level = list(invalid_ids_for_deduplication)
-        while len(current_level) > 0:
-            next_level = []
-            for child_id in current_level:
-                for parent_id in id_parents_map[child_id]:
-                    invalid_ids_for_deduplication.add(parent_id)
-                    next_level.append(parent_id)
-                    for node in id_node_map[parent_id]:
-                        node._invalid_for_with_query_block_child = True
-            current_level = next_level
-
     def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
         # when a sql query is a select statement, its encoded_node_id_with_query
         # contains _, which is used to separate the query id and node type name.
