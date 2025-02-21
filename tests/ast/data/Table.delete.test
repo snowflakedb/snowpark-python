@@ -60,10 +60,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -76,7 +76,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -92,7 +92,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         block: true
         id {
           bitfield1: 1
@@ -125,10 +125,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -141,7 +141,7 @@ body {
           start_line: 29
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -157,7 +157,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         id {
           bitfield1: 4
         }
@@ -189,10 +189,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -205,7 +205,7 @@ body {
           start_line: 33
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -221,7 +221,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         id {
           bitfield1: 7
         }
@@ -257,10 +257,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -273,7 +273,7 @@ body {
           start_line: 37
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -289,15 +289,15 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         block: true
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 10
                     }
@@ -364,10 +364,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -380,7 +380,7 @@ body {
           start_line: 41
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -396,9 +396,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
@@ -450,7 +450,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -475,15 +475,15 @@ body {
 body {
   assign {
     expr {
-      sp_table_delete {
+      table_delete {
         block: true
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 14
                     }
@@ -534,7 +534,7 @@ body {
           bitfield1: 13
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 14
             }

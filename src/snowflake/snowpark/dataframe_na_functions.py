@@ -189,7 +189,7 @@ class DataFrameNaFunctions:
         stmt = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_na_drop__python, stmt)
+            ast = with_src_position(stmt.expr.dataframe_na_drop__python, stmt)
             ast.how = how
             if thresh is not None:
                 ast.thresh.value = thresh
@@ -375,7 +375,7 @@ class DataFrameNaFunctions:
         stmt = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_na_fill, stmt)
+            ast = with_src_position(stmt.expr.dataframe_na_fill, stmt)
             self._dataframe._set_ast_ref(ast.df)
             if isinstance(value, dict):
                 for k, v in value.items():
@@ -578,7 +578,7 @@ class DataFrameNaFunctions:
         stmt = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_na_replace, stmt)
+            ast = with_src_position(stmt.expr.dataframe_na_replace, stmt)
             self._dataframe._set_ast_ref(ast.df)
 
             if isinstance(to_replace, dict):

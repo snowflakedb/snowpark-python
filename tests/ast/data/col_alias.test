@@ -38,10 +38,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -54,7 +54,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -70,17 +70,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -109,7 +109,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "test"
               src {
@@ -124,7 +124,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -151,17 +151,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -190,7 +190,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_alias: true
+                column_alias_fn_alias: true
               }
               name: "test"
               src {
@@ -205,7 +205,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -232,17 +232,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -271,7 +271,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_name: true
+                column_alias_fn_name: true
               }
               name: "test"
               src {
@@ -286,7 +286,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -313,10 +313,10 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 add {
                   lhs {
@@ -325,7 +325,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -375,7 +375,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_name: true
+                column_alias_fn_name: true
               }
               name: "test"
               src {
@@ -390,7 +390,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }

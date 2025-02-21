@@ -68,7 +68,7 @@ body {
           name: "<lambda>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
               }
             }
@@ -76,12 +76,12 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         parallel: 4
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -105,9 +105,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
@@ -147,7 +147,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -172,14 +172,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
-                    sp_fn_ref {
+                    fn_ref {
                       id {
                         bitfield1: 1
                       }
@@ -191,7 +191,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -229,7 +229,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "ans"
               src {
@@ -244,7 +244,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -270,7 +270,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -310,7 +310,7 @@ body {
           name: "<lambda [1]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\""
               }
             }
@@ -318,12 +318,12 @@ body {
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "add_two"
             }
           }
@@ -331,7 +331,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -355,17 +355,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_alias {
+            column_alias {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "call_udf"
                           }
                         }
@@ -390,7 +390,7 @@ body {
                         builtin_fn {
                           name {
                             name {
-                              sp_name_flat {
+                              name_flat {
                                 name: "col"
                               }
                             }
@@ -428,7 +428,7 @@ body {
                 }
               }
               fn {
-                sp_column_alias_fn_as: true
+                column_alias_fn_as: true
               }
               name: "a_Ans"
               src {
@@ -443,7 +443,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -469,7 +469,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -513,7 +513,7 @@ body {
           name: "<lambda [2]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\""
               }
             }
@@ -522,17 +522,17 @@ body {
         immutable: true
         imports {
           name {
-            sp_name_flat {
+            name_flat {
               name: "numpy"
             }
           }
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_float_type: true
+            float_type: true
           }
         }
         is_permanent: true
@@ -556,7 +556,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "param_udf"
             }
           }
@@ -565,7 +565,7 @@ body {
         parallel: 8
         replace: true
         return_type {
-          sp_variant_type: true
+          variant_type: true
         }
         secrets {
           _1: "a"
@@ -609,7 +609,7 @@ body {
           name: "<lambda [3]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\""
               }
             }
@@ -619,17 +619,17 @@ body {
         immutable: true
         imports {
           name {
-            sp_name_flat {
+            name_flat {
               name: "numpy"
             }
           }
         }
         input_types {
           list {
-            sp_integer_type: true
+            integer_type: true
           }
           list {
-            sp_float_type: true
+            float_type: true
           }
         }
         is_permanent: true
@@ -653,7 +653,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "param_udf2"
             }
           }
@@ -661,7 +661,7 @@ body {
         packages: "bla"
         parallel: 8
         return_type {
-          sp_variant_type: true
+          variant_type: true
         }
         secrets {
           _1: "a"
@@ -695,12 +695,12 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
             apply_expr {
               fn {
-                sp_fn_ref {
+                fn_ref {
                   id {
                     bitfield1: 10
                   }
@@ -712,7 +712,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -746,7 +746,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -786,7 +786,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }

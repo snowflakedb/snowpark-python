@@ -872,7 +872,7 @@ class StoredProcedureRegistration:
                 func,
                 return_type=return_type,
                 input_types=input_types,
-                sp_name=sp_name,
+                name=sp_name,
                 stage_location=stage_location,
                 imports=imports,
                 packages=packages,

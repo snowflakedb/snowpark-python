@@ -144,10 +144,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -160,7 +160,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -176,17 +176,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -222,14 +222,14 @@ body {
                 start_line: 27
               }
               to {
-                sp_null_type: true
+                null_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -256,17 +256,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -302,14 +302,14 @@ body {
                 start_line: 29
               }
               to {
-                sp_binary_type: true
+                binary_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -336,17 +336,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -382,14 +382,14 @@ body {
                 start_line: 31
               }
               to {
-                sp_boolean_type: true
+                boolean_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -416,17 +416,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -462,14 +462,14 @@ body {
                 start_line: 33
               }
               to {
-                sp_date_type: true
+                date_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 4
             }
@@ -496,17 +496,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -542,7 +542,7 @@ body {
                 start_line: 35
               }
               to {
-                sp_string_type {
+                string_type {
                   length {
                   }
                 }
@@ -552,7 +552,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
@@ -579,17 +579,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -625,14 +625,14 @@ body {
                 start_line: 37
               }
               to {
-                sp_byte_type: true
+                byte_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -659,17 +659,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -705,14 +705,14 @@ body {
                 start_line: 39
               }
               to {
-                sp_short_type: true
+                short_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 7
             }
@@ -739,17 +739,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -785,14 +785,14 @@ body {
                 start_line: 41
               }
               to {
-                sp_integer_type: true
+                integer_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 8
             }
@@ -819,17 +819,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -865,14 +865,14 @@ body {
                 start_line: 43
               }
               to {
-                sp_long_type: true
+                long_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 9
             }
@@ -899,17 +899,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -945,14 +945,14 @@ body {
                 start_line: 45
               }
               to {
-                sp_float_type: true
+                float_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 10
             }
@@ -979,17 +979,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1025,14 +1025,14 @@ body {
                 start_line: 47
               }
               to {
-                sp_double_type: true
+                double_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 11
             }
@@ -1059,17 +1059,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1105,9 +1105,9 @@ body {
                 start_line: 49
               }
               to {
-                sp_timestamp_type {
+                timestamp_type {
                   time_zone {
-                    sp_timestamp_time_zone_default: true
+                    timestamp_time_zone_default: true
                   }
                 }
               }
@@ -1116,7 +1116,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 12
             }
@@ -1143,17 +1143,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1189,14 +1189,14 @@ body {
                 start_line: 51
               }
               to {
-                sp_time_type: true
+                time_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 13
             }
@@ -1223,17 +1223,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1269,9 +1269,9 @@ body {
                 start_line: 53
               }
               to {
-                sp_array_type {
+                array_type {
                   ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -1283,7 +1283,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 14
             }
@@ -1310,17 +1310,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1356,9 +1356,9 @@ body {
                 start_line: 55
               }
               to {
-                sp_array_type {
+                array_type {
                   ty {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                 }
               }
@@ -1367,7 +1367,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 15
             }
@@ -1394,17 +1394,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1440,15 +1440,15 @@ body {
                 start_line: 57
               }
               to {
-                sp_map_type {
+                map_type {
                   key_ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
                   }
                   value_ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -1460,7 +1460,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 16
             }
@@ -1487,17 +1487,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1533,10 +1533,10 @@ body {
                 start_line: 59
               }
               to {
-                sp_vector_type {
+                vector_type {
                   dimension: 42
                   ty {
-                    sp_float_type: true
+                    float_type: true
                   }
                 }
               }
@@ -1545,7 +1545,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 17
             }
@@ -1572,17 +1572,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1618,7 +1618,7 @@ body {
                 start_line: 64
               }
               to {
-                sp_struct_type {
+                struct_type {
                 }
               }
             }
@@ -1626,7 +1626,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 18
             }
@@ -1653,17 +1653,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1699,7 +1699,7 @@ body {
                 start_line: 66
               }
               to {
-                sp_struct_type {
+                struct_type {
                   fields {
                   }
                 }
@@ -1709,7 +1709,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1736,17 +1736,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1782,16 +1782,16 @@ body {
                 start_line: 68
               }
               to {
-                sp_struct_type {
+                struct_type {
                   fields {
                     list {
                       column_identifier {
-                        sp_column_name {
+                        column_name {
                           name: "B"
                         }
                       }
                       data_type {
-                        sp_integer_type: true
+                        integer_type: true
                       }
                       nullable: true
                     }
@@ -1803,7 +1803,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 20
             }
@@ -1830,17 +1830,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1876,14 +1876,14 @@ body {
                 start_line: 70
               }
               to {
-                sp_variant_type: true
+                variant_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 21
             }
@@ -1910,17 +1910,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1956,14 +1956,14 @@ body {
                 start_line: 72
               }
               to {
-                sp_geography_type: true
+                geography_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 22
             }
@@ -1990,17 +1990,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2036,14 +2036,14 @@ body {
                 start_line: 74
               }
               to {
-                sp_geometry_type: true
+                geometry_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 23
             }
@@ -2070,17 +2070,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2116,14 +2116,14 @@ body {
                 start_line: 76
               }
               to {
-                sp_integer_type: true
+                integer_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 24
             }
@@ -2150,17 +2150,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2196,14 +2196,14 @@ body {
                 start_line: 78
               }
               to {
-                sp_short_type: true
+                short_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 25
             }
@@ -2230,17 +2230,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2276,14 +2276,14 @@ body {
                 start_line: 80
               }
               to {
-                sp_byte_type: true
+                byte_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 26
             }
@@ -2310,17 +2310,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2356,14 +2356,14 @@ body {
                 start_line: 82
               }
               to {
-                sp_long_type: true
+                long_type: true
               }
             }
           }
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 27
             }
@@ -2390,17 +2390,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2436,7 +2436,7 @@ body {
                 start_line: 84
               }
               to {
-                sp_decimal_type {
+                decimal_type {
                   precision: 38
                 }
               }
@@ -2445,7 +2445,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 28
             }
@@ -2472,17 +2472,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2518,7 +2518,7 @@ body {
                 start_line: 86
               }
               to {
-                sp_decimal_type {
+                decimal_type {
                   precision: 38
                 }
               }
@@ -2527,7 +2527,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 29
             }
@@ -2554,17 +2554,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2600,15 +2600,15 @@ body {
                 start_line: 88
               }
               to {
-                sp_map_type {
+                map_type {
                   key_ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
                   }
                   value_ty {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -2620,7 +2620,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 30
             }
