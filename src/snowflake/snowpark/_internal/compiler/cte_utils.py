@@ -107,8 +107,13 @@ def find_duplicate_subtrees(
         """
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
+<<<<<<< HEAD
         # Top down level order traversal to populate the
         # id_parents_map and encoded id_node_map
+=======
+        # Top down level order traversal to populate parent map
+        # and encoded id node map
+>>>>>>> 9e186e7c0 (Stack PR)
         current_level = [root]
         while len(current_level) > 0:
             next_level = []
@@ -118,11 +123,29 @@ def find_duplicate_subtrees(
                 if is_read_file_node(node):
                     invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
 
+<<<<<<< HEAD
                 for child in node.children_plan_nodes:
                     id_parents_map[child.encoded_node_id_with_query].add(
+=======
+                for child_id in node.children_plan_nodes:
+                    id_parents_map[child_id.encoded_node_id_with_query].add(
+>>>>>>> 9e186e7c0 (Stack PR)
                         node.encoded_node_id_with_query
                     )
-                    next_level.append(child)
+                    next_level.append(child_id)
+            current_level = next_level
+
+        # Bottom-up level order traversal to mark parent nodes
+        # invalid for deduplication
+        current_level = list(invalid_ids_for_deduplication)
+        while len(current_level) > 0:
+            next_level = []
+            for child_id in current_level:
+                for parent_id in id_parents_map[child_id]:
+                    invalid_ids_for_deduplication.add(parent_id)
+                    next_level.append(parent_id)
+                    for node in id_node_map[parent_id]:
+                        node._invalid_for_with_query_block_child = True
             current_level = next_level
 
         # Bottom-up level order traversal to mark parent nodes
