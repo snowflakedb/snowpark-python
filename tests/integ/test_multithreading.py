@@ -804,7 +804,9 @@ def test_temp_name_placeholder_for_sync(db_parameters, thread_safe_enabled):
             df_cleaned = df_.filter(df.A == thread_id)
             try:
                 df_cleaned.collect()
-            finally:
+            except Exception as e:
+                if thread_safe_enabled:
+                    raise e
                 # when thread_safe is disable, this will throw an error
                 # because the temp table is already dropped by another thread
                 pass
