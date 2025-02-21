@@ -6,6 +6,7 @@ import importlib
 import inspect
 import json
 import math
+import numbers
 import re
 import statistics
 import typing
@@ -347,10 +348,23 @@ def handle_range_frame_indexing(
             handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
             for win in res.rolling(EntireWindowIndexer())
         ]
+        types = ordered_windows[0].sf_types
         windows = []
         if range_bounds:
             group_col = analyzer.analyze(order_spec[0].child, expr_to_alias)
             lower, upper = range_bounds
+            if (lower is not None and not isinstance(lower, numbers.Number)) or (
+                upper is not None and not isinstance(upper, numbers.Number)
+            ):
+                raise SnowparkLocalTestingException(
+                    "range_between only works with numeric group_by columns."
+                )
+
+            if not isinstance(types[group_col], _NumericType):
+                raise SnowparkLocalTestingException(
+                    "range_between only operates on numeric columns."
+                )
+
             # TableEmulator breaks loc comparisons
             cast_windows = [pd.DataFrame(win) for win in ordered_windows]
             for current_row, win in zip(res_index, cast_windows):
@@ -361,9 +375,7 @@ def handle_range_frame_indexing(
                     cond &= win[group_col] <= win.loc[current_row][group_col] + upper
 
                 # Cast back to TableEmulator so downstream can infer types correctly
-                windows.append(
-                    TableEmulator(win.loc[cond], sf_types=ordered_windows[0].sf_types)
-                )
+                windows.append(TableEmulator(win.loc[cond], sf_types=types))
         else:
             for current_row, win in zip(res_index, ordered_windows):
                 row_idx = list(win.index).index(current_row)
