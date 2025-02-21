@@ -2834,3 +2834,23 @@ def test_register_artifact_repository(session):
         Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("test")])
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+def test_register_artifact_repository_negative(session):
+    def test_nop() -> str:
+        pass
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    with pytest.raises(
+        ValueError,
+        match="artifact_repository must be specified when artifact_repository_packages has been specified",
+    ):
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository_packages=["urllib3", "requests"],
+        )
