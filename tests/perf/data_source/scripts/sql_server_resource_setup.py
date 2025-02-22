@@ -193,10 +193,10 @@ if __name__ == "__main__":
     test = TestSQLServerDB()
     test.create_table(replace=True)
     test.insert_data(ONE_MILLION)
-    test.close_connection()
     ret = (
         test.connection.cursor()
         .execute("select count(*) from ALL_TYPE_TABLE")
         .fetchall()
     )
     print(ret)
+    test.close_connection()
