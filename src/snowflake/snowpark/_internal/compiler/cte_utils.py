@@ -134,8 +134,6 @@ def find_duplicate_subtrees(
                 for parent_id in id_parents_map[child_id]:
                     invalid_ids_for_deduplication.add(parent_id)
                     next_level.append(parent_id)
-                    for node in id_node_map[parent_id]:
-                        node._invalid_for_with_query_block_child = True
             current_level = next_level
 
     def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
