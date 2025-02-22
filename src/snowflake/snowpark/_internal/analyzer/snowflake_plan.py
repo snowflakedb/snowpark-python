@@ -92,6 +92,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
     LogicalPlan,
+    ReadFileNode,
     SaveMode,
     SelectFromFileNode,
     SelectWithCopyIntoTableNode,
@@ -1254,7 +1255,7 @@ class SnowflakePlanBuilder:
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
         use_user_schema: bool = False,
-        source_plan: Optional[LogicalPlan] = None,
+        source_plan: Optional[ReadFileNode] = None,
     ) -> SnowflakePlan:
         thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
         format_type_options, copy_options = get_copy_into_table_options(options)
@@ -1337,12 +1338,17 @@ class SnowflakePlanBuilder:
                 )
             )
 
+            source_plan = (
+                SelectFromFileNode.from_read_file_node(source_plan)
+                if source_plan
+                else None
+            )
             return SnowflakePlan(
                 queries,
                 schema_value_statement((metadata_schema or []) + schema),
                 post_queries,
                 {},
-                SelectFromFileNode.from_read_file_node(source_plan),
+                source_plan=source_plan,
                 session=self.session,
             )
         else:  # otherwise use COPY
@@ -1420,12 +1426,17 @@ class SnowflakePlanBuilder:
                     else None,
                 )
             ]
+            source_plan = (
+                SelectWithCopyIntoTableNode.from_read_file_node(source_plan)
+                if source_plan
+                else None
+            )
             return SnowflakePlan(
                 queries,
                 schema_value_statement(schema),
                 post_actions,
                 {},
-                SelectWithCopyIntoTableNode.from_read_file_node(source_plan),
+                source_plan=source_plan,
                 session=self.session,
             )
 
