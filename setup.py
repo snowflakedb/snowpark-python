@@ -179,14 +179,18 @@ setup(
         "snowflake.snowpark.modin.plugin.extensions",
         "snowflake.snowpark.modin.plugin.io",
         "snowflake.snowpark.modin.plugin.utils",
+        "snowflake.snowpark.tests",
     ],
     cmdclass={"build_py": build_py},
     package_dir={
         "": "src",
+        "snowflake.snowpark.tests": "tests",
     },
     package_data={
         "snowflake.snowpark": ["LICENSE.txt", "py.typed"],
+        "snowflake.snowpark.tests": ["**/*"],
     },
+    include_package_data=True,
     extras_require={
         "pandas": PANDAS_REQUIREMENTS,
         "modin": MODIN_REQUIREMENTS,

@@ -10,4 +10,4 @@ exclude license_header.txt
 exclude tox.ini
 exclude mypy.ini
 
-prune tests
+recursive-include tests *
