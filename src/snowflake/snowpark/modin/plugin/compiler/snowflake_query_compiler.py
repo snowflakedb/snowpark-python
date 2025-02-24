@@ -4101,13 +4101,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO(SNOW-1210489): When type hints show that `agg_func` returns a
         # scalar, we can use a vUDF instead of a vUDTF and we can skip the
         # pivot.
+        data_columns_index = self._modin_frame.data_columns_index[
+            input_data_column_positions
+        ]
+        is_transform = groupby_kwargs.get("apply_op") == "transform"
         udtf = create_udtf_for_groupby_apply(
             agg_func,
             agg_args,
             agg_kwargs,
-            data_column_index=self._modin_frame.data_columns_index[
-                input_data_column_positions
-            ],
+            data_column_index=data_columns_index,
             index_column_names=self._modin_frame.index_column_pandas_labels,
             input_data_column_types=[
                 snowflake_type_map[quoted_identifier]
@@ -4119,6 +4121,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ],
             session=self._modin_frame.ordered_dataframe.session,
             series_groupby=series_groupby,
+            by_labels=by_pandas_labels,
             by_types=[]
             if force_single_group
             else [
@@ -4127,12 +4130,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ],
             existing_identifiers=self._modin_frame.ordered_dataframe._dataframe_ref.snowflake_quoted_identifiers,
             force_list_like_to_series=force_list_like_to_series,
+            is_transform=is_transform,
         )
 
         new_internal_df = self._modin_frame.ensure_row_position_column()
-        row_position_snowflake_quoted_identifier = (
-            new_internal_df.row_position_snowflake_quoted_identifier
-        )
 
         # drop the rows if any value in groupby key is NaN
         ordered_dataframe = new_internal_df.ordered_dataframe
@@ -4184,6 +4185,44 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         |        1 |        2 | k1                   |                 14 | b                     |                  1 |
         |        0 |        0 | k0                   |                 15 | c                     |                  2 |
         """
+        if is_transform:
+            x = udtf(
+                row_position_snowflake_quoted_identifier,
+                *by_snowflake_quoted_identifiers_list,
+                *new_internal_df.index_column_snowflake_quoted_identifiers,
+                *input_data_column_identifiers,
+            ).over(
+                partition_by=None
+                if force_single_group
+                else [*by_snowflake_quoted_identifiers_list],
+                order_by=row_position_snowflake_quoted_identifier,
+            )
+            ordered_dataframe = ordered_dataframe.select(x)
+            # output frame has the following columns in order
+            # 1. row position column
+            # 2. index columns
+            # 3. data columns (excluding by columns)
+            ids = ordered_dataframe.projected_column_snowflake_quoted_identifiers
+            data_col_labels = [
+                col for col in data_columns_index if col not in by_pandas_labels
+            ]
+            return SnowflakeQueryCompiler(
+                InternalFrame.create(
+                    ordered_dataframe=ordered_dataframe,
+                    data_column_pandas_labels=data_col_labels,
+                    data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
+                    data_column_snowflake_quoted_identifiers=ids[
+                        1 + self._modin_frame.num_index_levels() :
+                    ],
+                    index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
+                    index_column_snowflake_quoted_identifiers=ids[
+                        1 : 1 + self._modin_frame.num_index_levels()
+                    ],
+                    data_column_types=None,
+                    index_column_types=None,
+                )
+            )
+
         # NOTE we are keeping the cache_result for performance reasons. DO NOT
         # REMOVE the cache_result unless you can prove that doing so will not
         # materially slow down CI or individual groupby.apply() calls.
@@ -8458,23 +8497,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas apply API doesn't yet support DataFrame or Series in 'args' or 'kwargs' of 'func'"
             )
-
-        if is_supported_snowpark_python_function(func):
-            if axis != 0:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with axis = {axis}."
-                )
-            if raw is not False:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with raw = {raw}."
-                )
-            if args:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
-                )
-            return self._apply_snowpark_python_function_to_columns(func, kwargs)
-
-        if func in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY:
+        if (
+            is_supported_snowpark_python_function(func)
+            or func in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY
+        ):
             if axis != 0:
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with with axis = {axis}.'"
@@ -8487,11 +8513,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with args == '{args}'"
                 )
-            if kwargs:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with kwargs == '{kwargs}'"
-                )
-            return self._apply_snowflake_cortex_function_to_columns(func)
+            return self._apply_snowflake_function_to_columns(func, kwargs)
         elif func in ALL_SNOWFLAKE_CORTEX_FUNCTIONS:
             ErrorMessage.not_implemented(
                 f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
@@ -8499,7 +8521,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
         if sf_func is not None:
-            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+            return self._apply_snowflake_function_to_columns(sf_func, kwargs)
 
         if get_snowflake_agg_func(func, {}, axis) is not None:
             # np.std and np.var 'ddof' parameter defaults to 0 but
@@ -8773,26 +8795,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     func, raw, result_type, args, column_index, input_types, **kwargs
                 )
 
-    def _apply_snowpark_python_function_to_columns(
+    def _apply_snowflake_function_to_columns(
         self,
-        snowpark_function: Callable,
-        kwargs: dict[str, Any],  # possible named arguments which need to be added
+        snowflake_function: Callable,
+        kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
-        """Apply Snowpark Python function to columns."""
+        """Apply Snowflake function to columns."""
 
         def sf_function(col: SnowparkColumn) -> SnowparkColumn:
             if not kwargs:
-                return snowpark_function(col)
+                return snowflake_function(col)
             # we have named kwargs, which may be positional
-            # in nature, and we need to align them to the snowpark
+            # in nature, and we need to align them to the Snowflake
             # function call alongside the column reference
 
-            params = inspect.signature(snowpark_function).parameters
+            params = inspect.signature(snowflake_function).parameters
             resolved_positional = []
             found_snowpark_column = False
+            kwargs_list = kwargs
             for arg in params:
                 if arg in kwargs:
                     resolved_positional.append(kwargs[arg])
+                    kwargs_list.pop(arg)
                 else:
                     if not found_snowpark_column:
                         resolved_positional.append(col)
@@ -8805,33 +8829,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     elif (
                         params[arg].default is not inspect.Parameter.empty
                     ):  # pragma: no cover
-                        #  If the unspecified arg has a default value, that default value most likely needs to be added
-                        #  to the positional arguments. This however cannot be validated because this case
-                        #  is not applicable in any of the currently supported Snowpark Python functions yet.
-                        ErrorMessage.not_implemented(
-                            f"Function with default value parameter {arg} not passed as a kwarg is not currently supported."
-                        )
+                        #  If the unspecified arg has a default value, that default value is added
+                        #  to the positional arguments.
+                        resolved_positional.append(params[arg].default)
+
                     else:
                         ErrorMessage.not_implemented(
                             f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
                         )
-
-            return snowpark_function(*resolved_positional)
-
-        return SnowflakeQueryCompiler(
-            self._modin_frame.apply_snowpark_function_to_columns(sf_function)
-        )
-
-    def _apply_snowflake_cortex_function_to_columns(
-        self,
-        snowflake_function: Callable,
-    ) -> "SnowflakeQueryCompiler":
-        """Apply Snowflake Cortex function to columns."""
-
-        def sf_function(col: SnowparkColumn) -> SnowparkColumn:
-            resolved_positional = []
-            resolved_positional.append(col)
-
+            if kwargs_list:
+                ErrorMessage.not_implemented(
+                    f"Unspecified kwargs: {kwargs_list} are not part of function arguments."
+                )
             return snowflake_function(*resolved_positional)
 
         return SnowflakeQueryCompiler(
@@ -8860,18 +8869,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
-        if is_supported_snowpark_python_function(func):
-            if na_action:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with na_action == '{na_action}'"
-                )
-            if args:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
-                )
-            return self._apply_snowpark_python_function_to_columns(func, kwargs)
-
-        if func in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY:
+        if (
+            is_supported_snowpark_python_function(func)
+            or func in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY
+        ):
             if na_action:
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with na_action == '{na_action}'"
@@ -8880,11 +8881,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with args == '{args}'"
                 )
-            if kwargs:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with kwargs == '{kwargs}'"
-                )
-            return self._apply_snowflake_cortex_function_to_columns(func)
+            return self._apply_snowflake_function_to_columns(func, kwargs)
         elif func in ALL_SNOWFLAKE_CORTEX_FUNCTIONS:
             ErrorMessage.not_implemented(
                 f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
@@ -8894,7 +8891,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # to Snowflake function.
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
         if sf_func is not None:
-            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+            return self._apply_snowflake_function_to_columns(sf_func, kwargs)
 
         if func in (np.sum, np.min, np.max):
             # Aggregate functions applied element-wise to columns are no-op.
