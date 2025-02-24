@@ -10,7 +10,6 @@ import pandas as pd
 import logging
 
 from snowflake.snowpark import Session
-from parameters import SNOWFLAKE_CONNECTION
 from dbtest_config import (
     DatabaseTestConfig,
     create_sql_server_config,
@@ -19,6 +18,8 @@ from dbtest_config import (
     DEFAULT_ORACLE_JDBC_CONFIG,
     DEFAULT_SQLSERVER_JDBC_CONFIG,
 )
+
+from parameters import SNOWFLAKE_CONNECTION
 
 # Configure logging
 logging.basicConfig(
