@@ -6,6 +6,7 @@ import sys
 from functools import reduce
 from typing import Dict, List, Optional, Union
 
+
 import snowflake.snowpark
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.unary_plan_node import SampleBy
