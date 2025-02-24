@@ -16,7 +16,7 @@ from snowflake.snowpark._internal.ast.utils import (
     DATAFRAME_AST_PARAMETER,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
+from snowflake.snowpark._internal.telemetry import add_api_call, adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import publicapi, warning
 from snowflake.snowpark.functions import (
@@ -402,14 +402,18 @@ class DataFrameStatFunctions:
         sample_by_plan = SampleBy(self._dataframe._plan, col._expression, fractions)
         if self._dataframe._select_statement:
             session = self._dataframe.session
-            select_plan = session._analyzer.create_select_statement(
+            select_stmt = session._analyzer.create_select_statement(
                 from_=session._analyzer.create_select_snowflake_plan(
                     sample_by_plan, analyzer=session._analyzer
                 ),
                 analyzer=session._analyzer,
             )
-            return self._dataframe._with_plan(select_plan)
-        return self._dataframe._with_plan(sample_by_plan)
+            res_df = self._dataframe._with_plan(select_stmt)
+        else:
+            res_df = self._dataframe._with_plan(sample_by_plan)
+
+        add_api_call(res_df, "DataFrameStatFunctions.sample_by")
+        return res_df
 
     @publicapi
     def sample_by(
