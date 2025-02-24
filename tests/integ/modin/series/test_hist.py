@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import tempfile
 
 import modin.pandas as pd
 import matplotlib.pyplot as plt
@@ -13,14 +12,10 @@ from matplotlib.testing.compare import compare_images
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-temp_dir = tempfile.TemporaryDirectory()
-TEMP_DIR_NAME = temp_dir.name
-
-
 @sql_count_checker(query_count=2)
 @pytest.mark.parametrize("grid", [True, False])
 @pytest.mark.parametrize("bins", [None, 1, 5, 10])
-def test_hist(grid, bins):
+def test_hist(grid, bins, tmp_path):
     lst = ["a", "a", "a", "b", "b", "b"]
     native_ser = native_pd.Series([1, 2, 2, 4, 6, 6], index=lst)
     snow_ser = pd.Series(native_ser)
@@ -31,13 +26,13 @@ def test_hist(grid, bins):
     native_fig.add_axes(
         native_ser.hist(figure=native_fig, ax=native_fig.gca(), grid=grid, bins=bins)
     )
-    native_file_path = f"{TEMP_DIR_NAME}/test_hist_native.png"
+    native_file_path = f"{tmp_path}/test_hist_native.png"
     native_fig.savefig(native_file_path)
 
     snow_fig.add_axes(
         snow_ser.hist(figure=snow_fig, ax=snow_fig.gca(), grid=grid, bins=bins)
     )
-    snow_file_path = f"{TEMP_DIR_NAME}/test_hist_snow.png"
+    snow_file_path = f"{tmp_path}/test_hist_snow.png"
     snow_fig.savefig(snow_file_path)
 
     assert compare_images(native_file_path, snow_file_path, 0) is None
