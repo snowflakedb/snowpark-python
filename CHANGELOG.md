@@ -1,6 +1,38 @@
 # Release History
 
-## 1.28.0 (TBD)
+## 1.29.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following AI-powered functions in `functions.py`
+  - `ai_filter`
+  - `ai_agg`
+  - `summarize_agg`
+
+#### Bug Fixes
+
+- Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
+
+#### Improvements
+
+- Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
+
+### Snowpark pandas API Updates
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for literal values to `range_between` window function.
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
+
+
+## 1.28.0 (2025-02-20)
 
 ### Snowpark Python API Updates
 
@@ -13,7 +45,7 @@
 
 #### Improvements
 
-- Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns.
+- Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns. To disable this feature, set `session.conf.set("use_simplified_query_generation", False)`.
 
 #### Deprecations
 
@@ -24,11 +56,8 @@
 
 - Fixed a bug where session-level query tag was overwritten by a stacktrace for dataframes that generate multiple queries. Now, the query tag will only be set to the stacktrace if `session.conf.set("collect_stacktrace_in_query_tag", True)`.
 - Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
-
-#### Improvements
-
-- Improved the random object name generation to avoid collisions.
-- Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
+- Fixed a bug in options sql generation that could cause multiple values to be formatted incorrectly.
+- Fixed a bug in `Session.catalog` where empty strings for database or schema were not handled correctly and were generating erroneous sql statements.
 
 #### Experimental Features
 
@@ -39,12 +68,17 @@
 #### New Features
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
-- Added support for `Series.hist`.
 - Added support for list values in `Series.str.get`.
+- Added support for list values in `Series.str.slice`.
+- Added support for applying Snowflake Cortex functions `ClassifyText`, `Translate`, and `ExtractAnswer`.
 
 #### Bug Fixes
 
 - Fixed a bug in `apply` where kwargs were not being correctly passed into the applied function.
+
+#### Improvements
+- Improved performance of `DataFrame.groupby.transform` and `Series.groupby.transform` by avoiding expensive pivot step.
+
 
 ### Snowpark Local Testing Updates
 
@@ -52,13 +86,13 @@
 - Added support for the following functions
     - `hour`
     - `minute`
+- Added support for NULL_IF parameter to csv reader.
+- Added support for `date_format`, `datetime_format`, and `timestamp_format` options when loading csvs.
 
 #### Bug Fixes
 
 - Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 - Fixed a bug in when statements that caused incorrect results in the otherwise clause.
-
-
 
 
 ## 1.27.0 (2025-02-03)

@@ -12,9 +12,9 @@ df = df.select(listagg("a").within_group(["a", "b", col("c")]))
 
 df = session.table("table1")
 
-df = df.select(array_agg(col("a")).within_group("b"))
+df = df.select(array_agg("a").within_group("b"))
 
-df = df.select(array_agg(col("a")).within_group("a", col("b")))
+df = df.select(array_agg("a").within_group("a", col("b")))
 
 df = df.select(listagg("a", "", False).within_group(["a", "b", col("c")]))
 
@@ -32,10 +32,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -48,7 +48,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -64,17 +64,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_within_group {
+            column_within_group {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "array_agg"
                           }
                         }
@@ -82,30 +82,7 @@ body {
                     }
                   }
                   pos_args {
-                    apply_expr {
-                      fn {
-                        builtin_fn {
-                          name {
-                            name {
-                              sp_name_flat {
-                                name: "col"
-                              }
-                            }
-                          }
-                        }
-                      }
-                      pos_args {
-                        string_val {
-                          src {
-                            end_column: 37
-                            end_line: 27
-                            file: 2
-                            start_column: 23
-                            start_line: 27
-                          }
-                          v: "a"
-                        }
-                      }
+                    string_val {
                       src {
                         end_column: 37
                         end_line: 27
@@ -113,6 +90,7 @@ body {
                         start_column: 23
                         start_line: 27
                       }
+                      v: "a"
                     }
                   }
                   src {
@@ -144,7 +122,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -171,17 +149,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_within_group {
+            column_within_group {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "array_agg"
                           }
                         }
@@ -189,30 +167,7 @@ body {
                     }
                   }
                   pos_args {
-                    apply_expr {
-                      fn {
-                        builtin_fn {
-                          name {
-                            name {
-                              sp_name_flat {
-                                name: "col"
-                              }
-                            }
-                          }
-                        }
-                      }
-                      pos_args {
-                        string_val {
-                          src {
-                            end_column: 37
-                            end_line: 29
-                            file: 2
-                            start_column: 23
-                            start_line: 29
-                          }
-                          v: "a"
-                        }
-                      }
+                    string_val {
                       src {
                         end_column: 37
                         end_line: 29
@@ -220,6 +175,7 @@ body {
                         start_column: 23
                         start_line: 29
                       }
+                      v: "a"
                     }
                   }
                   src {
@@ -243,7 +199,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -285,7 +241,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -312,17 +268,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_within_group {
+            column_within_group {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "listagg"
                           }
                         }
@@ -389,7 +345,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -430,7 +386,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -467,5 +423,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }
