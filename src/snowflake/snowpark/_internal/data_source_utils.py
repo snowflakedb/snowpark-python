@@ -350,14 +350,11 @@ def generate_sql_with_predicates(select_query: str, predicates: List[str]):
     return [select_query + f" WHERE {predicate}" for predicate in predicates]
 
 
-# have to keep params otherwise oracle will not recognize it
+# have to keep params otherwise oracle will not recognize it.
 def output_type_handler(cursor, name, default_type, size, precision, scale):
     import oracledb
 
-    if (
-        default_type == oracledb.DB_TYPE_CLOB
-        or default_type == oracledb.DB_TYPE_NCLOB
-    ):
+    if default_type == oracledb.DB_TYPE_CLOB or default_type == oracledb.DB_TYPE_NCLOB:
         return cursor.var(oracledb.DB_TYPE_LONG, arraysize=cursor.arraysize)
     if default_type == oracledb.DB_TYPE_BLOB:
         return cursor.var(oracledb.DB_TYPE_RAW, arraysize=cursor.arraysize)
