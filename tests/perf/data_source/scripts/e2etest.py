@@ -3,6 +3,7 @@
 #
 
 import time
+from copy import copy
 from typing import Dict, List, Tuple
 from datetime import datetime
 import pandas as pd
@@ -14,6 +15,9 @@ from dbtest_config import (
     DatabaseTestConfig,
     create_sql_server_config,
     create_oracle_config,
+    DEFAULT_PYSPARK_CONFIG,
+    DEFAULT_ORACLE_JDBC_CONFIG,
+    DEFAULT_SQLSERVER_JDBC_CONFIG,
 )
 
 # Configure logging
@@ -29,9 +33,6 @@ class PerformanceMetrics:
         self.read_time = 0
         self.write_time = 0
         self.total_time = 0
-        self.source_count = 0
-        self.target_count = 0
-        self.validation_passed = False
 
 
 class DBPerformanceTest:
@@ -113,9 +114,7 @@ class DBPerformanceTest:
                 )
 
                 # Validate data
-                metrics = self._validate_data(
-                    source_db, session, table_name, snowflake_table, metrics
-                )
+                self._validate_data(source_db, session, table_name, snowflake_table)
 
                 # Calculate total time
                 metrics.total_time = metrics.read_time + metrics.write_time
@@ -130,9 +129,6 @@ class DBPerformanceTest:
                         "read_time": metrics.read_time,
                         "write_time": metrics.write_time,
                         "total_time": metrics.total_time,
-                        "source_count": metrics.source_count,
-                        "target_count": metrics.target_count,
-                        "validation_passed": metrics.validation_passed,
                     }
                 )
 
@@ -144,31 +140,73 @@ class DBPerformanceTest:
 
         return test_results
 
+    def run_test_for_pyspark_jdbc(self, spark_config: Dict, jdbc_config: Dict) -> None:
+        snowflake_table_name = "pyspark_dbapi_perf_test"
+        snowflake_session = Session.builder.configs(self.snowflake_connection).create()
+        snowflake_session.sql(f"drop table if exists {snowflake_table_name}").collect()
+        from pyspark.sql import SparkSession
+
+        spark = SparkSession.builder.appName("PySparkJDBCTest")
+        for k, v in spark_config.items():
+            spark = spark.config(k, v)
+        spark = spark.getOrCreate()
+        logger.info("Running PySpark JDBC performance test.")
+        metrics = PerformanceMetrics()
+        metrics.start_time = time.time()
+
+        try:
+            logger.info("Reading data from JDBC source.")
+            df = spark.read.format("jdbc").options(**jdbc_config).load()
+            metrics.read_time = time.time() - metrics.start_time
+            # Writing data back to Snowflake
+            logger.info("Writing data back to Snowflake.")
+            write_start = time.time()
+            (
+                df.write.format("net.snowflake.spark.snowflake")
+                .option("sfUrl", self.snowflake_connection["host"])
+                .option("sfUser", self.snowflake_connection["user"])
+                .option("sfPassword", self.snowflake_connection["password"])
+                .option("sfDatabase", self.snowflake_connection["database"])
+                .option("sfSchema", self.snowflake_connection["schema"])
+                .option("sfWarehouse", self.snowflake_connection["warehouse"])
+                .option("use_parquet_in_write", "true")
+                .option("dbtable", snowflake_table_name)
+                .mode("overwrite")
+                .save()
+            )
+            metrics.write_time = time.time() - write_start
+            metrics.total_time = time.time() - metrics.start_time
+
+        except Exception as e:
+            logger.error(f"Error during PySpark JDBC test: {e}")
+            snowflake_session.sql(
+                f"drop table if exists {snowflake_table_name}"
+            ).collect()
+            raise
+
+        logger.info(f"Test completed in {metrics.total_time} seconds.")
+        self.results.append(
+            {
+                "database_type": jdbc_config.get("driver"),
+                "data_size": df.count(),
+                "read_time": metrics.read_time,
+                "write_time": metrics.write_time,
+                "total_time": metrics.total_time,
+            }
+        )
+
     def _validate_data(
         self,
         source_db,
         session,
         source_table: str,
         target_table: str,
-        metrics: PerformanceMetrics,
-    ) -> PerformanceMetrics:
+    ):
         """Validate data between source and Snowflake"""
         # Get count from source
         with source_db.connection.cursor() as cursor:
             cursor.execute(f"SELECT COUNT(*) FROM {source_table}")
-            metrics.source_count = cursor.fetchone()[0]
-
-        # Get count from Snowflake
-        metrics.target_count = session.table(target_table).count()
-
-        # Validate row counts
-        metrics.validation_passed = metrics.source_count == metrics.target_count
-        logger.info(f"Data validation - Row counts match: {metrics.validation_passed}")
-        logger.info(
-            f"Source count: {metrics.source_count}, Snowflake count: {metrics.target_count}"
-        )
-
-        return metrics
+            assert cursor.fetchone()[0] == session.table(target_table).count()
 
     def save_results(self, filename: str = "performance_results.csv"):
         """Save test results to CSV"""
@@ -177,7 +215,39 @@ class DBPerformanceTest:
         logger.info(f"\nResults saved to {filename}")
 
 
-if __name__ == "__main__":
+def pyspark_perf_test():
+    # here the assumption is that source database is already set up
+    perf_test = DBPerformanceTest(SNOWFLAKE_CONNECTION)
+
+    oracle_jdbc_config = copy(DEFAULT_ORACLE_JDBC_CONFIG)
+    oracle_jdbc_config[
+        "dbtable"
+    ] = "(SELECT ID,NUMBER_COL,BINARY_FLOAT_COL,BINARY_DOUBLE_COL,VARCHAR2_COL,CHAR_COL,CLOB_COL,NCHAR_COL,NVARCHAR2_COL,NCLOB_COL,DATE_COL,TIMESTAMP_COL,TIMESTAMP_TZ_COL,TO_CHAR(TIMESTAMP_LTZ_COL),BLOB_COL,RAW_COL,GUID_COL FROM ALL_TYPE_TABLE)"
+
+    sqlserver_jdbc_config = copy(DEFAULT_SQLSERVER_JDBC_CONFIG)
+    sqlserver_jdbc_config[
+        "dbtable"
+    ] = "(SELECT id,bigint_col,bit_col,decimal_col,float_col,int_col,money_col,real_col,smallint_col,smallmoney_col,tinyint_col,numeric_col,date_col,datetime2_col,datetime_col,smalldatetime_col,time_col,char_col,text_col,varchar_col,nchar_col,ntext_col,nvarchar_col,binary_col,varbinary_col,image_col,uniqueidentifier_col,xml_col,sysname_col FROM ALL_TYPE_TABLE) as tmp"
+
+    perf_test.run_test_for_pyspark_jdbc(DEFAULT_PYSPARK_CONFIG, oracle_jdbc_config)
+
+    perf_test.run_test_for_pyspark_jdbc(DEFAULT_PYSPARK_CONFIG, sqlserver_jdbc_config)
+
+    # Save all results
+    perf_test.save_results("pyspark_performance_results.csv")
+
+    # Print summary
+    print("\nTest Summary:")
+    for result in perf_test.results:
+        print(
+            f"\nDatabase: {result['database_type']}, Size: {result['data_size']} rows:"
+        )
+        print(f"Read time: {result['read_time']:.2f} seconds")
+        print(f"Write time: {result['write_time']:.2f} seconds")
+        print(f"Total time: {result['total_time']:.2f} seconds")
+
+
+def snowpark_perf_test():
     # Initialize and run tests
     perf_test = DBPerformanceTest(SNOWFLAKE_CONNECTION)
 
@@ -205,5 +275,9 @@ if __name__ == "__main__":
         print(f"Read time: {result['read_time']:.2f} seconds")
         print(f"Write time: {result['write_time']:.2f} seconds")
         print(f"Total time: {result['total_time']:.2f} seconds")
-        print(f"Data validation: {'✓' if result['validation_passed'] else '✗'}")
         print(f"DBAPI parameters: {result['dbapi_parameters']}")
+
+
+if __name__ == "__main__":
+    pyspark_perf_test()
+    snowpark_perf_test()

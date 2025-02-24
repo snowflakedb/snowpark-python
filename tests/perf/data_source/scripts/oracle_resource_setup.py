@@ -140,11 +140,12 @@ class TestOracleDB(TestDBABC):
 if __name__ == "__main__":
     # for setup
     test = TestOracleDB()
-    test.create_table(replace=True)
-    test.insert_data(ONE_MILLION)
+    table_name = "ALL_TYPE_TABLE"
+    test.create_table(table_name=table_name, replace=True)
+    test.insert_data(ONE_MILLION, table_name=table_name)
     ret = (
         test.connection.cursor()
-        .execute("select count(*) from ALL_TYPE_TABLE")
+        .execute(f"select count(*) from {table_name}")
         .fetchall()
     )
     print(ret)
