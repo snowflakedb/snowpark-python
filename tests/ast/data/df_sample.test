@@ -6,13 +6,17 @@ df = df.sample(n=3)
 
 df = df.sample(frac=0.5)
 
+df = df.sample(frac=0.7, seed=42)
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
 
-df = df.sample(None, 3)
+df = df.sample(None, 3, None)
 
-df = df.sample(0.5, None)
+df = df.sample(0.5, None, None)
+
+df = df.sample(0.7, None, 42)
 
 ## EXPECTED ENCODED AST
 
@@ -118,6 +122,41 @@ body {
     uid: 3
     var_id {
       bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_sample {
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        probability_fraction {
+          value: 0.7
+        }
+        seed {
+          value: 42
+        }
+        src {
+          end_column: 41
+          end_line: 31
+          file: 2
+          start_column: 13
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
     }
   }
 }

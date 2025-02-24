@@ -1268,17 +1268,18 @@ message DataframeSample {
   DataframeExpr df = 1;
   google.protobuf.Int64Value num = 2;
   google.protobuf.DoubleValue probability_fraction = 3;
-  SrcPosition src = 4;
+  google.protobuf.Int64Value seed = 4;
+  SrcPosition src = 5;
 }
 
-// dataframe.ir:311
+// dataframe.ir:312
 message DataframeSelect_Columns {
   ExprArgList cols = 1;
   DataframeExpr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:316
+// dataframe.ir:317
 message DataframeSelect_Exprs {
   DataframeExpr df = 1;
   ExprArgList exprs = 2;
@@ -1292,7 +1293,7 @@ message DataframeShow {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:321
+// dataframe.ir:322
 message DataframeSort {
   Expr ascending = 1;
   ExprArgList cols = 2;
@@ -1376,28 +1377,28 @@ message DataframeToPandasBatches {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe.ir:328
+// dataframe.ir:329
 message DataframeUnion {
   DataframeExpr df = 1;
   DataframeExpr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:333
+// dataframe.ir:334
 message DataframeUnionAll {
   DataframeExpr df = 1;
   DataframeExpr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:338
+// dataframe.ir:339
 message DataframeUnionAllByName {
   DataframeExpr df = 1;
   DataframeExpr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:343
+// dataframe.ir:344
 message DataframeUnionByName {
   DataframeExpr df = 1;
   DataframeExpr other = 2;
@@ -1414,7 +1415,7 @@ message DataframeUnpivot {
   string value_column = 6;
 }
 
-// dataframe.ir:348
+// dataframe.ir:349
 message DataframeWithColumn {
   Expr col = 1;
   string col_name = 2;
@@ -1422,7 +1423,7 @@ message DataframeWithColumn {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:354
+// dataframe.ir:355
 message DataframeWithColumnRenamed {
   Expr col = 1;
   DataframeExpr df = 2;
@@ -1430,7 +1431,7 @@ message DataframeWithColumnRenamed {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:360
+// dataframe.ir:361
 message DataframeWithColumns {
   repeated string col_names = 1;
   DataframeExpr df = 2;
@@ -1835,7 +1836,7 @@ message Geq {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:366
+// dataframe.ir:367
 message GroupingSets {
   ExprArgList sets = 1;
   SrcPosition src = 2;
@@ -2526,7 +2527,7 @@ message TableUpdate {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe.ir:370
+// dataframe.ir:371
 message ToSnowparkPandas {
   List_String columns = 1;
   DataframeExpr df = 2;

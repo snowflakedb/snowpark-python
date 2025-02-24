@@ -5366,7 +5366,6 @@ class DataFrame:
 
         stmt = None
         if _emit_ast:
-            # TODO: add seed support in ast
             # AST.
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_sample, stmt)
@@ -5374,6 +5373,8 @@ class DataFrame:
                 ast.probability_fraction.value = frac
             if n:
                 ast.num.value = n
+            if seed:
+                ast.seed.value = seed
             self._set_ast_ref(ast.df)
 
         sample_plan = Sample(
