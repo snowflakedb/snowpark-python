@@ -69,15 +69,8 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__exprs {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        exprs {
+      dataframe_select {
+        cols {
           args {
             string_val {
               src {
@@ -92,6 +85,14 @@ body {
           }
           variadic: true
         }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        expr_variant: true
         src {
           end_column: 33
           end_line: 27
@@ -113,15 +114,8 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__exprs {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 2
-            }
-          }
-        }
-        exprs {
+      dataframe_select {
+        cols {
           args {
             string_val {
               src {
@@ -135,6 +129,14 @@ body {
             }
           }
         }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        expr_variant: true
         src {
           end_column: 35
           end_line: 29
@@ -156,15 +158,8 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__exprs {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 3
-            }
-          }
-        }
-        exprs {
+      dataframe_select {
+        cols {
           args {
             string_val {
               src {
@@ -239,6 +234,14 @@ body {
           }
           variadic: true
         }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        expr_variant: true
         src {
           end_column: 100
           end_line: 31
@@ -260,15 +263,8 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__exprs {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 4
-            }
-          }
-        }
-        exprs {
+      dataframe_select {
+        cols {
           args {
             string_val {
               src {
@@ -342,6 +338,14 @@ body {
             }
           }
         }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 4
+            }
+          }
+        }
+        expr_variant: true
         src {
           end_column: 102
           end_line: 33

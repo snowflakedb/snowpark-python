@@ -57,7 +57,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             string_val {
