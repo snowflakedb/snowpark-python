@@ -1755,16 +1755,20 @@ class Series(BasePandasDataset):
             Whether to show the legend.
         **kwargs
             To be passed to the actual plotting function.
+
         Returns
         -------
         matplotlib.AxesSubplot
             A histogram plot.
+
         See also
         --------
         matplotlib.axes.Axes.hist
             Plot a histogram using matplotlib.
+
         Examples
         --------
+
         For Series:
         >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
         >>> ser = pd.Series([1, 2, 2, 4, 6, 6], index=lst)
