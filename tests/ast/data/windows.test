@@ -124,7 +124,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_alias {
@@ -254,7 +254,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_alias {
@@ -580,7 +580,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -691,7 +691,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -814,7 +814,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -925,7 +925,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1036,7 +1036,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1166,7 +1166,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1297,7 +1297,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1427,7 +1427,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1558,7 +1558,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1663,7 +1663,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1768,7 +1768,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1873,7 +1873,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -1978,7 +1978,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_over {
@@ -2055,7 +2055,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_alias {

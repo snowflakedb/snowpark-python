@@ -69,7 +69,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_equal_null {
@@ -180,7 +180,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_equal_nan {
@@ -257,7 +257,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_is_null {
@@ -334,7 +334,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_is_not_null {

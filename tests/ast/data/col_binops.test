@@ -109,7 +109,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             eq {
@@ -220,7 +220,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             neq {
@@ -331,7 +331,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             gt {
@@ -442,7 +442,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             lt {
@@ -553,7 +553,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             geq {
@@ -664,7 +664,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             leq {
@@ -775,7 +775,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             add {
@@ -886,7 +886,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             sub {
@@ -997,7 +997,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             mul {
@@ -1108,7 +1108,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             div {
@@ -1219,7 +1219,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             mod {
@@ -1330,7 +1330,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             pow {
@@ -1441,7 +1441,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             and {
@@ -1552,7 +1552,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             or {
