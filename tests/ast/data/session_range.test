@@ -36,7 +36,7 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_range {
+      range {
         src {
           end_column: 29
           end_line: 25
@@ -62,7 +62,7 @@ body {
 body {
   assign {
     expr {
-      sp_range {
+      range {
         end {
           value: 10
         }
@@ -91,7 +91,7 @@ body {
 body {
   assign {
     expr {
-      sp_range {
+      range {
         end {
           value: 10
         }
@@ -120,7 +120,7 @@ body {
 body {
   assign {
     expr {
-      sp_range {
+      range {
         src {
           end_column: 34
           end_line: 31
@@ -146,7 +146,7 @@ body {
 body {
   assign {
     expr {
-      sp_range {
+      range {
         src {
           end_column: 37
           end_line: 33
@@ -182,5 +182,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }
