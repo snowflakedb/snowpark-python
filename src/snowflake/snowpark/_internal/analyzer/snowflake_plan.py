@@ -681,7 +681,6 @@ class SnowflakePlanBuilder:
             if thread_safe_session_enabled
             else random_name_for_temp_object(TempObjectType.TABLE)
         )
-        temp_table_name = f"temp_name_placeholder_{generate_random_alphanumeric()}"
 
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output

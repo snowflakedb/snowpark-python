@@ -4,13 +4,25 @@
 
 ### Snowpark Python API Updates
 
-#### Bug Fixed
+#### New Features
 
+- Added support for the following AI-powered functions in `functions.py`
+  - `ai_filter`
+  - `ai_agg`
+  - `summarize_agg`
+
+#### Bug Fixes
+
+- Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
 - Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
 
 ### Snowpark pandas API Updates
 
 ### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for literal values to `range_between` window function.
 
 #### Bug Fixes
 
