@@ -30,10 +30,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -46,7 +46,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -62,10 +62,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -78,7 +78,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -94,16 +94,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_join {
+      dataframe_join {
         join_expr {
           and {
             lhs {
               lt {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -119,10 +119,10 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -149,10 +149,10 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -168,10 +168,10 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -205,17 +205,17 @@ body {
           }
         }
         join_type {
-          sp_join_type__inner: true
+          join_type__inner: true
         }
         lhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         rhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -245,21 +245,24 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
-          sp_column_sql_expr {
-            sql: "*"
-            src {
-              end_column: 109
-              end_line: 29
-              file: 2
-              start_column: 14
-              start_line: 29
+          args {
+            sql_expr {
+              sql: "*"
+              src {
+                end_column: 109
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -272,7 +275,6 @@ body {
           start_column: 14
           start_line: 29
         }
-        variadic: true
       }
     }
     symbol {
@@ -297,5 +299,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

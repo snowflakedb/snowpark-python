@@ -191,7 +191,6 @@ from snowflake.snowpark._internal.ast.utils import (
     build_call_table_function_apply,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
-    create_ast_for_column,
     set_builtin_fn_alias,
     snowpark_expression_to_ast,
     with_src_position,
@@ -213,6 +212,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    private_preview,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -310,14 +310,21 @@ def col(
 
     _check_column_parameters(name1, name2)
 
-    ast = None
-    if _emit_ast:
-        ast = create_ast_for_column(name1, name2, "col")
-
     if name2 is None:
-        return Column(name1, _is_qualified_name=_is_qualified_name, _ast=ast)
+        return Column(
+            name1,
+            _is_qualified_name=_is_qualified_name,
+            _emit_ast=_emit_ast,
+            _caller_name="col",
+        )
     else:
-        return Column(name1, name2, _is_qualified_name=_is_qualified_name, _ast=ast)
+        return Column(
+            name1,
+            name2,
+            _is_qualified_name=_is_qualified_name,
+            _emit_ast=_emit_ast,
+            _caller_name="col",
+        )
 
 
 @overload
@@ -367,12 +374,21 @@ def column(
 ) -> Column:
     _check_column_parameters(name1, name2)
 
-    ast = create_ast_for_column(name1, name2, "column") if _emit_ast else None
-
     if name2 is None:
-        return Column(name1, _is_qualified_name=_is_qualified_name, _ast=ast)
+        return Column(
+            name1,
+            _is_qualified_name=_is_qualified_name,
+            _emit_ast=_emit_ast,
+            _caller_name="column",
+        )
     else:
-        return Column(name1, name2, _is_qualified_name=_is_qualified_name, _ast=ast)
+        return Column(
+            name1,
+            name2,
+            _is_qualified_name=_is_qualified_name,
+            _emit_ast=_emit_ast,
+            _caller_name="column",
+        )
 
 
 @publicapi
@@ -434,13 +450,13 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
 
     Example::
         >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
-        >>> df.filter("a > 1").collect()  # use SQL expression
-        [Row(A=3, B=4)]
+        >>> df.select(sql_expr("a + 1").as_("c"), sql_expr("a = 1").as_("d")).collect()  # use SQL expression
+        [Row(C=2, D=True), Row(C=4, D=False)]
     """
     ast = None
     if _emit_ast:
         sql_expr_ast = proto.Expr()
-        ast = with_src_position(sql_expr_ast.sp_column_sql_expr)
+        ast = with_src_position(sql_expr_ast.sql_expr)
         ast.sql = sql
 
         # Capture with ApplyFn in order to restore sql_expr(...) function.
@@ -4858,7 +4874,7 @@ def array_except(
 
     When allow_duplicates is set to True (default), this function is the same as the Snowflake ARRAY_EXCEPT semantic:
 
-    This function compares arrays by using multi-set semantics (sometimes called “bag semantics”). If source_array
+    This function compares arrays by using multi-set semantics (sometimes called "bag semantics"). If source_array
     includes multiple copies of a value, the function only removes the number of copies of that value that are specified
     in array_of_elements_to_exclude.
 
@@ -8574,7 +8590,7 @@ def when(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        expr = with_src_position(ast.sp_column_case_when)
+        expr = with_src_position(ast.column_case_expr)
         case_expr = with_src_position(expr.cases.add())
         build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
         build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
@@ -11528,4 +11544,147 @@ def randn(
         seed,
         _emit_ast=False,
         _ast=ast,
+    )
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def ai_filter(
+    predicate: ColumnOrLiteralStr, expr: ColumnOrLiteralStr, _emit_ast: bool = True
+) -> Column:
+    """
+    Classifies free-form text into boolean based on a natural language predicate.
+    Returns a boolean value representing whether the predicate is valid for the provided text.
+    ``ai_filter`` will return NULL if the text is NULL.
+
+    Args:
+        predicate: The natural language condition that determines the result of the text string.
+        expr: A string containing the text to be classified.
+
+    Example::
+
+        >>> df = session.create_dataframe(["Switzerland", "Korea", "Panama"], schema=["country"])
+        >>> df.select(
+        ...     ai_filter("Is the country in Asia?", col("country")).as_("asia"),
+        ...     ai_filter("Is the country in Europe?", col("country")).as_("europe"),
+        ...     ai_filter("Is the country in North America?", col("country")).as_("north_america"),
+        ...     ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
+        ... ).show()
+        -----------------------------------------------------------
+        |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
+        -----------------------------------------------------------
+        |False   |True      |False            |False              |
+        |True    |False     |False            |False              |
+        |False   |False     |False            |True               |
+        -----------------------------------------------------------
+        <BLANKLINE>
+        >>> df.filter(ai_filter("Is the country in Asia?", col("country"))).show()
+        -------------
+        |"COUNTRY"  |
+        -------------
+        |Korea      |
+        -------------
+        <BLANKLINE>
+    """
+    ast = build_function_expr("ai_filter", [predicate, expr]) if _emit_ast else None
+
+    sql_func_name = "snowflake.cortex.ai_filter"
+    predicate_col = _to_col_if_lit(predicate, sql_func_name)
+    expr_col = _to_col_if_lit(expr, sql_func_name)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(
+        predicate_col, expr_col
+    )
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def summarize_agg(expr: ColumnOrLiteralStr, _emit_ast: bool = True) -> Column:
+    """
+    Summarizes a column of text data.
+
+    Args:
+        expr: This is an expression that contains text for summarization, such as restaurant reviews or phone transcripts.
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [1, "Excellent"],
+        ...     [1, "Excellent"],
+        ...     [1, "Great"],
+        ...     [1, "Mediocre"],
+        ...     [2, "Terrible"],
+        ...     [2, "Bad"],
+        ... ], schema=["product_id", "review"])
+        >>> summary_df = df.select(summarize_agg(col("review")))
+        >>> summary_df.count()
+        1
+        >>> summary_df = df.group_by("product_id").agg(summarize_agg(col("review")))
+        >>> summary_df.count()
+        2
+    """
+    sql_func_name = "summarize_agg"
+    ast = build_function_expr(sql_func_name, [expr]) if _emit_ast else None
+    expr_col = _to_col_if_lit(expr, sql_func_name)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(expr_col)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def ai_agg(
+    expr: ColumnOrLiteralStr,
+    task_description: ColumnOrLiteralStr,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Aggregates a column of text data using a natural language task description.
+
+    This function reduces a column of text by performing a natural language aggregation
+    as described in the task description. For instance, it can summarize large datasets or
+    extract specific insights.
+
+    Args:
+        expr: A column or literal string containing the text data on which the aggregation operation
+            is to be performed.
+        task_description: A plain English string that describes the aggregation task, such as
+            "Summarize the product reviews for a blog post targeting consumers" or
+            "Identify the most positive review and translate it into French and Polish, one word only".
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [1, "Excellent"],
+        ...     [1, "Excellent"],
+        ...     [1, "Great"],
+        ...     [1, "Mediocre"],
+        ...     [2, "Terrible"],
+        ...     [2, "Bad"],
+        ... ], schema=["product_id", "review"])
+        >>> summary_df = df.select(ai_agg(col("review"), "Summarize the product reviews for a blog post targeting consumers"))
+        >>> summary_df.count()
+        1
+        >>> summary_df = df.group_by("product_id").agg(ai_agg(col("review"), "Summarize the product reviews for a blog post targeting consumers"))
+        >>> summary_df.count()
+        2
+
+    Note:
+        For optimal performance, follow these guidelines:
+
+            - Use plain English text for the task description.
+
+            - Describe the text provided in the task description. For example, instead of a task description like "summarize", use "Summarize the phone call transcripts".
+
+            - Describe the intended use case. For example, instead of "find the best review", use "Find the most positive and well-written restaurant review to highlight on the restaurant website".
+
+            - Consider breaking the task description into multiple steps. For example, instead of "Summarize the new articles", use "You will be provided with news articles from various publishers presenting events from different points of view. Please create a concise and elaborative summary of source texts without missing any crucial information.".
+    """
+    sql_func_name = "ai_agg"
+    ast = (
+        build_function_expr(sql_func_name, [expr, task_description])
+        if _emit_ast
+        else None
+    )
+    expr_col = _to_col_if_lit(expr, sql_func_name)
+    task_description_col = _to_col_if_lit(task_description, sql_func_name)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(
+        expr_col, task_description_col
     )

@@ -135,7 +135,7 @@ def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
     if isinstance(col, Column):
         return col
     elif isinstance(col, str):
-        return Column(col)
+        return Column(col, _caller_name=None)
     else:
         raise TypeError(
             f"'{func_name.upper()}' expected Column or str, got: {type(col)}"
@@ -146,9 +146,9 @@ def _to_col_if_str_or_int(col: Union[ColumnOrName, int], func_name: str) -> "Col
     if isinstance(col, Column):
         return col
     elif isinstance(col, str):
-        return Column(col)
+        return Column(col, _caller_name=None)
     elif isinstance(col, int):
-        return Column(Literal(col))
+        return Column(Literal(col), _emit_ast=False)
     else:  # pragma: no cover
         raise TypeError(
             f"'{func_name.upper()}' expected Column, int or str, got: {type(col)}"
@@ -255,6 +255,7 @@ class Column:
         expr2: Optional[str] = None,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
+        _caller_name: Optional[str] = "Column",
         *,
         _is_qualified_name: bool = False,
     ) -> None:
@@ -294,7 +295,7 @@ class Column:
             # A column from the aliased DataFrame instance can be created using this alias like col(<df_alias>, <col_name>)
             # In the IR we will need to store this alias to resolve which DataFrame instance the user is referring to
             if self._ast is None and _emit_ast:
-                self._ast = create_ast_for_column(expr1, expr2)
+                self._ast = create_ast_for_column(expr1, expr2, _caller_name)
 
         elif isinstance(expr1, str):
             if expr1 == "*":
@@ -305,7 +306,7 @@ class Column:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
             if self._ast is None and _emit_ast:
-                self._ast = create_ast_for_column(expr1, None)
+                self._ast = create_ast_for_column(expr1, None, _caller_name)
 
         elif isinstance(expr1, Expression):
             self._expression = expr1
@@ -336,7 +337,7 @@ class Column:
         if isinstance(field, str):
             if _emit_ast:
                 expr = proto.Expr()
-                ast = with_src_position(expr.sp_column_apply__string)
+                ast = with_src_position(expr.column_apply__string)
                 ast.col.CopyFrom(self._ast)
                 ast.field = field
             return Column(
@@ -345,7 +346,7 @@ class Column:
         elif isinstance(field, int):
             if _emit_ast:
                 expr = proto.Expr()
-                ast = with_src_position(expr.sp_column_apply__int)
+                ast = with_src_position(expr.column_apply__int)
                 ast.col.CopyFrom(self._ast)
                 ast.idx = field
             return Column(
@@ -677,7 +678,7 @@ class Column:
             ast = None
             if _emit_ast:
                 ast = proto.Expr()
-                proto_ast = ast.sp_column_in
+                proto_ast = ast.column_in
                 proto_ast.col.CopyFrom(self._ast)
 
             return Column(Literal(False), _ast=ast, _emit_ast=_emit_ast)
@@ -733,7 +734,7 @@ class Column:
         ast = None
         if _emit_ast:
             ast = proto.Expr()
-            proto_ast = ast.sp_column_in
+            proto_ast = ast.column_in
             proto_ast.col.CopyFrom(self._ast)
             for val in vals:
                 val_ast = proto_ast.values.add()
@@ -759,7 +760,7 @@ class Column:
         expr = None
         if _emit_ast and self._ast is not None:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_between)
+            ast = with_src_position(expr.column_between)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.lower_bound, lower_bound)
             build_expr_from_snowpark_column_or_python_val(ast.upper_bound, upper_bound)
@@ -841,7 +842,7 @@ class Column:
         expr = None
         if _emit_ast := _emit_ast and self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_equal_null)
+            ast = with_src_position(expr.column_equal_null)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
@@ -856,7 +857,7 @@ class Column:
         expr = None
         if _emit_ast and self._ast is not None:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_equal_nan)
+            ast = with_src_position(expr.column_equal_nan)
             ast.col.CopyFrom(self._ast)
         return Column(IsNaN(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
@@ -866,7 +867,7 @@ class Column:
         expr = None
         if _emit_ast and self._ast is not None:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_is_null)
+            ast = with_src_position(expr.column_is_null)
             ast.col.CopyFrom(self._ast)
         return Column(IsNull(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
@@ -876,7 +877,7 @@ class Column:
         expr = None
         if _emit_ast and self._ast is not None:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_is_not_null)
+            ast = with_src_position(expr.column_is_not_null)
             ast.col.CopyFrom(self._ast)
         return Column(IsNotNull(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
@@ -969,9 +970,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(
-                expr.sp_column_try_cast if try_ else expr.sp_column_cast
-            )
+            ast = with_src_position(expr.column_try_cast if try_ else expr.column_cast)
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
         return Column(
@@ -1024,9 +1023,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_desc)
+            ast = with_src_position(expr.column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_default = True
+            ast.null_order.null_order_default = True
         return Column(
             SortOrder(self._expression, Descending()), _ast=expr, _emit_ast=_emit_ast
         )
@@ -1038,9 +1037,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_desc)
+            ast = with_src_position(expr.column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_nulls_first = True
+            ast.null_order.null_order_nulls_first = True
         return Column(
             SortOrder(self._expression, Descending(), NullsFirst()),
             _ast=expr,
@@ -1054,9 +1053,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_desc)
+            ast = with_src_position(expr.column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_nulls_last = True
+            ast.null_order.null_order_nulls_last = True
         return Column(
             SortOrder(self._expression, Descending(), NullsLast()),
             _ast=expr,
@@ -1069,9 +1068,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_asc)
+            ast = with_src_position(expr.column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_default = True
+            ast.null_order.null_order_default = True
         return Column(
             SortOrder(self._expression, Ascending()), _ast=expr, _emit_ast=_emit_ast
         )
@@ -1083,9 +1082,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_asc)
+            ast = with_src_position(expr.column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_nulls_first = True
+            ast.null_order.null_order_nulls_first = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsFirst()),
             _ast=expr,
@@ -1099,9 +1098,9 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_asc)
+            ast = with_src_position(expr.column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.null_order.sp_null_order_nulls_last = True
+            ast.null_order.null_order_nulls_last = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsLast()),
             _ast=expr,
@@ -1122,7 +1121,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_like)
+            ast = with_src_position(expr.column_string_like)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
         return Column(
@@ -1153,7 +1152,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_regexp)
+            ast = with_src_position(expr.column_regexp)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
             if parameters is not None:
@@ -1182,7 +1181,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_starts_with)
+            ast = with_src_position(expr.column_string_starts_with)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.prefix, other)
         other = (
@@ -1207,7 +1206,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_ends_with)
+            ast = with_src_position(expr.column_string_ends_with)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.suffix, other)
 
@@ -1240,7 +1239,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_substr)
+            ast = with_src_position(expr.column_string_substr)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.pos, start_pos)
             build_expr_from_snowpark_column_or_python_val(ast.len, length)
@@ -1262,7 +1261,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_collate)
+            ast = with_src_position(expr.column_string_collate)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(
                 ast.collation_spec, collation_spec
@@ -1281,7 +1280,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_string_contains)
+            ast = with_src_position(expr.column_string_contains)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.pattern, string)
         return Column(
@@ -1328,15 +1327,15 @@ class Column:
         ast_expr = None  # Snowpark IR expression
         if _emit_ast and self._ast is not None:
             ast_expr = proto.Expr()
-            ast = with_src_position(ast_expr.sp_column_alias)
+            ast = with_src_position(ast_expr.column_alias)
             ast.col.CopyFrom(self._ast)
             ast.name = alias
             if variant == "as_":
-                ast.fn.sp_column_alias_fn_as = True
+                ast.fn.column_alias_fn_as = True
             elif variant == "alias":
-                ast.fn.sp_column_alias_fn_alias = True
+                ast.fn.column_alias_fn_alias = True
             elif variant == "name":
-                ast.fn.sp_column_alias_fn_name = True
+                ast.fn.column_alias_fn_name = True
 
         return Column(
             Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast
@@ -1352,7 +1351,7 @@ class Column:
         ast = None
         if _emit_ast:
             ast = proto.Expr()
-            expr = with_src_position(ast.sp_column_over)
+            expr = with_src_position(ast.column_over)
             expr.col.CopyFrom(self._ast)
             if window:
                 expr.window_spec.CopyFrom(window._ast)
@@ -1417,7 +1416,7 @@ class Column:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            ast = with_src_position(expr.sp_column_within_group)
+            ast = with_src_position(expr.column_within_group)
             ast.col.CopyFrom(self._ast)
             ast.cols.variadic = not (
                 len(cols) == 1 and isinstance(cols[0], (list, tuple, set))
@@ -1540,7 +1539,7 @@ class CaseExpr(Column):
         """
 
         if _emit_ast:
-            case_expr = with_src_position(self._ast.sp_column_case_when.cases.add())
+            case_expr = with_src_position(self._ast.column_case_expr.cases.add())
             build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
             build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
 
@@ -1565,7 +1564,7 @@ class CaseExpr(Column):
         :meth:`else_` is an alias of :meth:`otherwise`.
         """
         if _emit_ast:
-            case_expr = with_src_position(self._ast.sp_column_case_when.cases.add())
+            case_expr = with_src_position(self._ast.column_case_expr.cases.add())
             build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
         return CaseExpr(
             CaseWhen(self._branches, Column._to_expr(value)), _ast=self._ast

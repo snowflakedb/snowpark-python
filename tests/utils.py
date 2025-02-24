@@ -95,6 +95,7 @@ if RUNNING_ON_JENKINS:
 STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
 STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_FDN_TABLES",
     "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
     "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
     "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
@@ -1378,6 +1379,10 @@ class TestFiles:
     @functools.cached_property
     def test_file_csv_special_format(self):
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
+
+    @property
+    def test_file_csv_timestamps(self):
+        return os.path.join(self.resources_path, "testCSVformattedTime.csv")
 
     @property
     def test_file_excel(self):

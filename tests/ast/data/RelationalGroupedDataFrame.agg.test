@@ -36,13 +36,13 @@ rgdf2 = df1.group_by("str")
 
 df3 = rgdf2.agg()
 
-df4 = rgdf2.agg(sum(col("num")))
+df4 = rgdf2.agg(sum("num"))
 
-df5 = rgdf2.agg([max(col("num"))])
+df5 = rgdf2.agg([max("num")])
 
-df6 = rgdf2.agg(sum(col("num")), max(col("num")))
+df6 = rgdf2.agg(sum("num"), max("num"))
 
-df7 = rgdf2.agg([sum(col("num")), max(col("num"))])
+df7 = rgdf2.agg([sum("num"), max("num")])
 
 df8 = rgdf2.agg(["num", "max"])
 
@@ -50,7 +50,7 @@ df9 = rgdf2.agg([col("num"), "max"])
 
 df10 = rgdf2.agg([("num", "max"), [col("num"), "sum"]])
 
-df11 = rgdf2.agg(sum(col("num")), ("num", "max"), max(col("num")), [col("num"), "sum"])
+df11 = rgdf2.agg(sum("num"), ("num", "max"), max("num"), [col("num"), "sum"])
 
 df12 = rgdf2.agg({})
 
@@ -72,10 +72,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -88,7 +88,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -104,7 +104,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -121,7 +121,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -148,12 +148,12 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -180,7 +180,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -188,7 +188,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sum"
                       }
                     }
@@ -196,30 +196,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 31
-                        file: 2
-                        start_column: 24
-                        start_line: 31
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 31
@@ -227,6 +204,7 @@ body {
                     start_column: 24
                     start_line: 31
                   }
+                  v: "num"
                 }
               }
               src {
@@ -241,7 +219,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -268,7 +246,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -276,7 +254,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "max"
                       }
                     }
@@ -284,30 +262,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 33
-                        file: 2
-                        start_column: 25
-                        start_line: 33
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 33
@@ -315,6 +270,7 @@ body {
                     start_column: 25
                     start_line: 33
                   }
+                  v: "num"
                 }
               }
               src {
@@ -328,7 +284,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -355,7 +311,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -363,7 +319,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sum"
                       }
                     }
@@ -371,30 +327,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 35
-                        file: 2
-                        start_column: 24
-                        start_line: 35
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 35
@@ -402,6 +335,7 @@ body {
                     start_column: 24
                     start_line: 35
                   }
+                  v: "num"
                 }
               }
               src {
@@ -419,7 +353,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "max"
                       }
                     }
@@ -427,30 +361,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 46
-                        end_line: 35
-                        file: 2
-                        start_column: 36
-                        start_line: 35
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 46
                     end_line: 35
@@ -458,6 +369,7 @@ body {
                     start_column: 36
                     start_line: 35
                   }
+                  v: "num"
                 }
               }
               src {
@@ -472,7 +384,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -499,7 +411,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -507,7 +419,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sum"
                       }
                     }
@@ -515,30 +427,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 37
-                        file: 2
-                        start_column: 25
-                        start_line: 37
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 37
@@ -546,6 +435,7 @@ body {
                     start_column: 25
                     start_line: 37
                   }
+                  v: "num"
                 }
               }
               src {
@@ -563,7 +453,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "max"
                       }
                     }
@@ -571,30 +461,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 37
-                        file: 2
-                        start_column: 37
-                        start_line: 37
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 37
@@ -602,6 +469,7 @@ body {
                     start_column: 37
                     start_line: 37
                   }
+                  v: "num"
                 }
               }
               src {
@@ -615,7 +483,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -642,7 +510,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             list_val {
@@ -682,7 +550,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -709,7 +577,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             list_val {
@@ -726,7 +594,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -771,7 +639,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -798,7 +666,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             tuple_val {
@@ -850,7 +718,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -894,7 +762,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -921,7 +789,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
@@ -929,7 +797,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sum"
                       }
                     }
@@ -937,30 +805,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 45
-                        file: 2
-                        start_column: 25
-                        start_line: 45
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 45
@@ -968,6 +813,7 @@ body {
                     start_column: 25
                     start_line: 45
                   }
+                  v: "num"
                 }
               }
               src {
@@ -1020,7 +866,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "max"
                       }
                     }
@@ -1028,30 +874,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "col"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 63
-                        end_line: 45
-                        file: 2
-                        start_column: 53
-                        start_line: 45
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 63
                     end_line: 45
@@ -1059,6 +882,7 @@ body {
                     start_column: 53
                     start_line: 45
                   }
+                  v: "num"
                 }
               }
               src {
@@ -1085,7 +909,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -1130,7 +954,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1157,7 +981,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
@@ -1173,7 +997,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1200,7 +1024,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
@@ -1242,7 +1066,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1269,7 +1093,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
@@ -1337,7 +1161,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1374,5 +1198,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

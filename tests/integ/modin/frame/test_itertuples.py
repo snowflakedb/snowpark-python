@@ -158,12 +158,12 @@ def test_df_itertuples_large_df(size):
     data = rng.integers(low=-1500, high=1500, size=size)
     native_df = native_pd.DataFrame(data)
     snowpark_df = pd.DataFrame(native_df)
-    query_count = (np.floor(size / PARTITION_SIZE) + 1) * 6
+    query_count = (np.floor(size / PARTITION_SIZE) + 1) * 4
     with SqlCounter(
         query_count=query_count,
         join_count=0,
         high_count_expected=True,
-        high_count_reason="DataFrame spans multiple iteration partitions, each of which requires 6 queries",
+        high_count_reason="DataFrame spans multiple iteration partitions, each of which requires 4 queries",
     ):
         eval_snowpark_pandas_result(
             snowpark_df,

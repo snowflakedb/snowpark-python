@@ -1046,6 +1046,9 @@ def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -
             )  # escape single quotes before adding a pair of quotes
             return f"'{value}'"
     else:
+        if isinstance(value, list):
+            # Snowflake sql uses round brackets for options that are lists
+            return str(tuple(value))
         return str(value)
 
 
