@@ -83,7 +83,7 @@ def test_sql_counter_with_context_manager_inside_loop():
 @sql_count_checker(no_check=True)
 def test_sql_counter_with_multiple_checks(session):
     expected_describe_count = 0
-    if session.sql_simplifier_enabled:
+    if not session.reduce_describe_query_enabled and session.sql_simplifier_enabled:
         expected_describe_count = 1
     with SqlCounter(query_count=1, describe_count=expected_describe_count):
         df = pd.DataFrame({"a": [1, 2, 3]})
@@ -101,7 +101,7 @@ def test_sql_counter_with_multiple_checks(session):
 @sql_count_checker(no_check=True)
 def test_sql_counter_with_context_manager_outside_loop(session):
     expected_describe_count = 0
-    if session.sql_simplifier_enabled:
+    if not session.reduce_describe_query_enabled and session.sql_simplifier_enabled:
         expected_describe_count = 3
     sc = SqlCounter(query_count=3, describe_count=expected_describe_count)
     sc.__enter__()

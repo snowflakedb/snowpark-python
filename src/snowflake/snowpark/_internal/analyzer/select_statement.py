@@ -737,6 +737,7 @@ class SelectStatement(Selectable):
         offset: Optional[int] = None,
         analyzer: "Analyzer",
         schema_query: Optional[str] = None,
+        distinct: bool = False,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -749,6 +750,7 @@ class SelectStatement(Selectable):
         self.post_actions = self.from_.post_actions
         self._sql_query = None
         self._schema_query = schema_query
+        self.distinct_: bool = distinct
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
@@ -789,6 +791,7 @@ class SelectStatement(Selectable):
             offset=self.offset,
             analyzer=self.analyzer,
             schema_query=self.schema_query,
+            distinct=self.distinct_,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
@@ -818,6 +821,7 @@ class SelectStatement(Selectable):
             analyzer=self.analyzer,
             # directly copy the current schema fields
             schema_query=self._schema_query,
+            distinct=self.distinct_,
         )
 
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
@@ -862,7 +866,9 @@ class SelectStatement(Selectable):
 
     @property
     def has_clause(self) -> bool:
-        return self.has_clause_using_columns or self.limit_ is not None
+        return (
+            self.has_clause_using_columns or self.limit_ is not None or self.distinct_
+        )
 
     @property
     def projection_in_str(self) -> str:
@@ -905,12 +911,30 @@ class SelectStatement(Selectable):
             if self.offset
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
-        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        distinct_clause = (
+            analyzer_utils.DISTINCT
+            if self.distinct_
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
+        )
+        self._sql_query = (
+            f"{analyzer_utils.SELECT}{distinct_clause}{self.projection_in_str}{analyzer_utils.FROM}"
+            f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        )
         return self._sql_query
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self.from_.query_params
+
+    @property
+    def attributes(self) -> Optional[List[Attribute]]:
+        return self._attributes
+
+    @attributes.setter
+    def attributes(self, value: Optional[List[Attribute]]):
+        self._attributes = value
+        if self._session.reduce_describe_query_enabled and value is not None:
+            self._schema_query = analyzer_utils.schema_value_statement(value)
 
     @property
     def schema_query(self) -> str:
@@ -967,6 +991,13 @@ class SelectStatement(Selectable):
         complexity = (
             sum_node_complexities(complexity, {PlanNodeCategory.LOW_IMPACT: 1})
             if self.offset
+            else complexity
+        )
+
+        # distinct component
+        complexity = (
+            sum_node_complexities(complexity, {PlanNodeCategory.DISTINCT: 1})
+            if self.distinct_
             else complexity
         )
         return complexity
@@ -1166,6 +1197,9 @@ class SelectStatement(Selectable):
             )
         ):
             can_be_flattened = False
+        elif self.distinct_:
+            # .distinct().select() != .select().distinct() therefore we cannot flatten
+            can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
                 self.column_states, new_column_states
@@ -1238,7 +1272,7 @@ class SelectStatement(Selectable):
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
         if self._session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+            new.attributes = self.attributes
 
         return new
 
@@ -1273,8 +1307,39 @@ class SelectStatement(Selectable):
                 analyzer=self.analyzer,
             )
         if self._session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+            new.attributes = self.attributes
 
+        return new
+
+    def distinct(self) -> "SelectStatement":
+        can_be_flattened = (
+            (not self.flatten_disabled)
+            # .distinct().limit() and .limit().distinct() can cause big performance
+            # difference, because limit can stop table scanning whenever the
+            # number of record is satisfied.
+            # Therefore, disallow sql simplification when the current SelectStatement
+            # has a limit clause to avoid moving distinct in front of limit.
+            and (not self.limit_)
+            and (not self.offset)
+            and not has_data_generator_exp(self.projection)
+        )
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = self.from_.pre_actions
+            new.post_actions = self.from_.post_actions
+            new.distinct_ = True
+            new.column_states = self.column_states
+            new._merge_projection_complexity_with_subquery = False
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                distinct=True,
+                analyzer=self.analyzer,
+            )
+
+        if self._session.reduce_describe_query_enabled:
+            new.attributes = self.attributes
         return new
 
     def set_operator(
@@ -1357,7 +1422,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
         if self._session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+            new.attributes = self.attributes
 
         return new
 
