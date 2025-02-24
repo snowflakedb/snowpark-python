@@ -668,9 +668,9 @@ class RelationalGroupedDataFrame:
         else:
             return self.builtin(func_name, _emit_ast=_emit_ast)(*cols)
 
-    def _set_ast_ref(self, expr_builder: proto.RelationalGroupedDataframeExpr) -> None:
+    def _set_ast_ref(self, expr_builder: proto.Expr) -> None:
         """
-        Given a field builder expression of the AST type RelationalGroupedDataframeExpr, points the builder to reference this RelationalGroupedDataFrame.
+        Given a field builder expression of the AST type Expr, points the builder to reference this RelationalGroupedDataFrame.
         """
         # TODO: remove the None guard below once we generate the correct AST.
         if self._ast_id is not None:
