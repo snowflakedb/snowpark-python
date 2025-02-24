@@ -148,7 +148,7 @@ def find_duplicate_subtrees(
             return False
 
         # when a node is marked to be considered invalid for any reason
-        # we do not
+        # we do not create a CTE on top of it even it is duplicated.
         if encoded_node_id_with_query in invalid_ids_for_deduplication:
             return False
 
