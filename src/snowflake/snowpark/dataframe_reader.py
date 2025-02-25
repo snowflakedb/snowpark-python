@@ -1076,7 +1076,6 @@ class DataFrameReader:
         return df
 
     @private_preview(version="1.29.0")
-    @publicapi
     def dbapi(
         self,
         create_connection: Callable[[], "Connection"],
