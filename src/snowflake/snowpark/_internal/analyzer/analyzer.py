@@ -146,6 +146,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Project,
     Rename,
     Sample,
+    SampleBy,
     Sort,
     Unpivot,
 )
@@ -928,6 +929,14 @@ class Analyzer:
                 logical_plan,
                 logical_plan.probability_fraction,
                 logical_plan.row_count,
+            )
+
+        if isinstance(logical_plan, SampleBy):
+            return self.plan_builder.sample_by(
+                resolved_children[logical_plan.child],
+                logical_plan,
+                self.analyze(logical_plan.col, df_aliased_col_name_to_real_col_name),
+                logical_plan.fractions,
             )
 
         if isinstance(logical_plan, Join):
