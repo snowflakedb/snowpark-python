@@ -15,6 +15,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
 @pytest.mark.parametrize("grid", [True, False])
 @pytest.mark.parametrize("bins", [None, 1, 5, 10])
 def test_hist(grid, bins, tmp_path):
+    raise AssertionError()
     lst = ["a", "a", "a", "b", "b", "b"]
     native_ser = native_pd.Series([1, 2, 2, 4, 6, 6], index=lst)
     snow_ser = pd.Series(native_ser)
