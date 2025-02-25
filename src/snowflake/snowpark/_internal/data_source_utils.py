@@ -278,11 +278,14 @@ def infer_data_source_schema(
             return oracledb_to_snowpark_type(raw_schema)
         else:
             raise NotImplementedError(
-                f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
+                f"Failed to infer Snowpark DataFrame schema from source '{table}'. "
+                f"Currently supported drivers are 'pyodbc' and 'oracledb', but got: '{driver_info}'. "
+                "To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
             )
+
     except Exception as exc:
         raise SnowparkDataframeReaderException(
-            f"Unable to infer schema from table {table}"
+            f"Failed to infer Snowpark DataFrame schema from table '{table}'. To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
         ) from exc
 
 

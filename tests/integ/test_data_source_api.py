@@ -14,11 +14,7 @@ import pytest
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
-from snowflake.snowpark.dataframe_reader import (
-    _task_fetch_from_data_source_with_retry,
-    MAX_RETRY_TIME,
-    _task_fetch_from_data_source,
-)
+from snowflake.snowpark.dataframe_reader import MAX_RETRY_TIME, DataFrameReader
 from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
     DATA_SOURCE_SQL_COMMENT,
@@ -69,22 +65,6 @@ pytestmark = pytest.mark.skipif(
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
-
-
-def fake_task_fetch_from_data_source_with_retry(
-    parquet_file_queue,
-    create_connection,
-    query,
-    schema,
-    i,
-    tmp_dir,
-    current_db,
-    driver_info,
-    query_timeout,
-    fetch_size,
-    session_init_statement,
-):
-    time.sleep(2)
 
 
 def upload_and_copy_into_table_with_retry(
@@ -144,13 +124,14 @@ def test_dbapi_batch_fetch(
 
 def test_dbapi_retry(session):
     with mock.patch(
-        "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._task_fetch_from_data_source",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
+        mock_task.__name__ = "_task_fetch_from_data_source"
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
-            _task_fetch_from_data_source_with_retry(
+            DataFrameReader._task_fetch_from_data_source_with_retry(
                 parquet_file_queue=queue.Queue(),
                 create_connection=sql_server_create_connection,
                 query="SELECT * FROM test_table",
@@ -166,6 +147,7 @@ def test_dbapi_retry(session):
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
+        mock_task.__name__ = "_upload_and_copy_into_table"
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
@@ -448,7 +430,8 @@ def test_custom_schema(session, custom_schema):
         assert df.collect() == assert_data
 
         with pytest.raises(
-            SnowparkDataframeReaderException, match="Unable to infer schema"
+            SnowparkDataframeReaderException,
+            match="Failed to infer Snowpark DataFrame schema",
         ):
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
@@ -509,7 +492,8 @@ def test_negative_case(session):
     with mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=ValueError("Ingestion exception"),
-    ):
+    ) as mock_task:
+        mock_task.__name__ = "_upload_and_copy_into_table"
         with pytest.raises(
             SnowparkDataframeReaderException, match="ValueError: Ingestion exception"
         ):
@@ -525,7 +509,6 @@ def test_negative_case(session):
 def test_task_fetch_from_data_source_with_fetch_size(
     fetch_size, partition_idx, expected_error
 ):
-
     parquet_file_queue = queue.Queue()
     schema = infer_data_source_schema(
         sql_server_create_connection_small_data(),
@@ -558,9 +541,9 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 ValueError,
                 match="fetch size cannot be smaller than 0",
             ):
-                _task_fetch_from_data_source(**params)
+                DataFrameReader._task_fetch_from_data_source(**params)
         else:
-            _task_fetch_from_data_source(**params)
+            DataFrameReader._task_fetch_from_data_source(**params)
 
             file_idx = 0
             while not parquet_file_queue.empty():
