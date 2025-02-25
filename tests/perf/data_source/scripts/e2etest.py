@@ -127,8 +127,10 @@ class DBPerformanceTest:
                         "database_type": config.db_class.__name__,
                         "dbapi_parameters": config.dbapi_parameters,
                         "data_size": size,
-                        "fetch_size": config.dbapi_parameters["fetch_size"],
-                        "num_partitions": config.dbapi_parameters["num_partitions"],
+                        "fetch_size": config.dbapi_parameters.get("fetch_size", 0),
+                        "num_partitions": config.dbapi_parameters.get(
+                            "num_partitions", 0
+                        ),
                         "read_time": metrics.read_time,
                         "write_time": metrics.write_time,
                         "total_time": metrics.total_time,
