@@ -5656,7 +5656,6 @@ class DataFrame:
 
                 att = existing._expression
                 old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
-
             elif (
                 isinstance(existing._expression, UnresolvedAttribute)
                 and existing._expression.df_alias
@@ -6061,7 +6060,6 @@ Query List:
                         c._expression.expr_id, c._expression.name
                     )
                 )
-
             elif (
                 isinstance(c, Column)
                 and isinstance(c._expression, UnresolvedAttribute)
