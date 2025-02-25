@@ -248,9 +248,11 @@ class Selectable(LogicalPlan, ABC):
         self.expr_to_alias = (
             ExprAliasUpdateDict() if self._session._resolve_conflict_alias else {}
         )
-        self.df_aliased_col_name_to_real_col_name: DefaultDict[
-            str, Dict[str, str]
-        ] = defaultdict(dict)
+        self.df_aliased_col_name_to_real_col_name = (
+            defaultdict(ExprAliasUpdateDict)
+            if self._session._resolve_conflict_alias
+            else defaultdict(dict)
+        )
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         self._encoded_node_id_with_query: Optional[str] = None

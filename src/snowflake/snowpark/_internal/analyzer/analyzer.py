@@ -817,9 +817,11 @@ class Analyzer:
 
     def do_resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         resolved_children = {}
-        df_aliased_col_name_to_real_col_name: DefaultDict[
-            str, Dict[str, str]
-        ] = defaultdict(dict)
+        df_aliased_col_name_to_real_col_name = (
+            defaultdict(ExprAliasUpdateDict)
+            if self.session._resolve_conflict_alias
+            else defaultdict(dict)
+        )
 
         for c in logical_plan.children:  # post-order traversal of the tree
             resolved = self.resolve(c)
