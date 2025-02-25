@@ -1484,22 +1484,10 @@ def test_nested_join_diamond_shape(
     df7.show()
     Utils.check_answer(df7, [Row(1, 1)])
 
-    # negative case: df2 and df4 shows up in both df6, we can not decide which one to use
-    # this is parity with pyspark
-    with pytest.raises(
-        SnowparkSQLException, match="The reference to the column 'A' is ambiguous."
-    ):
-        df_invalid = df6.join(df2, df4["a"] == df2["a"])
-        df_invalid.show()
-
-    with pytest.raises(
-        SnowparkSQLException, match="The reference to the column 'A' is ambiguous."
-    ):
-        df_invalid = df6.join(df2).select(df4["a"])
-        df_invalid.show()
-
     # negative case: df1 shows up in both 4 and 6, can not be decided
-    with pytest.raises(SnowparkSQLException, match="invalid identifier 'A'"):
+    with pytest.raises(
+        SnowparkSQLException, match="The reference to the column 'A' is ambiguous."
+    ):
         df_invalid = df6.join(df4, df1["a"] == df6["a"])
         df_invalid.show()
 

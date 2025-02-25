@@ -163,7 +163,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import (
     quote_name,
     merge_multiple_snowflake_plan_expr_to_alias,
-    AliasDictWithInheritedAliasInfo,
+    ExprAliasUpdateDict,
 )
 from snowflake.snowpark.types import BooleanType, _NumericType
 
@@ -182,8 +182,8 @@ class Analyzer:
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.subquery_plans = []
         if session._resolve_conflict_alias:
-            self.generated_alias_maps = AliasDictWithInheritedAliasInfo()
-            self.alias_maps_to_use = AliasDictWithInheritedAliasInfo()
+            self.generated_alias_maps = ExprAliasUpdateDict()
+            self.alias_maps_to_use = ExprAliasUpdateDict()
         else:
             self.generated_alias_maps = {}
             self.alias_maps_to_use: Dict[uuid.UUID, str] = {}
@@ -649,7 +649,7 @@ class Analyzer:
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
                 update_inherit_info = (
-                    (quote_name, True)
+                    (quoted_name, True)
                     if self.session._resolve_conflict_alias
                     else quoted_name
                 )
@@ -798,9 +798,7 @@ class Analyzer:
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = (
-            AliasDictWithInheritedAliasInfo()
-            if self.session._resolve_conflict_alias
-            else {}
+            ExprAliasUpdateDict() if self.session._resolve_conflict_alias else {}
         )
 
         result = self.do_resolve(logical_plan)

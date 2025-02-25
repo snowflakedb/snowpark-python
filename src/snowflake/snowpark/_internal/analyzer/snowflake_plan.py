@@ -113,7 +113,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     merge_multiple_snowflake_plan_expr_to_alias,
     random_name_for_temp_object,
-    AliasDictWithInheritedAliasInfo,
+    ExprAliasUpdateDict,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -239,11 +239,7 @@ class SnowflakePlan(LogicalPlan):
         self.expr_to_alias = (
             expr_to_alias
             if expr_to_alias
-            else (
-                AliasDictWithInheritedAliasInfo()
-                if session._resolve_conflict_alias
-                else {}
-            )
+            else (ExprAliasUpdateDict() if session._resolve_conflict_alias else {})
         )
         self.session = session
         self.source_plan = source_plan
@@ -259,7 +255,7 @@ class SnowflakePlan(LogicalPlan):
             )
         else:
             self.df_aliased_col_name_to_real_col_name = (
-                defaultdict(AliasDictWithInheritedAliasInfo)
+                defaultdict(ExprAliasUpdateDict)
                 if self.session._resolve_conflict_alias
                 else defaultdict(dict)
             )

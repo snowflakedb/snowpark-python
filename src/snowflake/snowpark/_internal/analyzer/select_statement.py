@@ -79,7 +79,7 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
-    AliasDictWithInheritedAliasInfo,
+    ExprAliasUpdateDict,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -246,9 +246,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = (
-            AliasDictWithInheritedAliasInfo()
-            if self._session._resolve_conflict_alias
-            else {}
+            ExprAliasUpdateDict() if self._session._resolve_conflict_alias else {}
         )
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]

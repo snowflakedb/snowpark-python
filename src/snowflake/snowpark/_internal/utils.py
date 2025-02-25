@@ -1538,9 +1538,27 @@ class GlobalCounter:
 global_counter: GlobalCounter = GlobalCounter()
 
 
-class AliasDictWithInheritedAliasInfo(dict):
+class ExprAliasUpdateDict(dict):
+    """
+    A specialized dictionary for mapping expressions (UUID keys) to alias names updates tracking.
+    This is used to resolve ambiguous column names in join operations.
+
+    This dictionary is designed to store aliases as string values while also tracking whether
+    each alias was inherited from child DataFrame plan.
+    The values are stored as tuples of the form `(alias: str, updated_from_inherited: bool)`, where:
+
+    - `alias` (str): The alias name for the expression.
+    - `updated_from_inheritance` (bool): A flag indicating whether the expr alias was updated
+     because it's inherited from child plan (True) or not (False).
+
+    """
+
     def __setitem__(self, key: uuid.UUID, value: Union[Tuple[str, bool], str]):
+        """If a string value is provided, it is automatically stored as `(value, False)`.
+        If a tuple `(str, bool)` is provided, it must conform to the expected format.
+        """
         if isinstance(value, str):
+            # if value is a string, we set inherit to False
             value = (value, False)
         if not (
             isinstance(value, tuple)
@@ -1552,6 +1570,7 @@ class AliasDictWithInheritedAliasInfo(dict):
         super().__setitem__(key, value)
 
     def __getitem__(self, item):
+        """Returns only the alias string (`str`), omitting the inheritance flag."""
         value = super().__getitem__(item)
         return value[0]
 
@@ -1561,7 +1580,8 @@ class AliasDictWithInheritedAliasInfo(dict):
             return value[0]
         return default
 
-    def is_inherited(self, key):
+    def was_updated_due_to_inheritance(self, key):
+        """Returns whether a key was inherited (`True` or `False`)."""
         value = super().get(key, None)
         if value is not None:
             return value[1]
@@ -1576,28 +1596,28 @@ class AliasDictWithInheritedAliasInfo(dict):
         return (value[0] for value in super().values())
 
     def update(self, other):
-        assert isinstance(other, AliasDictWithInheritedAliasInfo)
+        assert isinstance(other, ExprAliasUpdateDict)
         for k in other:
-            self[k] = (other[k][0], other.is_inherited(k))
+            self[k] = (other[k], other.was_updated_due_to_inheritance(k))
 
-    def copy(self) -> "AliasDictWithInheritedAliasInfo":
+    def copy(self) -> "ExprAliasUpdateDict":
         """Return a shallow copy of the dictionary, preserving the (str, bool) tuple structure."""
         return self.__copy__()
 
-    def __copy__(self) -> "AliasDictWithInheritedAliasInfo":
+    def __copy__(self) -> "ExprAliasUpdateDict":
         """Shallow copy implementation for copy.copy()"""
-        new_copy = AliasDictWithInheritedAliasInfo()
+        new_copy = ExprAliasUpdateDict()
         new_copy.update(self)
         return new_copy
 
-    def __deepcopy__(self, memo) -> "AliasDictWithInheritedAliasInfo":
+    def __deepcopy__(self, memo) -> "ExprAliasUpdateDict":
         """Deep copy implementation for copy.deepcopy()"""
-        new_copy = AliasDictWithInheritedAliasInfo()
-        for key, (alias, inherited) in self.items():
+        new_copy = ExprAliasUpdateDict()
+        for key, alias in self.items():
             new_key = copy.deepcopy(key, memo)  # Ensures deep copy of the key (UUID)
             new_value = (
                 copy.deepcopy(alias, memo),
-                copy.deepcopy(inherited, memo),
+                copy.deepcopy(self.was_updated_due_to_inheritance(key), memo),
             )  # Deep copy of values
             new_copy[new_key] = new_value
         return new_copy
@@ -1605,7 +1625,7 @@ class AliasDictWithInheritedAliasInfo(dict):
 
 def merge_multiple_snowflake_plan_expr_to_alias(
     snowflake_plans: List["SnowflakePlan"],
-) -> AliasDictWithInheritedAliasInfo:
+) -> ExprAliasUpdateDict:
     """
     Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
 
@@ -1620,7 +1640,7 @@ def merge_multiple_snowflake_plan_expr_to_alias(
     all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
 
     # Initialize the merged dictionary
-    merged_dict = AliasDictWithInheritedAliasInfo()
+    merged_dict = ExprAliasUpdateDict()
 
     # Collect all unique keys from all dictionaries
     all_keys = set().union(*all_expr_to_alias_dicts)
@@ -1629,7 +1649,11 @@ def merge_multiple_snowflake_plan_expr_to_alias(
 
     for key in all_keys:
         values = list(
-            {(d[key], d.is_inherited(key)) for d in all_expr_to_alias_dicts if key in d}
+            {
+                (d[key], d.was_updated_due_to_inheritance(key))
+                for d in all_expr_to_alias_dicts
+                if key in d
+            }
         )
         # Check if all aliases are identical
         if len(values) == 1:
@@ -1642,30 +1666,33 @@ def merge_multiple_snowflake_plan_expr_to_alias(
 
     for key in conflicted_keys:
         candidate = None
-        candidate_is_inherited = False
+        candidate_updated_due_to_inheritance = False
         for plan in snowflake_plans:
             output_columns = [attr.name for attr in plan.output if plan.schema_query]
-            tmp_alias_name, tmp_is_inherited = plan.expr_to_alias[
+            tmp_alias_name, tmp_updated_due_to_inheritance = plan.expr_to_alias[
                 key
-            ], plan.expr_to_alias.is_inherited(key)
-            if tmp_alias_name not in output_columns or tmp_is_inherited:
+            ], plan.expr_to_alias.was_updated_due_to_inheritance(key)
+            if tmp_alias_name not in output_columns or tmp_updated_due_to_inheritance:
                 # inherited are not considered as they are not used in the output
                 # check Analyzer.unary_expression_extractor functions
                 continue
             if not candidate:
                 candidate = tmp_alias_name
-                candidate_is_inherited = tmp_is_inherited
+                candidate_updated_due_to_inheritance = tmp_updated_due_to_inheritance
             else:
                 if candidate == tmp_alias_name:
                     # The candidate is the same as the current alias
                     # we keep the non-inherited bool information
-                    candidate_is_inherited = candidate_is_inherited and tmp_is_inherited
+                    candidate_updated_due_to_inheritance = (
+                        candidate_updated_due_to_inheritance
+                        and tmp_updated_due_to_inheritance
+                    )
                 else:
                     # The candidate is different from the current alias, ambiguous
                     candidate = None
         # Add the candidate to the merged dictionary if resolved
         if candidate is not None:
-            merged_dict[key] = (candidate, candidate_is_inherited)
+            merged_dict[key] = (candidate, candidate_updated_due_to_inheritance)
         else:
             # No valid candidate found
             _logger.debug(
