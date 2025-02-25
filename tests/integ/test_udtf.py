@@ -1312,6 +1312,9 @@ def test_udtf_external_access_integration(session, db_parameters):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
 def test_udtf_artifact_repository(session, resources_path):
     class ArtifactRepositoryUDTF:
         def process(self) -> Iterable[Tuple[str]]:
