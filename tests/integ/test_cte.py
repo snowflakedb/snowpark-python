@@ -227,27 +227,34 @@ def test_binary(session, type, action):
     assert len(plan_queries["post_actions"]) == 1
 
 
-@sql_count_checker(query_count=2, describe_count=5, join_count=2)
 def test_join_with_alias_dataframe(session):
-    df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
-    df_res = (
-        df1.alias("L")
-        .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
-        .select(col("L", "col1"), col("R", "col2"))
+    expected_describe_count = (
+        3
+        if (session.reduce_describe_query_enabled and session.sql_simplifier_enabled)
+        else 5
     )
+    with SqlCounter(
+        query_count=2, describe_count=expected_describe_count, join_count=2
+    ):
+        df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
+        df_res = (
+            df1.alias("L")
+            .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
+            .select(col("L", "col1"), col("R", "col2"))
+        )
 
-    session._cte_optimization_enabled = False
-    result = df_res.collect()
+        session._cte_optimization_enabled = False
+        result = df_res.collect()
 
-    session._cte_optimization_enabled = True
-    cte_result = df_res.collect()
+        session._cte_optimization_enabled = True
+        cte_result = df_res.collect()
 
-    Utils.check_answer(cte_result, result)
+        Utils.check_answer(cte_result, result)
 
-    with SqlCounter(query_count=0, describe_count=0):
-        last_query = df_res.queries["queries"][-1]
-        assert last_query.startswith(WITH)
-        assert last_query.count(WITH) == 1
+        with SqlCounter(query_count=0, describe_count=0):
+            last_query = df_res.queries["queries"][-1]
+            assert last_query.startswith(WITH)
+            assert last_query.count(WITH) == 1
 
 
 @pytest.mark.parametrize("type, action", binary_operations)
