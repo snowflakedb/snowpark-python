@@ -92,7 +92,7 @@ def test_query_history_multiple_actions(session):
         df = df.filter(df.a == 1)
         df.collect()
 
-    if session.sql_simplifier_enabled:
+    if session.sql_simplifier_enabled and not session.reduce_describe_query_enabled:
         assert len(query_history.queries) == 3
         assert query_history.queries[0].is_describe
         assert query_history.queries[1].is_describe

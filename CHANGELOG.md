@@ -14,6 +14,7 @@
 #### Bug Fixes
 
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
+- Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
 
 ### Snowpark pandas API Updates
 
@@ -67,6 +68,7 @@
 - Added support for list values in `Series.str.get`.
 - Added support for list values in `Series.str.slice`.
 - Added support for applying Snowflake Cortex functions `ClassifyText`, `Translate`, and `ExtractAnswer`.
+- Added support for `Series.hist`.
 
 #### Bug Fixes
 
