@@ -170,15 +170,15 @@ def create_jdbc_config(
         "password": password,
         "driver": driver,
     }
-    if fetch_size:
+    if fetch_size is not None:
         config["fetchsize"] = fetch_size
-    if partition_column:
+    if partition_column is not None:
         config["partitionColumn"] = partition_column
-    if num_partitions:
+    if num_partitions is not None:
         config["numPartitions"] = num_partitions
-    if lower_bound:
+    if lower_bound is not None:
         config["lowerBound"] = lower_bound
-    if upper_bound:
+    if upper_bound is not None:
         config["upperBound"] = upper_bound
     return config
 
@@ -221,12 +221,25 @@ DEFAULT_PYSPARK_CONFIG = create_pyspark_session_config(
     driver_extra_class_path="./jdbc_drivers/*"
 )
 
-DEFAULT_ORACLE_JDBC_CONFIG = create_jdbc_config(
-    jdbc_url="jdbc:oracle:thin:@//localhost:1521/FREEPDB1",
-    user="SYSTEM",
-    password="test",
-    driver="oracle.jdbc.driver.OracleDriver",
-)
+DEFAULT_ORACLE_JDBC_CONFIG = [
+    create_jdbc_config(
+        jdbc_url="jdbc:oracle:thin:@//localhost:1521/FREEPDB1",
+        user="SYSTEM",
+        password="test",
+        driver="oracle.jdbc.driver.OracleDriver",
+        fetch_size=fetch_size,
+        partition_column="id",
+        lower_bound=0,
+        upper_bound=1000000,
+        num_partitions=num_partitions,
+    )
+    for fetch_size, num_partitions in [
+        (0, 0),
+        (10000, 0),
+        # (0, 10),
+        # (10000, 10),
+    ]
+]
 
 DEFAULT_SQLSERVER_JDBC_CONFIG = create_jdbc_config(
     jdbc_url="jdbc:sqlserver://127.0.0.1:1433;TrustServerCertificate=true;databaseName=msdb",
