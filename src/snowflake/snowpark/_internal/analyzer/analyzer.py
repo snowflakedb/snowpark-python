@@ -5,6 +5,7 @@
 import uuid
 from collections import Counter, defaultdict
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Union
+from logging import getLogger
 
 from snowflake.connector import IntegrityError
 
@@ -159,13 +160,19 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark._internal.utils import (
+    quote_name,
+    merge_multiple_snowflake_plan_expr_to_alias,
+)
 from snowflake.snowpark.types import BooleanType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
 
 if TYPE_CHECKING:
     import snowflake.snowpark.session
+
+
+_logger = getLogger(__name__)
 
 
 class Analyzer:
@@ -374,15 +381,23 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
-            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            if not self.session._resolve_conflict_alias:
+                name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            else:
+                name = self.alias_maps_to_use.get(expr.expr_id, (expr.name, False))[0]
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
             if expr.df_alias:
                 if expr.df_alias in df_aliased_col_name_to_real_col_name:
-                    return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
-                        expr.name, expr.name
-                    )
+                    if not self.session._resolve_conflict_alias:
+                        return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
+                            expr.name, expr.name
+                        )
+                    else:
+                        return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
+                            expr.name, (expr.name, False)
+                        )[0]
                 else:
                     raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
                         expr.df_alias
@@ -412,7 +427,11 @@ class Analyzer:
                         expr.df_alias
                     )
                 columns = df_aliased_col_name_to_real_col_name[expr.df_alias]
-                return ",".join(columns.values())
+                if not self.session._resolve_conflict_alias:
+                    ret = ",".join(columns.values())
+                else:
+                    ret = ",".join([v[0] for v in columns.values()])
+                return ",".join(ret)
             if not expr.expressions:
                 return "*"
             else:
@@ -636,16 +655,28 @@ class Analyzer:
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
-                self.generated_alias_maps[expr.child.expr_id] = quoted_name
-                assert self.alias_maps_to_use is not None
-                for k, v in self.alias_maps_to_use.items():
-                    if v == expr.child.name:
-                        self.generated_alias_maps[k] = quoted_name
-
-                for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
-                    for k, v in df_alias_dict.items():
+                if not self.session._resolve_conflict_alias:
+                    self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                    assert self.alias_maps_to_use is not None
+                    for k, v in self.alias_maps_to_use.items():
                         if v == expr.child.name:
-                            df_alias_dict[k] = quoted_name
+                            self.generated_alias_maps[k] = quoted_name
+
+                    for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
+                        for k, v in df_alias_dict.items():
+                            if v == expr.child.name:
+                                df_alias_dict[k] = quoted_name
+                else:
+                    self.generated_alias_maps[expr.child.expr_id] = (quoted_name, False)
+                    assert self.alias_maps_to_use is not None
+                    for k, v in self.alias_maps_to_use.items():
+                        if v[0] == expr.child.name:
+                            self.generated_alias_maps[k] = (quoted_name, True)
+
+                    for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
+                        for k, v in df_alias_dict.items():
+                            if v[0] == expr.child.name:
+                                df_alias_dict[k] = (quoted_name, True)
             return alias_expression(
                 self.analyze(
                     expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
@@ -813,22 +844,27 @@ class Analyzer:
             # Selectable doesn't have children. It already has the expr_to_alias dict.
             self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
-            use_maps = {}
-            # get counts of expr_to_alias keys
-            counts = Counter()
-            for v in resolved_children.values():
-                if v.expr_to_alias:
-                    counts.update(list(v.expr_to_alias.keys()))
+            if self.session._resolve_conflict_alias:
+                self.alias_maps_to_use = merge_multiple_snowflake_plan_expr_to_alias(
+                    list(resolved_children.values())
+                )
+            else:
+                use_maps = {}
+                # get counts of expr_to_alias keys
+                counts = Counter()
+                for v in resolved_children.values():
+                    if v.expr_to_alias:
+                        counts.update(list(v.expr_to_alias.keys()))
 
-            # Keep only non-shared expr_to_alias keys
-            # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
-            for v in resolved_children.values():
-                if v.expr_to_alias:
-                    use_maps.update(
-                        {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
-                    )
+                # Keep only non-shared expr_to_alias keys
+                # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
+                for v in resolved_children.values():
+                    if v.expr_to_alias:
+                        use_maps.update(
+                            {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
+                        )
 
-            self.alias_maps_to_use = use_maps
+                self.alias_maps_to_use = use_maps
 
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
