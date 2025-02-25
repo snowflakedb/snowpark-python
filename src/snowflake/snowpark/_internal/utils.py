@@ -5,6 +5,7 @@
 
 import array
 import contextlib
+import copy
 import datetime
 import decimal
 import functools
@@ -1538,9 +1539,74 @@ class GlobalCounter:
 global_counter: GlobalCounter = GlobalCounter()
 
 
+class AliasDictWithInheritedAliasInfo(dict):
+    def __setitem__(self, key: uuid.UUID, value: Union[Tuple[str, bool], str]):
+        if isinstance(value, str):
+            value = (value, False)
+        if not (
+            isinstance(value, tuple)
+            and len(value) == 2
+            and isinstance(value[0], str)
+            and isinstance(value[1], bool)
+        ):
+            raise ValueError("Value must be a tuple of (str, bool)")
+        super().__setitem__(key, value)
+
+    def __getitem__(self, item):
+        value = super().__getitem__(item)
+        return value[0]
+
+    def get(self, key, default=None):
+        value = super().get(key, None)
+        if value is not None:
+            return value[0]
+        return default
+
+    def is_inherited(self, key):
+        value = super().get(key, None)
+        if value is not None:
+            return value[1]
+        return False
+
+    def items(self):
+        """Return (key, str) pairs instead of (key, (str, bool)) pairs."""
+        return ((key, value[0]) for key, value in super().items())
+
+    def values(self) -> Iterable[str]:
+        """Return only the string parts of the tuple in the dictionary values."""
+        return (value[0] for value in super().values())
+
+    def update(self, other):
+        assert isinstance(other, AliasDictWithInheritedAliasInfo)
+        for k in other:
+            self[k] = (other[k][0], other.is_inherited(k))
+
+    def copy(self) -> "AliasDictWithInheritedAliasInfo":
+        """Return a shallow copy of the dictionary, preserving the (str, bool) tuple structure."""
+        return self.__copy__()
+
+    def __copy__(self) -> "AliasDictWithInheritedAliasInfo":
+        """Shallow copy implementation for copy.copy()"""
+        new_copy = AliasDictWithInheritedAliasInfo()
+        new_copy.update(self)
+        return new_copy
+
+    def __deepcopy__(self, memo) -> "AliasDictWithInheritedAliasInfo":
+        """Deep copy implementation for copy.deepcopy()"""
+        new_copy = AliasDictWithInheritedAliasInfo()
+        for key, (alias, inherited) in self.items():
+            new_key = copy.deepcopy(key, memo)  # Ensures deep copy of the key (UUID)
+            new_value = (
+                copy.deepcopy(alias, memo),
+                copy.deepcopy(inherited, memo),
+            )  # Deep copy of values
+            new_copy[new_key] = new_value
+        return new_copy
+
+
 def merge_multiple_snowflake_plan_expr_to_alias(
     snowflake_plans: List["SnowflakePlan"],
-) -> Dict[uuid.UUID, str]:
+) -> AliasDictWithInheritedAliasInfo:
     """
     Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
 
@@ -1555,7 +1621,7 @@ def merge_multiple_snowflake_plan_expr_to_alias(
     all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
 
     # Initialize the merged dictionary
-    merged_dict = {}
+    merged_dict = AliasDictWithInheritedAliasInfo()
 
     # Collect all unique keys from all dictionaries
     all_keys = set().union(*all_expr_to_alias_dicts)
@@ -1563,14 +1629,12 @@ def merge_multiple_snowflake_plan_expr_to_alias(
     conflicted_keys = {}
 
     for key in all_keys:
-        # Gather all aliases for the current key
-        values = list({d[key] for d in all_expr_to_alias_dicts if key in d})
+        values = list(
+            {(d[key], d.is_inherited(key)) for d in all_expr_to_alias_dicts if key in d}
+        )
         # Check if all aliases are identical
         if len(values) == 1:
             merged_dict[key] = values[0]
-        elif len(values) == 2 and values[0][0] == values[1][0]:
-            # alias_name is equal, is_back_propagated is different, we pick the not back propagated bool
-            merged_dict[key] = (values[0][0], values[0][1] or values[1][1])
         else:
             conflicted_keys[key] = values
 
@@ -1579,29 +1643,30 @@ def merge_multiple_snowflake_plan_expr_to_alias(
 
     for key in conflicted_keys:
         candidate = None
-        candidate_is_back_propagated = False
+        candidate_is_inherited = False
         for plan in snowflake_plans:
             output_columns = [attr.name for attr in plan.output if plan.schema_query]
-            tmp_alias_name, tmp_is_back_propagated = plan.expr_to_alias[key]
-            if tmp_alias_name not in output_columns or tmp_is_back_propagated:
-                # back propagated columns are not considered as they are not used in the output
+            tmp_alias_name, tmp_is_inherited = plan.expr_to_alias[
+                key
+            ], plan.expr_to_alias.is_inherited(key)
+            if tmp_alias_name not in output_columns or tmp_is_inherited:
+                # inherited are not considered as they are not used in the output
                 # check Analyzer.unary_expression_extractor functions
                 continue
             if not candidate:
                 candidate = tmp_alias_name
-                candidate_is_back_propagated = tmp_is_back_propagated
+                candidate_is_inherited = tmp_is_inherited
             else:
                 if candidate == tmp_alias_name:
                     # The candidate is the same as the current alias
-                    candidate_is_back_propagated = (
-                        candidate_is_back_propagated or tmp_is_back_propagated
-                    )
+                    # we keep the non-inherited bool information
+                    candidate_is_inherited = candidate_is_inherited and tmp_is_inherited
                 else:
                     # The candidate is different from the current alias, ambiguous
                     candidate = None
         # Add the candidate to the merged dictionary if resolved
         if candidate is not None:
-            merged_dict[key] = (candidate, candidate_is_back_propagated)
+            merged_dict[key] = (candidate, candidate_is_inherited)
         else:
             # No valid candidate found
             _logger.debug(

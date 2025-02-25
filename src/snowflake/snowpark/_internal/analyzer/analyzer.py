@@ -163,6 +163,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import (
     quote_name,
     merge_multiple_snowflake_plan_expr_to_alias,
+    AliasDictWithInheritedAliasInfo,
 )
 from snowflake.snowpark.types import BooleanType, _NumericType
 
@@ -179,9 +180,13 @@ class Analyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
-        self.generated_alias_maps = {}
         self.subquery_plans = []
-        self.alias_maps_to_use: Dict[uuid.UUID, str] = {}
+        if session._resolve_conflict_alias:
+            self.generated_alias_maps = AliasDictWithInheritedAliasInfo()
+            self.alias_maps_to_use = AliasDictWithInheritedAliasInfo()
+        else:
+            self.generated_alias_maps = {}
+            self.alias_maps_to_use: Dict[uuid.UUID, str] = {}
 
     def analyze(
         self,
@@ -381,23 +386,15 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
-            if not self.session._resolve_conflict_alias:
-                name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
-            else:
-                name = self.alias_maps_to_use.get(expr.expr_id, (expr.name, False))[0]
+            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
             if expr.df_alias:
                 if expr.df_alias in df_aliased_col_name_to_real_col_name:
-                    if not self.session._resolve_conflict_alias:
-                        return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
-                            expr.name, expr.name
-                        )
-                    else:
-                        return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
-                            expr.name, (expr.name, False)
-                        )[0]
+                    return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
+                        expr.name, expr.name
+                    )
                 else:
                     raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
                         expr.df_alias
@@ -427,11 +424,7 @@ class Analyzer:
                         expr.df_alias
                     )
                 columns = df_aliased_col_name_to_real_col_name[expr.df_alias]
-                if not self.session._resolve_conflict_alias:
-                    ret = ",".join(columns.values())
-                else:
-                    ret = ",".join([v[0] for v in columns.values()])
-                return ",".join(ret)
+                return ",".join(columns.values())
             if not expr.expressions:
                 return "*"
             else:
@@ -667,7 +660,7 @@ class Analyzer:
                             if v == expr.child.name:
                                 df_alias_dict[k] = quoted_name
                 else:
-                    self.generated_alias_maps[expr.child.expr_id] = (quoted_name, False)
+                    self.generated_alias_maps[expr.child.expr_id] = quoted_name
                     assert self.alias_maps_to_use is not None
                     for k, v in self.alias_maps_to_use.items():
                         if v[0] == expr.child.name:
@@ -811,7 +804,11 @@ class Analyzer:
 
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         self.subquery_plans = []
-        self.generated_alias_maps = {}
+        self.generated_alias_maps = (
+            AliasDictWithInheritedAliasInfo()
+            if self.session._resolve_conflict_alias
+            else {}
+        )
 
         result = self.do_resolve(logical_plan)
 

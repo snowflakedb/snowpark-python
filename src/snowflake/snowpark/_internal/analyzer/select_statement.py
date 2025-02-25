@@ -77,7 +77,10 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
-from snowflake.snowpark._internal.utils import is_sql_select_statement
+from snowflake.snowpark._internal.utils import (
+    is_sql_select_statement,
+    AliasDictWithInheritedAliasInfo,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -242,7 +245,11 @@ class Selectable(LogicalPlan, ABC):
         self.flatten_disabled: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
-        self.expr_to_alias = {}
+        self.expr_to_alias = (
+            AliasDictWithInheritedAliasInfo()
+            if self._session._resolve_conflict_alias
+            else {}
+        )
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
@@ -1810,17 +1817,9 @@ def derive_column_states_from_subquery(
                     raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
                         c.child.df_alias
                     )
-                if not analyzer.session._resolve_conflict_alias:
-                    aliased_cols = from_.df_aliased_col_name_to_real_col_name[
-                        c.child.df_alias
-                    ].values()
-                else:
-                    aliased_cols = [
-                        v[0]
-                        for v in from_.df_aliased_col_name_to_real_col_name[
-                            c.child.df_alias
-                        ].values()
-                    ]
+                aliased_cols = from_.df_aliased_col_name_to_real_col_name[
+                    c.child.df_alias
+                ].values()
                 columns_from_star = [
                     copy(e)
                     for e in from_.column_states.projection

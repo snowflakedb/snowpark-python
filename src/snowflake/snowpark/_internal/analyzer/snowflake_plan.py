@@ -113,6 +113,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     merge_multiple_snowflake_plan_expr_to_alias,
     random_name_for_temp_object,
+    AliasDictWithInheritedAliasInfo,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -162,24 +163,13 @@ class SnowflakePlan(LogicalPlan):
                         children = [
                             arg for arg in args if isinstance(arg, SnowflakePlan)
                         ]
-                        remapped = []
-                        if children:
-                            if not children[0].session._resolve_conflict_alias:
-                                remapped = [
-                                    SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
-                                        "", val
-                                    )
-                                    for child in children
-                                    for val in child.expr_to_alias.values()
-                                ]
-                            else:
-                                remapped = [
-                                    SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
-                                        "", val[0]
-                                    )
-                                    for child in children
-                                    for val in child.expr_to_alias.values()
-                                ]
+                        remapped = [
+                            SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
+                                "", val
+                            )
+                            for child in children
+                            for val in child.expr_to_alias.values()
+                        ]
                         if col in remapped:
                             unaliased_cols = (
                                 snowflake.snowpark.dataframe._get_unaliased(col)
@@ -246,7 +236,15 @@ class SnowflakePlan(LogicalPlan):
         self.queries = queries
         self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
-        self.expr_to_alias = expr_to_alias if expr_to_alias else {}
+        self.expr_to_alias = (
+            expr_to_alias
+            if expr_to_alias
+            else (
+                AliasDictWithInheritedAliasInfo()
+                if session._resolve_conflict_alias
+                else {}
+            )
+        )
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
@@ -260,7 +258,11 @@ class SnowflakePlan(LogicalPlan):
                 df_aliased_col_name_to_real_col_name
             )
         else:
-            self.df_aliased_col_name_to_real_col_name = defaultdict(dict)
+            self.df_aliased_col_name_to_real_col_name = (
+                defaultdict(AliasDictWithInheritedAliasInfo)
+                if self.session._resolve_conflict_alias
+                else defaultdict(dict)
+            )
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
         # encode an id for CTE optimization. This is generated based on the main
@@ -530,7 +532,10 @@ class SnowflakePlan(LogicalPlan):
         return copied_plan
 
     def add_aliases(self, to_add: Dict) -> None:
-        self.expr_to_alias = {**self.expr_to_alias, **to_add}
+        if self.session._resolve_conflict_alias:
+            self.expr_to_alias.update(to_add)
+        else:
+            self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
 
 class SnowflakePlanBuilder:
