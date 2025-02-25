@@ -816,7 +816,9 @@ def test_temp_name_placeholder_for_sync(db_parameters, thread_safe_enabled):
             df = session.create_dataframe([[1, 2], [3, 4]], ["A", "B"])
 
             with session.query_history() as history:
-                with ThreadPoolExecutor(max_workers=5) as executor:
+                with ThreadPoolExecutor(
+                    max_workers=(5 if thread_safe_enabled else 1)
+                ) as executor:
                     futures = []
                     for i in range(10):
                         futures.append(executor.submit(process_data, df, i))
