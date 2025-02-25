@@ -73,6 +73,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     get_temp_type_for_object,
     normalize_local_file,
+    private_preview,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1074,6 +1075,7 @@ class DataFrameReader:
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
 
+    @private_preview(version="1.29.0")
     @publicapi
     def dbapi(
         self,
@@ -1114,7 +1116,7 @@ class DataFrameReader:
                 struct_schema = custom_schema
             else:
                 logger.error(f"Invalid schema type: {type(custom_schema)}")
-                raise TypeError(f"Invalid schema type: {type(custom_schema)}. ")
+                raise TypeError(f"Invalid schema type: {type(custom_schema)}.")
 
         select_query = generate_select_query(
             table, struct_schema, dbms_type, driver_info
@@ -1191,7 +1193,6 @@ class DataFrameReader:
             )
 
             try:
-
                 with mp.Manager() as process_manager, ProcessPoolExecutor(
                     max_workers=max_workers
                 ) as process_executor, ThreadPoolExecutor(
@@ -1214,7 +1215,7 @@ class DataFrameReader:
                     logger.info("Starting to fetch data from the data source.")
                     for partition_idx, query in enumerate(partitioned_queries):
                         process_future = process_executor.submit(
-                            _task_fetch_from_data_source_with_retry,
+                            DataFrameReader._task_fetch_from_data_source_with_retry,
                             parquet_file_queue,
                             create_connection,
                             query,
@@ -1404,6 +1405,31 @@ class DataFrameReader:
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
 
+    @staticmethod
+    def _retry_run(func: Callable, *args, **kwargs) -> Any:
+        retry_count = 0
+        last_error = None
+        error_trace = ""
+        func_name = func.__name__
+        while retry_count < MAX_RETRY_TIME:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                last_error = e
+                error_trace = traceback.format_exc()
+                retry_count += 1
+                logger.debug(
+                    f"[{func_name}] Attempt {retry_count}/{MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
+                )
+        error_message = (
+            f"Function `{func_name}` failed after {MAX_RETRY_TIME} attempts.\n"
+            f"Last error: [{type(last_error).__name__}] {str(last_error)}\n"
+            f"Traceback:\n{error_trace}"
+        )
+        final_error = SnowparkDataframeReaderException(message=error_message)
+        logger.error(error_message)
+        raise final_error
+
     def _upload_and_copy_into_table(
         self,
         local_file: str,
@@ -1438,139 +1464,89 @@ class DataFrameReader:
         on_error: Optional[str] = "abort_statement",
         statements_params: Optional[Dict[str, str]] = None,
     ):
-        retry_count = 0
-        last_error = None
-        error_trace = ""
-        while retry_count < MAX_RETRY_TIME:
-            try:
-                self._upload_and_copy_into_table(
-                    local_file,
-                    snowflake_stage_name,
-                    snowflake_table_name,
-                    on_error,
-                    statements_params,
-                )
-                return
-            except Exception as e:
-                last_error = e
-                error_trace = traceback.format_exc()
-                retry_count += 1
-                logger.debug(
-                    f"Attempt {retry_count}/{MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
-                )
+        self._retry_run(
+            self._upload_and_copy_into_table,
+            local_file,
+            snowflake_stage_name,
+            snowflake_table_name,
+            on_error,
+            statements_params,
+        )
 
-        final_error = SnowparkDataframeReaderException(
-            message=(
-                f"Failed to load data to snowflake after {MAX_RETRY_TIME} attempts.\n"
-                f"Last error: [{type(last_error).__name__}] {str(last_error)}\n"
-                f"Traceback:\n{error_trace}"
+    @staticmethod
+    def _task_fetch_from_data_source(
+        parquet_file_queue: queue.Queue,
+        create_connection: Callable[[], "Connection"],
+        query: str,
+        schema: StructType,
+        partition_idx: int,
+        tmp_dir: str,
+        dbms_type: DBMS_TYPE,
+        driver_info: str,
+        query_timeout: int = 0,
+        fetch_size: int = 0,
+        session_init_statement: Optional[str] = None,
+    ):
+        def convert_to_parquet(fetched_data, database, fetch_idx):
+            df = data_source_data_to_pandas_df(
+                fetched_data, schema, database, driver_info
             )
-        )
-        logger.error(
-            f"Failed to load data to snowflake after {MAX_RETRY_TIME} attempts.\n"
-            f"Last encountered error: [{type(last_error).__name__}] {str(last_error)}"
-        )
-        raise final_error
-
-
-def _task_fetch_from_data_source(
-    parquet_file_queue: queue.Queue,
-    create_connection: Callable[[], "Connection"],
-    query: str,
-    schema: StructType,
-    partition_idx: int,
-    tmp_dir: str,
-    dbms_type: DBMS_TYPE,
-    driver_info: str,
-    query_timeout: int = 0,
-    fetch_size: int = 0,
-    session_init_statement: Optional[str] = None,
-):
-    def convert_to_parquet(fetched_data, database, fetch_idx):
-        df = data_source_data_to_pandas_df(fetched_data, schema, database, driver_info)
-        path = os.path.join(
-            tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
-        )
-        df.to_parquet(path)
-        return path
-
-    conn = create_connection()
-    # this is specified to pyodbc, need other way to manage timeout on other drivers
-    if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
-        conn.timeout = query_timeout
-    if dbms_type == DBMS_TYPE.ORACLE_DB:
-        conn.outputtypehandler = output_type_handler
-    cursor = conn.cursor()
-    if session_init_statement:
-        cursor.execute(session_init_statement)
-    if fetch_size == 0:
-        cursor.execute(query)
-        result = cursor.fetchall()
-        parquet_file_queue.put(convert_to_parquet(result, dbms_type, 0))
-    elif fetch_size > 0:
-        cursor = cursor.execute(query)
-        fetch_idx = 0
-        while True:
-            rows = cursor.fetchmany(fetch_size)
-            if not rows:
-                break
-            parquet_file_queue.put(convert_to_parquet(rows, dbms_type, fetch_idx))
-            fetch_idx += 1
-    else:
-        raise ValueError("fetch size cannot be smaller than 0")
-
-
-def _task_fetch_from_data_source_with_retry(
-    parquet_file_queue: queue.Queue,
-    create_connection: Callable[[], "Connection"],
-    query: str,
-    schema: StructType,
-    partition_idx: int,
-    tmp_dir: str,
-    dbms_type: DBMS_TYPE,
-    driver_info: str,
-    query_timeout: int = 0,
-    fetch_size: int = 0,
-    session_init_statement: Optional[str] = None,
-):
-    retry_count = 0
-    last_error = None
-    error_trace = ""
-    while retry_count < MAX_RETRY_TIME:
-        try:
-            path = _task_fetch_from_data_source(
-                parquet_file_queue,
-                create_connection,
-                query,
-                schema,
-                partition_idx,
-                tmp_dir,
-                dbms_type,
-                driver_info,
-                query_timeout,
-                fetch_size,
-                session_init_statement,
+            path = os.path.join(
+                tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
             )
+            df.to_parquet(path)
             return path
-        except Exception as e:
-            last_error = e
-            error_trace = traceback.format_exc()
-            retry_count += 1
-            logger.debug(
-                f"Attempt {retry_count}/{MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
-            )
 
-    final_error = SnowparkDataframeReaderException(
-        message=(
-            f"Failed to fetch from data source after {MAX_RETRY_TIME} attempts.\n"
-            f"Last error: [{type(last_error).__name__}] {str(last_error)}\n"
-            f"Traceback:\n{error_trace}"
+        conn = create_connection()
+        # this is specified to pyodbc, need other way to manage timeout on other drivers
+        if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
+            conn.timeout = query_timeout
+        if dbms_type == DBMS_TYPE.ORACLE_DB:
+            conn.outputtypehandler = output_type_handler
+        cursor = conn.cursor()
+        if session_init_statement:
+            cursor.execute(session_init_statement)
+        if fetch_size == 0:
+            cursor.execute(query)
+            result = cursor.fetchall()
+            parquet_file_queue.put(convert_to_parquet(result, dbms_type, 0))
+        elif fetch_size > 0:
+            cursor = cursor.execute(query)
+            fetch_idx = 0
+            while True:
+                rows = cursor.fetchmany(fetch_size)
+                if not rows:
+                    break
+                parquet_file_queue.put(convert_to_parquet(rows, dbms_type, fetch_idx))
+                fetch_idx += 1
+        else:
+            raise ValueError("fetch size cannot be smaller than 0")
+
+    @staticmethod
+    def _task_fetch_from_data_source_with_retry(
+        parquet_file_queue: queue.Queue,
+        create_connection: Callable[[], "Connection"],
+        query: str,
+        schema: StructType,
+        partition_idx: int,
+        tmp_dir: str,
+        dbms_type: DBMS_TYPE,
+        driver_info: str,
+        query_timeout: int = 0,
+        fetch_size: int = 0,
+        session_init_statement: Optional[str] = None,
+    ):
+        DataFrameReader._retry_run(
+            DataFrameReader._task_fetch_from_data_source,
+            parquet_file_queue,
+            create_connection,
+            query,
+            schema,
+            partition_idx,
+            tmp_dir,
+            dbms_type,
+            driver_info,
+            query_timeout,
+            fetch_size,
+            session_init_statement,
         )
-    )
-
-    logger.error(
-        f"Failed to fetch from data source after {MAX_RETRY_TIME} attempts.\n"
-        f"Last encountered error: [{type(last_error).__name__}] {str(last_error)}"
-    )
-
-    raise final_error
