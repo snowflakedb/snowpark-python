@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, Type
+from typing import Dict, Type, Union
 
 from tests.perf.data_source.scripts.oracle_resource_setup import TestOracleDB
 from tests.perf.data_source.scripts.sql_server_resource_setup import TestSQLServerDB
@@ -34,6 +34,10 @@ def create_oracle_config(
     insert_row_count: int = None,
     existing_table: str = None,
     fetch_size: int = None,
+    column: str = None,
+    lower_bound: Union[str, int] = None,
+    upper_bound: Union[str, int] = None,
+    num_partitions: int = None,
 ) -> DatabaseTestConfig:
     """
     Helper method to create Oracle test configuration with default values.
@@ -43,6 +47,12 @@ def create_oracle_config(
         insert_row_count: Number of rows to insert if creating new table
         existing_table: Name of existing table to use
         fetch_size: DBAPI fetch_size parameter
+        column: column to perform partition on
+        lower_bound: lower bound of partition
+        upper_bound: upper bound of partition
+        num_partitions: number of partitions
+    Note:
+        column, lower_bound, upper_bound and num_partitions must be set together
     """
     default_connection = {
         "username": "SYSTEM",
@@ -51,13 +61,24 @@ def create_oracle_config(
         "port": 1521,
         "service_name": "FREEPDB1",
     }
+    dbapi_parameters = {}
+    if fetch_size is not None:
+        dbapi_parameters["fetch_size"] = fetch_size
+    if column is not None:
+        dbapi_parameters["column"] = column
+    if lower_bound is not None:
+        dbapi_parameters["lower_bound"] = lower_bound
+    if upper_bound is not None:
+        dbapi_parameters["upper_bound"] = upper_bound
+    if num_partitions is not None:
+        dbapi_parameters["num_partitions"] = num_partitions
 
     config = DatabaseTestConfig(
         db_class=TestOracleDB,
         connection_params=connection_params or default_connection,
         insert_row_count=insert_row_count,
         existing_table=existing_table,
-        dbapi_parameters={"fetch_size": fetch_size} if fetch_size else None,
+        dbapi_parameters=dbapi_parameters,
     )
     return config
 
@@ -67,6 +88,10 @@ def create_sql_server_config(
     insert_row_count: int = None,
     existing_table: str = None,
     fetch_size: int = None,
+    column: str = None,
+    lower_bound: Union[str, int] = None,
+    upper_bound: Union[str, int] = None,
+    num_partitions: int = None,
 ) -> DatabaseTestConfig:
     """
     Helper method to create SQL Server test configuration with default values.
@@ -76,6 +101,12 @@ def create_sql_server_config(
         insert_row_count: Number of rows to insert if creating new table
         existing_table: Name of existing table to use
         fetch_size: DBAPI fetch_size parameter
+        column: column to perform partition on
+        lower_bound: lower bound of partition
+        upper_bound: upper bound of partition
+        num_partitions: number of partitions
+    Note:
+        column, lower_bound, upper_bound and num_partitions must be set together
     """
     if existing_table and insert_row_count:
         raise ValueError(
@@ -89,13 +120,24 @@ def create_sql_server_config(
         "username": "sa",
         "password": "Test12345()",
     }
+    dbapi_parameters = {}
+    if fetch_size:
+        dbapi_parameters["fetch_size"] = fetch_size
+    if column:
+        dbapi_parameters["column"] = column
+    if lower_bound:
+        dbapi_parameters["lower_bound"] = lower_bound
+    if upper_bound:
+        dbapi_parameters["upper_bound"] = upper_bound
+    if num_partitions:
+        dbapi_parameters["num_partitions"] = num_partitions
 
     config = DatabaseTestConfig(
         db_class=TestSQLServerDB,
         connection_params=connection_params or default_connection,
         insert_row_count=insert_row_count,
         existing_table=existing_table,
-        dbapi_parameters={"fetch_size": fetch_size or 0},
+        dbapi_parameters=dbapi_parameters,
     )
     return config
 
@@ -142,12 +184,36 @@ def create_jdbc_config(
 
 
 DEFAULT_ORACLE_CONFIGS = [
-    create_oracle_config(existing_table="ALL_TYPE_TABLE", fetch_size=fetch_size)
-    for fetch_size in [1000, 10000, 10000]
+    create_oracle_config(
+        existing_table="ALL_TYPE_TABLE",
+        fetch_size=fetch_size,
+        column="id",
+        lower_bound=0,
+        upper_bound=1000000,
+        num_partitions=num_partitions,
+    )
+    for fetch_size, num_partitions in [
+        (0, 0),
+        (10000, 0),
+        (0, 10),
+        (10000, 10),
+    ]
 ]
 DEFAULT_SQLSERVER_CONFIGS = [
-    create_sql_server_config(existing_table="ALL_TYPE_TABLE", fetch_size=fetch_size)
-    for fetch_size in [1000, 10000, 10000]
+    create_sql_server_config(
+        existing_table="ALL_TYPE_TABLE",
+        fetch_size=fetch_size,
+        column="id",
+        lower_bound=0,
+        upper_bound=1000000,
+        num_partitions=num_partitions,
+    )
+    for fetch_size, num_partitions in [
+        (0, 0),
+        (10000, 0),
+        (0, 10),
+        (10000, 10),
+    ]
 ]
 
 
