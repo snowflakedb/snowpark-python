@@ -350,6 +350,7 @@ def generate_sql_with_predicates(select_query: str, predicates: List[str]):
     return [select_query + f" WHERE {predicate}" for predicate in predicates]
 
 
+# move into oracle driver class in the future
 def output_type_handler(cursor, metadata):
     import oracledb
 
