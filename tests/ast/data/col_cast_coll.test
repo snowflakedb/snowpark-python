@@ -41,7 +41,7 @@ df = df.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=
 
 df = df.select(col("A").cast(VectorType(IntegerType(), 64)))
 
-df = df.select(col("A").cast(StructType([StructField("test1", StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField("test3", ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))
+df = df.select(col("A").cast(StructType([StructField(ColumnIdentifier("test1"), StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField(ColumnIdentifier("test3"), ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))
 
 ## EXPECTED ENCODED AST
 
@@ -57,10 +57,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -73,7 +73,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -89,17 +89,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -135,7 +135,7 @@ body {
                 start_line: 27
               }
               to {
-                sp_string_type {
+                string_type {
                   length {
                     value: 42
                   }
@@ -146,7 +146,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -173,17 +173,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -219,9 +219,9 @@ body {
                 start_line: 29
               }
               to {
-                sp_timestamp_type {
+                timestamp_type {
                   time_zone {
-                    sp_timestamp_time_zone_ntz: true
+                    timestamp_time_zone_ntz: true
                   }
                 }
               }
@@ -230,7 +230,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -257,17 +257,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -303,9 +303,9 @@ body {
                 start_line: 31
               }
               to {
-                sp_timestamp_type {
+                timestamp_type {
                   time_zone {
-                    sp_timestamp_time_zone_ltz: true
+                    timestamp_time_zone_ltz: true
                   }
                 }
               }
@@ -314,7 +314,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -341,17 +341,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -387,9 +387,9 @@ body {
                 start_line: 33
               }
               to {
-                sp_timestamp_type {
+                timestamp_type {
                   time_zone {
-                    sp_timestamp_time_zone_tz: true
+                    timestamp_time_zone_tz: true
                   }
                 }
               }
@@ -398,7 +398,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 4
             }
@@ -425,17 +425,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -471,10 +471,10 @@ body {
                 start_line: 35
               }
               to {
-                sp_array_type {
+                array_type {
                   structured: true
                   ty {
-                    sp_geometry_type: true
+                    geometry_type: true
                   }
                 }
               }
@@ -483,7 +483,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
@@ -510,17 +510,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -556,13 +556,13 @@ body {
                 start_line: 37
               }
               to {
-                sp_map_type {
+                map_type {
                   key_ty {
-                    sp_geography_type: true
+                    geography_type: true
                   }
                   structured: true
                   value_ty {
-                    sp_variant_type: true
+                    variant_type: true
                   }
                 }
               }
@@ -571,7 +571,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -598,17 +598,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -644,10 +644,10 @@ body {
                 start_line: 39
               }
               to {
-                sp_vector_type {
+                vector_type {
                   dimension: 64
                   ty {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                 }
               }
@@ -656,7 +656,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 7
             }
@@ -683,17 +683,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
           args {
-            sp_column_cast {
+            column_cast {
               col {
                 apply_expr {
                   fn {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -729,14 +729,16 @@ body {
                 start_line: 41
               }
               to {
-                sp_struct_type {
+                struct_type {
                   fields {
                     list {
                       column_identifier {
-                        name: "test1"
+                        column_identifier {
+                          name: "test1"
+                        }
                       }
                       data_type {
-                        sp_string_type {
+                        string_type {
                           length {
                           }
                         }
@@ -744,21 +746,25 @@ body {
                     }
                     list {
                       column_identifier {
-                        name: "test2"
+                        column_name {
+                          name: "test2"
+                        }
                       }
                       data_type {
-                        sp_integer_type: true
+                        integer_type: true
                       }
                       nullable: true
                     }
                     list {
                       column_identifier {
-                        name: "test3"
+                        column_identifier {
+                          name: "test3"
+                        }
                       }
                       data_type {
-                        sp_array_type {
+                        array_type {
                           ty {
-                            sp_long_type: true
+                            long_type: true
                           }
                         }
                       }
@@ -766,21 +772,23 @@ body {
                     }
                     list {
                       column_identifier {
-                        name: "test4"
+                        column_name {
+                          name: "test4"
+                        }
                       }
                       data_type {
-                        sp_map_type {
+                        map_type {
                           key_ty {
-                            sp_decimal_type {
+                            decimal_type {
                               precision: 42
                               scale: 23
                             }
                           }
                           value_ty {
-                            sp_vector_type {
+                            vector_type {
                               dimension: 64
                               ty {
-                                sp_float_type: true
+                                float_type: true
                               }
                             }
                           }
@@ -797,7 +805,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 8
             }
@@ -834,5 +842,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

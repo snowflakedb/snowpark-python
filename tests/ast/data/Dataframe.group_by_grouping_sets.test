@@ -62,10 +62,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -78,7 +78,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -94,9 +94,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -104,7 +104,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   apply_expr {
@@ -112,7 +112,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -174,9 +174,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -184,7 +184,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   apply_expr {
@@ -192,7 +192,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -253,9 +253,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -263,7 +263,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   list_val {
@@ -280,7 +280,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -325,7 +325,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -389,9 +389,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -399,7 +399,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   list_val {
@@ -416,7 +416,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -450,7 +450,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -495,7 +495,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -559,9 +559,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -569,7 +569,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   list_val {
@@ -586,7 +586,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -631,7 +631,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -695,9 +695,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -705,7 +705,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   list_val {
@@ -722,7 +722,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -756,7 +756,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -801,7 +801,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -835,7 +835,7 @@ body {
                           builtin_fn {
                             name {
                               name {
-                                sp_name_flat {
+                                name_flat {
                                   name: "col"
                                 }
                               }
@@ -899,9 +899,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -909,7 +909,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   apply_expr {
@@ -917,7 +917,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -951,7 +951,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -1012,9 +1012,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by_grouping_sets {
+      dataframe_group_by_grouping_sets {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1022,7 +1022,7 @@ body {
         }
         grouping_sets {
           args {
-            sp_grouping_sets {
+            grouping_sets {
               sets {
                 args {
                   apply_expr {
@@ -1030,7 +1030,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -1064,7 +1064,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -1136,5 +1136,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

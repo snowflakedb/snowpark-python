@@ -13,7 +13,7 @@ For full data type spec, please refer to https://docs.snowflake.com/en/sql-refer
 
 import datetime
 from decimal import Decimal
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -32,15 +32,14 @@ from snowflake.snowpark.types import (
     TimeType,
 )
 
-TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
-DATE_FORMAT = "%Y-%m-%d"
-TIME_FORMAT = "%H:%M:%S"
-
 
 def _integer_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[int]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         return int(value)
@@ -51,9 +50,12 @@ def _integer_converter(
 
 
 def _fraction_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[float]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         return float(value)
@@ -64,9 +66,12 @@ def _fraction_converter(
 
 
 def _decimal_converter(
-    value: str, datatype: DecimalType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DecimalType,
+    field_optionally_enclosed_by: str = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[Union[int, Decimal]]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         precision = datatype.precision
@@ -93,9 +98,12 @@ def _decimal_converter(
 
 
 def _bool_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[bool]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     if value.lower() == "true":
         return True
@@ -111,20 +119,29 @@ def _bool_converter(
 
 
 def _string_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[str]:
+    if null_if is not None and value in null_if:
+        return None
     if value is None or value == "":
         return value
     return value
 
 
 def _date_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    format: str,
+    field_optionally_enclosed_by: str = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.date]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
-        return datetime.datetime.strptime(value, DATE_FORMAT).date()
+        return datetime.datetime.strptime(value, format).date()
     except Exception as exc:
         SnowparkLocalTestingException.raise_from_error(
             exc, error_message=f"DATE value '{value}' is not recognized."
@@ -132,12 +149,16 @@ def _date_converter(
 
 
 def _timestamp_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    format: str,
+    field_optionally_enclosed_by: str = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.datetime]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
-        return datetime.datetime.strptime(value, TIMESTAMP_FORMAT)
+        return datetime.datetime.strptime(value, format)
     except Exception as exc:
         SnowparkLocalTestingException.raise_from_error(
             exc, error_message=f"TIMESTAMP value '{value}' is not recognized."
@@ -145,12 +166,16 @@ def _timestamp_converter(
 
 
 def _time_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    format: str,
+    field_optionally_enclosed_by: str = None,
+    null_if: Optional[List[str]] = None,
 ) -> Optional[datetime.time]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
-        return datetime.datetime.strptime(value, TIME_FORMAT).time()
+        return datetime.datetime.strptime(value, format).time()
     except Exception as exc:
         SnowparkLocalTestingException.raise_from_error(
             exc, error_message=f"TIMESTAMP value '{value}' is not recognized."

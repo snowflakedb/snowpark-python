@@ -130,6 +130,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             "group_keys": group_keys,
         }
         self._kwargs.update(kwargs)
+        if "apply_op" not in self._kwargs:
+            # Can be "apply", "transform", "filter" or "aggregate"
+            self._kwargs.update({"apply_op": "apply"})
 
     def _override(self, **kwargs):
         """
@@ -381,6 +384,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             dropna=False,
             sort=self._sort,
         )
+        groupby_obj._kwargs["apply_op"] = "transform"
 
         # Apply the transform function to each group.
         res = groupby_obj.apply(

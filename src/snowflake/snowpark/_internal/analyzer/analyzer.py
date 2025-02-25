@@ -103,6 +103,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
     Range,
+    ReadFileNode,
     SnowflakeCreateTable,
     SnowflakeTable,
     SnowflakeValues,
@@ -138,6 +139,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateDynamicTableCommand,
     CreateViewCommand,
+    Distinct,
     Filter,
     LocalTempView,
     PersistedView,
@@ -938,6 +940,14 @@ class Analyzer:
                 logical_plan,
             )
 
+        if isinstance(logical_plan, Distinct):
+            return self.plan_builder.project(
+                [],
+                child=resolved_children[logical_plan.child],
+                source_plan=logical_plan,
+                is_distinct=True,
+            )
+
         if isinstance(logical_plan, Filter):
             return self.plan_builder.filter(
                 self.analyze(
@@ -1232,6 +1242,20 @@ class Analyzer:
                 child=resolved_children[logical_plan.child],
                 source_plan=logical_plan,
                 iceberg_config=logical_plan.iceberg_config,
+            )
+
+        if isinstance(logical_plan, ReadFileNode):
+            return self.plan_builder.read_file(
+                path=logical_plan.path,
+                format=logical_plan.format,
+                options=logical_plan.options,
+                schema=logical_plan.schema,
+                schema_to_cast=logical_plan.schema_to_cast,
+                transformations=logical_plan.transformations,
+                metadata_project=logical_plan.metadata_project,
+                metadata_schema=logical_plan.metadata_schema,
+                use_user_schema=logical_plan.use_user_schema,
+                source_plan=logical_plan,
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
