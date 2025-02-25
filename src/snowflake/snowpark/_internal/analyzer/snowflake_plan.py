@@ -111,7 +111,9 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_sql_select_statement,
+    merge_multiple_snowflake_plan_expr_to_alias,
     random_name_for_temp_object,
+    ExprAliasUpdateDict,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -234,7 +236,11 @@ class SnowflakePlan(LogicalPlan):
         self.queries = queries
         self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
-        self.expr_to_alias = expr_to_alias if expr_to_alias else {}
+        self.expr_to_alias = (
+            expr_to_alias
+            if expr_to_alias
+            else (ExprAliasUpdateDict() if session._resolve_conflict_alias else {})
+        )
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
@@ -248,7 +254,11 @@ class SnowflakePlan(LogicalPlan):
                 df_aliased_col_name_to_real_col_name
             )
         else:
-            self.df_aliased_col_name_to_real_col_name = defaultdict(dict)
+            self.df_aliased_col_name_to_real_col_name = (
+                defaultdict(ExprAliasUpdateDict)
+                if self.session._resolve_conflict_alias
+                else defaultdict(dict)
+            )
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
         # encode an id for CTE optimization. This is generated based on the main
@@ -518,7 +528,10 @@ class SnowflakePlan(LogicalPlan):
         return copied_plan
 
     def add_aliases(self, to_add: Dict) -> None:
-        self.expr_to_alias = {**self.expr_to_alias, **to_add}
+        if self.session._resolve_conflict_alias:
+            self.expr_to_alias.update(to_add)
+        else:
+            self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
 
 class SnowflakePlanBuilder:
@@ -592,17 +605,23 @@ class SnowflakePlanBuilder:
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
-        common_columns = set(select_left.expr_to_alias.keys()).intersection(
-            select_right.expr_to_alias.keys()
-        )
-        new_expr_to_alias = {
-            k: v
-            for k, v in {
-                **select_left.expr_to_alias,
-                **select_right.expr_to_alias,
-            }.items()
-            if k not in common_columns
-        }
+        if self.session._resolve_conflict_alias:
+            new_expr_to_alias = merge_multiple_snowflake_plan_expr_to_alias(
+                [select_left, select_right]
+            )
+        else:
+            common_columns = set(select_left.expr_to_alias.keys()).intersection(
+                select_right.expr_to_alias.keys()
+            )
+            new_expr_to_alias = {
+                k: v
+                for k, v in {
+                    **select_left.expr_to_alias,
+                    **select_right.expr_to_alias,
+                }.items()
+                if k not in common_columns
+            }
+
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
         # Need to do a deduplication to avoid repeated query.

@@ -151,10 +151,17 @@ class NamedExpression:
     name: str
     _expr_id: Optional[uuid.UUID] = None
 
+    id = 0
+
+    @staticmethod
+    def get_next_id():
+        NamedExpression.id += 1
+        return NamedExpression.id
+
     @property
     def expr_id(self) -> uuid.UUID:
         if not self._expr_id:
-            self._expr_id = uuid.uuid4()
+            self._expr_id = NamedExpression.get_next_id()
         return self._expr_id
 
     def __copy__(self):
