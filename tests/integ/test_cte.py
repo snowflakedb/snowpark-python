@@ -821,6 +821,36 @@ def test_aggregate(session, action):
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_df_reader(session, mode, resources_path):
+    """
+    Test the following cases for reader:
+
+    1.
+                        UNION (invalid)
+                ________/    |_________
+                |                      |
+        SelectFromFileNode        SelectFromFileNode
+
+    2.
+                        UNION (invalid)
+                ________/    |_________
+                |                      |
+        WithColumn (invalid)        WithColumn (invalid)
+                |                      |
+        SelectFromFileNode        SelectFromFileNode
+
+    3.
+                            UNION (invalid)
+            __________________/    |____________________________
+            |                                                  |
+        UNION (invalid)                                 UNION (invalid)
+         /     |_____________                             ____/    |____________
+        |                   |                           |                      |
+    WithColumn(invalid)    WithColumn(valid)        WithColumn(invalid)    WithColumn (valid)
+        |                     |                         |                       |
+    SelectFromFileNode      Filter (valid)          SelectFromFileNode      Filter (valid)
+                               |                                                |
+                          Select (valid)                                  Select (valid)
+    """
     reader = get_reader(session, mode)
     session_stage = session.get_session_stage()
     test_files = TestFiles(resources_path)
@@ -828,18 +858,54 @@ def test_df_reader(session, mode, resources_path):
     Utils.upload_to_stage(
         session, session_stage, test_files.test_file_csv, compress=False
     )
-    df = reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
-    df_result = df.union_by_name(df)
-    expected_query_count = 3
-    if mode == "copy":
-        expected_query_count = 4
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [[3, "three", 3.3], [4, "four", 4.4]], schema=["a", "b", "c"]
+    ).write.save_as_table(table_name, table_type="temp")
+    df_reader = (
+        reader.option("INFER_SCHEMA", True).csv(test_file_on_stage).to_df("a", "b", "c")
+    )
+    df_select = session.table(table_name).select("a", "b", "c")
+
+    # Case 1
+    df_result = df_reader.union_by_name(df_reader)
+    expected_query_count = 4 if mode == "copy" else 3
+    check_result(
+        session,
+        df_result,
+        expect_cte_optimized=(mode == "copy"),
+        query_count=expected_query_count,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
+
+    # Case 2
+    df_with_column1 = df_reader.with_column("a1", col("a") + 1)
+    df_result = df_with_column1.union_by_name(df_with_column1)
+    expected_query_count = 4 if mode == "copy" else 3
+    check_result(
+        session,
+        df_result,
+        expect_cte_optimized=(mode == "copy"),
+        query_count=expected_query_count,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
+
+    # Case 3
+    df_with_column2 = df_select.filter(col("a") == 3).with_column("a1", col("a") + 1)
+    df_union = df_with_column1.union_by_name(df_with_column2)
+    df_result = df_union.union_by_name(df_union)
+    expected_query_count = 4 if mode == "copy" else 3
     check_result(
         session,
         df_result,
         expect_cte_optimized=True,
         query_count=expected_query_count,
         describe_count=0,
-        union_count=1,
+        union_count=3,
         join_count=0,
     )
 
