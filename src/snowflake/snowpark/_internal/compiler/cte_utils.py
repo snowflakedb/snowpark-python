@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SelectFromFileNode,
     SnowflakeTable,
     WithQueryBlock,
 )
@@ -50,6 +51,9 @@ def find_duplicate_subtrees(
     """
     id_node_map = defaultdict(list)
     id_parents_map = defaultdict(set)
+    # set of encoded node ids which are ineligible to be deduplicated
+    # during this process
+    invalid_ids_for_deduplication = set()
 
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
@@ -86,15 +90,34 @@ def find_duplicate_subtrees(
 
         return False
 
+    def is_select_from_file_node(node: "TreeNode") -> bool:
+        """
+        Check if the current node is a SelectFromFileNode. Currently, we do not support
+        deduplication for SelectFromFileNode due to SNOW-1911967.
+        """
+        if isinstance(node, SnowflakePlan) and (node.source_plan is not None):
+            return isinstance(node.source_plan, SelectFromFileNode)
+
+        if isinstance(node, SelectSnowflakePlan):
+            return is_select_from_file_node(node.snowflake_plan)
+
+        return False
+
     def traverse(root: "TreeNode") -> None:
         """
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
+        # Top down level order traversal to populate the
+        # id_parents_map and encoded id_node_map
         current_level = [root]
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
                 id_node_map[node.encoded_node_id_with_query].append(node)
+
+                if is_select_from_file_node(node):
+                    invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
+
                 for child in node.children_plan_nodes:
                     id_parents_map[child.encoded_node_id_with_query].add(
                         node.encoded_node_id_with_query
@@ -102,13 +125,31 @@ def find_duplicate_subtrees(
                     next_level.append(child)
             current_level = next_level
 
+        # Bottom-up level order traversal to mark parent nodes
+        # invalid for deduplication
+        current_level = list(invalid_ids_for_deduplication)
+        while len(current_level) > 0:
+            next_level = []
+            for child_id in current_level:
+                for parent_id in id_parents_map[child_id]:
+                    invalid_ids_for_deduplication.add(parent_id)
+                    next_level.append(parent_id)
+            current_level = next_level
+
     def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
         # when a sql query is a select statement, its encoded_node_id_with_query
         # contains _, which is used to separate the query id and node type name.
-        is_valid_candidate = "_" in encoded_node_id_with_query
-        if not is_valid_candidate or is_simple_select_entity(
-            id_node_map[encoded_node_id_with_query][0]
-        ):
+        if "_" not in encoded_node_id_with_query:
+            return False
+
+        # when a node is a select * from entity, then we do not create a CTE
+        # on top of it even it is duplicated.
+        if is_simple_select_entity(id_node_map[encoded_node_id_with_query][0]):
+            return False
+
+        # when a node is marked to be considered invalid for any reason
+        # we do not create a CTE on top of it even it is duplicated.
+        if encoded_node_id_with_query in invalid_ids_for_deduplication:
             return False
 
         is_duplicate_node = len(id_node_map[encoded_node_id_with_query]) > 1
