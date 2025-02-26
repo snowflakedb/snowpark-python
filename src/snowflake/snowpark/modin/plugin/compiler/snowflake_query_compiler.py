@@ -6028,9 +6028,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
-        if dummy_na is True or drop_first is True or dtype is not None:
+        if drop_first is True or dtype is not None:
             ErrorMessage.not_implemented(
-                "get_dummies with non-default dummy_na, drop_first, and dtype parameters"
+                "get_dummies with non-default drop_first, and dtype parameters"
                 + " is not supported yet in Snowpark pandas."
             )
         if columns is None:
@@ -6075,6 +6075,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             columns=columns,
             prefixes=prefix,
             prefix_sep=prefix_sep,
+            dummy_na=dummy_na,
         )
         query_compiler = SnowflakeQueryCompiler(result_internal_frame)
 

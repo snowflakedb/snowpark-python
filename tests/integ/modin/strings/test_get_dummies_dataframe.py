@@ -290,3 +290,12 @@ def test_get_dummies_pandas_negative_duplicated_columns():
             columns=["A"],
             prefix=["col1", "col2"],
         )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("kwargs", [{"dummy_na": True}, {"dummy_na": False}, {}])
+def test_get_dummies_null_values(kwargs):
+    df = native_pd.DataFrame({"col1": ["a", "a", None, "c"]})
+    expected = native_pd.get_dummies(df, **kwargs)
+    actual = pd.get_dummies(pd.DataFrame(df), **kwargs)
+    assert_snowpark_pandas_equal_to_pandas(actual, expected, check_dtype=False)
