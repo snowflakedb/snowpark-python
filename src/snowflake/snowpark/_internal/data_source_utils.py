@@ -303,18 +303,6 @@ def data_source_data_to_pandas_df(
     )
     # convert binary type to object type to work around SNOW-1912094
     df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
-    if current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
-        return df
-    elif current_db == DBMS_TYPE.ORACLE_DB:
-        # apply read to LOB object, we currently have FakeOracleLOB because CLOB and BLOB is represented by an
-        # oracledb object and we cannot add it as our dependency in test, so we fake it in this way
-        # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
-        df = df.map(lambda x: x.read() if (type(x).__name__.lower() == "lob") else x)
-
-    else:
-        raise NotImplementedError(
-            f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
-        )
     return df
 
 
