@@ -627,7 +627,7 @@ class DataFrame:
 
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """
-        Given a field builder expression of the AST type DataframeExpr, points the builder to reference this dataframe.
+        Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
         debug_check_missing_ast(self._ast_id, self)
