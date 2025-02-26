@@ -145,9 +145,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -359,12 +359,48 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_df {
-        col_names: "ORDERDATE"
-        col_names: "PRODUCTKEY"
-        col_names: "SALESAMOUNT"
+      dataframe_to_df {
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "ORDERDATE"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "PRODUCTKEY"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "SALESAMOUNT"
+            }
+          }
+          variadic: true
+        }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -377,7 +413,6 @@ body {
           start_column: 13
           start_line: 32
         }
-        variadic: true
       }
     }
     symbol {
@@ -392,14 +427,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           div {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "SALESAMOUNT"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 2
                     }
@@ -437,7 +472,7 @@ body {
         }
         col_name: "HALF_AMOUNT"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -464,14 +499,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_moving_agg {
+      dataframe_analytics_moving_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
           _2: "AVG"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -502,7 +537,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_moving_agg {
+      dataframe_analytics_moving_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -512,7 +547,7 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -547,7 +582,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_cumulative_agg {
+      dataframe_analytics_cumulative_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -555,7 +590,7 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -585,7 +620,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_cumulative_agg {
+      dataframe_analytics_cumulative_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -593,7 +628,7 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -626,7 +661,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_compute_lag {
+      dataframe_analytics_compute_lag {
         cols {
           string_val {
             src {
@@ -640,7 +675,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -671,7 +706,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_compute_lag {
+      dataframe_analytics_compute_lag {
         cols {
           string_val {
             src {
@@ -685,7 +720,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -718,7 +753,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_compute_lead {
+      dataframe_analytics_compute_lead {
         cols {
           string_val {
             src {
@@ -732,7 +767,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -763,7 +798,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_compute_lead {
+      dataframe_analytics_compute_lead {
         cols {
           string_val {
             src {
@@ -777,7 +812,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -810,14 +845,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           apply_expr {
             fn {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "to_timestamp"
                     }
                   }
@@ -825,10 +860,10 @@ body {
               }
             }
             pos_args {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "ORDERDATE"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 2
                     }
@@ -854,7 +889,7 @@ body {
         }
         col_name: "ORDERDATE"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -881,14 +916,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_time_series_agg {
+      dataframe_analytics_time_series_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 12
             }
@@ -920,14 +955,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_analytics_time_series_agg {
+      dataframe_analytics_time_series_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 12
             }
@@ -973,5 +1008,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

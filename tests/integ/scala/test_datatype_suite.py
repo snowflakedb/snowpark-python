@@ -27,6 +27,7 @@ from snowflake.snowpark.functions import (
     udaf,
     udf,
 )
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
@@ -171,7 +172,16 @@ def examples(structured_type_support):
 
 
 @pytest.fixture(scope="module")
-def structured_type_session(session, structured_type_support):
+def structured_type_session(session, structured_type_support, local_testing_mode):
+    # SNOW-1938099: Disable lob parameters until we can better support them
+    if not isinstance(session._conn, MockServerConnection):
+        session.sql(
+            "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
+        ).collect()
+        session.sql(
+            "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
+        ).collect()
+
     if structured_type_support:
         with structured_types_enabled_session(session) as sess:
             yield sess

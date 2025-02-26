@@ -87,9 +87,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -198,24 +198,28 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
                 list {
                   column_identifier {
-                    name: "num"
+                    column_name {
+                      name: "num"
+                    }
                   }
                   data_type {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                   nullable: true
                 }
                 list {
                   column_identifier {
-                    name: "str"
+                    column_name {
+                      name: "str"
+                    }
                   }
                   data_type {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -247,10 +251,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_1"
             }
           }
@@ -263,7 +267,7 @@ body {
           start_line: 32
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -279,10 +283,10 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             update_assignments {
               list {
                 _1 {
@@ -321,10 +325,10 @@ body {
             lhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -340,10 +344,10 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -370,10 +374,10 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -419,7 +423,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -453,10 +457,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_1b"
             }
           }
@@ -469,7 +473,7 @@ body {
           start_line: 37
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -485,17 +489,17 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -562,7 +566,7 @@ body {
           }
         }
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             update_assignments {
               list {
                 _1 {
@@ -599,10 +603,10 @@ body {
         join_expr {
           neq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "str"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -639,7 +643,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -673,10 +677,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_2"
             }
           }
@@ -689,7 +693,7 @@ body {
           start_line: 42
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -705,10 +709,10 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_insert_when_not_matched_clause {
+          merge_insert_when_not_matched_clause {
             insert_keys {
               list {
                 string_val {
@@ -747,10 +751,10 @@ body {
             lhs {
               neq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 8
                         }
@@ -766,10 +770,10 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -796,10 +800,10 @@ body {
             rhs {
               neq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 8
                         }
@@ -845,7 +849,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -879,10 +883,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_2b"
             }
           }
@@ -895,7 +899,7 @@ body {
           start_line: 46
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -911,17 +915,17 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_insert_when_not_matched_clause {
+          merge_insert_when_not_matched_clause {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -988,7 +992,7 @@ body {
           }
         }
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             update_assignments {
               list {
                 _1 {
@@ -1025,10 +1029,10 @@ body {
         join_expr {
           neq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "str"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -1065,7 +1069,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1099,10 +1103,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_3"
             }
           }
@@ -1115,7 +1119,7 @@ body {
           start_line: 52
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -1131,10 +1135,10 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_delete_when_matched_clause {
+          merge_delete_when_matched_clause {
           }
         }
         id {
@@ -1143,10 +1147,10 @@ body {
         join_expr {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 14
                     }
@@ -1162,10 +1166,10 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -1190,7 +1194,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1224,10 +1228,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_4"
             }
           }
@@ -1240,7 +1244,7 @@ body {
           start_line: 57
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -1256,16 +1260,16 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         clauses {
-          sp_merge_delete_when_matched_clause {
+          merge_delete_when_matched_clause {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -1311,10 +1315,10 @@ body {
             lhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -1353,10 +1357,10 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 17
                         }
@@ -1372,10 +1376,10 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -1409,7 +1413,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1443,10 +1447,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_table_5"
             }
           }
@@ -1459,7 +1463,7 @@ body {
           start_line: 62
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -1475,17 +1479,17 @@ body {
 body {
   assign {
     expr {
-      sp_table_merge {
+      table_merge {
         id {
           bitfield1: 20
         }
         join_expr {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 20
                     }
@@ -1501,10 +1505,10 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -1529,7 +1533,7 @@ body {
           }
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1577,5 +1581,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

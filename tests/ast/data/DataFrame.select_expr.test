@@ -37,10 +37,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -53,7 +53,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -69,15 +69,29 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
+      dataframe_select__exprs {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
-        exprs: "$1"
+        exprs {
+          args {
+            string_val {
+              src {
+                end_column: 33
+                end_line: 27
+                file: 2
+                start_column: 13
+                start_line: 27
+              }
+              v: "$1"
+            }
+          }
+          variadic: true
+        }
         src {
           end_column: 33
           end_line: 27
@@ -85,7 +99,6 @@ body {
           start_column: 13
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -100,15 +113,28 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
+      dataframe_select__exprs {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
           }
         }
-        exprs: "$1"
+        exprs {
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 29
+                file: 2
+                start_column: 13
+                start_line: 29
+              }
+              v: "$1"
+            }
+          }
+        }
         src {
           end_column: 35
           end_line: 29
@@ -130,20 +156,89 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
+      dataframe_select__exprs {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
           }
         }
-        exprs: "COUNT $1"
-        exprs: "SUM $2"
-        exprs: "AVG $3"
-        exprs: "MIN $4"
-        exprs: "MAX $5"
-        exprs: "COUNT DISTINCT $6"
+        exprs {
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "COUNT $1"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "SUM $2"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "AVG $3"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "MIN $4"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "MAX $5"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "COUNT DISTINCT $6"
+            }
+          }
+          variadic: true
+        }
         src {
           end_column: 100
           end_line: 31
@@ -151,7 +246,6 @@ body {
           start_column: 13
           start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
@@ -166,20 +260,88 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
+      dataframe_select__exprs {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 4
             }
           }
         }
-        exprs: "COUNT $1"
-        exprs: "SUM $2"
-        exprs: "AVG $3"
-        exprs: "MIN $4"
-        exprs: "MAX $5"
-        exprs: "COUNT DISTINCT $6"
+        exprs {
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "COUNT $1"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "SUM $2"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "AVG $3"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "MIN $4"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "MAX $5"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "COUNT DISTINCT $6"
+            }
+          }
+        }
         src {
           end_column: 102
           end_line: 33
@@ -211,5 +373,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

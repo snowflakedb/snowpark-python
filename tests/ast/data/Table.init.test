@@ -8,7 +8,7 @@ df = df.select("STR", col("A"))
 
 df = Table("table1", session)
 
-df = df.select(col("STR"), col("A"))
+df = df.select("STR", col("A"))
 
 ## EXPECTED ENCODED AST
 
@@ -24,10 +24,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -40,7 +40,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -56,77 +56,58 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            string_val {
+              src {
+                end_column: 39
+                end_line: 27
+                file: 2
+                start_column: 13
+                start_line: 27
+              }
+              v: "STR"
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 39
-                  end_line: 27
-                  file: 2
-                  start_column: 13
-                  start_line: 27
-                }
-                v: "STR"
-              }
-            }
-            src {
-              end_column: 39
-              end_line: 27
-              file: 2
-              start_column: 13
-              start_line: 27
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "col"
-                    }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 38
+                    end_line: 27
+                    file: 2
+                    start_column: 30
+                    start_line: 27
                   }
+                  v: "A"
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 38
-                  end_line: 27
-                  file: 2
-                  start_column: 30
-                  start_line: 27
-                }
-                v: "A"
+              src {
+                end_column: 38
+                end_line: 27
+                file: 2
+                start_column: 30
+                start_line: 27
               }
-            }
-            src {
-              end_column: 38
-              end_line: 27
-              file: 2
-              start_column: 30
-              start_line: 27
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -139,7 +120,6 @@ body {
           start_column: 13
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -164,5 +144,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

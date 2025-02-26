@@ -35,23 +35,25 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
             }
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
                 list {
                   column_identifier {
-                    name: "\"A\""
+                    column_name {
+                      name: "\"A\""
+                    }
                   }
                   data_type {
-                    sp_string_type {
+                    string_type {
                       length {
                         value: 16777216
                       }
@@ -61,10 +63,12 @@ body {
                 }
                 list {
                   column_identifier {
-                    name: "\"B\""
+                    column_name {
+                      name: "\"B\""
+                    }
                   }
                   data_type {
-                    sp_long_type: true
+                    long_type: true
                   }
                   nullable: true
                 }
@@ -93,7 +97,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         block: true
         id {
           bitfield1: 1
@@ -126,7 +130,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         id {
           bitfield1: 1
         }
@@ -158,7 +162,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         id {
           bitfield1: 1
         }
@@ -204,5 +208,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }
