@@ -9,6 +9,8 @@ import tempfile
 import time
 import datetime
 from unittest import mock
+from unittest.mock import patch, MagicMock
+
 import pytest
 
 from snowflake.snowpark._internal.utils import (
@@ -22,6 +24,10 @@ from snowflake.snowpark._internal.data_source_utils import (
     DBMS_TYPE,
     generate_sql_with_predicates,
     infer_data_source_schema,
+    detect_dbms,
+    sql_server_to_snowpark_type,
+    oracledb_to_snowpark_type,
+    generate_select_query,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -554,3 +560,36 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 )
                 file_idx += 1
             assert file_idx == file_count
+
+
+def test_database_detector():
+    mock_conn = MagicMock()
+    with patch.object(type(mock_conn), "__module__", "UNKNOWN_DRIVER"):
+        result = detect_dbms(mock_conn)
+        assert result == (DBMS_TYPE.UNKNOWN, "")
+
+    mock_conn = MagicMock()
+    mock_conn.getinfo.return_value = "UNKNOWN"
+    with patch.object(type(mock_conn), "__module__", "pyodbc"):
+        result = detect_dbms(mock_conn)
+        assert result == (DBMS_TYPE.UNKNOWN, "pyodbc")
+
+
+def test_type_conversion():
+    with pytest.raises(
+        NotImplementedError, match="sql server type not supported: non-exist_type"
+    ):
+        sql_server_to_snowpark_type([("test_col", "non-exist_type", 0, 0, True)])
+
+    with pytest.raises(
+        NotImplementedError, match="oracledb type not supported: non-exist_type"
+    ):
+        oracledb_to_snowpark_type([("test_col", "non-exist_type", 0, 0, True)])
+
+
+def test_generate_select_sql_unknown_db():
+    with pytest.raises(
+        NotImplementedError,
+        match="currently supported drivers are pyodbc and oracledb, got: unknown_driver",
+    ):
+        generate_select_query("", StructType(), DBMS_TYPE.UNKNOWN, "unknown_driver")
