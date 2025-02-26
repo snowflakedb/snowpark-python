@@ -49,11 +49,11 @@ class Catalog:
             assert db_name is not None  # pyright
             return db_name
 
-        if isinstance(database, str):
+        if isinstance(database, str) and database:
             return database
         if isinstance(database, Database):
             return database.name
-        if database is None:
+        if not database:
             current_database = self._session.get_current_database()
             if current_database is None:
                 raise ValueError(
@@ -76,11 +76,11 @@ class Catalog:
             assert schema_name is not None  # pyright
             return schema_name
 
-        if isinstance(schema, str):
+        if isinstance(schema, str) and schema:
             return schema
         if isinstance(schema, Schema):
             return schema.name
-        if schema is None:
+        if not schema:
             current_schema = self._session.get_current_schema()
             if current_schema is None:
                 raise ValueError(

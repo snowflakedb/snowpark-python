@@ -1041,6 +1041,9 @@ def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -
             )  # escape single quotes before adding a pair of quotes
             return f"'{value}'"
     else:
+        if isinstance(value, list):
+            # Snowflake sql uses round brackets for options that are lists
+            return str(tuple(value))
         return str(value)
 
 
@@ -1745,7 +1748,7 @@ def write_arrow(
         raise ProgrammingError(
             "Schema has to be provided to write_arrow when a database is provided"
         )
-    compression_map = {"gzip": "auto", "snappy": "snappy"}
+    compression_map = {"gzip": "auto", "snappy": "snappy", "none": "none"}
     if compression not in compression_map.keys():
         raise ProgrammingError(
             f"Invalid compression '{compression}', only acceptable values are: {compression_map.keys()}"

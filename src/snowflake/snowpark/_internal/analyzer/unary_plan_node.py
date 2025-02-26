@@ -241,6 +241,16 @@ class Project(UnaryNode):
         )
 
 
+class Distinct(UnaryNode):
+    def __init__(self, child: LogicalPlan) -> None:
+        super().__init__(child)
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # SELECT DISTINCT * FROM child
+        return {PlanNodeCategory.DISTINCT: 1, PlanNodeCategory.COLUMN: 1}
+
+
 class ViewType:
     def __str__(self):
         return self.__class__.__name__[:-4]

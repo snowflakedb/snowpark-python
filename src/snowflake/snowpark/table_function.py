@@ -111,7 +111,7 @@ class TableFunctionCall:
         ast = None
         if _emit_ast and self._ast:
             ast = proto.Expr()
-            expr = with_src_position(ast.sp_table_fn_call_over)
+            expr = with_src_position(ast.table_fn_call_over)
             expr.lhs.CopyFrom(self._ast)
             if partition_by is not None:
                 if isinstance(partition_by, (str, Column)):
@@ -182,7 +182,7 @@ class TableFunctionCall:
         ast = None
         if _emit_ast:
             ast = proto.Expr()
-            expr = with_src_position(ast.sp_table_fn_call_alias)
+            expr = with_src_position(ast.table_fn_call_alias)
             expr.lhs.CopyFrom(self._ast)
             expr.aliases.variadic = True
             for arg in aliases:
