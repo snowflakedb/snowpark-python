@@ -22,6 +22,8 @@ Functions
     acos
     acosh
     add_months
+    ai_agg
+    ai_filter
     any_value
     approx_count_distinct
     approx_percentile
@@ -326,6 +328,7 @@ Functions
     substr
     substring
     sum
+    summarize_agg
     sum_distinct
     sysdate
     system_reference

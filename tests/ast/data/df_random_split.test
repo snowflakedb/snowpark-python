@@ -64,10 +64,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -80,7 +80,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -96,9 +96,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_random_split {
+      dataframe_random_split {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -237,9 +237,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_random_split {
+      dataframe_random_split {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -381,88 +381,91 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select__columns {
         cols {
-          gt {
-            lhs {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            gt {
+              lhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 29
-                      end_line: 39
-                      file: 2
-                      start_column: 19
-                      start_line: 39
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 29
+                        end_line: 39
+                        file: 2
+                        start_column: 19
+                        start_line: 39
+                      }
+                      v: "NUM"
                     }
-                    v: "NUM"
+                  }
+                  src {
+                    end_column: 29
+                    end_line: 39
+                    file: 2
+                    start_column: 19
+                    start_line: 39
                   }
                 }
-                src {
-                  end_column: 29
-                  end_line: 39
-                  file: 2
-                  start_column: 19
-                  start_line: 39
-                }
               }
-            }
-            rhs {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+              rhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "lit"
+                        name {
+                          name_flat {
+                            name: "lit"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      end_column: 39
-                      end_line: 39
-                      file: 2
-                      start_column: 32
-                      start_line: 39
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 39
+                        end_line: 39
+                        file: 2
+                        start_column: 32
+                        start_line: 39
+                      }
+                      v: 10
                     }
-                    v: 10
+                  }
+                  src {
+                    end_column: 39
+                    end_line: 39
+                    file: 2
+                    start_column: 32
+                    start_line: 39
                   }
                 }
-                src {
-                  end_column: 39
-                  end_line: 39
-                  file: 2
-                  start_column: 32
-                  start_line: 39
-                }
               }
-            }
-            src {
-              end_column: 39
-              end_line: 39
-              file: 2
-              start_column: 19
-              start_line: 39
+              src {
+                end_column: 39
+                end_line: 39
+                file: 2
+                start_column: 19
+                start_line: 39
+              }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 8
             }
@@ -475,7 +478,6 @@ body {
           start_column: 8
           start_line: 39
         }
-        variadic: true
       }
     }
     symbol {
@@ -489,7 +491,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -523,9 +525,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_random_split {
+      dataframe_random_split {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -665,7 +667,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -709,5 +711,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

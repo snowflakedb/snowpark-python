@@ -13,13 +13,41 @@ from typing import Any, Literal, Optional, Union
 import modin.pandas as pd
 import pandas
 from modin.pandas.api.extensions import register_series_accessor
-from pandas._typing import IndexLabel
+from pandas._typing import Axis, IndexLabel
 
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
+
+
+@register_series_accessor("_set_axis_name")
+def _set_axis_name(
+    self, name: Union[str, Iterable[str]], axis: Axis = 0, inplace: bool = False
+) -> Union[pd.Series, None]:
+    """
+    Alter the name or names of the axis.
+
+    Parameters
+    ----------
+    name : str or list of str
+        Name for the Index, or list of names for the MultiIndex.
+    axis : str or int, default: 0
+        The axis to set the label.
+        0 or 'index' for the index, 1 or 'columns' for the columns.
+    inplace : bool, default: False
+        Whether to modify `self` directly or return a copy.
+
+    Returns
+    -------
+    DataFrame or None
+    """
+    assert axis == 0, f"Expected 'axis=0', got 'axis={axis}'"
+    renamed = self if inplace else self.copy()
+    renamed.index = renamed.index.set_names(name)
+    if not inplace:
+        return renamed
 
 
 @register_series_accessor("to_snowflake")
