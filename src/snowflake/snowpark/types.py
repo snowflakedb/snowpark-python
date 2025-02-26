@@ -792,13 +792,8 @@ class StructType(DataType):
 
     def _fill_ast(self, ast: proto.DataType) -> None:
         ast.struct_type.structured = self.structured
-        if self.fields is None:
-            return
-        elif len(self.fields) > 0:
-            for field in self.fields:
-                field._fill_ast(ast.struct_type.fields.list.add())
-        else:
-            ast.struct_type.fields.list.extend([])
+        for field in self.fields or []:
+            field._fill_ast(ast.struct_type.fields.add())
 
 
 class VariantType(DataType):

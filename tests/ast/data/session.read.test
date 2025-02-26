@@ -38,7 +38,7 @@ df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv
 
 df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("@testCSVheader.csv")
 
-df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True), StructField("c", FloatType(), nullable=True)], structured=False)).csv("@testCSVheader.csv")
+df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(StructType(fields=[StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True), StructField("c", FloatType(), nullable=True)], structured=False)).csv("@testCSVheader.csv")
 
 ## EXPECTED ENCODED AST
 
@@ -492,42 +492,40 @@ body {
             }
             schema {
               fields {
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "a"
-                    }
+                column_identifier {
+                  column_name {
+                    name: "a"
                   }
-                  data_type {
-                    integer_type: true
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "b"
-                    }
-                  }
-                  data_type {
-                    string_type {
-                      length {
-                      }
-                    }
-                  }
-                  nullable: true
+                data_type {
+                  integer_type: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "c"
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "b"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
                     }
                   }
-                  data_type {
-                    float_type: true
-                  }
-                  nullable: true
                 }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "c"
+                  }
+                }
+                data_type {
+                  float_type: true
+                }
+                nullable: true
               }
             }
             src {

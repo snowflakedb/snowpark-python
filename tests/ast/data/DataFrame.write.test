@@ -380,50 +380,48 @@ body {
       write_table {
         block: true
         clustering_keys {
-          list {
-            string_val {
-              src {
-                end_column: 231
-                end_line: 35
-                file: 2
-                start_column: 8
-                start_line: 35
-              }
-              v: "STR"
+          string_val {
+            src {
+              end_column: 231
+              end_line: 35
+              file: 2
+              start_column: 8
+              start_line: 35
             }
+            v: "STR"
           }
-          list {
-            apply_expr {
-              fn {
-                builtin_fn {
+        }
+        clustering_keys {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
                   name {
-                    name {
-                      name_flat {
-                        name: "col"
-                      }
+                    name_flat {
+                      name: "col"
                     }
                   }
                 }
               }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 173
-                    end_line: 35
-                    file: 2
-                    start_column: 162
-                    start_line: 35
-                  }
-                  v: "num1"
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 173
+                  end_line: 35
+                  file: 2
+                  start_column: 162
+                  start_line: 35
                 }
+                v: "num1"
               }
-              src {
-                end_column: 173
-                end_line: 35
-                file: 2
-                start_column: 162
-                start_line: 35
-              }
+            }
+            src {
+              end_column: 173
+              end_line: 35
+              file: 2
+              start_column: 162
+              start_line: 35
             }
           }
         }

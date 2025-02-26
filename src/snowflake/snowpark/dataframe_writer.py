@@ -353,7 +353,7 @@ class DataFrameWriter:
             if clustering_keys is not None:
                 for col_or_name in clustering_keys:
                     build_expr_from_snowpark_column_or_col_name(
-                        expr.clustering_keys.list.add(), col_or_name
+                        expr.clustering_keys.add(), col_or_name
                     )
 
             if statement_params is not None:
