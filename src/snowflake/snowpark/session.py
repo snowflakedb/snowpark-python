@@ -1719,7 +1719,27 @@ class Session:
                         package_client_version = pkg_resources.get_distribution(
                             package_name
                         ).version
-                        if package_client_version not in valid_packages[package_name]:
+
+                        def is_valid_version(
+                            package_name, package_client_version, valid_packages
+                        ):
+                            if package_name == "snowflake-snowpark-python":
+                                # bugfix versions are ignored as they do not introduce new features
+                                client_major, client_minor, _ = map(
+                                    int, package_client_version.split(".")
+                                )
+                                valid_versions = {
+                                    tuple(map(int, v.split(".")[:2]))
+                                    for v in valid_packages.get(package_name, [])
+                                }
+                                return (client_major, client_minor) in valid_versions
+                            return package_client_version in valid_packages.get(
+                                package_name, []
+                            )
+
+                        if not is_valid_version(
+                            package_name, package_client_version, valid_packages
+                        ):
                             _logger.warning(
                                 f"The version of package '{package_name}' in the local environment is "
                                 f"{package_client_version}, which does not fit the criteria for the "
