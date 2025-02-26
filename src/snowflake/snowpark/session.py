@@ -1724,6 +1724,7 @@ class Session:
                             package_name, package_client_version, valid_packages
                         ):
                             if package_name == "snowflake-snowpark-python":
+                                # bugfix versions are ignored as they do not introduce new features
                                 client_major, client_minor, _ = map(
                                     int, package_client_version.split(".")
                                 )
