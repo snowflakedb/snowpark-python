@@ -838,13 +838,18 @@ def test_add_requirements_with_empty_stage_as_cache_path(
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
-    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.8.0"])
+    # use a newer snowpark to create an old snowpark udf could lead to conflict cloudpickle.
+    # e.g. using snowpark 1.27 with cloudpickle 3.0 to create udf using snowpark 1.8, this will leads to
+    # error as cloudpickle 3.0 is specified in udf creation but unsupported in snowpark 1.8
+    # the solution is to downgrade to cloudpickle 2.2.1 in the env
+    # TODO: SNOW-1951792, improve error experience
+    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.27.0"])
     def get_numpy_pandas_version() -> str:
         import snowflake.snowpark as snowpark
 
         return f"{snowpark.__version__}"
 
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.8.0")])
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.27.0")])
 
 
 @pytest.mark.udf
