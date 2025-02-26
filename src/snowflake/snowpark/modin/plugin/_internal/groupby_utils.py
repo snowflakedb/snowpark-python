@@ -9,10 +9,11 @@
 
 import functools
 from collections.abc import Hashable
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union, List
 
 import pandas as native_pd
 from pandas._typing import IndexLabel
+from pandas.core.dtypes.common import is_list_like
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column as SnowparkColumn
@@ -50,14 +51,55 @@ def is_groupby_value_label_like(val: Any) -> bool:
     """
     from modin.pandas import Series
 
-    # A pandas label is a hashable, and we exclude the callable, Series and Grouper, which are
+    # A pandas label is a hashable, and we exclude the callable, and Series which are
     # by values that should not be handled as pandas label of the dataframe.
+    # Grouper objects that specify either `key` or `level` are accepted, as we can convert
+    # the `level` into an index label.
     return (
         hashable(val)
         and (not callable(val))
         and not (isinstance(val, Series))
-        and not (isinstance(val, native_pd.Grouper))
+        and not (
+            isinstance(val, native_pd.Grouper) and val.key is None and val.level is None
+        )
     )
+
+
+def get_column_label_from_grouper(
+    frame: InternalFrame, grouper: native_pd.Grouper
+) -> Hashable:
+    """
+    Convert a Grouper object to a list column label.
+
+    The constructor of the Grouper object will already have verified that `by` and `level` are
+    not simultaneously set.
+    """
+    if grouper.level is not None:
+        # Groupers can only accept scalar level
+        if is_list_like(grouper.level):
+            raise ValueError("`level` parameter of Grouper must be scalar")
+        # Must always return exactly one level (will raise KeyError internally if specified level is invalid)
+        return frame.parse_levels_to_integer_levels([grouper.level])[0]
+    if grouper.key is None:
+        # in this scenario, pandas raises the very unhelpful "TypeError: 'NoneType' is not callable"
+        raise ValueError("Grouper must have either a key or a level")
+    return grouper.key
+
+
+def get_column_labels_from_by_list(
+    frame: InternalFrame, by_list: List[Hashable]
+) -> List[Hashable]:
+    """
+    Filter hashable labels in the list.
+
+    If any element of the list is an instance of pd.Grouper with no level, then its key field is used.
+    """
+    return [
+        get_column_label_from_grouper(frame, val)
+        if isinstance(val, native_pd.Grouper)
+        else val
+        for val in by_list
+    ]
 
 
 def check_is_groupby_supported_by_snowflake(
@@ -77,30 +119,46 @@ def check_is_groupby_supported_by_snowflake(
             Whether operations can be executed with snowflake sql engine.
     """
     # snowflake execution is not support for groupby along rows
-    if axis != 0:
-        return False
+    def check_non_grouper_supported(
+        by: Any, level: Optional[IndexLabel], axis: int
+    ) -> bool:
+        """
+        Helper function checking if the passed arguments are supported if `by` is not a `pd.Grouper` object.
+        """
+        if axis != 0:
+            return False
 
-    if by is not None and level is not None:
-        # the typical usage for by and level both configured is when dict is used as by items. For example:
-        # {"one": 0, "two": 0, "three": 1}, which maps label "one" and "two" to level 0, and "three"
-        # to level 1. For detailed example, please check test_groupby_level_mapper.
-        # Since we do not have distributed support for by as a mapper, we do not provide distributed support
-        # when both by and level is configured for now.
-        return False
+        if by is not None and level is not None:
+            # the typical usage for by and level both configured is when dict is used as by items. For example:
+            # {"one": 0, "two": 0, "three": 1}, which maps label "one" and "two" to level 0, and "three"
+            # to level 1. For detailed example, please check test_groupby_level_mapper.
+            # Since we do not have distributed support for by as a mapper, we do not provide distributed support
+            # when both by and level is configured for now.
+            return False
 
-    # Check if by is already a list, if not, construct a list of the element for uniform process in later step.
-    # Note that here we check list type specifically instead of is_list_like because tuple (('a', 'b')) and
-    # SnowSeries are also treated as list like, but we want to construct a list of the whole element like [('a', 'b')],
-    # instead of converting the element to list type like ['a', 'b'] for checking.
-    by_list = by if isinstance(by, list) else [by]
-    # validate by columns, the distributed implementation only supports columns that
-    # is columns belong to the current dataframe, which is represented as pandas hashable label.
-    # Please notice that callable is also a hashable, so a separate check of callable
-    # is applied.
-    if any(not is_groupby_value_label_like(o) for o in by_list):
-        return False
+        # Check if by is already a list, if not, construct a list of the element for uniform process in later step.
+        # Note that here we check list type specifically instead of is_list_like because tuple (('a', 'b')) and
+        # SnowSeries are also treated as list like, but we want to construct a list of the whole element like [('a', 'b')],
+        # instead of converting the element to list type like ['a', 'b'] for checking.
+        by_list = by if isinstance(by, list) else [by]
+        # validate by columns, the distributed implementation only supports columns that
+        # is columns belong to the current dataframe, which is represented as pandas hashable label.
+        # Please notice that callable is also a hashable, so a separate check of callable
+        # is applied.
+        if any(not is_groupby_value_label_like(o) for o in by_list):
+            return False
+        return True
 
-    return True
+    if isinstance(by, native_pd.Grouper):
+        # Per pandas docs, level and axis arguments of the grouper object take precedence over
+        # level and axis passed explicitly.
+        return check_non_grouper_supported(
+            by.key,
+            by.level if by.level is not None else level,
+            by.axis if by.axis is not None else axis,
+        )
+    else:
+        return check_non_grouper_supported(by, level, axis)
 
 
 def validate_groupby_columns(
@@ -136,6 +194,8 @@ def validate_groupby_columns(
         # 2. 'by' is a list and all elements in it are valid internal labels.
         # 3. OR 'by' is a list and length does not match with length of dataframe.
 
+        # If the list includes pd.Grouper objects, some may specify a by label while others specify a level.
+
         if not isinstance(by, list):
             by_list = [by]
             is_external_by = False
@@ -158,7 +218,9 @@ def validate_groupby_columns(
         # axis is 1 currently calls fallback, we skip the client side check for now.
         if axis == 0 and not is_external_by:
             # get the list of groupby item that is hashable but not a callable
-            by_label_list = list(filter(is_groupby_value_label_like, by_list))
+            by_label_list = get_column_labels_from_by_list(
+                query_compiler._modin_frame, by_list
+            )
             internal_frame = query_compiler._modin_frame
 
             for pandas_label, snowflake_quoted_identifiers in zip(
@@ -220,6 +282,9 @@ def groupby_internal_columns(
         by_list = [by] if by is not None else []
     else:
         by_list = by
+
+    # Extract keys from Grouper objects, which must each specify either key or level
+    by_list = get_column_labels_from_by_list(frame, by_list)
 
     # this part of code relies on the fact that all internal by columns have been
     # processed into column labels. SnowSeries that does not belong to the current
