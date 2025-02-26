@@ -1566,7 +1566,9 @@ class DeriveColumnDependencyError(Exception):
 def parse_column_name(
     column: Expression,
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    df_aliased_col_name_to_real_col_name: DefaultDict[
+        str, Union[Dict[str, str], ExprAliasUpdateDict]
+    ],
 ) -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
@@ -1753,7 +1755,9 @@ def can_select_projection_complexity_be_merged(
 def initiate_column_states(
     column_attrs: List[Attribute],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    df_aliased_col_name_to_real_col_name: DefaultDict[
+        str, Union[Dict[str, str], ExprAliasUpdateDict]
+    ],
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:

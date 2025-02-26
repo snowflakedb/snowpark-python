@@ -1010,10 +1010,12 @@ def test_negative_test_join_of_join(session):
         df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
         df_j_clone = copy.copy(df_j)
 
-        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+        if session._resolve_conflict_alias:
             df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
-        assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
-
+        else:
+            with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
+                df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
+            assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
     finally:
         session.table(table_name1).drop_table()
 
@@ -1486,13 +1488,15 @@ def test_nested_join_diamond_shape(
 
     # negative case: df1 shows up in both 4 and 6, can not be decided
     with pytest.raises(
-        SnowparkSQLException, match="The reference to the column 'A' is ambiguous."
+        SnowparkSQLException,
+        match='The column specified in df\\("A"\\) is not present in the output of the DataFrame.',
     ):
         df_invalid = df6.join(df4, df1["a"] == df6["a"])
         df_invalid.show()
 
     with pytest.raises(
-        SnowparkSQLException, match="The reference to the column 'A' is ambiguous."
+        SnowparkSQLException,
+        match='The column specified in df\\("A"\\) is not present in the output of the DataFrame.',
     ):
         # df1 shows up in both 4 and 6, can not be decided
         df_invalid = df6.join(df4).select(df1["a"])

@@ -1665,34 +1665,34 @@ def merge_multiple_snowflake_plan_expr_to_alias(
         return merged_dict
 
     for key in conflicted_keys:
-        candidate = None
-        candidate_updated_due_to_inheritance = False
+        candidate = set()
         for plan in snowflake_plans:
             output_columns = [attr.name for attr in plan.output if plan.schema_query]
             tmp_alias_name, tmp_updated_due_to_inheritance = plan.expr_to_alias[
                 key
             ], plan.expr_to_alias.was_updated_due_to_inheritance(key)
             if tmp_alias_name not in output_columns or tmp_updated_due_to_inheritance:
-                # inherited are not considered as they are not used in the output
+                # alias updated due to inheritance are not considered as they are not used in the output
                 # check Analyzer.unary_expression_extractor functions
                 continue
-            if not candidate:
-                candidate = tmp_alias_name
-                candidate_updated_due_to_inheritance = tmp_updated_due_to_inheritance
-            else:
-                if candidate == tmp_alias_name:
+            if len(candidate) == 1:
+                # Only one candidate so far
+                candidate_name, candidate_updated_due_to_inheritance = next(
+                    iter(candidate)
+                )
+                if candidate_name == tmp_alias_name:
                     # The candidate is the same as the current alias
-                    # we keep the non-inherited bool information
-                    candidate_updated_due_to_inheritance = (
+                    # we keep the non-inherited bool information as our strategy is to keep alias
+                    # that shows directly in the output column rather than updates because of inheritance
+                    tmp_updated_due_to_inheritance = (
                         candidate_updated_due_to_inheritance
                         and tmp_updated_due_to_inheritance
                     )
-                else:
-                    # The candidate is different from the current alias, ambiguous
-                    candidate = None
+                    candidate.pop()
+            candidate.add((tmp_alias_name, tmp_updated_due_to_inheritance))
         # Add the candidate to the merged dictionary if resolved
-        if candidate is not None:
-            merged_dict[key] = (candidate, candidate_updated_due_to_inheritance)
+        if len(candidate) == 1:
+            merged_dict[key] = candidate.pop()
         else:
             # No valid candidate found
             _logger.debug(

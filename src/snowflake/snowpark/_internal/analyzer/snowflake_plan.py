@@ -223,7 +223,7 @@ class SnowflakePlan(LogicalPlan):
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
         df_aliased_col_name_to_real_col_name: Optional[
-            DefaultDict[str, Dict[str, str]]
+            DefaultDict[str, Union[Dict[str, str], ExprAliasUpdateDict]]
         ] = None,
         # This field records all the WithQueryBlocks and their reference count that are
         # referred by the current SnowflakePlan tree. This is needed for the final query
@@ -528,10 +528,7 @@ class SnowflakePlan(LogicalPlan):
         return copied_plan
 
     def add_aliases(self, to_add: Dict) -> None:
-        if self.session._resolve_conflict_alias:
-            self.expr_to_alias.update(to_add)
-        else:
-            self.expr_to_alias = {**self.expr_to_alias, **to_add}
+        self.expr_to_alias.update(to_add)
 
 
 class SnowflakePlanBuilder:

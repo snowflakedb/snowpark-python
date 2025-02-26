@@ -191,7 +191,9 @@ class Analyzer:
     def analyze(
         self,
         expr: Union[Expression, NamedExpression],
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Union[Dict[str, str], ExprAliasUpdateDict]
+        ],
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, GroupingSetsExpression):
@@ -593,7 +595,9 @@ class Analyzer:
     def table_function_expression_extractor(
         self,
         expr: TableFunctionExpression,
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Union[Dict[str, str], ExprAliasUpdateDict]
+        ],
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, FlattenFunction):
@@ -642,7 +646,9 @@ class Analyzer:
     def unary_expression_extractor(
         self,
         expr: UnaryExpression,
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Union[Dict[str, str], ExprAliasUpdateDict]
+        ],
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, Alias):
@@ -748,7 +754,9 @@ class Analyzer:
     def window_frame_boundary(
         self,
         boundary: Expression,
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Union[Dict[str, str], ExprAliasUpdateDict]
+        ],
     ) -> str:
         # it means interval preceding
         if isinstance(boundary, UnaryMinus) and isinstance(boundary.child, Interval):
@@ -771,7 +779,9 @@ class Analyzer:
     def to_sql_try_avoid_cast(
         self,
         expr: Expression,
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Union[Dict[str, str], ExprAliasUpdateDict]
+        ],
         parse_local_name: bool = False,
     ) -> str:
         """
@@ -868,7 +878,9 @@ class Analyzer:
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Union[Dict[str, str], ExprAliasUpdateDict]
+        ],
     ) -> SnowflakePlan:
         if isinstance(logical_plan, SnowflakePlan):
             return logical_plan

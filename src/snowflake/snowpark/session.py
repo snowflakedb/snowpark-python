@@ -655,7 +655,10 @@ class Session:
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
         )
-        self._resolve_conflict_alias = True
+        # TODO: SNOW-1951048 local testing diamond join fix
+        self._resolve_conflict_alias = (
+            False if isinstance(conn, MockServerConnection) else True
+        )
         # self._resolve_conflict_alias: bool = self.is_feature_enabled_for_version(
         #     _PYTHON_SNOWPARK_RESOLVE_CONFLICT_ALIAS_VERSION
         # )
