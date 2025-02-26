@@ -348,7 +348,7 @@ class DataFrameReader:
 
         self._ast = None
         if _emit_ast:
-            reader = proto.DataframeReader()
+            reader = proto.Expr()
             with_src_position(reader.dataframe_reader_init)
             self._ast = reader
 
@@ -430,7 +430,7 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.DataframeReader()
+            reader = proto.Expr()
             ast = with_src_position(reader.dataframe_reader_schema)
             ast.reader.CopyFrom(self._ast)
             build_proto_from_struct_type(schema, ast.schema)
@@ -459,7 +459,7 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.DataframeReader()
+            reader = proto.Expr()
             ast = with_src_position(reader.dataframe_reader_with_metadata)
             ast.reader.CopyFrom(self._ast)
             col_names, is_variadic = parse_positional_args_to_list_variadic(
@@ -776,7 +776,7 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.DataframeReader()
+            reader = proto.Expr()
             ast = with_src_position(reader.dataframe_reader_option)
             ast.reader.CopyFrom(self._ast)
             ast.key = key
@@ -810,7 +810,7 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.DataframeReader()
+            reader = proto.Expr()
             ast = with_src_position(reader.dataframe_reader_options)
             ast.reader.CopyFrom(self._ast)
             for k, v in configs.items():
