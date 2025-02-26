@@ -3,7 +3,7 @@
 #
 import datetime
 import sqlite3
-from _decimal import Decimal
+from decimal import Decimal
 from dateutil import parser
 
 

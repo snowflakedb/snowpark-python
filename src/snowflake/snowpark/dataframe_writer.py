@@ -486,7 +486,6 @@ class DataFrameWriter:
                 iceberg_config,
                 table_exists,
             )
-
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(
                 snowflake_plan,
