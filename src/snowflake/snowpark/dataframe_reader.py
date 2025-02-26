@@ -10,7 +10,7 @@ import shutil
 import tempfile
 import time
 import traceback
-from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
+from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
     ThreadPoolExecutor,
