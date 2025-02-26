@@ -68,6 +68,8 @@ df = session.create_dataframe([("Bob", 17), ("Alice", 10), ("Nico", 8), ("Bob", 
 
 sample_df = df.stat.sample_by("name", {"Bob": 0.5, "Nico": 1.0})
 
+sample_df
+
 ## EXPECTED ENCODED AST
 
 interned_value_table {
@@ -82,10 +84,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -98,7 +100,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -114,7 +116,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_approx_quantile {
+      dataframe_stat_approx_quantile {
         cols {
           string_val {
             src {
@@ -160,7 +162,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_approx_quantile {
+      dataframe_stat_approx_quantile {
         cols {
           string_val {
             src {
@@ -224,9 +226,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -335,7 +337,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -361,7 +363,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_cov {
+      dataframe_stat_cov {
         col1 {
           string_val {
             src {
@@ -418,7 +420,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_cov {
+      dataframe_stat_cov {
         col1 {
           string_val {
             src {
@@ -479,7 +481,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_corr {
+      dataframe_stat_corr {
         col1 {
           string_val {
             src {
@@ -536,7 +538,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_corr {
+      dataframe_stat_corr {
         col1 {
           string_val {
             src {
@@ -597,9 +599,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -848,7 +850,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "key"
             vs: "value"
           }
@@ -874,7 +876,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_cross_tab {
+      dataframe_stat_cross_tab {
         col1 {
           string_val {
             src {
@@ -923,7 +925,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_cross_tab {
+      dataframe_stat_cross_tab {
         col1 {
           string_val {
             src {
@@ -976,9 +978,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -1122,7 +1124,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "name"
             vs: "age"
           }
@@ -1148,7 +1150,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_stat_sample_by {
+      dataframe_stat_sample_by {
         col {
           string_val {
             src {
@@ -1162,7 +1164,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 18
             }
@@ -1216,6 +1218,14 @@ body {
     }
   }
 }
+body {
+  eval {
+    uid: 20
+    var_id {
+      bitfield1: 19
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -1229,5 +1239,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }

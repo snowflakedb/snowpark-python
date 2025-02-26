@@ -26,7 +26,7 @@ from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache
 from itertools import count
 from json import JSONEncoder
-from random import choice
+from random import Random
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -42,6 +42,7 @@ from typing import (
     Tuple,
     Type,
     Union,
+    TypeVar,
 )
 
 import snowflake.snowpark
@@ -633,9 +634,12 @@ def create_or_update_statement_params_with_query_tag(
     statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
+    collect_stacktrace: bool = False,
 ) -> Dict[str, str]:
-    if exists_session_query_tag or (
-        statement_params and QUERY_TAG_STRING in statement_params
+    if (
+        exists_session_query_tag
+        or (statement_params and QUERY_TAG_STRING in statement_params)
+        or not collect_stacktrace
     ):
         return statement_params
 
@@ -689,7 +693,7 @@ def random_name_for_temp_object(object_type: TempObjectType) -> str:
 
 
 def generate_random_alphanumeric(length: int = 10) -> str:
-    return "".join(choice(ALPHANUMERIC) for _ in range(length))
+    return "".join(Random().choice(ALPHANUMERIC) for _ in range(length))
 
 
 def column_to_bool(col_):
@@ -1004,14 +1008,28 @@ def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
     return _ast_state.set_state(source, enabled)
 
 
-def publicapi(func) -> Callable:
+# When the minimum supported Python version is at least 3.10, the type
+# annotations for publicapi should use typing.ParamSpec:
+# P = ParamSpec("P")
+# ReturnT = TypeVar("ReturnT")
+# def publicapi(func: Callable[P, ReturnT]) -> Callable[P, ReturnT]:
+#   ...
+#   @functools.wraps(func)
+#   def call_wrapper(*args: P.args, **kwargs: P.kwargs) -> ReturnT:
+#     ...
+#   ...
+#   return call_wrapper
+CallableT = TypeVar("CallableT", bound=Callable)
+
+
+def publicapi(func: CallableT) -> CallableT:
     """decorator to safeguard public APIs with global feature flags."""
 
     # Note that co_varnames also includes local variables. This can trigger false positives.
     has_emit_ast: bool = "_emit_ast" in func.__code__.co_varnames
 
     @functools.wraps(func)
-    def call_wrapper(*args, **kwargs):  # pragma: no cover
+    def call_wrapper(*args, **kwargs):
         # warning(func.__qualname__, warning_text)
 
         if not has_emit_ast:

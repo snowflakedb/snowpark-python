@@ -58,11 +58,11 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
-              sp_row {
+              row {
                 names {
                   list: "a"
                   list: "b"
@@ -114,7 +114,7 @@ body {
               }
             }
             vs {
-              sp_row {
+              row {
                 names {
                   list: "c"
                   list: "a"
@@ -175,11 +175,11 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
-              sp_row {
+              row {
                 src {
                   end_column: 82
                   end_line: 31
@@ -226,7 +226,7 @@ body {
               }
             }
             vs {
-              sp_row {
+              row {
                 src {
                   end_column: 82
                   end_line: 31
@@ -273,7 +273,7 @@ body {
               }
             }
             vs {
-              sp_row {
+              row {
                 src {
                   end_column: 82
                   end_line: 31
@@ -342,9 +342,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -418,7 +418,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -444,9 +444,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -520,24 +520,28 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
                 list {
                   column_identifier {
-                    name: "a"
+                    column_name {
+                      name: "a"
+                    }
                   }
                   data_type {
-                    sp_integer_type: true
+                    integer_type: true
                   }
                   nullable: true
                 }
                 list {
                   column_identifier {
-                    name: "b"
+                    column_name {
+                      name: "b"
+                    }
                   }
                   data_type {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -569,9 +573,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
@@ -623,7 +627,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -648,9 +652,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -713,7 +717,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
             vs: "c"
@@ -741,9 +745,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -817,7 +821,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -843,11 +847,11 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
-              sp_row {
+              row {
                 names {
                   list: "a"
                   list: "b"
@@ -934,9 +938,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               seq_map_val {
                 kvs {
@@ -1044,5 +1048,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
 }
