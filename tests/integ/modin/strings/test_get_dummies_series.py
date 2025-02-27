@@ -61,7 +61,7 @@ def test_get_dummies_series_negative(data):
     "data", [["a", "a", None, "c"], ["a", "a", "c", "c"], ["a", "NULL"], [None, "NULL"]]
 )
 def test_get_dummies_null_values(kwargs, data):
-    df = native_pd.Series(data, name="col")
-    expected = native_pd.get_dummies(df, **kwargs)
-    actual = pd.get_dummies(pd.Series(df), **kwargs)
+    ser = native_pd.Series(data, name="col")
+    expected = native_pd.get_dummies(ser, **kwargs)
+    actual = pd.get_dummies(pd.Series(ser), **kwargs)
     assert_snowpark_pandas_equal_to_pandas(actual, expected, check_dtype=False)
