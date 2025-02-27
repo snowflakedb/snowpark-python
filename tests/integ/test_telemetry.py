@@ -736,20 +736,29 @@ def test_relational_dataframe_api_calls(session):
     ]
 
 
-def test_dataframe_stat_functions_api_calls(session):
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_dataframe_stat_functions_api_calls(session, use_simplified_query_generation):
+    session.conf.set("use_simplified_query_generation", use_simplified_query_generation)
     df = TestData.monthly_sales(session)
     assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
 
     sample_by = df.stat.sample_by(col("empid"), {1: 0.0, 2: 1.0})
-    sample_by_api_calls = {"name": "DataFrameStatFunctions.sample_by"}
-    if not session.conf.get("use_simplified_query_generation"):
-        sample_by_api_calls["subcalls"] = [
-            {"name": "DataFrame.filter"},
-            {"name": "DataFrame.sample"},
-            {"name": "DataFrame.filter"},
-            {"name": "DataFrame.sample"},
-            {"name": "DataFrame.union_all"},
-        ]
+    if use_simplified_query_generation:
+        sample_by_api_calls = {"name": "DataFrameStatFunctions.sample_by[percent_rank]"}
+    else:
+        sample_by_api_calls = {
+            "name": "DataFrameStatFunctions.sample_by[union_all]",
+            "subcalls": [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.filter"},
+                {"name": "DataFrame.sample"},
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.filter"},
+                {"name": "DataFrame.sample"},
+                {"name": "DataFrame.union_all"},
+            ],
+        }
+
     assert sample_by._plan.api_calls == [
         {"name": "Session.create_dataframe[values]"},
         sample_by_api_calls,

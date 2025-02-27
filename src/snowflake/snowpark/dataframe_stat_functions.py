@@ -4,7 +4,7 @@
 
 import sys
 from functools import reduce
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 
 import snowflake.snowpark
@@ -375,19 +375,15 @@ class DataFrameStatFunctions:
         self,
         col: ColumnOrName,
         fractions: Dict[LiteralType, float],
+        df_generator: Callable,
     ) -> "snowflake.snowpark.DataFrame":
         res_df = reduce(
             lambda x, y: x.union_all(y, _emit_ast=False),
-            [
-                self._dataframe.filter(col == k, _emit_ast=False).sample(
-                    v, _emit_ast=False
-                )
-                for k, v in fractions.items()
-            ],
+            [df_generator(self, k, v) for k, v in fractions.items()],
         )
         adjust_api_subcalls(
             res_df,
-            "DataFrameStatFunctions.sample_by",
+            "DataFrameStatFunctions.sample_by[union_all]",
             precalls=self._dataframe._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
         )
@@ -413,7 +409,7 @@ class DataFrameStatFunctions:
         else:
             res_df = self._dataframe._with_plan(sample_by_plan)
 
-        add_api_call(res_df, "DataFrameStatFunctions.sample_by")
+        add_api_call(res_df, "DataFrameStatFunctions.sample_by[percent_rank]")
         return res_df
 
     @publicapi
@@ -459,7 +455,7 @@ class DataFrameStatFunctions:
         if not fractions:
             res_df = self._dataframe.limit(0, _emit_ast=False)
             adjust_api_subcalls(
-                res_df, "DataFrameStatFunctions.sample_by", len_subcalls=1
+                res_df, "DataFrameStatFunctions.sample_by[empty]", len_subcalls=1
             )
 
             if _emit_ast:
@@ -477,15 +473,14 @@ class DataFrameStatFunctions:
 
             # Similar to how `Table.sample` is implemented, because SAMPLE clause does not support subqueries,
             # we just use session.sql to compile a flat query
-            res_df = reduce(
-                lambda x, y: x.union_all(y, _emit_ast=False),
-                [
-                    self._dataframe._session.sql(
-                        f"SELECT * FROM {self._dataframe.table_name} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
-                        _emit_ast=False,
-                    )
-                    for k, v in fractions.items()
-                ],
+            def df_generator(self, k, v):
+                return self._dataframe._session.sql(
+                    f"SELECT * FROM {self._dataframe.table_name} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
+                    _emit_ast=False,
+                )
+
+            res_df = self._sample_by_with_union_all(
+                col=col, fractions=fractions, df_generator=df_generator
             )
         else:
             if seed is not None:
@@ -498,7 +493,15 @@ class DataFrameStatFunctions:
             if self._dataframe._session.conf.get("use_simplified_query_generation"):
                 res_df = self._sample_by_with_percent_rank(col=col, fractions=fractions)
             else:
-                res_df = self._sample_by_with_union_all(col=col, fractions=fractions)
+
+                def df_generator(self, k, v):
+                    return self._dataframe.filter(col == k, _emit_ast=False).sample(
+                        v, _emit_ast=False
+                    )
+
+                res_df = self._sample_by_with_union_all(
+                    col=col, fractions=fractions, df_generator=df_generator
+                )
 
         if _emit_ast:
             res_df._ast_id = stmt.var_id.bitfield1
