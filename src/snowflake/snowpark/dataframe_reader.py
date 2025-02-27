@@ -75,6 +75,7 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     normalize_local_file,
     private_preview,
+    random_name_for_temp_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -92,9 +93,6 @@ from snowflake.snowpark.types import (
     DataType,
     _NumericType,
     TimestampType,
-)
-from snowflake.snowpark._internal.utils import (
-    random_name_for_temp_object,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
