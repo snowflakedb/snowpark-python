@@ -836,6 +836,13 @@ def test_limit(setup_reduce_cast, session, simplifier_table):
         == f"SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10"
     )
 
+    df = session.sql(f"select * from {simplifier_table}")
+    df = df.limit(0)
+    assert (
+        df.queries["queries"][-1]
+        == f"SELECT  *  FROM (select * from {simplifier_table}) LIMIT 0"
+    )
+
     # test for non-select sql statement
     temp_table_name = Utils.random_table_name()
     query = f"create or replace temporary table {temp_table_name} (bar string)"

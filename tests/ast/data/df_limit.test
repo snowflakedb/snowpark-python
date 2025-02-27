@@ -6,6 +6,8 @@ df = df.select(col("*")).limit(3)
 
 df = df.select(col("*")).limit(n=1, offset=1)
 
+df = df.select(col("*")).limit(0)
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -17,6 +19,10 @@ df = df.limit(3, 0)
 df = df.select(col("*"))
 
 df = df.limit(1, 1)
+
+df = df.select(col("*"))
+
+df = df.limit(0, 0)
 
 ## EXPECTED ENCODED AST
 
@@ -41,10 +47,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: 2
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -80,20 +83,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 31
-                    end_line: 27
                     file: 2
-                    start_column: 23
                     start_line: 27
                   }
                   v: "*"
                 }
               }
               src {
-                end_column: 31
-                end_line: 27
                 file: 2
-                start_column: 23
                 start_line: 27
               }
             }
@@ -106,10 +103,7 @@ body {
           }
         }
         src {
-          end_column: 32
-          end_line: 27
           file: 2
-          start_column: 13
           start_line: 27
         }
       }
@@ -132,10 +126,7 @@ body {
         }
         n: 3
         src {
-          end_column: 41
-          end_line: 27
           file: 2
-          start_column: 13
           start_line: 27
         }
       }
@@ -168,20 +159,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 31
-                    end_line: 29
                     file: 2
-                    start_column: 23
                     start_line: 29
                   }
                   v: "*"
                 }
               }
               src {
-                end_column: 31
-                end_line: 29
                 file: 2
-                start_column: 23
                 start_line: 29
               }
             }
@@ -194,10 +179,7 @@ body {
           }
         }
         src {
-          end_column: 32
-          end_line: 29
           file: 2
-          start_column: 13
           start_line: 29
         }
       }
@@ -221,10 +203,7 @@ body {
         n: 1
         offset: 1
         src {
-          end_column: 53
-          end_line: 29
           file: 2
-          start_column: 13
           start_line: 29
         }
       }
@@ -234,6 +213,89 @@ body {
       value: "df"
     }
     uid: 5
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select__columns {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    file: 2
+                    start_line: 31
+                  }
+                  v: "*"
+                }
+              }
+              src {
+                file: 2
+                start_line: 31
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        src {
+          file: 2
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_limit {
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
+        }
+        src {
+          file: 2
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
   }
 }
 client_ast_version: 1
