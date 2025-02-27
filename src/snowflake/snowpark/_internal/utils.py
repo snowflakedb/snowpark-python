@@ -1669,7 +1669,9 @@ def merge_multiple_snowflake_plan_expr_to_alias(
     for key in conflicted_keys:
         candidate = set()
         for plan in snowflake_plans:
-            output_columns = [attr.name for attr in plan.output if plan.schema_query]
+            output_columns = [
+                attr.name for attr in plan.output if plan.schema_query is not None
+            ]
             tmp_alias_name, tmp_updated_due_to_inheritance = plan.expr_to_alias[
                 key
             ], plan.expr_to_alias.was_updated_due_to_inheritance(key)
