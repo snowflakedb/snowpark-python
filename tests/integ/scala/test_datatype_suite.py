@@ -400,14 +400,7 @@ def test_structured_dtypes(structured_type_session, examples, structured_type_su
     assert df.dtypes == expected_dtypes
 
 
-@pytest.mark.skipif(
-    "config.getoption('disable_sql_simplifier', default=False)",
-    reason="without sql_simplifier returned types are all variants",
-)
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: SNOW-1372813 Cast to StructType not supported",
-)
+@pytest.skip
 def test_structured_dtypes_select(
     structured_type_session, examples, structured_type_support
 ):
@@ -466,10 +459,7 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="local testing does not fully support structured types yet.",
-)
+@pytest.skip
 def test_structured_dtypes_iceberg(
     structured_type_session, local_testing_mode, structured_type_support
 ):

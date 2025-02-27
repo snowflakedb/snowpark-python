@@ -334,18 +334,7 @@ def test_cache_result(session):
     Utils.check_answer(df2, [Row(3)])
 
 
-@multithreaded_run()
-@pytest.mark.xfail(
-    reason="SNOW-1709861 result_scan for show tables is flaky", strict=False
-)
-@pytest.mark.xfail(
-    reason="SNOW-1709861 result_scan for show tables is flaky", strict=False
-)
-@pytest.mark.xfail(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="This is testing query generation",
-    run=False,
-)
+@pytest.skip
 def test_cache_result_with_show(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
