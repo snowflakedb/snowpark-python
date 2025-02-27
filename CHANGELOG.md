@@ -6,10 +6,25 @@
 
 #### New Features
 
-- Added support for the following AI-powered functions in `functions.py`
+- Added support for the following AI-powered functions in `functions.py` (private preview):
   - `ai_filter`
   - `ai_agg`
   - `summarize_agg`
+- Added support for the new FILE SQL type support, with the following related functions in `functions.py` (private preview):
+  - fl_get_content_type
+  - fl_get_etag
+  - fl_get_file_type
+  - fl_get_last_modified
+  - fl_get_relative_path
+  - fl_get_scoped_file_url
+  - fl_get_size
+  - fl_get_stage
+  - fl_get_stage_file_url
+  - fl_is_audio
+  - fl_is_compressed
+  - fl_is_document
+  - fl_is_image
+  - fl_is_video
 
 #### Bug Fixes
 

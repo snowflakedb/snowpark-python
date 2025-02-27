@@ -528,6 +528,13 @@ class VectorType(DataType):
         ast.vector_type.dimension = self.dimension
 
 
+class FileType(DataType):
+    """File data type. This maps to the FILE data type in Snowflake."""
+
+    # def _fill_ast(self, ast: proto.DataType) -> None:
+    #     ast.file_type = True
+
+
 class ColumnIdentifier:
     """Represents a column identifier."""
 
@@ -1013,6 +1020,9 @@ Geography = TypeVar("Geography")
 
 #: The type hint for annotating Geometry data when registering UDFs.
 Geometry = TypeVar("Geometry")
+
+#: The type hint for annotating Geometry data when registering UDFs.
+File = TypeVar("File")
 
 # TODO(SNOW-969479): Add a type hint that can be used to annotate Vector data. Python does not
 # currently support integer type parameters (which are needed to represent a vector's dimension).

@@ -26,6 +26,7 @@ from snowflake.snowpark.functions import (
     sum_distinct,
     udaf,
     udf,
+    to_file,
 )
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.session import Session
@@ -52,6 +53,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    FileType,
 )
 from tests.utils import (
     TempObjectType,
@@ -1613,3 +1615,22 @@ def test_non_nullable_schema(structured_type_session, structured_type_support):
         ' |   |-- "name": StringType() (nullable = True)\n'
         ' |   |-- "age": LongType() (nullable = True)'
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="File type is not supported in Local Testing",
+)
+def test_file_type(session, resources_path):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    _ = session.sql(f"create or replace temp stage {stage_name}").collect()
+    test_files = TestFiles(resources_path)
+    _ = session.file.put(
+        test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    df = session.range(1).select(to_file(f"@{stage_name}/testCSV.csv").alias("file"))
+    assert df.schema == StructType([StructField("file", FileType(), True)])
+    df = session.range(1).select(
+        lit(f"@{stage_name}/testCSV.csv", datatype=FileType()).alias("file")
+    )
+    assert df.schema == StructType([StructField("file", FileType(), True)])

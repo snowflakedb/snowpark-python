@@ -1140,12 +1140,18 @@ message DataframeSample {
   SrcPosition src = 5;
 }
 
-// dataframe.ir:296
-message DataframeSelect {
+// dataframe.ir:298
+message DataframeSelect_Columns {
   ExprArgList cols = 1;
   Expr df = 2;
-  bool expr_variant = 3;
-  SrcPosition src = 4;
+  SrcPosition src = 3;
+}
+
+// dataframe.ir:303
+message DataframeSelect_Exprs {
+  Expr df = 1;
+  ExprArgList exprs = 2;
+  SrcPosition src = 3;
 }
 
 // dataframe.ir:8
@@ -1155,7 +1161,7 @@ message DataframeShow {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:303
+// dataframe.ir:308
 message DataframeSort {
   Expr ascending = 1;
   ExprArgList cols = 2;
@@ -1239,7 +1245,7 @@ message DataframeToPandasBatches {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe.ir:309
+// dataframe.ir:315
 message DataframeUnion {
   bool all = 1;
   bool allow_missing_columns = 2;
@@ -1249,7 +1255,28 @@ message DataframeUnion {
   SrcPosition src = 6;
 }
 
-// dataframe.ir:268
+// dataframe.ir:320
+message DataframeUnionAll {
+  Expr df = 1;
+  Expr other = 2;
+  SrcPosition src = 3;
+}
+
+// dataframe.ir:325
+message DataframeUnionAllByName {
+  Expr df = 1;
+  Expr other = 2;
+  SrcPosition src = 3;
+}
+
+// dataframe.ir:330
+message DataframeUnionByName {
+  Expr df = 1;
+  Expr other = 2;
+  SrcPosition src = 3;
+}
+
+// dataframe.ir:269
 message DataframeUnpivot {
   repeated Expr column_list = 1;
   Expr df = 2;
@@ -1259,7 +1286,7 @@ message DataframeUnpivot {
   string value_column = 6;
 }
 
-// dataframe.ir:317
+// dataframe.ir:335
 message DataframeWithColumn {
   Expr col = 1;
   string col_name = 2;
@@ -1267,7 +1294,7 @@ message DataframeWithColumn {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:323
+// dataframe.ir:341
 message DataframeWithColumnRenamed {
   Expr col = 1;
   Expr df = 2;
@@ -1275,7 +1302,7 @@ message DataframeWithColumnRenamed {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:329
+// dataframe.ir:347
 message DataframeWithColumns {
   repeated string col_names = 1;
   Expr df = 2;
@@ -1628,7 +1655,7 @@ message Geq {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:335
+// dataframe.ir:353
 message GroupingSets {
   ExprArgList sets = 1;
   SrcPosition src = 2;
@@ -2282,7 +2309,7 @@ message TableUpdate {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe.ir:339
+// dataframe.ir:357
 message ToSnowparkPandas {
   repeated string columns = 1;
   Expr df = 2;

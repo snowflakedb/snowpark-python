@@ -213,6 +213,7 @@ from snowflake.snowpark._internal.utils import (
     check_create_map_parameter,
     deprecated,
     private_preview,
+    validate_stage_location,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -11534,6 +11535,406 @@ def randn(
         _emit_ast=False,
         _ast=ast,
     )
+
+
+@publicapi
+def build_stage_file_url(
+    stage_name: str, relative_file_path: str, _emit_ast: bool = True
+) -> Column:
+    """
+    Generates a Snowflake file URL to a staged file using the stage name and relative file path as inputs.
+    A file URL permits prolonged access to a specified file. That is, the file URL does not expire.
+    The file URL is in the following format:
+
+    ``https://<account_identifier>/api/files/<db_name>/<schema_name>/<stage_name>/<relative_path>``
+
+    See more details `here <https://docs.snowflake.com/en/sql-reference/functions/build_stage_file_url#returns>`_.
+
+    Args:
+        stage_name: Name of the internal or external stage where the file is stored.
+            If the stage name includes spaces or special characters, it must be enclosed in single quotes
+            (e.g. '@"my stage"' for a stage named "my stage"). It has to be a constant instead of a column expression.
+        relative_file_path: Path and filename of the file relative to its location in the stage.
+            It has to be a constant instead of a column expression.
+
+    Example::
+
+        >>> df.select(build_stage_file_url("@images_stage", "/us/yosemite/half_dome.jpg").alias("url")).collect()  # doctest: +SKIP
+    """
+    function_name = "build_stage_file_url"
+    ast = (
+        build_function_expr(function_name, [stage_name, relative_file_path])
+        if _emit_ast
+        else None
+    )
+    return builtin(function_name, _emit_ast=_emit_ast, _ast=ast)(
+        stage_name, relative_file_path
+    )
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
+    """
+    Converts a stage file URI to a FILE value or NULL (if input is NULL), with the
+    `metadata <https://docs.snowflake.com/LIMITEDACCESS/sql-reference/data-types-unstructured#file-data-type>`_
+    related to the file.
+
+    Args:
+        stage_file_uri: The stage file URI to convert to a FILE value, e.g., ``@mystage/myfile.txt``.
+            It has to be a constant instead of a column expression.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(to_file("@mystage/testCSV.csv").alias("file"))
+        >>> result = json.loads(df.collect()[0][0])
+        >>> result["STAGE"]
+        'MYSTAGE'
+        >>> result["RELATIVE_PATH"]
+        'testCSV.csv'
+        >>> result["SIZE"]
+        32
+        >>> result["CONTENT_TYPE"]
+        'application/octet-stream'
+    """
+    ast = build_function_expr("to_file", [stage_file_uri]) if _emit_ast else None
+    # TODO: SNOW-1950688: Remove parsing workaround once the server is ready
+    parts = validate_stage_location(stage_file_uri).split("/", maxsplit=1)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid stage file URI: {stage_file_uri}")
+    stage_name, relative_file_path = parts
+    c = build_stage_file_url(stage_name, relative_file_path, _emit_ast=False)
+    return builtin("to_file", _ast=ast, _emit_ast=_emit_ast)(c)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_content_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the content type (also known as mime type) of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_content_type(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        'application/octet-stream'
+    """
+    function_name = "fl_get_content_type"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_etag(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the hash content (ETAG) of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_etag(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> len(df.collect()[0][0])  # the length of etag
+        32
+    """
+    function_name = "fl_get_etag"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_file_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the file type (modality) of a FILE. One of following values are returned:
+
+        - document
+
+        - video
+
+        - audio
+
+        - image
+
+        - compressed
+
+        - unknown
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_file_type(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        'unknown'
+    """
+    function_name = "fl_get_file_type"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_last_modified(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the last modified date of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_last_modified(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> type(df.collect()[0][0])
+        <class 'datetime.datetime'>
+    """
+    function_name = "fl_get_last_modified"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_relative_path(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the relative path of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_relative_path(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        'testCSV.csv'
+    """
+    function_name = "fl_get_relative_path"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_scoped_file_url(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the scoped URL of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_scoped_file_url(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+    """
+    function_name = "fl_get_scoped_file_url"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_size(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the size, in bytes, of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_size(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        32
+    """
+    function_name = "fl_get_size"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_stage(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the stage name of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_stage(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        'MYSTAGE'
+    """
+    function_name = "fl_get_stage"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_stage_file_url(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the stage URL of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_stage_file_url(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0][:8]
+        'https://'
+    """
+    function_name = "fl_get_stage_file_url"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_is_audio(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is an audio FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_audio(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        False
+    """
+    function_name = "fl_is_audio"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+def fl_is_video(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is a video FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_video(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        False
+    """
+    function_name = "fl_is_video"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+def fl_is_document(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is a document FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_document(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        False
+    """
+    function_name = "fl_is_document"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+def fl_is_compressed(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is a compressed FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_compressed(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        False
+    """
+    function_name = "fl_is_compressed"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+def fl_is_image(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is an image FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_image(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        False
+    """
+    function_name = "fl_is_image"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
 
 
 @private_preview(version="1.29.0")

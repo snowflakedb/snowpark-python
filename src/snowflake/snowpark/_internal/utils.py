@@ -305,6 +305,19 @@ def validate_object_name(name: str):
         raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
 
+def validate_stage_location(stage_location: str) -> str:
+    stage_location = stage_location.strip()
+    if not stage_location:
+        raise ValueError(
+            "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
+        )
+    if stage_location[-1] == "/":
+        raise ValueError(
+            "stage_location should end with target filename like @mystage/prefix/stage/filename"
+        )
+    return stage_location
+
+
 @lru_cache
 def get_version() -> str:
     return ".".join([str(d) for d in snowpark_version if d is not None])
