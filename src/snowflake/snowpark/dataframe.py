@@ -173,11 +173,11 @@ from snowflake.snowpark.functions import (
     abs as abs_,
     col,
     count,
+    hash as hash_,
     lit,
     max as max_,
     mean,
     min as min_,
-    random,
     row_number,
     sql_expr,
     stddev,
@@ -5902,9 +5902,9 @@ class DataFrame:
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             cached_df = self.with_column(
                 temp_column_name,
-                abs_(random(seed)) % _ONE_MILLION,
+                abs_(hash_("*")) % _ONE_MILLION,
                 _emit_ast=False,
-            ).cache_result(statement_params=statement_params, _emit_ast=False)
+            )
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
                 int(w * _ONE_MILLION)
