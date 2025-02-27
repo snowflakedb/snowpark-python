@@ -18,6 +18,10 @@ from snowflake.snowpark.functions import (
     last_day,
     lit,
     to_timestamp_ntz,
+    date_trunc,
+    max as max_,
+    min as min_,
+    pandas_lit,
 )
 from snowflake.snowpark.modin.plugin._internal import join_utils
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
@@ -342,12 +346,83 @@ def time_slice(
     return builtin("TIME_SLICE")(column, slice_length, date_or_time_part, start_or_end)
 
 
+def compute_resample_start_and_end_date(
+    frame: InternalFrame,
+    datetime_index_col_identifier: str,
+    rule: Frequency,
+) -> tuple[str, str]:
+    """
+    Compute the start and end datetimes implied by `rule`, returning start_date and end_date.
+
+    This computation is done eagerly, as start_date and end_date must be known to determine
+    resample bins.
+    """
+    slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
+
+    min_max_index_column_quoted_identifier = (
+        frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=["min_index", "max_index"]
+        )
+    )
+
+    # There are two reasons for why we eagerly compute these values:
+    # 1. The earliest date, start_date, is needed to perform resampling binning.
+    # 2. start_date and end_date are used to fill in any missing resample bins for the frame.
+
+    # date_trunc gives us the correct start date.
+    # For instance, if rule='3D' and the earliest date is
+    # 2020-03-01 1:00:00, the first date should be 2020-03-01,
+    # which is what date_trunc gives us.
+    if slice_unit in RULE_SECOND_TO_DAY:
+        # `slice_unit` in 'second', 'minute', 'hour', 'day'
+        start_date, end_date = frame.ordered_dataframe.agg(
+            date_trunc(slice_unit, min_(datetime_index_col_identifier)).as_(
+                min_max_index_column_quoted_identifier[0]
+            ),
+            date_trunc(slice_unit, max_(datetime_index_col_identifier)).as_(
+                min_max_index_column_quoted_identifier[1]
+            ),
+        ).collect()[0]
+    else:
+        assert slice_unit in RULE_WEEK_TO_YEAR
+        # `slice_unit` in 'week', 'month', 'quarter', or 'year'. Set the start and end dates
+        # to the last day of the given `slice_unit`. Use the right bin edge by adding a `slice_width`
+        # of the given `slice_unit` to the first and last date of the index.
+        start_date, end_date = frame.ordered_dataframe.agg(
+            last_day(
+                date_trunc(
+                    slice_unit,
+                    dateadd(
+                        slice_unit,
+                        pandas_lit(slice_width),
+                        min_(datetime_index_col_identifier),
+                    ),
+                ),
+                slice_unit,
+            ).as_(min_max_index_column_quoted_identifier[0]),
+            last_day(
+                date_trunc(
+                    slice_unit,
+                    dateadd(
+                        slice_unit,
+                        pandas_lit(slice_width),
+                        max_(datetime_index_col_identifier),
+                    ),
+                ),
+                slice_unit,
+            ).as_(min_max_index_column_quoted_identifier[1]),
+        ).collect()[0]
+    return start_date, end_date
+
+
 def perform_resample_binning_on_frame(
     frame: InternalFrame,
     datetime_index_col_identifier: str,
     start_date: str,
     slice_width: int,
     slice_unit: str,
+    *,
+    resample_output_col_identifier: Optional[str],
 ) -> InternalFrame:
     """
     Returns a new dataframe where each item of the index column
@@ -372,12 +447,18 @@ def perform_resample_binning_on_frame(
     slice_unit : str
         Time unit for the slice length.
 
+    resample_output_col_identifier : Optional[str]
+        The identifier of the column for the resampled output. If left unspecified, then
+        datetime_index_col_identifier is overwritten.
+
     Returns
     -------
     frame : InternalFrame
         A new internal frame where items in the index column are
         placed in a bin based on `slice_width` and `slice_unit`
     """
+    if resample_output_col_identifier is None:
+        resample_output_col_identifier = datetime_index_col_identifier
     # Consider the following example:
     # frame:
     #             data_col
@@ -466,7 +547,7 @@ def perform_resample_binning_on_frame(
     # 2023-08-16         9
 
     return frame.update_snowflake_quoted_identifiers_with_expressions(
-        {datetime_index_col_identifier: unnormalized_dates_set_to_bins}
+        {resample_output_col_identifier: unnormalized_dates_set_to_bins}
     ).frame
 
 

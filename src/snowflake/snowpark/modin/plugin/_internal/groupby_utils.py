@@ -33,6 +33,12 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     get_distinct_rows,
     pandas_lit,
 )
+from snowflake.snowpark.modin.plugin._internal.resample_utils import (
+    compute_resample_start_and_end_date,
+    perform_resample_binning_on_frame,
+    fill_missing_resample_bins_for_frame,
+    rule_to_snowflake_width_and_slice_unit,
+)
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
 from snowflake.snowpark.modin.utils import hashable
 from snowflake.snowpark.window import Window
@@ -319,6 +325,120 @@ def get_groups_for_ordered_dataframe(
     )
 
 
+def resample_and_extract_groupby_column_pandas_labels(
+    query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
+    by: Any,
+    level: Optional[IndexLabel],
+) -> tuple[
+    "snowflake_query_compiler.snowflake_query_compiler", Optional[list[Hashable]]
+]:
+    """
+    Extract the pandas labels of grouping columns specified by the `by` and `level` parameters.
+
+    If `by` is a list and any item is a `pd.Grouper` object specifying a `freq`, then a new column
+    will be added with the resampled values of the index. If the operation is an upsample, then
+    NULL values are interpolated in the other columns.
+
+    Parameters
+    ----------
+    query_compiler: the query compiler of the internal frame to group on.
+    by: mapping, series, callable, lable, pd.Grouper, BaseQueryCompiler, list of such
+        Used to determine the groups for the groupby.
+    level: int, level name, or sequence of such, default None. If the axis is a
+        MultiIndex(hierarchical), group by a particular level or levels. Do not specify
+        both by and level.
+
+    Returns
+    -------
+    tuple[SnowflakeQueryCompiler, Optional[list[Hashable]]]
+        A pair of (query compiler, grouping labels). The returned query compiler may be the same
+        as the original passed in, depending on whether or not resampling was performed and a new
+        column added.
+    """
+    frame = query_compiler._modin_frame
+
+    def find_resample_columns(
+        frame: InternalFrame, by: Any
+    ) -> tuple[List[Any], list[tuple[Hashable, str, str]]]:
+        """
+        Identify which columns need to be resampled.
+
+        Returns a pair with two items:
+        - The input `by` list with any datetime Grouper objects replaced by a label for the resampled column.
+        - A list of (original column label, new resampled column label, freq) tuples.
+
+        TODO: if we support other time Grouper parameters (offset, closed, convention), then these
+        will need to be passed as well.
+        """
+        resample_list = []
+        if is_list_like(by):  # TODO direct list instance check instead?
+            by_list = by
+        else:
+            by_list = [by]
+        new_by_list: List[Any] = []
+        for by_item in by_list:
+            if isinstance(by_item, native_pd.Grouper) and by_item.freq is not None:
+                if by_item.level is not None:
+                    int_levels = frame.parse_levels_to_integer_levels(
+                        [by_item.level],
+                    )
+                    col_label = frame.get_pandas_labels_for_levels(int_levels)[0]
+                else:
+                    assert by_item.key is not None
+                    col_label = by_item.key
+                new_label = f"{col_label}__{len(new_by_list)}"
+                resample_list.append((col_label, new_label, by_item.freq))
+                new_by_list.append(new_label)
+            else:
+                new_by_list.append(by_item)
+        return new_by_list, resample_list
+
+    by, to_resample = find_resample_columns(frame, by)
+    if len(to_resample) > 0:
+        original_labels, new_labels, freqs = zip(*to_resample)
+        identifiers_to_resample = [
+            identifier[0]
+            for identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                original_labels, include_index=True
+            )
+        ]
+        new_identifiers = frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=new_labels
+        )
+        # 1. For every column, determine the start and end dates of the resample intervals.
+        start_and_end_dates = {
+            identifier: compute_resample_start_and_end_date(frame, identifier, freq)
+            for identifier, freq in zip(identifiers_to_resample, freqs)
+        }
+        # 2. For every column to resample,
+        #    a. Append a new, resampled version of the original column.
+        #    b. Interpolate other columns with empty values if a column is upsampled.
+        for original_identifier, new_identifier, freq in zip(
+            identifiers_to_resample, new_identifiers, freqs
+        ):
+            slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
+            start_date, end_date = start_and_end_dates[original_identifier]
+            binned_frame = perform_resample_binning_on_frame(
+                frame,
+                original_identifier,
+                start_date,
+                slice_width,
+                slice_unit,
+                new_identifier,
+            )
+            resampled_frame = fill_missing_resample_bins_for_frame(
+                binned_frame,
+                freq,
+                start_date,
+                end_date,
+            )
+            frame = resampled_frame
+        query_compiler = snowflake_query_compiler.SnowflakeQueryCompiler(frame)
+    return query_compiler, extract_groupby_column_pandas_labels(
+        query_compiler, by, level
+    )
+
+
 def extract_groupby_column_pandas_labels(
     query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
     by: Any,
@@ -386,6 +506,8 @@ def get_frame_with_groupby_columns_as_index(
     1) The groupby columns are used as the new index columns
     2) An index column of the original dataframe that doesn't belong to the new dataframe is dropped
     3) All data columns in the original dataframe are retained even if it becomes an index column
+    4) If a grouping column is a Datetime/Timestamp index and a pd.Grouper object is passed with
+       a `freq` argument, then a new column is added with the adjusted bins.
 
     df = pd.DataFrame({"A": [0, 1, 2], "B": [2, 1, 1], "C": [2, 2, 0], "D": [3,4,5]})
     df = df.set_index(['A', 'B'])
@@ -403,6 +525,55 @@ def get_frame_with_groupby_columns_as_index(
     0  2  2  3
     1  2  2  4
     2  0  0  5
+
+    Example with a pd.Grouper with `freq` specified:
+
+    >>> dates = pd.date_range("2000-10-01 23:00:00", "2000-10-01 23:16:00", freq='4min')
+    >>> ts = pd.Series(np.arange(len(dates)), index=dates)
+    >>> ts
+    2000-10-01 23:00:00    0
+    2000-10-01 23:04:00    1
+    2000-10-01 23:08:00    2
+    2000-10-01 23:12:00    3
+    2000-10-01 23:16:00    4
+    Freq: 4min, dtype: int64
+
+    The newly resampled index column will have the suffix "__resample{i}" appended to the original
+    column's identifier, where {i} is the number of times this column is resampled. This ensures
+    that we can support the same column being resampled multiple times, or being used elsewhere
+    without a resample.
+
+    Upsampling will fill other columns with NULL values, under the assumption that they will be
+    coalesced away by the resulting groupby operation:
+
+    >>> get_frame_with_groupby_columns_as_index(ts._query_compiler, pd.Grouper(freq="2min"), None, True)
+    +----------------------+-------------+
+    | __index____resample0 | __reduced__ |
+    +----------------------+-------------+
+    |  2000-10-01 23:00:00 |           0 |
+    |  2000-10-01 23:02:00 |        NULL |
+    |  2000-10-01 23:04:00 |           1 |
+    |  2000-10-01 23:06:00 |        NULL |
+    |  2000-10-01 23:08:00 |           2 |
+    |  2000-10-01 23:10:00 |        NULL |
+    |  2000-10-01 23:12:00 |           3 |
+    |  2000-10-01 23:14:00 |        NULL |
+    |  2000-10-01 23:16:00 |           4 |
+    +----------------------+-------------+
+
+    Conversely, downsampling will forward-fill values into the resampled time column to represent
+    that they belong to the same bin. Note that in this example, the bins are shifted.
+
+    >>> get_frame_with_groupby_columns_as_index(ts._query_compiler, pd.Grouper(freq="8min"), None, True)
+    +----------------------+-------------+
+    | __index____resample0 | __reduced__ |
+    +----------------------+-------------+
+    |  2000-10-01 22:56:00 |           0 |
+    |  2000-10-01 23:04:00 |           1 |
+    |  2000-10-01 23:04:00 |           2 |
+    |  2000-10-01 23:12:00 |           3 |
+    |  2000-10-01 23:12:00 |           4 |
+    +----------------------+-------------+
 
     Parameters
     ----------

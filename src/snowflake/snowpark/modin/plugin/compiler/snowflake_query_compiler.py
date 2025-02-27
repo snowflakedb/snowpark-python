@@ -101,7 +101,6 @@ from snowflake.snowpark.functions import (
     count_distinct,
     date_from_parts,
     date_part,
-    date_trunc,
     dateadd,
     dayofmonth,
     dayofyear,
@@ -116,7 +115,6 @@ from snowflake.snowpark.functions import (
     is_char,
     is_null,
     lag,
-    last_day,
     last_value,
     lead,
     least,
@@ -283,7 +281,6 @@ from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     IMPLEMENTED_AGG_METHODS,
     RULE_SECOND_TO_DAY,
-    RULE_WEEK_TO_YEAR,
     fill_missing_resample_bins_for_frame,
     get_expected_resample_bins_frame,
     get_snowflake_quoted_identifier_for_resample_index_col,
@@ -291,6 +288,7 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     perform_resample_binning_on_frame,
     rule_to_snowflake_width_and_slice_unit,
     validate_resample_supported_by_snowflake,
+    compute_resample_start_and_end_date,
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasColumn,
@@ -12683,59 +12681,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
-        min_max_index_column_quoted_identifier = (
-            frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-                pandas_labels=["min_index", "max_index"]
-            )
+        start_date, end_date = compute_resample_start_and_end_date(
+            frame,
+            snowflake_index_column_identifier,
+            rule,
         )
-
-        # There are two reasons for why we eagerly compute these values:
-        # 1. The earliest date, start_date, is needed to perform resampling binning.
-        # 2. start_date and end_date are used to fill in any missing resample bins for the frame.
-
-        # date_trunc gives us the correct start date.
-        # For instance, if rule='3D' and the earliest date is
-        # 2020-03-01 1:00:00, the first date should be 2020-03-01,
-        # which is what date_trunc gives us.
-        if slice_unit in RULE_SECOND_TO_DAY:
-            # `slice_unit` in 'second', 'minute', 'hour', 'day'
-            start_date, end_date = frame.ordered_dataframe.agg(
-                date_trunc(slice_unit, min_(snowflake_index_column_identifier)).as_(
-                    min_max_index_column_quoted_identifier[0]
-                ),
-                date_trunc(slice_unit, max_(snowflake_index_column_identifier)).as_(
-                    min_max_index_column_quoted_identifier[1]
-                ),
-            ).collect()[0]
-        else:
-            assert slice_unit in RULE_WEEK_TO_YEAR
-            # `slice_unit` in 'week', 'month', 'quarter', or 'year'. Set the start and end dates
-            # to the last day of the given `slice_unit`. Use the right bin edge by adding a `slice_width`
-            # of the given `slice_unit` to the first and last date of the index.
-            start_date, end_date = frame.ordered_dataframe.agg(
-                last_day(
-                    date_trunc(
-                        slice_unit,
-                        dateadd(
-                            slice_unit,
-                            pandas_lit(slice_width),
-                            min_(snowflake_index_column_identifier),
-                        ),
-                    ),
-                    slice_unit,
-                ).as_(min_max_index_column_quoted_identifier[0]),
-                last_day(
-                    date_trunc(
-                        slice_unit,
-                        dateadd(
-                            slice_unit,
-                            pandas_lit(slice_width),
-                            max_(snowflake_index_column_identifier),
-                        ),
-                    ),
-                    slice_unit,
-                ).as_(min_max_index_column_quoted_identifier[1]),
-            ).collect()[0]
 
         if resample_method in ("ffill", "bfill"):
             expected_frame = get_expected_resample_bins_frame(
