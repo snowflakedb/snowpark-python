@@ -11603,7 +11603,7 @@ def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
         'application/octet-stream'
     """
     ast = build_function_expr("to_file", [stage_file_uri]) if _emit_ast else None
-    # TODO: SNOW-1950688: Remove parsing workaround once the server is ready
+    # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI
     parts = validate_stage_location(stage_file_uri).split("/", maxsplit=1)
     if len(parts) != 2:
         raise ValueError(f"Invalid stage file URI: {stage_file_uri}")

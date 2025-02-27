@@ -234,6 +234,7 @@ def to_sql(
         return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
 
     if isinstance(datatype, FileType):
+        # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI
         parts = validate_stage_location(value).split("/", maxsplit=1)
         if len(parts) != 2:
             raise ValueError(f"Invalid stage file URI: {value}")
