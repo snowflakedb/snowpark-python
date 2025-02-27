@@ -289,9 +289,7 @@ def infer_data_source_schema(
         ) from exc
 
 
-def data_source_data_to_pandas_df(
-    data: List[Any], schema: StructType, current_db: str, driver_info: str
-) -> pd.DataFrame:
+def data_source_data_to_pandas_df(data: List[Any], schema: StructType) -> pd.DataFrame:
     columns = [col.name for col in schema.fields]
     df = pd.DataFrame.from_records(data, columns=columns)
 
@@ -331,10 +329,6 @@ def generate_select_query(
         return f"""select {" , ".join(cols)} from {table}"""
     elif dbms == DBMS_TYPE.SQL_SERVER_DB or dbms == DBMS_TYPE.SQLITE_DB:
         return f"select * from {table}"
-    else:
-        raise NotImplementedError(
-            f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
-        )
 
 
 def generate_sql_with_predicates(select_query: str, predicates: List[str]):

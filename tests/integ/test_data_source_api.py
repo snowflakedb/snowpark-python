@@ -27,7 +27,6 @@ from snowflake.snowpark._internal.data_source_utils import (
     detect_dbms,
     sql_server_to_snowpark_type,
     oracledb_to_snowpark_type,
-    generate_select_query,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -146,7 +145,6 @@ def test_dbapi_retry(session):
                 partition_idx=0,
                 tmp_dir="/tmp",
                 dbms_type=DBMS_TYPE.SQL_SERVER_DB,
-                driver_info="pyodbc",
             )
         assert mock_task.call_count == MAX_RETRY_TIME
 
@@ -539,7 +537,6 @@ def test_task_fetch_from_data_source_with_fetch_size(
             "partition_idx": partition_idx,
             "tmp_dir": tmp_dir,
             "dbms_type": DBMS_TYPE.SQL_SERVER_DB,
-            "driver_info": "pyodbc",
             "fetch_size": fetch_size,
         }
 
@@ -586,14 +583,6 @@ def test_type_conversion():
         NotImplementedError, match="oracledb type not supported: non-exist_type"
     ):
         oracledb_to_snowpark_type([("test_col", "non-exist_type", 0, 0, True)])
-
-
-def test_generate_select_sql_unknown_db():
-    with pytest.raises(
-        NotImplementedError,
-        match="currently supported drivers are pyodbc and oracledb, got: unknown_driver",
-    ):
-        generate_select_query("", StructType(), DBMS_TYPE.UNKNOWN, "unknown_driver")
 
 
 def test_custom_schema_false(session):

@@ -1155,7 +1155,9 @@ class DataFrameReader:
                 column_type, DateType
             ):
                 logger.error(f"Unsupported column type: {column_type}")
-                raise ValueError(f"unsupported type {column_type}")
+                raise ValueError(
+                    f"unsupported type {column_type}, we support numeric type and date type"
+                )
             partitioned_queries = self._generate_partition(
                 select_query,
                 column_type,
@@ -1197,14 +1199,7 @@ class DataFrameReader:
                     max_workers=max_workers
                 ) as thread_executor:
                     thread_pool_futures, process_pool_futures = [], []
-                    parquet_file_queue, process_error_queue = (
-                        process_manager.Queue(),
-                        process_manager.Queue(),
-                    )
-
-                    def fetch_process_error_handling_callback(fetch_process_future):
-                        if fetch_process_future.exception():
-                            process_error_queue.put(fetch_process_future.exception())
+                    parquet_file_queue = process_manager.Queue()
 
                     def ingestion_thread_cleanup_callback(parquet_file_path, _):
                         # clean the local temp file after ingestion to avoid consuming too much temp disk space
@@ -1221,13 +1216,9 @@ class DataFrameReader:
                             partition_idx,
                             tmp_dir,
                             dbms_type,
-                            driver_info,
                             query_timeout,
                             fetch_size,
                             session_init_statement,
-                        )
-                        process_future.add_done_callback(
-                            fetch_process_error_handling_callback
                         )
                         process_pool_futures.append(process_future)
                     # Monitor queue while tasks are running
@@ -1480,15 +1471,12 @@ class DataFrameReader:
         partition_idx: int,
         tmp_dir: str,
         dbms_type: DBMS_TYPE,
-        driver_info: str,
         query_timeout: int = 0,
         fetch_size: int = 0,
         session_init_statement: Optional[str] = None,
     ):
-        def convert_to_parquet(fetched_data, database, fetch_idx):
-            df = data_source_data_to_pandas_df(
-                fetched_data, schema, database, driver_info
-            )
+        def convert_to_parquet(fetched_data, fetch_idx):
+            df = data_source_data_to_pandas_df(fetched_data, schema)
             path = os.path.join(
                 tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
             )
@@ -1507,7 +1495,7 @@ class DataFrameReader:
         if fetch_size == 0:
             cursor.execute(query)
             result = cursor.fetchall()
-            parquet_file_queue.put(convert_to_parquet(result, dbms_type, 0))
+            parquet_file_queue.put(convert_to_parquet(result, 0))
         elif fetch_size > 0:
             cursor = cursor.execute(query)
             fetch_idx = 0
@@ -1515,7 +1503,7 @@ class DataFrameReader:
                 rows = cursor.fetchmany(fetch_size)
                 if not rows:
                     break
-                parquet_file_queue.put(convert_to_parquet(rows, dbms_type, fetch_idx))
+                parquet_file_queue.put(convert_to_parquet(rows, fetch_idx))
                 fetch_idx += 1
         else:
             raise ValueError("fetch size cannot be smaller than 0")
@@ -1529,7 +1517,6 @@ class DataFrameReader:
         partition_idx: int,
         tmp_dir: str,
         dbms_type: DBMS_TYPE,
-        driver_info: str,
         query_timeout: int = 0,
         fetch_size: int = 0,
         session_init_statement: Optional[str] = None,
@@ -1543,7 +1530,6 @@ class DataFrameReader:
             partition_idx,
             tmp_dir,
             dbms_type,
-            driver_info,
             query_timeout,
             fetch_size,
             session_init_statement,
