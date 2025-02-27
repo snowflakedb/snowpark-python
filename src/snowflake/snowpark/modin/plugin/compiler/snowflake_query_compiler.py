@@ -1586,7 +1586,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if mode == "errorifexists" and pd.session._table_exists(
             parse_table_name(name) if isinstance(name, str) else name
         ):
-            raise ValueError(f"Table '{name}' already exists")
+            raise ValueError(
+                f"Table '{name}' already exists. Set 'if_exists' parameter as 'replace' to override existing table."
+            )
 
         self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label
