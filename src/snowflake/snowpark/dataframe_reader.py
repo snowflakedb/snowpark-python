@@ -1091,7 +1091,23 @@ class DataFrameReader:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[str] = None,
     ) -> DataFrame:
-        """Reads data from a database table using a DBAPI connection."""
+        """Reads data from a database table using a DBAPI connection.
+        Args:
+            create_connection: a function that return a dbapi connection
+            table: the name of the table in external data source
+            column: column name used to create partition
+            lower_bound: lower bound of partition
+            upper_bound: upper bound of partition
+            num_partitions: number of partitions to create
+            max_workers: number of workers for parallelism
+            query_timeout: timeout for each query, default value is 0, meaning never timeout
+            fetch_size: batch size when fetching from external data source
+            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source
+            predicates: a list of expressions suitable for inclusion in WHERE clauses, each defines a partition
+            session_init_statement: session initiation statements for external data source
+        Note:
+            column, lower_bound, upper_bound and num_partitions must be specified if any one of them is specified.
+        """
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
