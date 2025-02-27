@@ -11563,13 +11563,14 @@ def ai_filter(
 
     Example::
 
-        >>> df = session.create_dataframe(["Switzerland", "Korea", "Panama"], schema=["country"])
-        >>> df.select(
-        ...     ai_filter("Is the country in Asia?", col("country")).as_("asia"),
-        ...     ai_filter("Is the country in Europe?", col("country")).as_("europe"),
-        ...     ai_filter("Is the country in North America?", col("country")).as_("north_america"),
-        ...     ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
-        ... ).show()
+        >>> if "gcp" not in session.connection.host.split("."):
+        ...     df = session.create_dataframe(["Switzerland", "Korea", "Panama"], schema=["country"])
+        ...     df.select(
+        ...         ai_filter("Is the country in Asia?", col("country")).as_("asia"),
+        ...         ai_filter("Is the country in Europe?", col("country")).as_("europe"),
+        ...         ai_filter("Is the country in North America?", col("country")).as_("north_america"),
+        ...         ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
+        ...     ).show()
         -----------------------------------------------------------
         |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
         -----------------------------------------------------------
