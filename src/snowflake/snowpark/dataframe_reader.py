@@ -1100,7 +1100,7 @@ class DataFrameReader:
             upper_bound: upper bound of partition
             num_partitions: number of partitions to create
             max_workers: number of workers for parallelism
-            query_timeout: timeout for each query, default value is 0, meaning never timeout
+            query_timeout: timeout(seconds) for each query, default value is 0, meaning never timeout
             fetch_size: batch size when fetching from external data source
             custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source
             predicates: a list of expressions suitable for inclusion in WHERE clauses, each defines a partition
