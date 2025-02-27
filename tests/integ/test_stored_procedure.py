@@ -8,6 +8,7 @@ import pkg_resources
 import logging
 import os
 import re
+import sys
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
@@ -1935,6 +1936,9 @@ def test_register_sproc_after_switch_schema(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
 def test_sproc_artifact_repository(session):
     def artifact_repo_test(_):
         import urllib3
@@ -1959,7 +1963,7 @@ def test_sproc_artifact_repository(session):
 @pytest.mark.parametrize(
     "version_override, expect_warning",
     [
-        ("1.26.1", False),  # Bugfix version - no warning
+        ("1.27.1", False),  # Bugfix version - no warning
         ("999.999.999", True),  # Major version change - expect warning
     ],
 )
@@ -1997,7 +2001,7 @@ def test_snowpark_python_bugfix_version_warning(
                 plus1,
                 return_type=IntegerType(),
                 input_types=[IntegerType()],
-                packages=["snowflake-snowpark-python==1.26.0"],
+                packages=["snowflake-snowpark-python==1.27.0"],
             )
             assert plus1_sp(lit(6)) == 7
 

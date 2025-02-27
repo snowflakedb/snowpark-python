@@ -27,6 +27,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 ROW_POSITION_INDEX_COLUMN_PANDAS_LABEL = "row_position_index"
 LIT_ONE_COLUMN_PANDAS_LABEL = "lit_one"
+NULL_COLUMN_ID = '"NULL"'
 
 
 def single_get_dummies_pivot(
@@ -119,6 +120,9 @@ def single_get_dummies_pivot(
         for quoted_identifier in pivoted_ordered_dataframe.projected_column_snowflake_quoted_identifiers
         if (quoted_identifier not in origin_column_snowflake_quoted_identifiers)
     ]
+    # Remove the NULL column if it exists.
+    if NULL_COLUMN_ID in pivot_result_column_snowflake_quoted_identifiers:
+        pivot_result_column_snowflake_quoted_identifiers.remove(NULL_COLUMN_ID)
 
     # Next handle the prefix for the pivot result column
     # We then need to get the new result columns.
