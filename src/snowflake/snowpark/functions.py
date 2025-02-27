@@ -3768,21 +3768,42 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         ...     [None, None, None],
         ...     ['Hello', None, None],
         ... ], schema=['a', 'b', 'c'])
-        >>> df.select(_concat_ws_ignore_nulls(',', df.a, df.b, df.c).as_("ans")).collect()
-        [Row(ANS='Hello,World'), Row(ANS=''), Row(ANS='Hello')]
+        >>> df.select(_concat_ws_ignore_nulls(',', df.a, df.b, df.c)).show()
+        ----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS(',', ""A"",""B"",""C"")"  |
+        ----------------------------------------------------
+        |Hello,World                                       |
+        |                                                  |
+        |Hello                                             |
+        ----------------------------------------------------
+        <BLANKLINE>
 
-        >>> df.select(_concat_ws_ignore_nulls('--', df.a, df.b, df.c).as_("ans")).collect()
-        [Row(ANS='Hello--World'), Row(ANS=''), Row(ANS='Hello')]
+        >>> df.select(_concat_ws_ignore_nulls('--', df.a, df.b, df.c)).show()
+        -----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS('--', ""A"",""B"",""C"")"  |
+        -----------------------------------------------------
+        |Hello--World                                       |
+        |                                                   |
+        |Hello                                              |
+        -----------------------------------------------------
+        <BLANKLINE>
 
         >>> df = session.create_dataframe([
         ...     (['Hello', 'World', None], None, '!'),
         ...     (['Hi', 'World', "."], "I'm Dad", '.'),
         ... ], schema=['a', 'b', 'c'])
-        >>> df.select(_concat_ws_ignore_nulls(", ", "a", "b", "c").as_("ans")).collect()
-        [Row(ANS='Hello, World, !'), Row(ANS="Hi, World, ., I'm Dad, .")]
+        >>> df.select(_concat_ws_ignore_nulls(", ", "a", "b", "c")).show()
+        -----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS(', ', ""A"",""B"",""C"")"  |
+        -----------------------------------------------------
+        |Hello, World, !                                    |
+        |Hi, World, ., I'm Dad, .                           |
+        -----------------------------------------------------
+        <BLANKLINE>
     """
     # TODO: SNOW-1831917 create ast
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
+    names = ",".join([c.get_name() or f"COL{i}" for i, c in enumerate(columns)])
 
     # The implementation of this function is as follows with example input of
     # sep = "," and row = [a, NULL], b, NULL, c:
@@ -3815,7 +3836,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         ),
         separator=lit(sep, _emit_ast=False),
         _emit_ast=False,
-    )
+    ).alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False)
 
 
 @publicapi
