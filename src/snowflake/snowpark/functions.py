@@ -3803,7 +3803,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
     """
     # TODO: SNOW-1831917 create ast
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
-    names = ",".join([c.get_name() for c in columns])
+    names = ",".join([c.get_name() or f"COL{i}" for i, c in enumerate(columns)])
 
     # The implementation of this function is as follows with example input of
     # sep = "," and row = [a, NULL], b, NULL, c:
@@ -3815,7 +3815,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
     #   [a, NULL, b, c]
     # 4. Filter out nulls (array_remove_nulls).
     #   [a, b, c]
-    # 5. Concatenate the non-null values into a single string (concat_strings_with_sep).
+    # 5. Concatenate the non-null values into a single string (array_to_string).
     #   "a,b,c"
 
     def array_remove_nulls(col: Column) -> Column:
@@ -3824,21 +3824,8 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
             col, sql_expr("x -> NOT IS_NULL_VALUE(x)", _emit_ast=False)
         )
 
-    def concat_strings_with_sep(col: Column) -> Column:
-        """
-        Expects an array of strings and returns a single string
-        with the values concatenated with the separator.
-        """
-        return substring(
-            builtin("reduce", _emit_ast=False)(
-                col, lit(""), sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False)
-            ),
-            len(sep) + 1,
-            _emit_ast=False,
-        )
-
-    return concat_strings_with_sep(
-        array_remove_nulls(
+    return array_to_string(
+        array=array_remove_nulls(
             array_flatten(
                 array_construct_compact(
                     *[c.cast(ArrayType(), _emit_ast=False) for c in columns],
@@ -3846,7 +3833,9 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
                 ),
                 _emit_ast=False,
             )
-        )
+        ),
+        separator=lit(sep, _emit_ast=False),
+        _emit_ast=False,
     ).alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False)
 
 
@@ -11563,13 +11552,14 @@ def ai_filter(
 
     Example::
 
-        >>> df = session.create_dataframe(["Switzerland", "Korea", "Panama"], schema=["country"])
-        >>> df.select(
-        ...     ai_filter("Is the country in Asia?", col("country")).as_("asia"),
-        ...     ai_filter("Is the country in Europe?", col("country")).as_("europe"),
-        ...     ai_filter("Is the country in North America?", col("country")).as_("north_america"),
-        ...     ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
-        ... ).show()
+        >>> if "gcp" not in session.connection.host.split("."):
+        ...     df = session.create_dataframe(["Switzerland", "Korea", "Panama"], schema=["country"])
+        ...     df.select(
+        ...         ai_filter("Is the country in Asia?", col("country")).as_("asia"),
+        ...         ai_filter("Is the country in Europe?", col("country")).as_("europe"),
+        ...         ai_filter("Is the country in North America?", col("country")).as_("north_america"),
+        ...         ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
+        ...     ).show()
         -----------------------------------------------------------
         |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
         -----------------------------------------------------------

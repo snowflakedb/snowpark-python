@@ -23,6 +23,9 @@
 
 ### Snowpark pandas API Updates
 
+#### Bug Fixes
+- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
+
 ### Snowpark Local Testing Updates
 
 #### New Features

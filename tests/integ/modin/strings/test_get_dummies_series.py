@@ -53,3 +53,15 @@ def test_get_dummies_series_negative(data):
             native_pd.get_dummies(pandas_ser),
             check_dtype=False,
         )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("kwargs", [{"dummy_na": False}, {}])
+@pytest.mark.parametrize(
+    "data", [["a", "a", None, "c"], ["a", "a", "c", "c"], ["a", "NULL"], [None, "NULL"]]
+)
+def test_get_dummies_null_values(kwargs, data):
+    ser = native_pd.Series(data, name="col")
+    expected = native_pd.get_dummies(ser, **kwargs)
+    actual = pd.get_dummies(pd.Series(ser), **kwargs)
+    assert_snowpark_pandas_equal_to_pandas(actual, expected, check_dtype=False)
