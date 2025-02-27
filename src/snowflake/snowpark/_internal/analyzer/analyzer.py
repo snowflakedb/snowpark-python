@@ -181,7 +181,7 @@ class Analyzer:
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.subquery_plans = []
-        if session._resolve_conflict_alias:
+        if session._join_alias_fix:
             self.generated_alias_maps = ExprAliasUpdateDict()
             self.alias_maps_to_use = ExprAliasUpdateDict()
         else:
@@ -655,9 +655,7 @@ class Analyzer:
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
                 updated_due_to_inheritance = (
-                    (quoted_name, True)
-                    if self.session._resolve_conflict_alias
-                    else quoted_name
+                    (quoted_name, True) if self.session._join_alias_fix else quoted_name
                 )
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
                 assert self.alias_maps_to_use is not None
@@ -808,7 +806,7 @@ class Analyzer:
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = (
-            ExprAliasUpdateDict() if self.session._resolve_conflict_alias else {}
+            ExprAliasUpdateDict() if self.session._join_alias_fix else {}
         )
 
         result = self.do_resolve(logical_plan)
@@ -829,7 +827,7 @@ class Analyzer:
         resolved_children = {}
         df_aliased_col_name_to_real_col_name = (
             defaultdict(ExprAliasUpdateDict)
-            if self.session._resolve_conflict_alias
+            if self.session._join_alias_fix
             else defaultdict(dict)
         )
 
@@ -842,7 +840,7 @@ class Analyzer:
             # Selectable doesn't have children. It already has the expr_to_alias dict.
             self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
-            if self.session._resolve_conflict_alias:
+            if self.session._join_alias_fix:
                 self.alias_maps_to_use = merge_multiple_snowflake_plan_expr_to_alias(
                     list(resolved_children.values())
                 )

@@ -246,11 +246,11 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = (
-            ExprAliasUpdateDict() if self._session._resolve_conflict_alias else {}
+            ExprAliasUpdateDict() if self._session._join_alias_fix else {}
         )
         self.df_aliased_col_name_to_real_col_name = (
             defaultdict(ExprAliasUpdateDict)
-            if self._session._resolve_conflict_alias
+            if self._session._join_alias_fix
             else defaultdict(dict)
         )
         self._api_calls = api_calls.copy() if api_calls is not None else None

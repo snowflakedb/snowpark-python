@@ -241,7 +241,7 @@ class SnowflakePlan(LogicalPlan):
         self.expr_to_alias = (
             expr_to_alias
             if expr_to_alias
-            else (ExprAliasUpdateDict() if session._resolve_conflict_alias else {})
+            else (ExprAliasUpdateDict() if session._join_alias_fix else {})
         )
         self.session = session
         self.source_plan = source_plan
@@ -258,7 +258,7 @@ class SnowflakePlan(LogicalPlan):
         else:
             self.df_aliased_col_name_to_real_col_name = (
                 defaultdict(ExprAliasUpdateDict)
-                if self.session._resolve_conflict_alias
+                if self.session._join_alias_fix
                 else defaultdict(dict)
             )
         # In the placeholder query, subquery (child) is held by the ID of query plan
@@ -604,7 +604,7 @@ class SnowflakePlanBuilder:
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
-        if self.session._resolve_conflict_alias:
+        if self.session._join_alias_fix:
             new_expr_to_alias = merge_multiple_snowflake_plan_expr_to_alias(
                 [select_left, select_right]
             )

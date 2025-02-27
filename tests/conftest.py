@@ -143,6 +143,11 @@ def cte_optimization_enabled(pytestconfig):
     return not pytestconfig.getoption("disable_cte_optimization")
 
 
+@pytest.fixture(scope="session")
+def join_alias_fix(pytestconfig):
+    return pytestconfig.getoption("join_alias_fix")
+
+
 @pytest.fixture(scope="module", autouse=True)
 def proto_generated():
     """Generate Protobuf Python files automatically"""

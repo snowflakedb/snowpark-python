@@ -656,12 +656,9 @@ class Session:
             ),
         )
         # TODO: SNOW-1951048 local testing diamond join fix
-        self._resolve_conflict_alias = (
-            False if isinstance(conn, MockServerConnection) else True
+        self._join_alias_fix: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
         )
-        # self._resolve_conflict_alias: bool = self.is_feature_enabled_for_version(
-        #     _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
-        # )
 
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
