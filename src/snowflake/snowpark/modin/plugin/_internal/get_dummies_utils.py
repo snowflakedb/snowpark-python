@@ -27,6 +27,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 ROW_POSITION_INDEX_COLUMN_PANDAS_LABEL = "row_position_index"
 LIT_ONE_COLUMN_PANDAS_LABEL = "lit_one"
+NULL_COLUMN_ID = '"NULL"'
 
 
 def single_get_dummies_pivot(
@@ -36,7 +37,6 @@ def single_get_dummies_pivot(
     pivot_column_snowflake_quoted_identifier: str,
     columns_to_keep_snowflake_quoted_identifiers: list[str],
     columns_to_keep_pandas_labels: list[Hashable],
-    dummy_na: bool,
 ) -> InternalFrame:
     """
     Helper function for get dummies to perform a single pivot on the encoded column.
@@ -51,7 +51,6 @@ def single_get_dummies_pivot(
             internal_frame to keep as the data column of final result internal frame.
         columns_to_keep_pandas_labels: The pandas label in the internal_frame to keep as the
             data_column of final result internal frame.
-       dummy_na: Add a column to indicate NULLs, if False NULLs are ignored.
 
         Note: columns_to_keep_snowflake_quoted_identifiers must be the same length as columns_to_keep_pandas_labels
     Returns:
@@ -120,8 +119,10 @@ def single_get_dummies_pivot(
         quoted_identifier
         for quoted_identifier in pivoted_ordered_dataframe.projected_column_snowflake_quoted_identifiers
         if (quoted_identifier not in origin_column_snowflake_quoted_identifiers)
-        and (dummy_na or quoted_identifier != '"NULL"')
     ]
+    # Remove the NULL column if it exists.
+    if NULL_COLUMN_ID in pivot_result_column_snowflake_quoted_identifiers:
+        pivot_result_column_snowflake_quoted_identifiers.remove(NULL_COLUMN_ID)
 
     # Next handle the prefix for the pivot result column
     # We then need to get the new result columns.
@@ -141,9 +142,6 @@ def single_get_dummies_pivot(
             and pandas_col_label.endswith("'")
         ):
             pandas_col_label = pandas_col_label[1:-1]
-        if dummy_na and pandas_col_label == "NULL":
-            # Rename this to match pandas semantics
-            pandas_col_label = "nan"
         new_pandas_col_label = f"{prefix}{prefix_sep}{pandas_col_label}"
         pivot_result_column_pandas_labels.append(new_pandas_col_label)
 
@@ -171,7 +169,6 @@ def get_dummies_helper(
     columns: list[Hashable],
     prefixes: list[Hashable],
     prefix_sep: str,
-    dummy_na: bool,
 ) -> InternalFrame:
     """
     Helper function for get dummies to perform encoding on given columns
@@ -265,7 +262,6 @@ def get_dummies_helper(
         pivot_column_snowflake_quoted_identifier=grouped_quoted_identifiers[0][0],
         columns_to_keep_snowflake_quoted_identifiers=remaining_data_column_snowflake_quoted_identifiers,
         columns_to_keep_pandas_labels=remaining_data_column_pandas_labels,
-        dummy_na=dummy_na,
     )
 
     # Perform pivot on rest columns and join on the row position column to form the final result.
@@ -282,7 +278,6 @@ def get_dummies_helper(
             pivot_column_snowflake_quoted_identifier=grouped_quoted_identifiers[i][0],
             columns_to_keep_snowflake_quoted_identifiers=[],
             columns_to_keep_pandas_labels=[],
-            dummy_na=dummy_na,
         )
         result_internal_frame = join_utils.join(
             result_internal_frame,
