@@ -20,6 +20,10 @@
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
 - Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
 
+#### Improvements
+
+- Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
+
 ### Snowpark pandas API Updates
 
 ### Snowpark Local Testing Updates
