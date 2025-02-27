@@ -327,7 +327,7 @@ def generate_select_query(
             else:
                 cols.append(field.name)
         return f"""select {" , ".join(cols)} from {table}"""
-    elif dbms == DBMS_TYPE.SQL_SERVER_DB or dbms == DBMS_TYPE.SQLITE_DB:
+    else:
         return f"select * from {table}"
 
 
