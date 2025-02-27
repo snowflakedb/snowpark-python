@@ -11,6 +11,10 @@
   - `ai_agg`
   - `summarize_agg`
 
+#### Improvements
+
+- Improved query generation for `Dataframe.stat.sample_by` to generate a single flat query that scales well with large `fractions` dictionary compared to older method of creating a UNION ALL subquery for each key in `fractions`. To disable this feature, set `session.conf.set("use_simplified_query_generation", False)`.
+
 #### Bug Fixes
 
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
