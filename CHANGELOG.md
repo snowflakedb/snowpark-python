@@ -36,6 +36,9 @@
 
 - Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
 
+#### Improvements
+
+- Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
 
 ## 1.28.0 (2025-02-20)
 
