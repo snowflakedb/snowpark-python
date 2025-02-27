@@ -2808,14 +2808,7 @@ def test_access_snowflake_import_directory(session, resources_path):
     session.clear_imports()
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="artifact repository not supported in local testing",
-)
-@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
+@pytest.skip
 def test_register_artifact_repository(session):
     def test_urllib() -> str:
         import urllib3

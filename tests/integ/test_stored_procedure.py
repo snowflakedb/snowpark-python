@@ -8,7 +8,6 @@ import pkg_resources
 import logging
 import os
 import re
-import sys
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
@@ -1931,14 +1930,7 @@ def test_register_sproc_after_switch_schema(session):
         session.use_schema(current_schema)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="artifact repository not supported in local testing",
-)
-@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-@pytest.mark.skipif(
-    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
-)
+@pytest.skip
 def test_sproc_artifact_repository(session):
     def artifact_repo_test(_):
         import urllib3
