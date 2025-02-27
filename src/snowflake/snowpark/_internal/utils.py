@@ -1553,7 +1553,9 @@ class ExprAliasUpdateDict(dict):
 
     """
 
-    def __setitem__(self, key: uuid.UUID, value: Union[Tuple[str, bool], str]):
+    def __setitem__(
+        self, key: Union[uuid.UUID, str], value: Union[Tuple[str, bool], str]
+    ):
         """If a string value is provided, it is automatically stored as `(value, False)`.
         If a tuple `(str, bool)` is provided, it must conform to the expected format.
         """
@@ -1569,12 +1571,12 @@ class ExprAliasUpdateDict(dict):
             raise ValueError("Value must be a tuple of (str, bool)")
         super().__setitem__(key, value)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> str:
         """Returns only the alias string (`str`), omitting the inheritance flag."""
         value = super().__getitem__(item)
         return value[0]
 
-    def get(self, key, default=None):
+    def get(self, key, default=None) -> str:
         value = super().get(key, None)
         if value is not None:
             return value[0]

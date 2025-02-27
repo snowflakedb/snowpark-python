@@ -47,8 +47,8 @@ class PlanMetadata:
 def infer_quoted_identifiers_from_expressions(
     expressions: List[Expression],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[
-        str, Union[Dict[str, str], ExprAliasUpdateDict]
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
     ],
 ) -> Optional[List[str]]:
     """
@@ -79,8 +79,8 @@ def infer_quoted_identifiers_from_expressions(
 def infer_metadata(
     source_plan: Optional[LogicalPlan],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[
-        str, Union[Dict[str, str], ExprAliasUpdateDict]
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
     ],
 ) -> PlanMetadata:
     """

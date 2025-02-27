@@ -619,9 +619,7 @@ class SelectSnowflakePlan(Selectable):
             else analyzer.resolve(snowflake_plan)
         )
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
-        self.df_aliased_col_name_to_real_col_name.update(
-            self._snowflake_plan.df_aliased_col_name_to_real_col_name
-        )
+        self.df_aliased_col_name_to_real_col_name.update(self._snowflake_plan.df_aliased_col_name_to_real_col_name)  # type: ignore
 
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
@@ -1566,8 +1564,8 @@ class DeriveColumnDependencyError(Exception):
 def parse_column_name(
     column: Expression,
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[
-        str, Union[Dict[str, str], ExprAliasUpdateDict]
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
     ],
 ) -> Optional[str]:
     if isinstance(column, Expression):
@@ -1755,8 +1753,8 @@ def can_select_projection_complexity_be_merged(
 def initiate_column_states(
     column_attrs: List[Attribute],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[
-        str, Union[Dict[str, str], ExprAliasUpdateDict]
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
     ],
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()

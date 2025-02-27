@@ -223,7 +223,9 @@ class SnowflakePlan(LogicalPlan):
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
         df_aliased_col_name_to_real_col_name: Optional[
-            DefaultDict[str, Union[Dict[str, str], ExprAliasUpdateDict]]
+            Union[
+                DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+            ]
         ] = None,
         # This field records all the WithQueryBlocks and their reference count that are
         # referred by the current SnowflakePlan tree. This is needed for the final query

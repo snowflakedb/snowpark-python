@@ -1,13 +1,14 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+from collections import defaultdict
 
 import pytest
 import uuid
 import copy
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
-)  # Replace 'your_module' with the actual module name
+)
 
 
 def test_expr_alias_update_dict():
@@ -67,3 +68,36 @@ def test_expr_alias_update_dict():
     )
     assert copied_dict is not expr_dict
     assert deep_copied_dict is not expr_dict
+
+    # Test defaultdict update behavior
+    df_alias_dict1, df_alias_dict2 = defaultdict(ExprAliasUpdateDict), defaultdict(
+        ExprAliasUpdateDict
+    )
+    df_alias_1, df_alias_2 = "df_1", "df_2"
+    col_key_1, col_key_2 = "col_1", "col_2"
+
+    df_alias_dict1[df_alias_1][col_key_1] = ("alias1", True)
+    df_alias_dict1[df_alias_1][col_key_2] = ("alias2", True)
+
+    # only 1 df alias with 2 col aliases in the df_alias_dict1
+    assert len(df_alias_dict1) == 1 and len(df_alias_dict1[df_alias_1]) == 2
+
+    df_alias_dict2[df_alias_2][col_key_1] = ("alias3", False)
+    df_alias_dict2[df_alias_1][col_key_2] = ("alias4", False)
+
+    df_alias_dict1.update(df_alias_dict2)
+
+    # after update, there should be 2 df alias replacing the previous one
+    assert (
+        len(df_alias_dict1) == 2
+        and len(df_alias_dict1[df_alias_1]) == 1
+        and len(df_alias_dict1[df_alias_2]) == 1
+    )
+    assert (
+        df_alias_dict1[df_alias_1][col_key_2] == "alias4"
+        and df_alias_dict1[df_alias_1].was_updated_due_to_inheritance(col_key_2)
+        is False
+        and df_alias_dict1[df_alias_2][col_key_1] == "alias3"
+        and df_alias_dict1[df_alias_2].was_updated_due_to_inheritance(col_key_1)
+        is False
+    )

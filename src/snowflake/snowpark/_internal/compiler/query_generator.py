@@ -132,8 +132,8 @@ class QueryGenerator(Analyzer):
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
-        df_aliased_col_name_to_real_col_name: DefaultDict[
-            str, Union[Dict[str, str], ExprAliasUpdateDict]
+        df_aliased_col_name_to_real_col_name: Union[
+            DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
         ],
     ) -> SnowflakePlan:
 
