@@ -593,7 +593,7 @@ def test_custom_schema_false(session):
             max_workers=4,
             custom_schema="timestamp_tz",
         )
-    with pytest.raises(TypeError, match="Invalid schema type: <class 'int'>."):
+    with pytest.raises(ValueError, match="Invalid schema type: <class 'int'>."):
         session.read.dbapi(
             sql_server_create_connection,
             SQL_SERVER_TABLE_NAME,
@@ -618,7 +618,9 @@ def test_partition_wrong_input(session, caplog):
         session.read.dbapi(
             sql_server_create_connection, SQL_SERVER_TABLE_NAME, column="id"
         )
-    with pytest.raises(ValueError, match="Column does not exist"):
+    with pytest.raises(
+        ValueError, match="Specified column non_exist_column does not exist"
+    ):
         session.read.dbapi(
             sql_server_create_connection,
             SQL_SERVER_TABLE_NAME,

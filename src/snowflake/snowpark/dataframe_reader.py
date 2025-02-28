@@ -1128,10 +1128,10 @@ class DataFrameReader:
             elif isinstance(custom_schema, StructType):
                 struct_schema = custom_schema
             else:
-                raise TypeError(
+                raise ValueError(
                     f"Invalid schema type: {type(custom_schema)}."
                     'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    'or a valid structtype, for example: StructType([StructField("ID", IntegerType(), False)])'
+                    'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
                 )
 
         select_query = generate_select_query(
@@ -1164,13 +1164,13 @@ class DataFrameReader:
                 if field.name.lower() == column.lower():
                     column_type = field.datatype
             if column_type is None:
-                raise ValueError("Column does not exist")
+                raise ValueError(f"Specified column {column} does not exist")
 
             if not isinstance(column_type, _NumericType) and not isinstance(
                 column_type, DateType
             ):
                 raise ValueError(
-                    f"unsupported type {column_type}, we support numeric type and date type"
+                    f"unsupported type {column_type}, column must be a numeric type like int and float, or date type"
                 )
             partitioned_queries = self._generate_partition(
                 select_query,
