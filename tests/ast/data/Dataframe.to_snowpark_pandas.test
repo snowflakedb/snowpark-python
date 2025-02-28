@@ -106,9 +106,7 @@ body {
             }
           }
         }
-        index_col {
-          list: "A"
-        }
+        index_col: "A"
         src {
           end_column: 65
           end_line: 29
@@ -131,10 +129,8 @@ body {
   assign {
     expr {
       to_snowpark_pandas {
-        columns {
-          list: "B"
-          list: "A"
-        }
+        columns: "B"
+        columns: "A"
         df {
           dataframe_ref {
             id {
@@ -164,10 +160,8 @@ body {
   assign {
     expr {
       to_snowpark_pandas {
-        columns {
-          list: "C"
-          list: "B"
-        }
+        columns: "C"
+        columns: "B"
         df {
           dataframe_ref {
             id {
@@ -175,9 +169,7 @@ body {
             }
           }
         }
-        index_col {
-          list: "A"
-        }
+        index_col: "A"
         src {
           end_column: 87
           end_line: 33

@@ -13,9 +13,9 @@ df2 = session.create_dataframe(pd.DataFrame([(99, 98)], columns=["a", "b"]), sch
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True), StructField("\"c\"", LongType(), nullable=True), StructField("\"d\"", LongType(), nullable=True)], structured=False))
+df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType(fields=[StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True), StructField("\"c\"", LongType(), nullable=True), StructField("\"d\"", LongType(), nullable=True)], structured=False))
 
-df2 = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True)], structured=False))
+df2 = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType(fields=[StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True)], structured=False))
 
 ## EXPECTED ENCODED AST
 
@@ -42,50 +42,48 @@ body {
           dataframe_schema__struct {
             v {
               fields {
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "\"a\""
-                    }
+                column_identifier {
+                  column_name {
+                    name: "\"a\""
                   }
-                  data_type {
-                    long_type: true
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "\"b\""
-                    }
-                  }
-                  data_type {
-                    long_type: true
-                  }
-                  nullable: true
+                data_type {
+                  long_type: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "\"c\""
-                    }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"b\""
                   }
-                  data_type {
-                    long_type: true
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "\"d\""
-                    }
-                  }
-                  data_type {
-                    long_type: true
-                  }
-                  nullable: true
+                data_type {
+                  long_type: true
                 }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"c\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"d\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
               }
             }
           }
@@ -122,28 +120,26 @@ body {
           dataframe_schema__struct {
             v {
               fields {
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "\"a\""
-                    }
+                column_identifier {
+                  column_name {
+                    name: "\"a\""
                   }
-                  data_type {
-                    long_type: true
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "\"b\""
-                    }
-                  }
-                  data_type {
-                    long_type: true
-                  }
-                  nullable: true
+                data_type {
+                  long_type: true
                 }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"b\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
               }
             }
           }

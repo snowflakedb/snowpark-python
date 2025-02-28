@@ -465,7 +465,6 @@ class DataFrameStatFunctions:
 
         if _emit_ast:
             res_df._ast_id = stmt.var_id.bitfield1
-            self._dataframe._session._ast_batch.eval(stmt)
 
         return res_df
 
