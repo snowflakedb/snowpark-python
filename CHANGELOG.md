@@ -19,8 +19,12 @@
 #### Improvements
 
 - Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
+- Bumped cloudpickle dependency to work with `cloudpickle==3.0.0`
 
 ### Snowpark pandas API Updates
+
+#### Bug Fixes
+- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
 
 ### Snowpark Local Testing Updates
 

@@ -9,6 +9,8 @@ import tempfile
 import time
 import datetime
 from unittest import mock
+from unittest.mock import patch, MagicMock
+
 import pytest
 
 from snowflake.snowpark._internal.utils import (
@@ -22,6 +24,9 @@ from snowflake.snowpark._internal.data_source_utils import (
     DBMS_TYPE,
     generate_sql_with_predicates,
     infer_data_source_schema,
+    detect_dbms,
+    sql_server_to_snowpark_type,
+    oracledb_to_snowpark_type,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -42,6 +47,7 @@ from snowflake.snowpark.types import (
     DecimalType,
     ArrayType,
     VariantType,
+    BooleanType,
 )
 from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_all_type_data,
@@ -139,7 +145,6 @@ def test_dbapi_retry(session):
                 partition_idx=0,
                 tmp_dir="/tmp",
                 dbms_type=DBMS_TYPE.SQL_SERVER_DB,
-                driver_info="pyodbc",
             )
         assert mock_task.call_count == MAX_RETRY_TIME
 
@@ -532,7 +537,6 @@ def test_task_fetch_from_data_source_with_fetch_size(
             "partition_idx": partition_idx,
             "tmp_dir": tmp_dir,
             "dbms_type": DBMS_TYPE.SQL_SERVER_DB,
-            "driver_info": "pyodbc",
             "fetch_size": fetch_size,
         }
 
@@ -554,3 +558,105 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 )
                 file_idx += 1
             assert file_idx == file_count
+
+
+def test_database_detector():
+    mock_conn = MagicMock()
+    with patch.object(type(mock_conn), "__module__", "UNKNOWN_DRIVER"):
+        result = detect_dbms(mock_conn)
+        assert result == (DBMS_TYPE.UNKNOWN, "")
+
+    mock_conn = MagicMock()
+    mock_conn.getinfo.return_value = "UNKNOWN"
+    with patch.object(type(mock_conn), "__module__", "pyodbc"):
+        result = detect_dbms(mock_conn)
+        assert result == (DBMS_TYPE.UNKNOWN, "pyodbc")
+
+
+def test_type_conversion():
+    with pytest.raises(
+        NotImplementedError, match="sql server type not supported: non-exist_type"
+    ):
+        sql_server_to_snowpark_type([("test_col", "non-exist_type", 0, 0, True)])
+
+    with pytest.raises(
+        NotImplementedError, match="oracledb type not supported: non-exist_type"
+    ):
+        oracledb_to_snowpark_type([("test_col", "non-exist_type", 0, 0, True)])
+
+
+def test_custom_schema_false(session):
+    with pytest.raises(ValueError, match="Invalid schema string: timestamp_tz."):
+        session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            custom_schema="timestamp_tz",
+        )
+    with pytest.raises(TypeError, match="Invalid schema type: <class 'int'>."):
+        session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            custom_schema=1,
+        )
+
+
+def test_partition_wrong_input(session, caplog):
+    with pytest.raises(
+        ValueError,
+        match="when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None",
+    ):
+        session.read.dbapi(
+            sql_server_create_connection, SQL_SERVER_TABLE_NAME, lower_bound=0
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="when column is specified, lower_bound, upper_bound, num_partitions must be specified",
+    ):
+        session.read.dbapi(
+            sql_server_create_connection, SQL_SERVER_TABLE_NAME, column="id"
+        )
+    with pytest.raises(ValueError, match="Column does not exist"):
+        session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            column="non_exist_column",
+            lower_bound=0,
+            upper_bound=10,
+            num_partitions=2,
+            custom_schema=StructType([StructField("ID", IntegerType(), False)]),
+        )
+
+    with pytest.raises(ValueError, match="unsupported type BooleanType()"):
+        session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            column="ID",
+            lower_bound=0,
+            upper_bound=10,
+            num_partitions=2,
+            custom_schema=StructType([StructField("ID", BooleanType(), False)]),
+        )
+    with pytest.raises(
+        ValueError, match="lower_bound cannot be greater than upper_bound"
+    ):
+        session.read._generate_partition(
+            select_query="SELECT * FROM fake_table",
+            column_type=IntegerType(),
+            column="DATE",
+            lower_bound=10,
+            upper_bound=1,
+            num_partitions=4,
+        )
+
+    session.read._generate_partition(
+        select_query="SELECT * FROM fake_table",
+        column_type=IntegerType(),
+        column="DATE",
+        lower_bound=0,
+        upper_bound=10,
+        num_partitions=20,
+    )
+    assert "The number of partitions is reduced" in caplog.text
