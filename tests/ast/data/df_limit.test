@@ -47,7 +47,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 25
           file: 2
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -83,14 +86,20 @@ body {
               pos_args {
                 string_val {
                   src {
+                    end_column: 31
+                    end_line: 27
                     file: 2
+                    start_column: 23
                     start_line: 27
                   }
                   v: "*"
                 }
               }
               src {
+                end_column: 31
+                end_line: 27
                 file: 2
+                start_column: 23
                 start_line: 27
               }
             }
@@ -103,7 +112,10 @@ body {
           }
         }
         src {
+          end_column: 32
+          end_line: 27
           file: 2
+          start_column: 13
           start_line: 27
         }
       }
@@ -126,7 +138,10 @@ body {
         }
         n: 3
         src {
+          end_column: 41
+          end_line: 27
           file: 2
+          start_column: 13
           start_line: 27
         }
       }
@@ -159,14 +174,20 @@ body {
               pos_args {
                 string_val {
                   src {
+                    end_column: 31
+                    end_line: 29
                     file: 2
+                    start_column: 23
                     start_line: 29
                   }
                   v: "*"
                 }
               }
               src {
+                end_column: 31
+                end_line: 29
                 file: 2
+                start_column: 23
                 start_line: 29
               }
             }
@@ -179,7 +200,10 @@ body {
           }
         }
         src {
+          end_column: 32
+          end_line: 29
           file: 2
+          start_column: 13
           start_line: 29
         }
       }
@@ -203,7 +227,10 @@ body {
         n: 1
         offset: 1
         src {
+          end_column: 53
+          end_line: 29
           file: 2
+          start_column: 13
           start_line: 29
         }
       }
@@ -236,14 +263,20 @@ body {
               pos_args {
                 string_val {
                   src {
+                    end_column: 31
+                    end_line: 31
                     file: 2
+                    start_column: 23
                     start_line: 31
                   }
                   v: "*"
                 }
               }
               src {
+                end_column: 31
+                end_line: 31
                 file: 2
+                start_column: 23
                 start_line: 31
               }
             }
@@ -258,7 +291,10 @@ body {
           }
         }
         src {
+          end_column: 32
+          end_line: 31
           file: 2
+          start_column: 13
           start_line: 31
         }
       }
@@ -284,7 +320,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 31
           file: 2
+          start_column: 13
           start_line: 31
         }
       }
