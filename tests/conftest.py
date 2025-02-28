@@ -134,17 +134,21 @@ def local_testing_telemetry_setup():
 def ast_enabled(pytestconfig):
     return pytestconfig.getoption("enable_ast")
 
+
 @pytest.fixture(scope="session")
 def dataframe_processor_pkg_version(pytestconfig):
     return pytestconfig.getoption("dataframe_processor_pkg_version")
+
 
 @pytest.fixture(scope="session")
 def dataframe_processor_location(pytestconfig):
     return pytestconfig.getoption("dataframe_processor_location")
 
+
 @pytest.fixture(scope="session")
 def validate_ast(pytestconfig):
     return pytestconfig.getoption("validate_ast")
+
 
 @pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):

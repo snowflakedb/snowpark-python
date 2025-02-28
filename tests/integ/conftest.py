@@ -149,9 +149,7 @@ def clean_up_external_access_integration_resources():
 
 
 def set_up_dataframe_processor_parameters(
-    session,
-    dataframe_processor_pkg_version,
-    dataframe_processor_location
+    session, dataframe_processor_pkg_version, dataframe_processor_location
 ):
     def set_param_value(param, value):
         if value is not None:
@@ -162,8 +160,9 @@ def set_up_dataframe_processor_parameters(
             except Exception as ex:
                 _logger.error(f"Failed to set {param}, ex={ex}")
 
-    set_param_value('DATAFRAME_PROCESSOR_PKG_VERSION', dataframe_processor_pkg_version)
-    set_param_value('DATAFRAME_PROCESSOR_LOCATION', dataframe_processor_location)
+    set_param_value("DATAFRAME_PROCESSOR_PKG_VERSION", dataframe_processor_pkg_version)
+    set_param_value("DATAFRAME_PROCESSOR_LOCATION", dataframe_processor_location)
+
 
 @pytest.fixture(scope="session")
 def db_parameters(local_testing_mode) -> Dict[str, str]:
@@ -270,7 +269,9 @@ def session(
         .config("local_testing", local_testing_mode)
         .create()
     )
-    set_up_dataframe_processor_parameters(session, dataframe_processor_pkg_version, dataframe_processor_location)
+    set_up_dataframe_processor_parameters(
+        session, dataframe_processor_pkg_version, dataframe_processor_location
+    )
 
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
