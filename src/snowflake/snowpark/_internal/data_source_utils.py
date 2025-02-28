@@ -156,7 +156,7 @@ def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
             raise NotImplementedError(f"sql server type not supported: {type_code}")
         if type_code in (int, decimal.Decimal):
             if not validate(precision, scale):
-                _logger.warning(
+                _logger.debug(
                     f"Snowpark does not support column"
                     f" {name} of type {type_code} with precision {precision} and scale {scale}. "
                     "The default Numeric precision and scale will be used."
