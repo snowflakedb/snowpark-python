@@ -74,6 +74,7 @@ def pytest_addoption(parser, pluginmanager):
         type=str,
         help="Path to the Unparser JAR built in the monorepo.",
     )
+    parser.addoption("--join_alias_fix", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
