@@ -20,13 +20,19 @@ from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_do
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
+import functools
 
+register_dataframe_accessor_helper = functools.partial(
+    register_dataframe_accessor,
+    engine="Snowflake",
+    storage_format="Snowflake"
+)
 
 # Snowflake specific dataframe methods
 # We use extensions, as we want to make clear that a Snowpark pandas DataFrame is NOT a
 # pandas DataFrame.
 # Implementation note: Arguments names and types are kept consistent with pandas.DataFrame.to_sql
-@register_dataframe_accessor("to_snowflake")
+@register_dataframe_accessor_helper("to_snowflake")
 def to_snowflake(
     self,
     name: Union[str, Iterable[str]],
@@ -65,7 +71,7 @@ def to_snowflake(
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
 
 
-@register_dataframe_accessor("to_snowpark")
+@register_dataframe_accessor_helper("to_snowpark")
 def to_snowpark(
     self, index: bool = True, index_label: Optional[IndexLabel] = None
 ) -> SnowparkDataFrame:
@@ -197,7 +203,7 @@ def to_snowpark(
     return self._query_compiler.to_snowpark(index, index_label)
 
 
-@register_dataframe_accessor("to_pandas")
+@register_dataframe_accessor_helper("to_pandas")
 @materialization_warning
 def to_pandas(
     self,
@@ -240,7 +246,7 @@ def to_pandas(
     return self._to_pandas(statement_params=statement_params, **kwargs)
 
 
-@register_dataframe_accessor("cache_result")
+@register_dataframe_accessor_helper("cache_result")
 @add_cache_result_docstring
 @materialization_warning
 def cache_result(self, inplace: bool = False) -> Optional[pd.DataFrame]:
