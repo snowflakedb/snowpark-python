@@ -668,9 +668,9 @@ def test_sql_simplifier(session):
         describe_count=0,
         union_count=0,
         join_count=2,
-        describe_count_for_optimized=1,
+        describe_count_for_optimized=1 if session._join_alias_fix else None,
     )
-    with SqlCounter(query_count=0, describe_count=2):
+    with SqlCounter(query_count=0, describe_count=2 if session._join_alias_fix else 0):
         # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
         # so we will get a common CTE with filter
         assert count_number_of_ctes(df6.queries["queries"][-1]) == 2
@@ -1090,7 +1090,7 @@ def test_time_series_aggregation_grouping(session):
         union_count=0,
         join_count=8,
         cte_join_count=4,
-        describe_count_for_optimized=6,
+        describe_count_for_optimized=6 if session._join_alias_fix else None,
     )
 
 

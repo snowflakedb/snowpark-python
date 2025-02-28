@@ -1464,9 +1464,35 @@ def test_select_columns_on_join_result_with_conflict_name(
     "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1235716: match error behavior",
 )
+def test_nested_join_diamond_shape_error(
+    session,
+):  # TODO: local testing match error behavior
+    if session._join_alias_fix:
+        pytest.skip("this is fixed with join alias fix")
+    """This is supposed to work but currently we don't handle it correctly. We should fix this with a good design."""
+    df1 = session.create_dataframe([[1]], schema=["a"])
+    df2 = session.create_dataframe([[1]], schema=["a"])
+    df3 = df1.join(df2, df1["a"] == df2["a"])
+    df4 = df3.select(df1["a"].as_("a"))
+    # df1["a"] and df4["a"] has the same expr_id in map expr_to_alias. When they join, only one will be in df5's alias
+    # map. It leaves the other one resolved to "a" instead of the alias.
+    df5 = df1.join(df4, df1["a"] == df4["a"])  # (df1) JOIN ((df1 JOIN df2)->df4)
+    with pytest.raises(
+        SnowparkSQLAmbiguousJoinException,
+        match="The reference to the column 'A' is ambiguous.",
+    ):
+        df5.collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1235716: match error behavior",
+)
 def test_nested_join_diamond_shape(
     session,
 ):  # TODO: local testing match error behavior
+    if not session._join_alias_fix:
+        pytest.skip("this is only fixed with join alias fix")
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])
     df3 = df1.join(df2, df1["a"] == df2["a"])

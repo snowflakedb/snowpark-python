@@ -530,7 +530,10 @@ class SnowflakePlan(LogicalPlan):
         return copied_plan
 
     def add_aliases(self, to_add: Dict) -> None:
-        self.expr_to_alias.update(to_add)
+        if self.session._join_alias_fix:
+            self.expr_to_alias.update(to_add)
+        else:
+            self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
 
 class SnowflakePlanBuilder:
