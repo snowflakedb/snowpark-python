@@ -120,7 +120,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
 
-MAX_RETRY_TIME = 3
+_MAX_RETRY_TIME = 3
 
 
 def _validate_stage_path(path: str) -> str:
@@ -1099,7 +1099,7 @@ class DataFrameReader:
             lower_bound: lower bound of partition
             upper_bound: upper bound of partition
             num_partitions: number of partitions to create
-            max_workers: number of workers for parallelism
+            max_workers: number of processes and threads used for parallelism
             query_timeout: timeout(seconds) for each query, default value is 0, meaning never timeout
             fetch_size: batch size when fetching from external data source
             custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source
@@ -1112,7 +1112,7 @@ class DataFrameReader:
         start_time = time.perf_counter()
         conn = create_connection()
         dbms_type, driver_info = detect_dbms(conn)
-        logger.info(f"Detected DBMS: {dbms_type}, Driver Info: {driver_info}")
+        logger.debug(f"Detected DBMS: {dbms_type}, Driver Info: {driver_info}")
         if custom_schema is None:
             struct_schema = infer_data_source_schema(
                 conn, table, dbms_type, driver_info
@@ -1121,16 +1121,19 @@ class DataFrameReader:
             if isinstance(custom_schema, str):
                 struct_schema = type_string_to_type_object(custom_schema)
                 if not isinstance(struct_schema, StructType):
-                    logger.error(f"Invalid schema string: {custom_schema}")
                     raise ValueError(
                         f"Invalid schema string: {custom_schema}. "
                         f"You should provide a valid schema string representing a struct type."
+                        'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     )
             elif isinstance(custom_schema, StructType):
                 struct_schema = custom_schema
             else:
-                logger.error(f"Invalid schema type: {type(custom_schema)}")
-                raise TypeError(f"Invalid schema type: {type(custom_schema)}.")
+                raise TypeError(
+                    f"Invalid schema type: {type(custom_schema)}."
+                    'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
+                    'or a valid structtype, for example: StructType([StructField("ID", IntegerType(), False)])'
+                )
 
         select_query = generate_select_query(
             table, struct_schema, dbms_type, driver_info
@@ -1142,7 +1145,6 @@ class DataFrameReader:
                 or upper_bound is not None
                 or num_partitions is not None
             ):
-                logger.error("column is None but bounds or partitions are specified")
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
@@ -1154,7 +1156,6 @@ class DataFrameReader:
                 )
         else:
             if lower_bound is None or upper_bound is None or num_partitions is None:
-                logger.error("column is specified but bounds or partitions are missing")
                 raise ValueError(
                     "when column is specified, lower_bound, upper_bound, num_partitions must be specified"
                 )
@@ -1164,13 +1165,11 @@ class DataFrameReader:
                 if field.name.lower() == column.lower():
                     column_type = field.datatype
             if column_type is None:
-                logger.error("Specified column does not exist in schema")
                 raise ValueError("Column does not exist")
 
             if not isinstance(column_type, _NumericType) and not isinstance(
                 column_type, DateType
             ):
-                logger.error(f"Unsupported column type: {column_type}")
                 raise ValueError(
                     f"unsupported type {column_type}, we support numeric type and date type"
                 )
@@ -1221,7 +1220,7 @@ class DataFrameReader:
                         # clean the local temp file after ingestion to avoid consuming too much temp disk space
                         shutil.rmtree(parquet_file_path, ignore_errors=True)
 
-                    logger.info("Starting to fetch data from the data source.")
+                    logger.debug("Starting to fetch data from the data source.")
                     for partition_idx, query in enumerate(partitioned_queries):
                         process_future = process_executor.submit(
                             DataFrameReader._task_fetch_from_data_source_with_retry,
@@ -1304,7 +1303,7 @@ class DataFrameReader:
                 thread_executor.shutdown(wait=True)
                 raise
 
-            logger.info(
+            logger.debug(
                 "All data has been successfully loaded into the Snowflake table."
             )
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
@@ -1416,7 +1415,7 @@ class DataFrameReader:
         last_error = None
         error_trace = ""
         func_name = func.__name__
-        while retry_count < MAX_RETRY_TIME:
+        while retry_count < _MAX_RETRY_TIME:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -1424,10 +1423,10 @@ class DataFrameReader:
                 error_trace = traceback.format_exc()
                 retry_count += 1
                 logger.debug(
-                    f"[{func_name}] Attempt {retry_count}/{MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
+                    f"[{func_name}] Attempt {retry_count}/{_MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
                 )
         error_message = (
-            f"Function `{func_name}` failed after {MAX_RETRY_TIME} attempts.\n"
+            f"Function `{func_name}` failed after {_MAX_RETRY_TIME} attempts.\n"
             f"Last error: [{type(last_error).__name__}] {str(last_error)}\n"
             f"Traceback:\n{error_trace}"
         )

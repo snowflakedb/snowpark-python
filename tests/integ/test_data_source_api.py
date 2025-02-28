@@ -16,7 +16,7 @@ import pytest
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
-from snowflake.snowpark.dataframe_reader import MAX_RETRY_TIME, DataFrameReader
+from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME, DataFrameReader
 from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
     DATA_SOURCE_SQL_COMMENT,
@@ -146,7 +146,7 @@ def test_dbapi_retry(session):
                 tmp_dir="/tmp",
                 dbms_type=DBMS_TYPE.SQL_SERVER_DB,
             )
-        assert mock_task.call_count == MAX_RETRY_TIME
+        assert mock_task.call_count == _MAX_RETRY_TIME
 
     with mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
@@ -161,7 +161,7 @@ def test_dbapi_retry(session):
                 snowflake_stage_name="fake_stage",
                 snowflake_table_name="fake_table",
             )
-        assert mock_task.call_count == MAX_RETRY_TIME
+        assert mock_task.call_count == _MAX_RETRY_TIME
 
 
 @pytest.mark.skipif(
