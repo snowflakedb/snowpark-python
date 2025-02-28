@@ -1930,7 +1930,7 @@ def test_register_sproc_after_switch_schema(session):
         session.use_schema(current_schema)
 
 
-@pytest.skip
+@pytest.mark.skip
 def test_sproc_artifact_repository(session):
     def artifact_repo_test(_):
         import urllib3

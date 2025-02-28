@@ -400,7 +400,7 @@ def test_structured_dtypes(structured_type_session, examples, structured_type_su
     assert df.dtypes == expected_dtypes
 
 
-@pytest.skip
+@pytest.mark.skip
 def test_structured_dtypes_select(
     structured_type_session, examples, structured_type_support
 ):
@@ -459,7 +459,7 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         )
 
 
-@pytest.skip
+@pytest.mark.skip
 def test_structured_dtypes_iceberg(
     structured_type_session, local_testing_mode, structured_type_support
 ):

@@ -260,7 +260,7 @@ def test_create_temp_stage(profiler_session):
         profiler_session.sql(f"use database {current_db}").collect()
 
 
-@pytest.skip
+@pytest.mark.skip
 def test_stored_proc_error(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
