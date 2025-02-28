@@ -12,7 +12,6 @@
 import pyodbc
 import random
 import datetime
-import uuid
 
 from base_db_setup import TestDBABC, ONE_MILLION
 
@@ -129,10 +128,12 @@ class TestSQLServerDB(TestDBABC):
             bytes(random.getrandbits(8) for _ in range(16)),  # binary
             bytes(random.getrandbits(8) for _ in range(16)),  # varbinary
             bytes(random.getrandbits(8) for _ in range(16)),  # image
-            str(uuid.uuid4()),  # sql_variant (using uniqueidentifier as a mock variant)
+            bytes(
+                random.getrandbits(8) for _ in range(16)
+            ),  # sql_variant (using uniqueidentifier as a mock variant)
             # 'POINT(1 1)',  # geography (mock string for simplicity)
             # 'POINT(1 1)',  # geometry (mock string for simplicity)
-            str(uuid.uuid4()),  # uniqueidentifier
+            bytes(random.getrandbits(8) for _ in range(16)),  # uniqueidentifier
             "<root><element>Test</element></root>",  # xml
             "sysname_test",  # sysname
         )
