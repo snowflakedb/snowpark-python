@@ -67,7 +67,6 @@ def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, str]:
     # Dictionary-based lookup for known DBMS
     dbms_mapping = {
         "pyodbc": detect_dbms_pyodbc,
-        "cx_oracle": lambda conn: DBMS_TYPE.ORACLE_DB,
         "oracledb": lambda conn: DBMS_TYPE.ORACLE_DB,
         "sqlite3": lambda conn: DBMS_TYPE.SQLITE_DB,
     }
@@ -76,7 +75,7 @@ def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, str]:
         return dbms_mapping[python_driver_name](dbapi2_conn), python_driver_name
 
     _logger.debug(f"Unsupported database driver: {python_driver_name}")
-    return DBMS_TYPE.UNKNOWN, ""
+    return DBMS_TYPE.UNKNOWN, python_driver_name
 
 
 def detect_dbms_pyodbc(dbapi2_conn):
@@ -143,8 +142,7 @@ def validate(precision: Optional[int], scale: Optional[int]) -> bool:
 def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
     """
     SQLServer to Python datatype mapping
-    https://learn.microsoft.com/en-us/sql/machine-learning/python/python-libraries-and-data-types?view=sql-server-ver16
-    https://peps.python.org/pep-0249/#description description spec:
+    https://peps.python.org/pep-0249/#description returns the following spec
     name, type_code, display_size, internal_size, precision, scale, null_ok
     """
     fields = []
@@ -253,7 +251,8 @@ def infer_data_source_schema(
 ) -> StructType:
     try:
         cursor = conn.cursor()
-        raw_schema = cursor.execute(f"SELECT * FROM {table} WHERE 1 = 0").description
+        cursor.execute(f"SELECT * FROM {table} WHERE 1 = 0")
+        raw_schema = cursor.description
         if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
             return sql_server_to_snowpark_type(raw_schema)
         elif dbms_type == DBMS_TYPE.ORACLE_DB:
@@ -268,7 +267,9 @@ def infer_data_source_schema(
     except Exception as exc:
         cursor.close()
         raise SnowparkDataframeReaderException(
-            f"Failed to infer Snowpark DataFrame schema from table '{table}'. To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
+            f"Failed to infer Snowpark DataFrame schema from table '{table}'."
+            f" To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
+            f" Please check the stack trace for more details."
         ) from exc
 
 
