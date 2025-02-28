@@ -532,7 +532,7 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -553,11 +553,12 @@ class DataFrameReader:
         self._format = format
         return self
 
-    def load(self, path: str) -> DataFrame:
+    def load(self, path: Optional[str] = None) -> DataFrame:
         """Specify the path of the file(s) to load.
 
         Args:
             path: The stage location of a file, or a stage location that has files.
+             This parameter is required for all formats except dbapi.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
@@ -566,6 +567,18 @@ class DataFrameReader:
             raise ValueError(
                 "Please specify the format of the file(s) to load using the format() method."
             )
+
+        format_str = self._format.lower()
+        if format_str == "dbapi" and path is not None:
+            raise ValueError(
+                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+            )
+        if format_str != "dbapi" and path is None:
+            raise TypeError(
+                "DataFrameReader.load() missing 1 required positional argument: 'path'"
+            )
+        if format_str == "dbapi":
+            return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
 
         loader = getattr(self, self._format, None)
         if loader is not None:
