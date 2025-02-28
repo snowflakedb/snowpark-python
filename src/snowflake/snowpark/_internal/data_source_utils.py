@@ -150,7 +150,7 @@ def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
         name, type_code, display_size, internal_size, precision, scale, null_ok = column
         snow_type = SQL_SERVER_TYPE_TO_SNOW_TYPE.get(type_code, None)
         if snow_type is None:
-            raise NotImplementedError(f"sqlserver type not supported: {type_code}")
+            raise NotImplementedError(f"sql server type not supported: {type_code}")
         if type_code in (int, decimal.Decimal):
             if not validate(precision, scale):
                 _logger.warning(
