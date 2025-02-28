@@ -80,18 +80,16 @@ body {
           }
         }
         input_types {
-          list {
-            long_type: true
-          }
-          list {
-            string_type {
-              length {
-              }
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
             }
           }
-          list {
-            boolean_type: true
-          }
+        }
+        input_types {
+          boolean_type: true
         }
         name {
           name {
@@ -146,18 +144,16 @@ body {
           }
         }
         input_types {
-          list {
-            long_type: true
-          }
-          list {
-            string_type {
-              length {
-              }
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
             }
           }
-          list {
-            boolean_type: true
-          }
+        }
+        input_types {
+          boolean_type: true
         }
         name {
           name {

@@ -171,15 +171,15 @@ session.sql("call mul_sp(5, 6)").collect()
 
 sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
 
-res34 = sproc("select_sp", return_type=StructType([StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res34 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res38 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res38 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res42 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res42 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
@@ -213,21 +213,19 @@ body {
           }
         }
         input_types {
-          list {
-            string_type {
-              length {
-              }
+          string_type {
+            length {
             }
           }
-          list {
-            string_type {
-              length {
-              }
+        }
+        input_types {
+          string_type {
+            length {
             }
           }
-          list {
-            long_type: true
-          }
+        }
+        input_types {
+          long_type: true
         }
         name {
           name {
@@ -1121,9 +1119,7 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
+          integer_type: true
         }
         parallel: 2
         return_type {
@@ -1382,12 +1378,10 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         is_permanent: true
         name {
@@ -1496,12 +1490,10 @@ body {
         }
         if_not_exists: true
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         is_permanent: true
         name {
@@ -1609,12 +1601,10 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         is_permanent: true
         name {
@@ -1731,9 +1721,7 @@ body {
           }
         }
         input_types {
-          list {
-            float_type: true
-          }
+          float_type: true
         }
         packages: "snowflake-snowpark-python"
         packages: "numpy"
@@ -1828,39 +1816,35 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         parallel: 4
         return_type {
           struct_type {
             fields {
-              list {
-                column_identifier {
-                  column_name {
-                    name: "A"
-                  }
+              column_identifier {
+                column_name {
+                  name: "A"
                 }
-                data_type {
-                  integer_type: true
-                }
-                nullable: true
               }
-              list {
-                column_identifier {
-                  column_name {
-                    name: "B"
-                  }
-                }
-                data_type {
-                  integer_type: true
-                }
-                nullable: true
+              data_type {
+                integer_type: true
               }
+              nullable: true
+            }
+            fields {
+              column_identifier {
+                column_name {
+                  name: "B"
+                }
+              }
+              data_type {
+                integer_type: true
+              }
+              nullable: true
             }
           }
         }
@@ -1999,18 +1983,14 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         parallel: 4
         return_type {
           struct_type {
-            fields {
-            }
           }
         }
         src {
@@ -2147,18 +2127,14 @@ body {
           }
         }
         input_types {
-          list {
-            long_type: true
-          }
-          list {
-            long_type: true
-          }
+          long_type: true
+        }
+        input_types {
+          long_type: true
         }
         parallel: 4
         return_type {
           struct_type {
-            fields {
-            }
           }
         }
         source_code_display: true
