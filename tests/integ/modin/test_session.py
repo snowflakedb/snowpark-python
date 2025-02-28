@@ -4,6 +4,7 @@
 
 import os
 from typing import Optional
+import warnings
 
 import modin.pandas as pd
 import pytest
@@ -118,6 +119,26 @@ def new_session(db_parameters):
 @sql_count_checker(no_check=True)
 def test_snowpark_pandas_session_is_global_session(new_session):
     assert new_session is pd.session
+
+
+@sql_count_checker(no_check=True)
+def test_warning_if_quoted_identifiers_ignore_case_is_set():
+    pd.session.sql("ALTER SESSION SET QUOTED_IDENTIFIERS_IGNORE_CASE = True").collect()
+    warning_msg = "Snowflake parameter 'QUOTED_IDENTIFIERS_IGNORE_CASE' is set to True"
+    with warnings.catch_warnings(record=True) as w:
+        warnings.filterwarnings("always")
+        pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert len(w) == 1
+        assert warning_msg in str(w[-1].message)
+
+
+@sql_count_checker(no_check=True)
+def test_no_warning_if_quoted_identifiers_ignore_case_is_unset():
+    pd.session.sql("ALTER SESSION SET QUOTED_IDENTIFIERS_IGNORE_CASE = False").collect()
+    with warnings.catch_warnings(record=True) as w:
+        warnings.filterwarnings("always")
+        pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert len(w) == 0
 
 
 @sql_count_checker(no_check=True)

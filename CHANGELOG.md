@@ -36,6 +36,10 @@
 
 - Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
 
+#### Improvements
+
+- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
+
 
 ## 1.28.0 (2025-02-20)
 
