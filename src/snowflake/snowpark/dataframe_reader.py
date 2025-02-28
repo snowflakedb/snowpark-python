@@ -1078,8 +1078,9 @@ class DataFrameReader:
     def dbapi(
         self,
         create_connection: Callable[[], "Connection"],
-        table: str,
         *,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
@@ -1108,6 +1109,11 @@ class DataFrameReader:
         Note:
             column, lower_bound, upper_bound and num_partitions must be specified if any one of them is specified.
         """
+        if (not table and not query) or (table and query):
+            raise ValueError(
+                "Either 'table' or 'query' must be provided, but not both."
+            )
+        table_or_query = table or query
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
@@ -1115,7 +1121,7 @@ class DataFrameReader:
         logger.info(f"Detected DBMS: {dbms_type}, Driver Info: {driver_info}")
         if custom_schema is None:
             struct_schema = infer_data_source_schema(
-                conn, table, dbms_type, driver_info
+                conn, table_or_query, dbms_type, driver_info
             )
         else:
             if isinstance(custom_schema, str):
@@ -1133,7 +1139,7 @@ class DataFrameReader:
                 raise TypeError(f"Invalid schema type: {type(custom_schema)}.")
 
         select_query = generate_select_query(
-            table, struct_schema, dbms_type, driver_info
+            table_or_query, struct_schema, dbms_type, driver_info
         )
         logger.debug(f"Generated select query: {select_query}")
         if column is None:
