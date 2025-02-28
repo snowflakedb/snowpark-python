@@ -302,3 +302,17 @@ def test_get_dummies_null_values(kwargs, data):
     expected = native_pd.get_dummies(df, **kwargs)
     actual = pd.get_dummies(pd.DataFrame(df), **kwargs)
     assert_snowpark_pandas_equal_to_pandas(actual, expected, check_dtype=False)
+
+
+@sql_count_checker(query_count=1)
+def test_get_dummies_with_duplicate_column_names():
+    # Bug fix for SNOW-1945131: get_dummies fails when pivot column names are duplicated
+    # due to same value being present in both the columns.
+    native_df = native_pd.DataFrame(
+        {"col1": ["a", "b", "b"], "col2": ["a", "b", None], "col3": ["b", None, None]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    for col in native_df.columns:
+        snow_df = pd.get_dummies(snow_df, columns=[col])
+        native_df = native_pd.get_dummies(native_df, columns=[col])
+    assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=False)
