@@ -237,7 +237,7 @@ def oracledb_to_snowpark_type(schema: List[Any]) -> StructType:
             data_type = snow_type(TimestampTimeZone.LTZ)
         elif snow_type == DecimalType:
             if not validate(precision, scale):
-                _logger.warning(
+                _logger.debug(
                     f"Snowpark does not support column"
                     f" {name} of type {type_code} with precision {precision} and scale {scale}. "
                     "The default Numeric precision and scale will be used."
