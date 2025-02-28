@@ -1090,7 +1090,15 @@ class DataFrameReader:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[str] = None,
     ) -> DataFrame:
-        """Reads data from a database table using a DBAPI connection.
+        """Reads data from a database table using a DBAPI connection with optional partitioning, parallel processing, and query customization.
+        By default, the function reads the entire table at a time without a query timeout.
+        There are several ways to break data into small pieces and speed up ingestion, you can also combine them to acquire optimal performance:
+            1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing. These must all be specified together, otherwise error will be raised.
+            2.Set max_workers to a proper positive integer. This defines the maximum number of processes and threads used for parallel execution.
+            3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+            4.Use predicates to defining WHERE conditions for partitions, predicates will be ignored if column is specified to generate partition.
+            5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched column name with table in external data source.
+        You can also use session_init_statement to perform any SQL that you want to execute on external data source before fetching data.
         Args:
             create_connection: a function that return a dbapi connection
             table: the name of the table in external data source
