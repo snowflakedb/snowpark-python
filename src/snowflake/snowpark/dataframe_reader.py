@@ -33,7 +33,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_file_format_if_exists_statement,
     infer_schema_statement,
     quote_name_without_upper_casing,
-    TEMPORARY_STRING_SET,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -1183,18 +1182,19 @@ class DataFrameReader:
             )
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
-            snowflake_table_type = "temporary"
+            snowflake_table_type = "TEMPORARY"
             snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
             create_table_sql = (
                 "CREATE "
-                f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
+                f"{snowflake_table_type} "
                 "TABLE "
-                f"{snowflake_table_name} "
+                f"identifier(?) "
                 f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
                 f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
+            params = (snowflake_table_name,)
             logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-            self._session.sql(create_table_sql).collect(
+            self._session.sql(create_table_sql, params=params).collect(
                 statement_params=statements_params_for_telemetry
             )
             # create temp stage
