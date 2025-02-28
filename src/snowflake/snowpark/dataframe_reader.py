@@ -1094,16 +1094,16 @@ class DataFrameReader:
         Args:
             create_connection: a function that return a dbapi connection
             table: the name of the table in external data source
-            column: column name used to create partition
-            lower_bound: lower bound of partition
-            upper_bound: upper bound of partition
-            num_partitions: number of partitions to create
-            max_workers: number of processes and threads used for parallelism
-            query_timeout: timeout(seconds) for each query, default value is 0, meaning never timeout
-            fetch_size: batch size when fetching from external data source
-            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source
+            column: column name used to create partition, the column type must be numeric like int type or float type, or Date type.
+            lower_bound: lower bound of partition, decide the stride of partition alogn with upper_bound, this parameter does not filter out data.
+            upper_bound: upper bound of partition, decide the stride of partition alogn with lower_bound, this parameter does not filter out data.
+            num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+            max_workers: number of processes and threads used for parallelism.
+            query_timeout: timeout(seconds) for each query, default value is 0, which means never timeout.
+            fetch_size: batch size when fetching from external data source, which determine how many rows fetched per round trip. This improve performace for drivers that have a low default fetch size.
+            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source. This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING", or StructType, for example: StructType([StructField("ID", IntegerType(), False)])
             predicates: a list of expressions suitable for inclusion in WHERE clauses, each defines a partition
-            session_init_statement: session initiation statements for external data source
+            session_init_statement: session initiation statements for external data source, this statement will be executed before fetch data from external data source, for example: "insert into test_table values (1, 'sample_data')" will insert data into test_table before fetch data from it.
         Note:
             column, lower_bound, upper_bound and num_partitions must be specified if any one of them is specified.
         """
