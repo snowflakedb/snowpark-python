@@ -1095,7 +1095,8 @@ class DataFrameReader:
         """Reads data from a database table using a DBAPI connection.
         Args:
             create_connection: a function that return a dbapi connection
-            table: the name of the table in external data source
+            table: Specifies the name of the table in the external data source. This parameter cannot be set simultaneously with the query parameter.
+            query: A valid SQL query to be used in the FROM clause. This parameter cannot be set simultaneously with the table parameter.
             column: column name used to create partition
             lower_bound: lower bound of partition
             upper_bound: upper bound of partition
@@ -1110,7 +1111,7 @@ class DataFrameReader:
             column, lower_bound, upper_bound and num_partitions must be specified if any one of them is specified.
         """
         if (not table and not query) or (table and query):
-            raise ValueError(
+            raise SnowparkDataframeReaderException(
                 "Either 'table' or 'query' must be provided, but not both."
             )
         table_or_query = table or query

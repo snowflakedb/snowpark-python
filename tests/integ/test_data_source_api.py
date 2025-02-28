@@ -621,7 +621,7 @@ def test_partition_wrong_input(session, caplog):
     with pytest.raises(ValueError, match="Column does not exist"):
         session.read.dbapi(
             sql_server_create_connection,
-            SQL_SERVER_TABLE_NAME,
+            table=SQL_SERVER_TABLE_NAME,
             column="non_exist_column",
             lower_bound=0,
             upper_bound=10,
@@ -660,3 +660,25 @@ def test_partition_wrong_input(session, caplog):
         num_partitions=20,
     )
     assert "The number of partitions is reduced" in caplog.text
+
+
+def test_query_parameter(session):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
+
+        filter_idx = 2
+        with pytest.raises(SnowparkDataframeReaderException, match="but not both"):
+            session.read.dbapi(
+                functools.partial(create_connection_to_sqlite3_db, dbpath),
+                table=table_name,
+                query=f"(SELECT * FROM PrimitiveTypes WHERE id > {filter_idx}) as t",
+            )
+
+        df = session.read.dbapi(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            query=f"(SELECT * FROM PrimitiveTypes WHERE id > {filter_idx}) as t",
+            custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+        )
+        assert df.columns == [col.upper() for col in columns]
+        assert df.collect() == assert_data[filter_idx:]
