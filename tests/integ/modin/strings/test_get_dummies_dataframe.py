@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import re
 
 import modin.pandas as pd
 import numpy as np
@@ -316,3 +317,37 @@ def test_get_dummies_with_duplicate_column_names():
         snow_df = pd.get_dummies(snow_df, columns=[col])
         native_df = native_pd.get_dummies(native_df, columns=[col])
     assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=False)
+
+
+@sql_count_checker(query_count=1)
+def test_get_dummies_exclude_columns():
+    native_df = native_pd.DataFrame({"col1": ["a", "b", "b"], "col2": ["a", "b", None]})
+    snow_df = pd.DataFrame(native_df)
+    snow_df = pd.get_dummies(snow_df, columns=["col2"])
+    native_df = native_pd.get_dummies(native_df, columns=["col2"])
+    assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=False)
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "columns, prefix",
+    [
+        (["A", "B"], ["p1"]),
+        (["A", "B"], ["p1", "p1", "p3"]),
+        (["A", "B"], []),
+        (None, []),
+        (None, ["p1"]),
+    ],
+)
+def test_get_dummies_prefix_length_mismatch_negative(columns, prefix):
+    native_df = native_pd.DataFrame({"A": ["a", "b", "b"], "B": ["a", "b", None]})
+    col_len = 2 if columns is None else len(columns)
+    error_msg = re.escape(
+        f"Length of 'prefix' ({len(prefix)}) did not match the length of the columns being encoded ({col_len})."
+    )
+    with pytest.raises(ValueError, match=error_msg):
+        native_pd.get_dummies(native_df, columns=columns, prefix=prefix)
+
+    snow_df = pd.DataFrame(native_df)
+    with pytest.raises(ValueError, match=error_msg):
+        pd.get_dummies(snow_df, columns=columns, prefix=prefix)
