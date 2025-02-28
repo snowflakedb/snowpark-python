@@ -21,7 +21,6 @@ from snowflake.snowpark.functions import (
     date_trunc,
     max as max_,
     min as min_,
-    pandas_lit,
 )
 from snowflake.snowpark.modin.plugin._internal import join_utils
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
@@ -30,6 +29,7 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     MatchComparator,
     join,
 )
+from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import DateType, TimestampType
 
