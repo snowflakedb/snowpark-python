@@ -1307,7 +1307,7 @@ def test_udtf_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
-@pytest.skip
+@pytest.mark.skip
 def test_udtf_artifact_repository(session, resources_path):
     class ArtifactRepositoryUDTF:
         def process(self) -> Iterable[Tuple[str]]:

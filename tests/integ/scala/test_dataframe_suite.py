@@ -334,7 +334,7 @@ def test_cache_result(session):
     Utils.check_answer(df2, [Row(3)])
 
 
-@pytest.skip
+@pytest.mark.skip
 def test_cache_result_with_show(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:

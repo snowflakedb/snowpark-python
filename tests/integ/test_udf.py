@@ -2808,7 +2808,7 @@ def test_access_snowflake_import_directory(session, resources_path):
     session.clear_imports()
 
 
-@pytest.skip
+@pytest.mark.skip
 def test_register_artifact_repository(session):
     def test_urllib() -> str:
         import urllib3

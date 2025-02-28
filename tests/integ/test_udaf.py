@@ -592,7 +592,7 @@ def test_udaf_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
-@pytest.skip
+@pytest.mark.skip
 def test_udaf_artifact_repository(session):
     class ArtifactRepositoryHandler:
         def __init__(self) -> None:
