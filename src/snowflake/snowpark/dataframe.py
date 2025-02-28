@@ -1597,9 +1597,10 @@ class DataFrame:
         # AST IDs created preceed the AST ID of the select statement so they are deserialized in dependent order.
         if _emit_ast and _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_select__columns, stmt)
+            ast = with_src_position(stmt.expr.dataframe_select, stmt)
             self._set_ast_ref(ast.df)
             ast.cols.variadic = is_variadic
+            ast.expr_variant = False
 
             # Add columns after the statement to ensure any dependent columns have lower ast id.
             for ast_col in ast_cols:
@@ -1663,11 +1664,12 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.dataframe_select__exprs, stmt)
+                ast = with_src_position(stmt.expr.dataframe_select, stmt)
                 self._set_ast_ref(ast.df)
-                ast.exprs.variadic = is_variadic
+                ast.cols.variadic = is_variadic
+                ast.expr_variant = True
                 for expr in exprs:
-                    build_expr_from_python_val(ast.exprs.args.add(), expr)
+                    build_expr_from_python_val(ast.cols.args.add(), expr)
             else:
                 stmt = _ast_stmt
 
@@ -2678,6 +2680,9 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = False
+            ast.by_name = False
+            ast.allow_missing_columns = False
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -2729,7 +2734,10 @@ class DataFrame:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_all, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = True
+            ast.by_name = False
+            ast.allow_missing_columns = False
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -2800,7 +2808,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_by_name, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = False
+            ast.by_name = True
+            ast.allow_missing_columns = allow_missing_columns
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
@@ -2861,7 +2872,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_all_by_name, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = True
+            ast.by_name = True
+            ast.allow_missing_columns = allow_missing_columns
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 

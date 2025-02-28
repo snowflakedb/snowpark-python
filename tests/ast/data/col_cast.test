@@ -176,7 +176,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -256,7 +256,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -336,7 +336,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -416,7 +416,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -496,7 +496,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -579,7 +579,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -659,7 +659,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -739,7 +739,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -819,7 +819,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -899,7 +899,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -979,7 +979,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1059,7 +1059,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1143,7 +1143,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1223,7 +1223,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1310,7 +1310,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1394,7 +1394,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1487,7 +1487,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1572,7 +1572,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1653,7 +1653,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1736,7 +1736,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1830,7 +1830,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1910,7 +1910,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1990,7 +1990,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2070,7 +2070,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2150,7 +2150,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2230,7 +2230,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2310,7 +2310,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2390,7 +2390,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2472,7 +2472,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2554,7 +2554,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
