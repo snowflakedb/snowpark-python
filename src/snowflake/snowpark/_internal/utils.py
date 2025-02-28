@@ -1335,6 +1335,7 @@ def parse_table_name(table_name: str) -> List[str]:
 
 EMPTY_STRING = ""
 DOUBLE_QUOTE = '"'
+SINGLE_QUOTE = "'"
 # Quoted values may also include newlines, so '.' must match _everything_ within quotes
 ALREADY_QUOTED = re.compile('^(".+")$', re.DOTALL)
 UNQUOTED_CASE_INSENSITIVE = re.compile("^([_A-Za-z]+[_A-Za-z0-9$]*)$")
@@ -1357,7 +1358,9 @@ def validate_quoted_name(name: str) -> str:
 
 
 def escape_quotes(unescaped: str) -> str:
-    return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
+    return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE).replace(
+        SINGLE_QUOTE, SINGLE_QUOTE + SINGLE_QUOTE
+    )
 
 
 # Define the full-width regex pattern, copied from Spark
