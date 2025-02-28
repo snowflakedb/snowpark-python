@@ -929,8 +929,9 @@ class DataFrame:
 
         # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
         # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
-        df = DataFrame(self._session, new_plan)
-        df._ast_id = self._ast_id
+        # We additionally need to consider behavior when a user calls copy.copy() on a Snowpark Dataframe. For now, consider
+        # all calls internal, and leave AST handling to the caller.
+        df = DataFrame(self._session, new_plan, _emit_ast=False)
         return df
 
     if installed_pandas:
@@ -1357,13 +1358,11 @@ class DataFrame:
             self._set_ast_ref(ast.df)
             debug_check_missing_ast(self._ast_id, self)
             if index_col is not None:
-                ast.index_col.list.extend(
+                ast.index_col.extend(
                     index_col if isinstance(index_col, list) else [index_col]
                 )
             if columns is not None:
-                ast.columns.list.extend(
-                    columns if isinstance(columns, list) else [columns]
-                )
+                ast.columns.extend(columns if isinstance(columns, list) else [columns])
 
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
@@ -2009,16 +2008,6 @@ class DataFrame:
             ast = with_src_position(stmt.expr.dataframe_alias, stmt)
             ast.name = name
             self._set_ast_ref(ast.df)
-
-        # TODO: Support alias in MockServerConnection.
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
-        if (
-            isinstance(self._session._conn, MockServerConnection)
-            and self._session._conn._suppress_not_implemented_error
-        ):
-            # Allow AST tests to pass.
-            return None
 
         _copy = copy.copy(self)
         _copy._alias = name
@@ -5027,7 +5016,7 @@ class DataFrame:
             if clustering_keys is not None:
                 for col_or_name in clustering_keys:
                     build_expr_from_snowpark_column_or_col_name(
-                        expr.clustering_keys.list.add(), col_or_name
+                        expr.clustering_keys.add(), col_or_name
                     )
             expr.is_transient = is_transient
             if data_retention_time is not None:

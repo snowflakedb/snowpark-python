@@ -106,9 +106,9 @@ df = df.select(col("A").cast(VectorType(FloatType(), 42)))
 
 df = df.select(col("A").cast(StructType(structured=False)))
 
-df = df.select(col("A").cast(StructType([], structured=False)))
+df = df.select(col("A").cast(StructType(structured=False)))
 
-df = df.select(col("A").cast(StructType([StructField("B", IntegerType(), nullable=True)], structured=False)))
+df = df.select(col("A").cast(StructType(fields=[StructField("B", IntegerType(), nullable=True)], structured=False)))
 
 df = df.select(col("A").cast(VariantType()))
 
@@ -1700,8 +1700,6 @@ body {
               }
               to {
                 struct_type {
-                  fields {
-                  }
                 }
               }
             }
@@ -1784,17 +1782,15 @@ body {
               to {
                 struct_type {
                   fields {
-                    list {
-                      column_identifier {
-                        column_name {
-                          name: "B"
-                        }
+                    column_identifier {
+                      column_name {
+                        name: "B"
                       }
-                      data_type {
-                        integer_type: true
-                      }
-                      nullable: true
                     }
+                    data_type {
+                      integer_type: true
+                    }
+                    nullable: true
                   }
                 }
               }
