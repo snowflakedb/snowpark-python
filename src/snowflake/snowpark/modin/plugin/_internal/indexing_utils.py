@@ -589,7 +589,7 @@ def _extract_loc_set_col_info(
         tuple,
         slice,
         list,
-        "pd.Index",
+        "snowflake.snowpark.modin.plugin.extensions.index.Index",
         np.ndarray,
     ],
 ) -> LocSetColInfo:
@@ -702,7 +702,7 @@ def get_valid_col_positions_from_col_labels(
         tuple,
         slice,
         list,
-        "pd.Index",
+        "snowflake.snowpark.modin.plugin.extensions.index.Index",
         np.ndarray,
     ],
 ) -> list[int]:
@@ -753,7 +753,7 @@ def get_valid_col_positions_from_col_labels(
                 )
             )
             col_loc = col_loc.index
-            if isinstance(col_loc, pd.Index):
+            if isinstance(col_loc,         "snowflake.snowpark.modin.plugin.extensions.index.Index"):
                 col_loc = col_loc.to_pandas()
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
@@ -838,7 +838,7 @@ def get_frame_by_col_label(
         tuple,
         slice,
         list,
-        "pd.Index",
+        "snowflake.snowpark.modin.plugin.extensions.index.Index",
         np.ndarray,
     ],
 ) -> InternalFrame:
@@ -1993,7 +1993,7 @@ def _convert_series_item_to_row_for_set_frame_2d_labels(
         tuple,
         slice,
         list,
-        "pd.Index",
+        "snowflake.snowpark.modin.plugin.extensions.index.Index",
         np.ndarray,
     ],
     col_info: LocSetColInfo,
@@ -2085,7 +2085,7 @@ def set_frame_2d_labels(
         tuple,
         slice,
         list,
-        "pd.Index",
+        "snowflake.snowpark.modin.plugin.extensions.index.Index",
         np.ndarray,
     ],
     item: Union[Scalar, AnyArrayLike, InternalFrame],
@@ -2269,8 +2269,9 @@ def set_frame_2d_labels(
         #       'x' | 97 | 96 | ...
         #       'y' | 97 | 96 | ...
         #       ... | .. | .. | ...
+        from snowflake.snowpark.modin.plugin.extensions.index import Index as SnowparkIndex
         item_values = (
-            item.tolist() if isinstance(item, (pd.Index, np.ndarray)) else item
+            item.tolist() if isinstance(item, (SnowparkIndex, np.ndarray)) else item
         )
 
         item_data_column_pandas_labels = col_info.column_pandas_labels
