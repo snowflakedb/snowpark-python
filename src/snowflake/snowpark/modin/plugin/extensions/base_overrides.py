@@ -111,14 +111,14 @@ def register_base_override(method_name: str):
             or series_method is parent_method
             or parent_method is None
         ):
-            register_series_accessor(method_name)(base_method)
+            register_series_accessor(method_name, engine='Snowflake', storage_format="Snowflake")(base_method)
         df_method = getattr(pd.DataFrame, method_name, None)
         if isinstance(df_method, property):
             df_method = df_method.fget
         if df_method is None or df_method is parent_method or parent_method is None:
-            register_dataframe_accessor(method_name)(base_method)
+            register_dataframe_accessor(method_name, engine="Snowflake", storage_format="Snowflake")(base_method)
         # Replace base method
-        setattr(BasePandasDataset, method_name, base_method)
+        # setattr(BasePandasDataset, method_name, base_method)
         return base_method
 
     return decorator
@@ -127,8 +127,8 @@ def register_base_override(method_name: str):
 def register_base_not_implemented():
     def decorator(base_method: Any):
         func = base_not_implemented()(base_method)
-        register_series_accessor(base_method.__name__)(func)
-        register_dataframe_accessor(base_method.__name__)(func)
+        register_series_accessor(base_method.__name__, engine="Snowflake", storage_format="Snowflake")(func)
+        register_dataframe_accessor(base_method.__name__, engine="Snowflake", storage_format="Snowflake")(func)
         return func
 
     return decorator
@@ -1486,8 +1486,8 @@ def rolling(
 
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
-@register_base_override("iloc")
-@property
+# @register_base_override("iloc")
+# @property
 def iloc(self):
     """
     Purely integer-location based indexing for selection by position.
@@ -1500,10 +1500,13 @@ def iloc(self):
 
     return _iLocIndexer(self)
 
+@register_base_override("_get_iloc")
+def _get_iloc(self):
+    return iloc(self)
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
-@register_base_override("loc")
-@property
+# @register_base_override("loc")
+# @property
 def loc(self):
     """
     Get a group of rows and columns by label(s) or a boolean array.
@@ -1516,6 +1519,11 @@ def loc(self):
     )
 
     return _LocIndexer(self)
+
+
+@register_base_override("_get_loc")
+def _get_loc(self):
+    return loc(self)
 
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
@@ -2482,6 +2490,7 @@ def reindex(
 
 # No direct override annotation; used as part of `property`.
 # Snowpark pandas may return a custom lazy index object.
+@register_base_override("_get_index")
 def _get_index(self):
     """
     Get the index for this DataFrame.
@@ -2505,6 +2514,7 @@ def _get_index(self):
 
 # No direct override annotation; used as part of `property`.
 # Snowpark pandas may return a custom lazy index object.
+@register_base_override("_set_index")
 def _set_index(self, new_index: Axes) -> None:
     """
     Set the index for this DataFrame.
@@ -2522,5 +2532,5 @@ def _set_index(self, new_index: Axes) -> None:
     )
 
 
-# Snowpark pandas may return a custom lazy index object.
-register_base_override("index")(property(_get_index, _set_index))
+# # Snowpark pandas may return a custom lazy index object.
+# register_base_override("index")(property(_get_index, _set_index))
