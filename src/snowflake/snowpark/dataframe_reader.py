@@ -1266,16 +1266,10 @@ class DataFrameReader:
                             )
                             for future in process_pool_futures:
                                 if future.done():
-                                    try:
-                                        future.result()  # Throw error if the process failed
-                                        logger.debug(
-                                            "A process future completed successfully."
-                                        )
-                                    except Exception as e:
-                                        logger.error(
-                                            f"Process future failed with error: {e}"
-                                        )
-                                        raise
+                                    future.result()  # Throw error if the process failed
+                                    logger.debug(
+                                        "A process future completed successfully."
+                                    )
                                 else:
                                     unfinished_process_pool_futures.append(future)
                                     all_job_done = False
@@ -1290,12 +1284,8 @@ class DataFrameReader:
                             time.sleep(0.5)
 
                     for future in as_completed(thread_pool_futures):
-                        try:
-                            future.result()  # Throw error if the thread failed
-                            logger.debug("A thread future completed successfully.")
-                        except BaseException as e:
-                            logger.error(f"Thread future failed with error: {e}")
-                            raise
+                        future.result()  # Throw error if the thread failed
+                        logger.debug("A thread future completed successfully.")
 
             except BaseException:
                 # graceful shutdown
@@ -1397,7 +1387,9 @@ class DataFrameReader:
             dt = parser.parse(value)
             return int(dt.replace(tzinfo=pytz.UTC).timestamp())
         else:
-            raise TypeError(f"unsupported column type for partition: {column_type}")
+            raise ValueError(
+                f"unsupported type {column_type} for partition, column must be a numeric type like int and float, or date type"
+            )
 
     # this function is only used in data source API for SQL server
     def _to_external_value(self, value: Union[int, str, float], column_type: DataType):
@@ -1407,7 +1399,9 @@ class DataFrameReader:
             # TODO: SNOW-1909315: support timezone
             return datetime.datetime.fromtimestamp(value, tz=pytz.UTC)
         else:
-            raise TypeError(f"unsupported column type for partition: {column_type}")
+            raise ValueError(
+                f"unsupported type {column_type} for partition, column must be a numeric type like int and float, or date type"
+            )
 
     @staticmethod
     def _retry_run(func: Callable, *args, **kwargs) -> Any:
@@ -1431,7 +1425,6 @@ class DataFrameReader:
             f"Traceback:\n{error_trace}"
         )
         final_error = SnowparkDataframeReaderException(message=error_message)
-        logger.error(error_message)
         raise final_error
 
     def _upload_and_copy_into_table(

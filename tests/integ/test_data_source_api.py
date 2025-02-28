@@ -329,7 +329,7 @@ def test_partition_date_timestamp(session):
 
 
 def test_partition_unsupported_type(session):
-    with pytest.raises(TypeError, match="unsupported column type for partition:"):
+    with pytest.raises(ValueError, match="unsupported type"):
         session.read._generate_partition(
             select_query="SELECT * FROM fake_table",
             column_type=MapType(),
