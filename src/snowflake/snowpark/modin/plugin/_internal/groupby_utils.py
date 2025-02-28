@@ -59,14 +59,17 @@ def is_groupby_value_label_like(val: Any) -> bool:
 
     # A pandas label is a hashable, and we exclude the callable, and Series which are
     # by values that should not be handled as pandas label of the dataframe.
-    # Grouper objects that specify either `key` or `level` are accepted, as we can convert
-    # the `level` into an index label.
+    # Grouper objects that specify either `key`, `level`, or `freq` are accepted, as we can convert
+    # a `level` or `freq` into an index label.
     return (
         hashable(val)
         and (not callable(val))
         and not (isinstance(val, Series))
         and not (
-            isinstance(val, native_pd.Grouper) and val.key is None and val.level is None
+            isinstance(val, native_pd.Grouper)
+            and val.key is None
+            and val.level is None
+            and val.freq is None
         )
     )
 
@@ -87,8 +90,12 @@ def get_column_label_from_grouper(
         # Must always return exactly one level (will raise KeyError internally if specified level is invalid)
         return frame.parse_levels_to_integer_levels([grouper.level])[0]
     if grouper.key is None:
+        if grouper.freq is not None:
+            # If freq is specified, it implicitly references the first index column
+            # TODO verify if this is the case for dataframes
+            return frame.index_column_pandas_labels[0]
         # in this scenario, pandas raises the very unhelpful "TypeError: 'NoneType' is not callable"
-        raise ValueError("Grouper must have either a key or a level")
+        raise ValueError("Grouper must have key, freq, or level")
     return grouper.key
 
 
@@ -325,6 +332,61 @@ def get_groups_for_ordered_dataframe(
     )
 
 
+def extract_groupby_column_pandas_labels(
+    query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
+    by: Any,
+    level: Optional[IndexLabel],
+) -> Optional[list[Hashable]]:
+
+    """
+    Extracts the groupby pandas labels from the by and level parameters and returns as a list.
+    Parameters
+    ----------
+    query_compiler: the query compiler of the internal frame to group on.
+    by: mapping, series, callable, lable, pd.Grouper, BaseQueryCompiler, list of such
+        Used to determine the groups for the groupby.
+    level: int, level name, or sequence of such, default None. If the axis is a
+        MultiIndex(hierarchical), group by a particular level or levels. Do not specify
+        both by and level.
+    """
+    internal_frame = query_compiler._modin_frame
+
+    # Distributed implementation support is currently unavailable when both by and level are configured,
+    # and the check is done by check_groupby_agg_distribute_execution_capability_by_args. Once reach here,
+    # only one of by or level can be None.
+    #
+    # Get the groupby columns (by_list) and record the by columns that are index columns of the original
+    # dataframe (index_by_columns).
+    # The index_by_columns is used for as_index = False, when as_index is False, it drops all by columns
+    # that are index columns in the original dataframe, but still retains all by columns that are data columns
+    # from originally data frame. For example:
+    # for a dataframe with index = [`A`, `B`], data = [`C`, `D`, `E`],
+    #  with groupby([`A`, `C`], as_index=True).max(), the result will have index=[`A`, `C`], data=[`D`, `E`]
+    #  with groupby([`A`, `C`], as_index=False).max(), the result will have index=[None] (default range index),
+    #  data=[`C`, `D`, `E`], columns `A` is dropped, and `C` is retained
+    if by is not None:
+        # extract the internal by columns which are groupby columns from the current dataframe
+        # internal_by: a list of column labels that are columns from the current dataframe
+        # by: all by columns in the form of list, contains both internal and external groupby columns
+        # when len(by) > len(internal_by) that means there are external groupby columns
+        by_list, internal_by = groupby_internal_columns(internal_frame, by)
+
+        # when len(by_list) > len(internal_by), there are groupby columns that do not belong
+        # to the current dataframe. we do not support this case.
+        if len(by_list) > len(internal_by):
+            return None
+        by_list = internal_by
+    elif level is not None:  # if by is None, level must not be None
+        int_levels = internal_frame.parse_levels_to_integer_levels(
+            level, allow_duplicates=True
+        )
+        by_list = internal_frame.get_pandas_labels_for_levels(int_levels)
+    else:
+        # we should never reach here
+        raise ValueError("Neither level or by is configured!")  # pragma: no cover
+    return by_list
+
+
 def resample_and_extract_groupby_column_pandas_labels(
     query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
     by: Any,
@@ -383,8 +445,13 @@ def resample_and_extract_groupby_column_pandas_labels(
                         [by_item.level],
                     )
                     col_label = frame.get_pandas_labels_for_levels(int_levels)[0]
+                elif by_item.key is None:
+                    if by_item.freq is None:
+                        raise ValueError("Grouper must have key, freq, or level")
+                    else:
+                        # If a freq is specified without a key, then take the first index label
+                        col_label = frame.index_column_pandas_labels[0]
                 else:
-                    assert by_item.key is not None
                     col_label = by_item.key
                 new_label = f"{col_label}__{len(new_by_list)}"
                 resample_list.append((col_label, new_label, by_item.freq))
@@ -402,9 +469,15 @@ def resample_and_extract_groupby_column_pandas_labels(
                 original_labels, include_index=True
             )
         ]
-        new_identifiers = frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-            pandas_labels=new_labels
-        )
+        # Insert empty columns to prepare for resample
+        for new_label in new_labels:
+            frame = frame.append_column(new_label, pandas_lit(None))
+        new_identifiers = [
+            identifier[0]
+            for identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                new_labels, include_index=True
+            )
+        ]
         # 1. For every column, determine the start and end dates of the resample intervals.
         start_and_end_dates = {
             identifier: compute_resample_start_and_end_date(frame, identifier, freq)
@@ -416,6 +489,7 @@ def resample_and_extract_groupby_column_pandas_labels(
         for original_identifier, new_identifier, freq in zip(
             identifiers_to_resample, new_identifiers, freqs
         ):
+            # TODO figure out what's going wrong with the binning
             slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
             start_date, end_date = start_and_end_dates[original_identifier]
             binned_frame = perform_resample_binning_on_frame(
@@ -424,7 +498,7 @@ def resample_and_extract_groupby_column_pandas_labels(
                 start_date,
                 slice_width,
                 slice_unit,
-                new_identifier,
+                resample_output_col_identifier=new_identifier,
             )
             resampled_frame = fill_missing_resample_bins_for_frame(
                 binned_frame,
@@ -437,61 +511,6 @@ def resample_and_extract_groupby_column_pandas_labels(
     return query_compiler, extract_groupby_column_pandas_labels(
         query_compiler, by, level
     )
-
-
-def extract_groupby_column_pandas_labels(
-    query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
-    by: Any,
-    level: Optional[IndexLabel],
-) -> Optional[list[Hashable]]:
-
-    """
-    Extracts the groupby pandas labels from the by and level parameters and returns as a list.
-    Parameters
-    ----------
-    query_compiler: the query compiler of the internal frame to group on.
-    by: mapping, series, callable, lable, pd.Grouper, BaseQueryCompiler, list of such
-        Used to determine the groups for the groupby.
-    level: int, level name, or sequence of such, default None. If the axis is a
-        MultiIndex(hierarchical), group by a particular level or levels. Do not specify
-        both by and level.
-    """
-    internal_frame = query_compiler._modin_frame
-
-    # Distributed implementation support is currently unavailable when both by and level are configured,
-    # and the check is done by check_groupby_agg_distribute_execution_capability_by_args. Once reach here,
-    # only one of by or level can be None.
-    #
-    # Get the groupby columns (by_list) and record the by columns that are index columns of the original
-    # dataframe (index_by_columns).
-    # The index_by_columns is used for as_index = False, when as_index is False, it drops all by columns
-    # that are index columns in the original dataframe, but still retains all by columns that are data columns
-    # from originally data frame. For example:
-    # for a dataframe with index = [`A`, `B`], data = [`C`, `D`, `E`],
-    #  with groupby([`A`, `C`], as_index=True).max(), the result will have index=[`A`, `C`], data=[`D`, `E`]
-    #  with groupby([`A`, `C`], as_index=False).max(), the result will have index=[None] (default range index),
-    #  data=[`C`, `D`, `E`], columns `A` is dropped, and `C` is retained
-    if by is not None:
-        # extract the internal by columns which are groupby columns from the current dataframe
-        # internal_by: a list of column labels that are columns from the current dataframe
-        # by: all by columns in the form of list, contains both internal and external groupby columns
-        # when len(by) > len(internal_by) that means there are external groupby columns
-        by_list, internal_by = groupby_internal_columns(internal_frame, by)
-
-        # when len(by_list) > len(internal_by), there are groupby columns that do not belong
-        # to the current dataframe. we do not support this case.
-        if len(by_list) > len(internal_by):
-            return None
-        by_list = internal_by
-    elif level is not None:  # if by is None, level must not be None
-        int_levels = internal_frame.parse_levels_to_integer_levels(
-            level, allow_duplicates=True
-        )
-        by_list = internal_frame.get_pandas_labels_for_levels(int_levels)
-    else:
-        # we should never reach here
-        raise ValueError("Neither level or by is configured!")  # pragma: no cover
-    return by_list
 
 
 # TODO: SNOW-939239 clean up fallback logic
@@ -539,7 +558,7 @@ def get_frame_with_groupby_columns_as_index(
     Freq: 4min, dtype: int64
 
     The newly resampled index column will have the suffix "__resample{i}" appended to the original
-    column's identifier, where {i} is the number of times this column is resampled. This ensures
+    column's identifier, where i increments every time a column is resampled. This ensures
     that we can support the same column being resampled multiple times, or being used elsewhere
     without a resample.
 
@@ -596,7 +615,9 @@ def get_frame_with_groupby_columns_as_index(
         SnowflakeQueryCompiler,
     )
 
-    by_list = extract_groupby_column_pandas_labels(query_compiler, by, level)
+    query_compiler, by_list = resample_and_extract_groupby_column_pandas_labels(
+        query_compiler, by, level
+    )
 
     if by_list is None:
         return None
