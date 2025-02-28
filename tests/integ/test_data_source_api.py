@@ -682,3 +682,26 @@ def test_query_parameter(session):
         )
         assert df.columns == [col.upper() for col in columns]
         assert df.collect() == assert_data[filter_idx:]
+
+
+def test_option_load(session):
+    df = (
+        session.read.format("dbapi")
+        .option("create_connection", sql_server_create_connection)
+        .option("table", SQL_SERVER_TABLE_NAME)
+        .option("max_workers", 4)
+        .option("fetch_size", 2)
+        .load()
+    )
+    assert df.order_by("ID").collect() == sql_server_all_type_data
+
+    with pytest.raises(TypeError):
+        session.read.format("json").load()
+
+    with pytest.raises(ValueError):
+        session.read.format("dbapi").load("path")
+
+    with pytest.raises(
+        TypeError, match="missing 1 required positional argument: 'create_connection'"
+    ):
+        session.read.format("dbapi").load()
