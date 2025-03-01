@@ -35,6 +35,9 @@ class SnowparkClientException(Exception):
     def __str__(self):
         return self._pretty_msg
 
+    def __reduce__(self):
+        return (self.__class__, (self.message,), {"error_code": self.error_code})
+
 
 class _SnowparkInternalException(SnowparkClientException):
     """Exception for internal errors. For internal use only.
