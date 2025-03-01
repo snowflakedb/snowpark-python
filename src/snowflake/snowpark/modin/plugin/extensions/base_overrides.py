@@ -96,8 +96,7 @@ def register_base_override(method_name: str):
     DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
     to allow both the docstring extension and method dispatch to work properly.
     """
-
-    def decorator(base_method: Any):
+    def decorator(base_method: Any): 
         parent_method = getattr(BasePandasDataset, method_name, None)
         if isinstance(parent_method, property):
             parent_method = parent_method.fget
@@ -1486,8 +1485,8 @@ def rolling(
 
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
-# @register_base_override("iloc")
-# @property
+@register_base_override("iloc")
+@property
 def iloc(self):
     """
     Purely integer-location based indexing for selection by position.
@@ -1500,13 +1499,10 @@ def iloc(self):
 
     return _iLocIndexer(self)
 
-@register_base_override("_get_iloc")
-def _get_iloc(self):
-    return iloc(self)
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
-# @register_base_override("loc")
-# @property
+@register_base_override("loc")
+@property
 def loc(self):
     """
     Get a group of rows and columns by label(s) or a boolean array.
@@ -1519,11 +1515,6 @@ def loc(self):
     )
 
     return _LocIndexer(self)
-
-
-@register_base_override("_get_loc")
-def _get_loc(self):
-    return loc(self)
 
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
@@ -2323,7 +2314,6 @@ def __invert__(self):
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     return self.__constructor__(query_compiler=self._query_compiler.invert())
 
-
 # Modin does dtype validation on unary ops that Snowpark pandas does not.
 @register_base_override("__neg__")
 def __neg__(self):
@@ -2490,7 +2480,6 @@ def reindex(
 
 # No direct override annotation; used as part of `property`.
 # Snowpark pandas may return a custom lazy index object.
-@register_base_override("_get_index")
 def _get_index(self):
     """
     Get the index for this DataFrame.
@@ -2514,7 +2503,6 @@ def _get_index(self):
 
 # No direct override annotation; used as part of `property`.
 # Snowpark pandas may return a custom lazy index object.
-@register_base_override("_set_index")
 def _set_index(self, new_index: Axes) -> None:
     """
     Set the index for this DataFrame.
@@ -2532,5 +2520,5 @@ def _set_index(self, new_index: Axes) -> None:
     )
 
 
-# # Snowpark pandas may return a custom lazy index object.
-# register_base_override("index")(property(_get_index, _set_index))
+# Snowpark pandas may return a custom lazy index object.
+register_base_override("index")(property(_get_index, _set_index))

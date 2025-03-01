@@ -199,14 +199,16 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
 
 # Apply telemetry to all top-level functions in the pd namespace.
 
-for attr_name, attr_value in modin.pandas.__dict__.items():
+
+for attr_name in dir(modin.pandas):
+    attr_value = getattr(modin.pandas, attr_name)
     # Do not add telemetry to any method that is mirrored from native pandas
     if (
         inspect.isfunction(attr_value)
         and not attr_name.startswith("_")
         and attr_value is not getattr(pandas, attr_name, None)
     ):
-        register_pd_accessor(attr_name)(
+        register_pd_accessor(attr_name, "Snowflake", "Snowflake")(
             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
         )
 
@@ -225,4 +227,4 @@ if "modin.pandas" in sys.modules:
 
 # === OTHER SETUP ===
 # Upstream modin does not re-export the offsets module, so we need to do so here
-register_pd_accessor("offsets")(pandas.offsets)
+register_pd_accessor("offsets", "Snowflake", "Snowflake")(pandas.offsets)
