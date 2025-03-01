@@ -3,98 +3,44 @@
 #
 
 import datetime
+import decimal
 import logging
 from enum import Enum
-from typing import List, Any, Tuple, Protocol
+from typing import List, Any, Tuple, Protocol, Optional
 from snowflake.connector.options import pandas as pd
 
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StringType,
-    GeographyType,
     VariantType,
     BinaryType,
-    GeometryType,
     TimestampType,
     DecimalType,
     FloatType,
-    ShortType,
-    IntegerType,
     BooleanType,
-    LongType,
-    TimeType,
-    ByteType,
     DateType,
     TimestampTimeZone,
     StructType,
     StructField,
+    DoubleType,
+    VectorType,
+    TimeType,
 )
 
 _logger = logging.getLogger(__name__)
 
+# https://learn.microsoft.com/en-us/sql/machine-learning/python/python-libraries-and-data-types?view=sql-server-ver16
 SQL_SERVER_TYPE_TO_SNOW_TYPE = {
-    "bigint": LongType,
-    "bit": BooleanType,
-    "decimal": DecimalType,
-    "float": FloatType,
-    "int": IntegerType,
-    "money": DecimalType,
-    "real": FloatType,
-    "smallint": ShortType,
-    "smallmoney": DecimalType,
-    "tinyint": ByteType,
-    "numeric": DecimalType,
-    "date": DateType,
-    "datetime2": TimestampType,
-    "datetime": TimestampType,
-    "datetimeoffset": TimestampType,
-    "smalldatetime": TimestampType,
-    "time": TimeType,
-    "timestamp": TimestampType,
-    "char": StringType,
-    "text": StringType,
-    "varchar": StringType,
-    "nchar": StringType,
-    "ntext": StringType,
-    "nvarchar": StringType,
-    "binary": BinaryType,
-    "varbinary": BinaryType,
-    "image": BinaryType,
-    "sql_variant": VariantType,
-    "geography": GeographyType,
-    "geometry": GeometryType,
-    "uniqueidentifier": StringType,
-    "xml": StringType,
-    "sysname": StringType,
-}
-ORACLEDB_TYPE_TO_SNOW_TYPE = {
-    "bfile": BinaryType,
-    "varchar2": StringType,
-    "varchar": StringType,
-    "nvarchar2": StringType,
-    # TODO: SNOW-1922043 Investigation on handling number type in oracle db
-    "number": DecimalType,
-    "float": FloatType,
-    "long": LongType,
-    "date": DateType,
-    "intervalyeartomonth": StringType,
-    "intervaldaytosecond": StringType,
-    "json": VariantType,
-    "binary_float": FloatType,
-    "binary_double": FloatType,
-    "timestamp": TimestampType,
-    "longraw": BinaryType,
-    "raw": BinaryType,
-    "clob": StringType,
-    "nclob": StringType,
-    "blob": BinaryType,
-    "char": StringType,
-    "nchar": StringType,
-    "rowid": StringType,
-    "sys.anydata": VariantType,
-    "uritype": VariantType,
-    "urowid": StringType,
-    "xmltype": VariantType,
+    int: DecimalType,
+    float: FloatType,
+    decimal.Decimal: DecimalType,
+    datetime.datetime: TimestampType,
+    bool: BooleanType,
+    str: StringType,
+    bytes: BinaryType,
+    datetime.date: DateType,
+    datetime.time: TimeType,
+    bytearray: BinaryType,
 }
 
 
@@ -121,7 +67,6 @@ def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, str]:
     # Dictionary-based lookup for known DBMS
     dbms_mapping = {
         "pyodbc": detect_dbms_pyodbc,
-        "cx_oracle": lambda conn: DBMS_TYPE.ORACLE_DB,
         "oracledb": lambda conn: DBMS_TYPE.ORACLE_DB,
         "sqlite3": lambda conn: DBMS_TYPE.SQLITE_DB,
     }
@@ -130,7 +75,7 @@ def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, str]:
         return dbms_mapping[python_driver_name](dbapi2_conn), python_driver_name
 
     _logger.debug(f"Unsupported database driver: {python_driver_name}")
-    return DBMS_TYPE.UNKNOWN, ""
+    return DBMS_TYPE.UNKNOWN, python_driver_name
 
 
 def detect_dbms_pyodbc(dbapi2_conn):
@@ -183,72 +128,128 @@ class Cursor(Protocol):
         pass
 
 
+def validate(precision: Optional[int], scale: Optional[int]) -> bool:
+    if precision is not None:
+        if not (0 <= precision <= 38):
+            return False
+        if scale is not None and not (0 <= scale <= precision):
+            return False
+    elif scale is not None:
+        return False
+    return True
+
+
 def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
     """
-    This is used to convert sql server raw schema to snowpark structtype.
-    Each tuple in the list represent a column and values are as follows:
-    column name: str
-    data type: str
-    precision: int
-    scale: int
-    nullable: bool
+    SQLServer to Python datatype mapping
+    https://peps.python.org/pep-0249/#description returns the following spec
+    name, type_code, display_size, internal_size, precision, scale, null_ok
+
+    SQLServer supported types in Python (outdated):
+    https://learn.microsoft.com/en-us/sql/machine-learning/python/python-libraries-and-data-types?view=sql-server-ver16
     """
     fields = []
     for column in schema:
-        snow_type = SQL_SERVER_TYPE_TO_SNOW_TYPE.get(column[1].lower(), None)
+        name, type_code, display_size, internal_size, precision, scale, null_ok = column
+        snow_type = SQL_SERVER_TYPE_TO_SNOW_TYPE.get(type_code, None)
         if snow_type is None:
-            # TODO: SNOW-1912068 support types that we don't have now
-            raise NotImplementedError(f"sql server type not supported: {column[1]}")
-        if column[1].lower() in ["datetime2", "datetime", "smalldatetime"]:
-            data_type = snow_type(TimestampTimeZone.NTZ)
-        elif column[1].lower() == "datetimeoffset":
-            data_type = snow_type(TimestampTimeZone.LTZ)
-        elif snow_type == DecimalType:
+            raise NotImplementedError(f"sql server type not supported: {type_code}")
+        if type_code in (int, decimal.Decimal):
+            if not validate(precision, scale):
+                _logger.debug(
+                    f"Snowpark does not support column"
+                    f" {name} of type {type_code} with precision {precision} and scale {scale}. "
+                    "The default Numeric precision and scale will be used."
+                )
+                precision, scale = None, None
             data_type = snow_type(
-                column[2] if column[2] is not None else 38,
-                column[3] if column[3] is not None else 0,
+                precision if precision is not None else 38,
+                scale if scale is not None else 0,
             )
         else:
             data_type = snow_type()
-        fields.append(StructField(column[0], data_type, column[4]))
-
+        fields.append(StructField(name, data_type, null_ok))
     return StructType(fields)
 
 
-def oracledb_to_snowpark_type(schema: List[tuple]) -> StructType:
+def oracledb_to_snowpark_type(schema: List[Any]) -> StructType:
     """
-    This is used to convert oracledb raw schema to snowpark structtype.
-    Each tuple in the list represent a column and values are as follows:
-    column name: str
-    data type: str
-    precision: int
-    scale: int
-    nullable: str
+    OracleDB to Python datatype mapping
+    Oracle also follows PEP 249 spec, it returns a fetch info object containing the following memvar and more:
+    name, type_code, display_size, internal_size, precision, scale, null_ok
+
+    oracledb fetch info reference:
+    https://python-oracledb.readthedocs.io/en/latest/api_manual/fetch_info.html#api-fetchinfo-objects
+
+    oracledb supported types in Python:
+    https://python-oracledb.readthedocs.io/en/latest/user_guide/appendix_a.html#supported-oracle-database-data-types
+    # TODO: SNOW-1922043 Investigation on handling number type in oracle db
     """
+    import oracledb
+
+    convert_map_to_use = {
+        oracledb.DB_TYPE_VARCHAR: StringType,
+        oracledb.DB_TYPE_NVARCHAR: StringType,
+        oracledb.DB_TYPE_NUMBER: DecimalType,
+        oracledb.DB_TYPE_DATE: DateType,
+        oracledb.DB_TYPE_BOOLEAN: BooleanType,
+        oracledb.DB_TYPE_BINARY_DOUBLE: DoubleType,
+        oracledb.DB_TYPE_BINARY_FLOAT: FloatType,
+        oracledb.DB_TYPE_TIMESTAMP: TimestampType,
+        oracledb.DB_TYPE_TIMESTAMP_TZ: TimestampType,
+        oracledb.DB_TYPE_TIMESTAMP_LTZ: TimestampType,
+        oracledb.DB_TYPE_INTERVAL_YM: VariantType,
+        oracledb.DB_TYPE_INTERVAL_DS: VariantType,
+        oracledb.DB_TYPE_RAW: BinaryType,
+        oracledb.DB_TYPE_LONG: StringType,
+        oracledb.DB_TYPE_LONG_RAW: BinaryType,
+        oracledb.DB_TYPE_ROWID: StringType,
+        oracledb.DB_TYPE_UROWID: StringType,
+        oracledb.DB_TYPE_CHAR: StringType,
+        oracledb.DB_TYPE_BLOB: BinaryType,
+        oracledb.DB_TYPE_CLOB: StringType,
+        oracledb.DB_TYPE_NCHAR: StringType,
+        oracledb.DB_TYPE_NCLOB: StringType,
+        oracledb.DB_TYPE_LONG_NVARCHAR: StringType,
+        oracledb.DB_TYPE_BFILE: BinaryType,
+        oracledb.DB_TYPE_JSON: VariantType,
+        oracledb.DB_TYPE_BINARY_INTEGER: DecimalType,
+        oracledb.DB_TYPE_XMLTYPE: StringType,
+        oracledb.DB_TYPE_OBJECT: VariantType,
+        oracledb.DB_TYPE_VECTOR: VectorType,
+        oracledb.DB_TYPE_CURSOR: None,  # NOT SUPPORTED
+    }
+
     fields = []
     for column in schema:
-        remove_space_column_name = column[1].lower().replace(" ", "")
-        processed_column_name = (
-            "timestamp"
-            if remove_space_column_name.startswith("timestamp")
-            else remove_space_column_name
-        )
-        snow_type = ORACLEDB_TYPE_TO_SNOW_TYPE.get(processed_column_name, None)
+        name = column.name
+        type_code = column.type_code
+        precision = column.precision
+        scale = column.scale
+        null_ok = column.null_ok
+        snow_type = convert_map_to_use.get(type_code, None)
         if snow_type is None:
             # TODO: SNOW-1912068 support types that we don't have now
-            raise NotImplementedError(f"oracledb type not supported: {column[1]}")
-        if "withtimezone" in remove_space_column_name:
+            raise NotImplementedError(f"oracledb type not supported: {type_code}")
+        if type_code == oracledb.DB_TYPE_TIMESTAMP_TZ:
             data_type = snow_type(TimestampTimeZone.TZ)
-        elif "withlocaltimezone" in remove_space_column_name:
+        elif type_code == oracledb.DB_TYPE_TIMESTAMP_LTZ:
             data_type = snow_type(TimestampTimeZone.LTZ)
         elif snow_type == DecimalType:
+            if not validate(precision, scale):
+                _logger.debug(
+                    f"Snowpark does not support column"
+                    f" {name} of type {type_code} with precision {precision} and scale {scale}. "
+                    "The default Numeric precision and scale will be used."
+                )
+                precision, scale = None, None
             data_type = snow_type(
-                column[2] if column[2] is not None else 38,
-                column[3] if column[3] is not None else 0,
+                precision if precision is not None else 38,
+                scale if scale is not None else 0,
             )
         else:
             data_type = snow_type()
-        fields.append(StructField(column[0], data_type, bool(column[4].lower() == "y")))
+        fields.append(StructField(name, data_type, null_ok))
 
     return StructType(fields)
 
@@ -258,23 +259,11 @@ def infer_data_source_schema(
 ) -> StructType:
     try:
         cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM {table} WHERE 1 = 0")
+        raw_schema = cursor.description
         if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
-            query = f"""
-                    SELECT COLUMN_NAME, DATA_TYPE, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
-                    FROM INFORMATION_SCHEMA.COLUMNS
-                    WHERE TABLE_NAME = '{table}'
-                    """
-            cursor.execute(query)
-            raw_schema = cursor.fetchall()
             return sql_server_to_snowpark_type(raw_schema)
         elif dbms_type == DBMS_TYPE.ORACLE_DB:
-            query = f"""
-                    SELECT COLUMN_NAME, DATA_TYPE, DATA_PRECISION, DATA_SCALE, NULLABLE
-                    FROM USER_TAB_COLUMNS
-                    WHERE TABLE_NAME = '{table}'
-                    """
-            cursor.execute(query)
-            raw_schema = cursor.fetchall()
             return oracledb_to_snowpark_type(raw_schema)
         else:
             raise NotImplementedError(
@@ -284,8 +273,11 @@ def infer_data_source_schema(
             )
 
     except Exception as exc:
+        cursor.close()
         raise SnowparkDataframeReaderException(
-            f"Failed to infer Snowpark DataFrame schema from table '{table}'. To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
+            f"Failed to infer Snowpark DataFrame schema from table '{table}'."
+            f" To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
+            f" Please check the stack trace for more details."
         ) from exc
 
 
