@@ -120,7 +120,7 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
-    add_api_call,
+    ResourceUsageCollector,
     adjust_api_subcalls,
     df_api_usage,
     df_collect_api_telemetry,
@@ -2404,19 +2404,27 @@ class DataFrame:
                 df._ast_id = stmt.var_id.bitfield1
             return df
 
-        filter_cols = [self.col(x) for x in subset]
-        output_cols = [self.col(col_name) for col_name in self.columns]
-        rownum = row_number().over(
-            snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
-        )
-        rownum_name = generate_random_alphanumeric()
-        df = (
-            self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
-            .where(col(rownum_name) == 1, _emit_ast=False)
-            .select(output_cols, _emit_ast=False)
-        )
+        with ResourceUsageCollector() as resource_usage_collector:
+            filter_cols = [self.col(x) for x in subset]
+            output_cols = [self.col(col_name) for col_name in self.columns]
+            rownum = row_number().over(
+                snowflake.snowpark.Window.partition_by(*filter_cols).order_by(
+                    *filter_cols
+                )
+            )
+            rownum_name = generate_random_alphanumeric()
+            df = (
+                self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
+                .where(col(rownum_name) == 1, _emit_ast=False)
+                .select(output_cols, _emit_ast=False)
+            )
         # Reformat the extra API calls
-        adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
+        adjust_api_subcalls(
+            df,
+            "DataFrame.drop_duplicates",
+            len_subcalls=3,
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -4138,7 +4146,7 @@ class DataFrame:
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
-            add_api_call(df, "DataFrame.count")
+            adjust_api_subcalls(df, "DataFrame.agg", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params,
                 block=block,
@@ -5323,7 +5331,7 @@ class DataFrame:
 
         if n is None:
             df = self.limit(1, _emit_ast=False)
-            add_api_call(df, "DataFrame.first")
+            adjust_api_subcalls(df, "DataFrame.first", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
@@ -5336,7 +5344,7 @@ class DataFrame:
             )
         else:
             df = self.limit(n, _emit_ast=False)
-            add_api_call(df, "DataFrame.first")
+            adjust_api_subcalls(df, "DataFrame.first", len_subcalls=1)
             return df._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
@@ -5491,37 +5499,41 @@ class DataFrame:
             return df
 
         # otherwise, calculate stats
-        res_df = None
-        for name, func in stat_func_dict.items():
-            agg_cols = []
-            for c, t in numerical_string_col_type_dict.items():
-                # for string columns, we need to convert all stats to string
-                # such that they can be fitted into one column
-                if isinstance(t, StringType):
-                    if name in ["mean", "stddev"]:
-                        agg_cols.append(to_char(func(lit(None))).as_(c))
+        with ResourceUsageCollector() as resource_usage_collector:
+            res_df = None
+            for name, func in stat_func_dict.items():
+                agg_cols = []
+                for c, t in numerical_string_col_type_dict.items():
+                    # for string columns, we need to convert all stats to string
+                    # such that they can be fitted into one column
+                    if isinstance(t, StringType):
+                        if name in ["mean", "stddev"]:
+                            agg_cols.append(to_char(func(lit(None))).as_(c))
+                        else:
+                            agg_cols.append(to_char(func(c)))
                     else:
-                        agg_cols.append(to_char(func(c)))
-                else:
-                    agg_cols.append(func(c))
-            agg_stat_df = (
-                self.agg(agg_cols, _emit_ast=False)
-                .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
-                .select(
-                    lit(name).as_("summary"),
-                    *numerical_string_col_type_dict.keys(),
-                    _emit_ast=False,
+                        agg_cols.append(func(c))
+                agg_stat_df = (
+                    self.agg(agg_cols, _emit_ast=False)
+                    .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
+                    .select(
+                        lit(name).as_("summary"),
+                        *numerical_string_col_type_dict.keys(),
+                        _emit_ast=False,
+                    )
                 )
-            )
-            res_df = (
-                res_df.union(agg_stat_df, _emit_ast=False) if res_df else agg_stat_df
-            )
+                res_df = (
+                    res_df.union(agg_stat_df, _emit_ast=False)
+                    if res_df
+                    else agg_stat_df
+                )
 
         adjust_api_subcalls(
             res_df,
             "DataFrame.describe",
             precalls=self._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
+            resource_usage=resource_usage_collector.get_resource_usage(),
         )
 
         if _emit_ast:

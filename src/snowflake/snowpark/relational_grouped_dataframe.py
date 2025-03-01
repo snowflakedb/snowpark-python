@@ -320,6 +320,7 @@ class RelationalGroupedDataFrame:
             df._ast_id = stmt.var_id.bitfield1
         return df
 
+    @relational_group_df_api_usage
     @publicapi
     def apply_in_pandas(
         self,
@@ -454,6 +455,7 @@ class RelationalGroupedDataFrame:
 
     applyInPandas = apply_in_pandas
 
+    @relational_group_df_api_usage
     @publicapi
     def pivot(
         self,
