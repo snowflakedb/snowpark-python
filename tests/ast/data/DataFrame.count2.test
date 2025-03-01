@@ -13,7 +13,7 @@ df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
+df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType(fields=[StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
 
 df.count()
 
@@ -46,32 +46,30 @@ body {
           dataframe_schema__struct {
             v {
               fields {
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "\"A\""
-                    }
+                column_identifier {
+                  column_name {
+                    name: "\"A\""
                   }
-                  data_type {
-                    string_type {
-                      length {
-                        value: 16777216
-                      }
-                    }
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "\"B\""
+                data_type {
+                  string_type {
+                    length {
+                      value: 16777216
                     }
                   }
-                  data_type {
-                    long_type: true
-                  }
-                  nullable: true
                 }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"B\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
               }
             }
           }

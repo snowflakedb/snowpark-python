@@ -127,9 +127,7 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
+          integer_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -520,9 +518,7 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
+          integer_type: true
         }
         is_permanent: true
         kwargs {

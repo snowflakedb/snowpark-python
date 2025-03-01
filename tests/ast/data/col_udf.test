@@ -75,9 +75,7 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
+          integer_type: true
         }
         parallel: 4
         return_type {
@@ -172,7 +170,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_alias {
@@ -317,9 +315,7 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
+          integer_type: true
         }
         name {
           name {
@@ -355,7 +351,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_alias {
@@ -528,12 +524,10 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            float_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          float_type: true
         }
         is_permanent: true
         kwargs {
@@ -625,12 +619,10 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            float_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          float_type: true
         }
         is_permanent: true
         kwargs {
@@ -695,7 +687,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {

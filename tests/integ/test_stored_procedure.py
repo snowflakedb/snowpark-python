@@ -1956,6 +1956,10 @@ def test_sproc_artifact_repository(session):
 
 
 @pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="packages unavailable in stored proc",
+)
+@pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Packaging processing is a NOOP in Local Testing",
     run=False,
