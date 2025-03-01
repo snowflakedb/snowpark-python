@@ -2,7 +2,10 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import decimal
 import sqlite3
+import oracledb
+from collections import namedtuple
 from decimal import Decimal
 from dateutil import parser
 
@@ -19,15 +22,19 @@ class FakeConnection:
     def cursor(self):
         return self
 
+    def close(self):
+        pass
+
+    @property
+    def description(self):
+        return self.schema
+
     def execute(self, sql: str):
         self.sql = sql
         return self
 
     def fetchall(self):
-        if "INFORMATION_SCHEMA" in self.sql or "USER_TAB_COLUMNS" in self.sql:
-            return self.schema
-        else:
-            return self.data
+        return self.data
 
     def fetchmany(self, row_count: int):
         end_index = self.start_index + row_count
@@ -46,65 +53,64 @@ class FakeConnection:
 class FakeConnectionWithException(FakeConnection):
     def execute(self, sql: str):
         self.sql = sql
-        if sql.lower().startswith("select *"):
+        if sql.lower().startswith("select *") and "1 = 0" not in sql:
             raise RuntimeError("Fake exception")
         else:
             return self
 
 
-class LOB:
-    def __init__(self, value) -> None:
-        self.value = value
+sql_server_all_type_schema = [
+    ("Id", int, None, None, 10, 0, False),
+    ("SmallIntCol", int, None, None, 5, 0, True),
+    ("TinyIntCol", int, None, None, 3, 0, True),
+    ("BigIntCol", int, None, None, 19, None, True),
+    ("DecimalCol", decimal.Decimal, None, None, 10, 2, True),
+    ("FloatCol", float, None, None, 53, None, True),
+    ("RealCol", float, None, None, 24, None, True),
+    ("MoneyCol", decimal.Decimal, None, None, 19, 4, True),
+    ("SmallMoneyCol", decimal.Decimal, None, None, 10, 4, True),
+    ("CharCol", str, None, None, None, None, True),
+    ("VarCharCol", str, None, None, None, None, True),
+    ("TextCol", str, None, None, None, None, True),
+    ("NCharCol", str, None, None, None, None, True),
+    ("NVarCharCol", str, None, None, None, None, True),
+    ("NTextCol", str, None, None, None, None, True),
+    ("DateCol", datetime.date, None, None, None, None, True),
+    ("TimeCol", datetime.time, None, None, None, None, True),
+    ("DateTimeCol", datetime.datetime, None, None, None, None, True),
+    ("DateTime2Col", datetime.datetime, None, None, None, None, True),
+    ("SmallDateTimeCol", datetime.datetime, None, None, None, None, True),
+    ("BinaryCol", bytes, None, None, None, None, True),
+    ("VarBinaryCol", bytes, None, None, None, None, True),
+    ("BitCol", bool, None, 1, None, None, True),
+    ("UniqueIdentifierCol", bytes, None, None, None, None, True),
+]
 
-    def read(self, offset: int = 1, amount: int = None):
-        return self.value
-
-
-sql_server_all_type_schema = (
-    ("Id", "int", 10, 0, "NO"),
-    ("SmallIntCol", "smallint", 5, 0, "YES"),
-    ("TinyIntCol", "tinyint", 3, 0, "YES"),
-    ("BigIntCol", "bigint", 19, 0, "YES"),
-    ("DecimalCol", "decimal", 10, 2, "YES"),
-    ("FloatCol", "float", 53, None, "YES"),
-    ("RealCol", "real", 24, None, "YES"),
-    ("MoneyCol", "money", 19, 4, "YES"),
-    ("SmallMoneyCol", "smallmoney", 10, 4, "YES"),
-    ("CharCol", "char", None, None, "YES"),
-    ("VarCharCol", "varchar", None, None, "YES"),
-    ("TextCol", "text", None, None, "YES"),
-    ("NCharCol", "nchar", None, None, "YES"),
-    ("NVarCharCol", "nvarchar", None, None, "YES"),
-    ("NTextCol", "ntext", None, None, "YES"),
-    ("DateCol", "date", None, None, "YES"),
-    ("TimeCol", "time", None, None, "YES"),
-    ("DateTimeCol", "datetime", None, None, "YES"),
-    ("DateTime2Col", "datetime2", None, None, "YES"),
-    ("SmallDateTimeCol", "smalldatetime", None, None, "YES"),
-    ("BinaryCol", "binary", None, None, "YES"),
-    ("VarBinaryCol", "varbinary", None, None, "YES"),
-    ("BitCol", "bit", None, None, "YES"),
-    ("UniqueIdentifierCol", "uniqueidentifier", None, None, "YES"),
+# Define the namedtuple
+OracleDBType = namedtuple(
+    "OracleDBType", ["name", "type_code", "precision", "scale", "null_ok"]
 )
 
-oracledb_all_type_schema = (
-    ("ID", "NUMBER", None, None, "N"),
-    ("NUMBER_COL", "NUMBER", 10, 2, "Y"),
-    ("BINARY_FLOAT_COL", "BINARY_FLOAT", None, None, "Y"),
-    ("BINARY_DOUBLE_COL", "BINARY_DOUBLE", None, None, "Y"),
-    ("VARCHAR2_COL", "VARCHAR2", None, None, "Y"),
-    ("CHAR_COL", "CHAR", None, None, "Y"),
-    ("CLOB_COL", "CLOB", None, None, "Y"),
-    ("NCHAR_COL", "NCHAR", None, None, "Y"),
-    ("NVARCHAR2_COL", "NVARCHAR2", None, None, "Y"),
-    ("NCLOB_COL", "NCLOB", None, None, "Y"),
-    ("DATE_COL", "DATE", None, None, "Y"),
-    ("TIMESTAMP_COL", "TIMESTAMP(6)", None, 6, "Y"),
-    ("TIMESTAMP_TZ_COL", "TIMESTAMP(6) WITH TIME ZONE", None, 6, "Y"),
-    ("TIMESTAMP_LTZ_COL", "TIMESTAMP(6) WITH LOCAL TIME ZONE", None, 6, "Y"),
-    ("BLOB_COL", "BLOB", None, None, "Y"),
-    ("RAW_COL", "RAW", None, None, "Y"),
-)
+# Construct the schema as a list of namedtuples
+oracledb_all_type_schema = [
+    OracleDBType("ID", oracledb.DB_TYPE_NUMBER, None, None, False),
+    OracleDBType("NUMBER_COL", oracledb.DB_TYPE_NUMBER, 10, 2, True),
+    OracleDBType("BINARY_FLOAT_COL", oracledb.DB_TYPE_BINARY_FLOAT, None, None, True),
+    OracleDBType("BINARY_DOUBLE_COL", oracledb.DB_TYPE_BINARY_DOUBLE, None, None, True),
+    OracleDBType("VARCHAR2_COL", oracledb.DB_TYPE_VARCHAR, None, None, True),
+    OracleDBType("CHAR_COL", oracledb.DB_TYPE_CHAR, None, None, True),
+    OracleDBType("CLOB_COL", oracledb.DB_TYPE_CLOB, None, None, True),
+    OracleDBType("NCHAR_COL", oracledb.DB_TYPE_NCHAR, None, None, True),
+    OracleDBType("NVARCHAR2_COL", oracledb.DB_TYPE_NVARCHAR, None, None, True),
+    OracleDBType("NCLOB_COL", oracledb.DB_TYPE_NCLOB, None, None, True),
+    OracleDBType("DATE_COL", oracledb.DB_TYPE_DATE, None, None, True),
+    OracleDBType("TIMESTAMP_COL", oracledb.DB_TYPE_TIMESTAMP, None, 6, True),
+    OracleDBType("TIMESTAMP_TZ_COL", oracledb.DB_TYPE_TIMESTAMP_TZ, None, 6, True),
+    OracleDBType("TIMESTAMP_LTZ_COL", oracledb.DB_TYPE_TIMESTAMP_LTZ, None, 6, True),
+    OracleDBType("BLOB_COL", oracledb.DB_TYPE_BLOB, None, None, True),
+    OracleDBType("RAW_COL", oracledb.DB_TYPE_RAW, None, None, True),
+]
+
 
 oracledb_all_type_data = [
     (
@@ -327,7 +333,7 @@ sql_server_all_type_data = [
         b"\x01\x02\x03\x04\x05",
         b"\x01\x02\x03\x04",
         True,
-        "06D48351-6EA7-4E64-81A2-9921F0EC42A5",
+        b"06D48351-6EA7-4E64-81A2-9921F0EC42A5",
     ),
     (
         2,
@@ -353,7 +359,7 @@ sql_server_all_type_data = [
         b"\x02\x03\x04\x05\x06",
         b"\x02\x03\x04\x05",
         False,
-        "41B116E8-7D42-420B-A28A-98D53C782C79",
+        b"41B116E8-7D42-420B-A28A-98D53C782C79",
     ),
     (
         3,
@@ -379,7 +385,7 @@ sql_server_all_type_data = [
         b"\x03\x04\x05\x06\x07",
         b"\x03\x04\x05\x06",
         True,
-        "F418999E-15F9-4FB0-9161-3383E0BC1B3E",
+        b"F418999E-15F9-4FB0-9161-3383E0BC1B3E",
     ),
     (
         4,
@@ -405,7 +411,7 @@ sql_server_all_type_data = [
         b"\x04\x05\x06\x07\x08",
         b"\x04\x05\x06\x07",
         False,
-        "13DF4C45-682A-4C17-81BA-7B00C77E3F9C",
+        b"13DF4C45-682A-4C17-81BA-7B00C77E3F9C",
     ),
     (
         5,
@@ -431,7 +437,7 @@ sql_server_all_type_data = [
         b"\x05\x06\x07\x08\t",
         b"\x05\x06\x07\x08",
         True,
-        "16592D8F-D876-4629-B8E5-C9C882A23C9D",
+        b"16592D8F-D876-4629-B8E5-C9C882A23C9D",
     ),
     (
         5,
@@ -457,7 +463,7 @@ sql_server_all_type_data = [
         b"\x05\x06\x07\x08\t",
         b"\x05\x06\x07\x08",
         True,
-        "16592D8F-D876-4629-B8E5-C9C882A23C9D",
+        b"16592D8F-D876-4629-B8E5-C9C882A23C9D",
     ),
     (
         6,
@@ -483,7 +489,7 @@ sql_server_all_type_data = [
         b"\x06\x07\x08\t\n",
         b"\x06\x07\x08\t",
         False,
-        "26592D8F-D876-4629-B8E5-C9C882A23C9D",
+        b"26592D8F-D876-4629-B8E5-C9C882A23C9D",
     ),
     (
         7,
@@ -509,7 +515,7 @@ sql_server_all_type_data = [
         b"\x07\x08\t\n\x0b",
         b"\x07\x08\t\n",
         True,
-        "36592D8F-D876-4629-B8E5-C9C882A23C9D",
+        b"36592D8F-D876-4629-B8E5-C9C882A23C9D",
     ),
     (
         8,
@@ -535,7 +541,7 @@ sql_server_all_type_data = [
         b"\x08\t\n\x0b\x0c",
         b"\x08\t\n\x0b",
         False,
-        "46592D8F-D876-4629-B8E5-C9C882A23C9D",
+        b"46592D8F-D876-4629-B8E5-C9C882A23C9D",
     ),
     (
         9,
@@ -561,7 +567,7 @@ sql_server_all_type_data = [
         b"\t\n\x0b\x0c\r",
         b"\t\n\x0b\x0c",
         True,
-        "56592D8F-D876-4629-B8E5-C9C882A23C9D",
+        b"56592D8F-D876-4629-B8E5-C9C882A23C9D",
     ),
     (
         10,
@@ -587,7 +593,7 @@ sql_server_all_type_data = [
         b"\n\x0b\x0c\r\x0e",
         b"\n\x0b\x0c\r",
         False,
-        "66592D8F-D876-4629-B8E5-C9C882A23C9D",
+        b"66592D8F-D876-4629-B8E5-C9C882A23C9D",
     ),
 ]
 

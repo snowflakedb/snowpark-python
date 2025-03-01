@@ -61,6 +61,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_create_connection,
     oracledb_all_type_small_data_result,
     oracledb_create_connection_small_data,
+    OracleDBType,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -564,7 +565,7 @@ def test_database_detector():
     mock_conn = MagicMock()
     with patch.object(type(mock_conn), "__module__", "UNKNOWN_DRIVER"):
         result = detect_dbms(mock_conn)
-        assert result == (DBMS_TYPE.UNKNOWN, "")
+        assert result == (DBMS_TYPE.UNKNOWN, "unknown_driver")
 
     mock_conn = MagicMock()
     mock_conn.getinfo.return_value = "UNKNOWN"
@@ -574,15 +575,14 @@ def test_database_detector():
 
 
 def test_type_conversion():
-    with pytest.raises(
-        NotImplementedError, match="sql server type not supported: non-exist_type"
-    ):
-        sql_server_to_snowpark_type([("test_col", "non-exist_type", 0, 0, True)])
+    invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
+    with pytest.raises(NotImplementedError, match="sql server type not supported"):
+        sql_server_to_snowpark_type(
+            [("test_col", invalid_type, None, None, 0, 0, True)]
+        )
 
-    with pytest.raises(
-        NotImplementedError, match="oracledb type not supported: non-exist_type"
-    ):
-        oracledb_to_snowpark_type([("test_col", "non-exist_type", 0, 0, True)])
+    with pytest.raises(NotImplementedError, match="oracledb type not supported"):
+        oracledb_to_snowpark_type([invalid_type])
 
 
 def test_custom_schema_false(session):
