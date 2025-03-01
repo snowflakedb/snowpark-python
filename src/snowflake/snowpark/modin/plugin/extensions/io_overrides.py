@@ -46,10 +46,18 @@ from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     pandas_module_level_function_not_implemented,
 )
+import functools
+
+
+register_pd_accessor_helper = functools.partial(
+    register_pd_accessor, 
+    engine="Snowflake",
+    storage_format="Snowflake"
+)
 
 
 @_inherit_docstrings(native_pd.read_pickle, apilink="pandas.read_pickle")
-@register_pd_accessor("read_pickle")
+@register_pd_accessor_helper("read_pickle")
 @expanduser_path_arg("filepath_or_buffer")
 def read_pickle(
     filepath_or_buffer,
@@ -66,7 +74,7 @@ def read_pickle(
 
 
 @_inherit_docstrings(native_pd.read_html, apilink="pandas.read_html")
-@register_pd_accessor("read_html")
+@register_pd_accessor_helper("read_html")
 def read_html(
     io,
     *,
@@ -100,7 +108,7 @@ def read_html(
 
 
 @_inherit_docstrings(native_pd.read_xml, apilink="pandas.read_xml")
-@register_pd_accessor("read_xml")
+@register_pd_accessor_helper("read_xml")
 @expanduser_path_arg("path_or_buffer")
 def read_xml(
     path_or_buffer: FilePath | ReadBuffer[bytes] | ReadBuffer[str],
@@ -133,7 +141,7 @@ def read_xml(
 
 
 @_inherit_docstrings(native_pd.json_normalize, apilink="pandas.json_normalize")
-@register_pd_accessor("json_normalize")
+@register_pd_accessor_helper("json_normalize")
 def json_normalize(
     data: dict | list[dict],
     record_path: str | list | None = None,
@@ -157,7 +165,7 @@ def json_normalize(
 
 
 @_inherit_docstrings(native_pd.read_orc, apilink="pandas.read_orc")
-@register_pd_accessor("read_orc")
+@register_pd_accessor_helper("read_orc")
 @pandas_module_level_function_not_implemented()
 def read_orc(
     path,
@@ -172,7 +180,7 @@ def read_orc(
 
 
 @_inherit_docstrings(native_pd.read_csv, apilink="pandas.read_csv")
-@register_pd_accessor("read_csv")
+@register_pd_accessor_helper("read_csv")
 def read_csv(
     filepath_or_buffer: FilePath,
     *,
@@ -243,7 +251,7 @@ def read_csv(
 
 
 @_inherit_docstrings(native_pd.read_json, apilink="pandas.read_json")
-@register_pd_accessor("read_json")
+@register_pd_accessor_helper("read_json")
 def read_json(
     path_or_buf: FilePath,
     *,
@@ -280,7 +288,7 @@ def read_json(
 
 
 @_inherit_docstrings(native_pd.read_parquet, apilink="pandas.read_parquet")
-@register_pd_accessor("read_parquet")
+@register_pd_accessor_helper("read_parquet")
 def read_parquet(
     path: FilePath,
     engine: str | None = None,
@@ -303,7 +311,7 @@ def read_parquet(
 
 
 @_inherit_docstrings(native_pd.read_sas, apilink="pandas.read_sas")
-@register_pd_accessor("read_sas")
+@register_pd_accessor_helper("read_sas")
 def read_sas(
     filepath_or_buffer,
     *,
