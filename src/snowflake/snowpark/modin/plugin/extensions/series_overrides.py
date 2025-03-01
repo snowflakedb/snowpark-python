@@ -87,7 +87,8 @@ def register_series_not_implemented():
 # Because __getattr__ itself is responsible for resolving extension methods, we cannot override
 # this method via the extensions module, and have to do it with an old-fashioned set.
 # We cannot name this method __getattr__ because Python will treat this as this file's __getattr__.
-def _fake_getattr(self, key):
+@register_series_accessor_helper("__getattr__")
+def __getattr__(self, key):
     """
     Return item identified by `key`.
 
@@ -107,24 +108,16 @@ def _fake_getattr(self, key):
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     from modin.pandas.base import _ATTRS_NO_LOOKUP
-    from modin.pandas.series import _SERIES_EXTENSIONS_
-
-    try:
-        return _SERIES_EXTENSIONS_.get(key, object.__getattribute__(self, key))
-    except AttributeError as err:
-        if key not in _ATTRS_NO_LOOKUP:
-            try:
-                value = self[key]
-                if isinstance(value, Series) and value.empty:
-                    raise err
-                return value
-            except Exception:
-                # We want to raise err if self[key] raises any kind of exception
+    if key not in _ATTRS_NO_LOOKUP:
+        try:
+            value = self[key]
+            if isinstance(value, Series) and value.empty:
                 raise err
-        raise err
-
-
-Series.__getattr__ = _fake_getattr
+            return value
+        except Exception:
+            # We want to raise err if self[key] raises any kind of exception
+            raise err
+    raise err
 
 
 # === UNIMPLEMENTED METHODS ===
@@ -138,6 +131,7 @@ Series.__getattr__ = _fake_getattr
 
 @register_series_not_implemented()
 def argsort(self, axis=0, kind="quicksort", order=None):  # noqa: PR01, RT01, D200
+
     pass  # pragma: no cover
 
 
