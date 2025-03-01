@@ -91,6 +91,7 @@ class IndexParent:
         parent : DataFrame or Series
             The parent object that the Index is a part of.
         """
+        breakpoint()
         assert isinstance(parent, (DataFrame, Series))
         self._parent = parent
         self._parent_qc = parent._query_compiler

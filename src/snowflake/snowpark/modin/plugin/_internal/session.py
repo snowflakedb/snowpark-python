@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional
 import snowflake.snowpark.context
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.session import Session, _active_sessions
+import modin.pandas as pd
 
 
 def _subimport(name: str) -> ModuleType:
@@ -21,7 +22,7 @@ def _subimport(name: str) -> ModuleType:
     return sys.modules[name]
 
 
-class SnowpandasSessionHolder(ModuleType):
+class SnowpandasSessionHolder(type(pd)):
     """
     This class implements the pattern [1] to make "session" a singleton.
 
