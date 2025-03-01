@@ -264,129 +264,71 @@ def test_describe_api_calls(session):
                     {
                         "name": "DataFrame.agg",
                         "subcalls": [
-                            {
-                                "name": "DataFrame.group_by",
-                            },
-                            {
-                                "name": "RelationalGroupedDataFrame.agg",
-                            },
+                            {"name": "DataFrame.group_by"},
+                            {"name": "RelationalGroupedDataFrame.agg"},
                         ],
                     },
                     {
                         "name": "DataFrame.to_df",
-                        "subcalls": [
-                            {
-                                "name": "DataFrame.select",
-                            }
-                        ],
+                        "subcalls": [{"name": "DataFrame.select"}],
                     },
-                    {
-                        "name": "DataFrame.select",
-                    },
+                    {"name": "DataFrame.select"},
                     {"name": "Session.create_dataframe[values]"},
                     {
                         "name": "DataFrame.agg",
                         "subcalls": [
-                            {
-                                "name": "DataFrame.group_by",
-                            },
-                            {
-                                "name": "RelationalGroupedDataFrame.agg",
-                            },
+                            {"name": "DataFrame.group_by"},
+                            {"name": "RelationalGroupedDataFrame.agg"},
                         ],
                     },
                     {
                         "name": "DataFrame.to_df",
-                        "subcalls": [
-                            {
-                                "name": "DataFrame.select",
-                            }
-                        ],
+                        "subcalls": [{"name": "DataFrame.select"}],
                     },
-                    {
-                        "name": "DataFrame.select",
-                    },
-                    {
-                        "name": "DataFrame.union",
-                    },
+                    {"name": "DataFrame.select"},
+                    {"name": "DataFrame.union"},
                     {"name": "Session.create_dataframe[values]"},
                     {
                         "name": "DataFrame.agg",
                         "subcalls": [
-                            {
-                                "name": "DataFrame.group_by",
-                            },
-                            {
-                                "name": "RelationalGroupedDataFrame.agg",
-                            },
+                            {"name": "DataFrame.group_by"},
+                            {"name": "RelationalGroupedDataFrame.agg"},
                         ],
                     },
                     {
                         "name": "DataFrame.to_df",
-                        "subcalls": [
-                            {
-                                "name": "DataFrame.select",
-                            }
-                        ],
+                        "subcalls": [{"name": "DataFrame.select"}],
                     },
-                    {
-                        "name": "DataFrame.select",
-                    },
-                    {
-                        "name": "DataFrame.union",
-                    },
+                    {"name": "DataFrame.select"},
+                    {"name": "DataFrame.union"},
                     {"name": "Session.create_dataframe[values]"},
                     {
                         "name": "DataFrame.agg",
                         "subcalls": [
-                            {
-                                "name": "DataFrame.group_by",
-                            },
-                            {
-                                "name": "RelationalGroupedDataFrame.agg",
-                            },
+                            {"name": "DataFrame.group_by"},
+                            {"name": "RelationalGroupedDataFrame.agg"},
                         ],
                     },
                     {
                         "name": "DataFrame.to_df",
-                        "subcalls": [
-                            {
-                                "name": "DataFrame.select",
-                            }
-                        ],
+                        "subcalls": [{"name": "DataFrame.select"}],
                     },
-                    {
-                        "name": "DataFrame.select",
-                    },
-                    {
-                        "name": "DataFrame.union",
-                    },
+                    {"name": "DataFrame.select"},
+                    {"name": "DataFrame.union"},
                     {"name": "Session.create_dataframe[values]"},
                     {
                         "name": "DataFrame.agg",
                         "subcalls": [
-                            {
-                                "name": "DataFrame.group_by",
-                            },
-                            {
-                                "name": "RelationalGroupedDataFrame.agg",
-                            },
+                            {"name": "DataFrame.group_by"},
+                            {"name": "RelationalGroupedDataFrame.agg"},
                         ],
                     },
                     {
                         "name": "DataFrame.to_df",
-                        "subcalls": [
-                            {
-                                "name": "DataFrame.select",
-                            }
-                        ],
+                        "subcalls": [{"name": "DataFrame.select"}],
                     },
-                    {
-                        "name": "DataFrame.select",
-                    },
-                    {
-                        "name": "DataFrame.union",
-                    },
+                    {"name": "DataFrame.select"},
+                    {"name": "DataFrame.union"},
                 ],
             },
         ],
