@@ -1103,8 +1103,8 @@ class DataFrameReader:
             create_connection: a function that return a dbapi connection
             table: the name of the table in external data source
             column: column name used to create partition, the column type must be numeric like int type or float type, or Date type.
-            lower_bound: lower bound of partition, decide the stride of partition alogn with upper_bound, this parameter does not filter out data.
-            upper_bound: upper bound of partition, decide the stride of partition alogn with lower_bound, this parameter does not filter out data.
+            lower_bound: lower bound of partition, decide the stride of partition along with upper_bound, this parameter does not filter out data.
+            upper_bound: upper bound of partition, decide the stride of partition along with lower_bound, this parameter does not filter out data.
             num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
             max_workers: number of processes and threads used for parallelism.
             query_timeout: timeout(seconds) for each query, default value is 0, which means never timeout.
