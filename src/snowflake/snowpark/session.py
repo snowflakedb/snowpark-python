@@ -3340,6 +3340,7 @@ class Session:
                         json.dumps(value.as_dict(), cls=PythonObjJSONEncoder)
                     )
                 elif isinstance(data_type, VariantType):
+                    breakpoint()
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, GeographyType):
                     converted_row.append(value)
