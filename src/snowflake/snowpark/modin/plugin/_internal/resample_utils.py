@@ -422,7 +422,7 @@ def perform_resample_binning_on_frame(
     slice_width: int,
     slice_unit: str,
     *,
-    resample_output_col_identifier: Optional[str],
+    resample_output_col_identifier: Optional[str] = None,
 ) -> InternalFrame:
     """
     Returns a new dataframe where each item of the index column
