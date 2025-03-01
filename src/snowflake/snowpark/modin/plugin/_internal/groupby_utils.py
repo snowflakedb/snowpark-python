@@ -39,6 +39,7 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     fill_missing_resample_bins_for_frame,
     rule_to_snowflake_width_and_slice_unit,
 )
+from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
 from snowflake.snowpark.modin.utils import hashable
 from snowflake.snowpark.window import Window
@@ -51,11 +52,42 @@ BaseInternalKeyType = Union[
 NO_GROUPKEY_ERROR = ValueError("No group keys passed!")
 
 
+def validate_grouper(val: native_pd.Grouper) -> None:
+    """
+    Raise an exception if the grouper object has fields unsupported in Snowpark pandas.
+    """
+    unsupported_params = [
+        "sort",
+        "closed",
+        "label",
+        "convention",
+        "origin",
+        "offset",
+        "dropna",
+    ]
+    if (
+        val.sort
+        or val.closed is not None
+        or val.label is not None
+        or val.convention is not None
+        or val.origin is not None
+        or val.offset is not None
+        or not val.dropna
+    ):
+        ErrorMessage.not_implemented(
+            "Snowpark pandas does not yet support any of the following parameters in Grouper objects: "
+            + ", ".join(unsupported_params)
+        )
+
+
 def is_groupby_value_label_like(val: Any) -> bool:
     """
     Check if the groupby value can be treated as pandas label.
     """
     from modin.pandas import Series
+
+    if isinstance(val, native_pd.Grouper):
+        validate_grouper(val)
 
     # A pandas label is a hashable, and we exclude the callable, and Series which are
     # by values that should not be handled as pandas label of the dataframe.
@@ -165,6 +197,7 @@ def check_is_groupby_supported_by_snowflake(
     if isinstance(by, native_pd.Grouper):
         # Per pandas docs, level and axis arguments of the grouper object take precedence over
         # level and axis passed explicitly.
+        validate_grouper(by)
         return check_non_grouper_supported(
             by.key,
             by.level if by.level is not None else level,
