@@ -144,6 +144,9 @@ def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
     SQLServer to Python datatype mapping
     https://peps.python.org/pep-0249/#description returns the following spec
     name, type_code, display_size, internal_size, precision, scale, null_ok
+
+    SQLServer supported types in Python (outdated):
+    https://learn.microsoft.com/en-us/sql/machine-learning/python/python-libraries-and-data-types?view=sql-server-ver16
     """
     fields = []
     for column in schema:
@@ -153,7 +156,7 @@ def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
             raise NotImplementedError(f"sql server type not supported: {type_code}")
         if type_code in (int, decimal.Decimal):
             if not validate(precision, scale):
-                _logger.warning(
+                _logger.debug(
                     f"Snowpark does not support column"
                     f" {name} of type {type_code} with precision {precision} and scale {scale}. "
                     "The default Numeric precision and scale will be used."
@@ -171,9 +174,14 @@ def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
 
 def oracledb_to_snowpark_type(schema: List[Any]) -> StructType:
     """
-    This is used to convert oracledb raw schema to snowpark StructType.
-    oracledb fetch info:
+    OracleDB to Python datatype mapping
+    Oracle also follows PEP 249 spec, it returns a fetch info object containing the following memvar and more:
+    name, type_code, display_size, internal_size, precision, scale, null_ok
+
+    oracledb fetch info reference:
     https://python-oracledb.readthedocs.io/en/latest/api_manual/fetch_info.html#api-fetchinfo-objects
+
+    oracledb supported types in Python:
     https://python-oracledb.readthedocs.io/en/latest/user_guide/appendix_a.html#supported-oracle-database-data-types
     # TODO: SNOW-1922043 Investigation on handling number type in oracle db
     """
@@ -229,7 +237,7 @@ def oracledb_to_snowpark_type(schema: List[Any]) -> StructType:
             data_type = snow_type(TimestampTimeZone.LTZ)
         elif snow_type == DecimalType:
             if not validate(precision, scale):
-                _logger.warning(
+                _logger.debug(
                     f"Snowpark does not support column"
                     f" {name} of type {type_code} with precision {precision} and scale {scale}. "
                     "The default Numeric precision and scale will be used."

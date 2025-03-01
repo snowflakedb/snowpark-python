@@ -16,7 +16,7 @@ import pytest
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
-from snowflake.snowpark.dataframe_reader import MAX_RETRY_TIME, DataFrameReader
+from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME, DataFrameReader
 from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
     DATA_SOURCE_SQL_COMMENT,
@@ -86,14 +86,14 @@ def upload_and_copy_into_table_with_retry(
 
 def test_dbapi_with_temp_table(session):
     df = session.read.dbapi(
-        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
+        sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, max_workers=4
     )
     assert df.collect() == sql_server_all_type_data
 
 
 def test_dbapi_oracledb(session):
     df = session.read.dbapi(
-        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
+        oracledb_create_connection, table=ORACLEDB_TABLE_NAME, max_workers=4
     )
     assert df.collect() == oracledb_all_type_data_result
 
@@ -124,7 +124,7 @@ def test_dbapi_batch_fetch(
     session, create_connection, table_name, expected_result, fetch_size
 ):
     df = session.read.dbapi(
-        create_connection, table_name, max_workers=4, fetch_size=fetch_size
+        create_connection, table=table_name, max_workers=4, fetch_size=fetch_size
     )
     assert df.order_by("ID").collect() == expected_result
 
@@ -147,7 +147,7 @@ def test_dbapi_retry(session):
                 tmp_dir="/tmp",
                 dbms_type=DBMS_TYPE.SQL_SERVER_DB,
             )
-        assert mock_task.call_count == MAX_RETRY_TIME
+        assert mock_task.call_count == _MAX_RETRY_TIME
 
     with mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
@@ -162,7 +162,7 @@ def test_dbapi_retry(session):
                 snowflake_stage_name="fake_stage",
                 snowflake_table_name="fake_table",
             )
-        assert mock_task.call_count == MAX_RETRY_TIME
+        assert mock_task.call_count == _MAX_RETRY_TIME
 
 
 @pytest.mark.skipif(
@@ -184,7 +184,7 @@ def test_parallel(session):
         ) as mock_upload_and_copy:
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
-                table_name,
+                table=table_name,
                 column="id",
                 upper_bound=100,
                 lower_bound=0,
@@ -330,7 +330,7 @@ def test_partition_date_timestamp(session):
 
 
 def test_partition_unsupported_type(session):
-    with pytest.raises(TypeError, match="unsupported column type for partition:"):
+    with pytest.raises(ValueError, match="unsupported type"):
         session.read._generate_partition(
             select_query="SELECT * FROM fake_table",
             column_type=MapType(),
@@ -364,7 +364,9 @@ def test_telemetry_tracking(caplog, session):
     ), mock.patch(
         "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
     ) as mock_telemetry:
-        df = session.read.dbapi(sql_server_create_connection, SQL_SERVER_TABLE_NAME)
+        df = session.read.dbapi(
+            sql_server_create_connection, table=SQL_SERVER_TABLE_NAME
+        )
     assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
     assert (
         called == 4 and comment_showed == 4
@@ -429,7 +431,7 @@ def test_custom_schema(session, custom_schema):
 
         df = session.read.dbapi(
             functools.partial(create_connection_to_sqlite3_db, dbpath),
-            table_name,
+            table=table_name,
             custom_schema=custom_schema,
         )
         assert df.columns == [col.upper() for col in columns]
@@ -441,7 +443,7 @@ def test_custom_schema(session, custom_schema):
         ):
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
-                table_name,
+                table=table_name,
             )
 
 
@@ -468,7 +470,7 @@ def test_session_init_statement(session):
 
         df = session.read.dbapi(
             functools.partial(create_connection_to_sqlite3_db, dbpath),
-            table_name,
+            table=table_name,
             custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
             session_init_statement="SELECT 1;",
         )
@@ -479,7 +481,7 @@ def test_session_init_statement(session):
         ):
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
-                table_name,
+                table=table_name,
                 custom_schema="id INTEGER",
                 session_init_statement="SELECT FROM NOTHING;",
             )
@@ -491,7 +493,7 @@ def test_negative_case(session):
         SnowparkDataframeReaderException, match="RuntimeError: Fake exception"
     ):
         session.read.dbapi(
-            sql_server_create_connection_with_exception, SQL_SERVER_TABLE_NAME
+            sql_server_create_connection_with_exception, table=SQL_SERVER_TABLE_NAME
         )
 
     # error happening during ingestion
@@ -504,7 +506,7 @@ def test_negative_case(session):
             SnowparkDataframeReaderException, match="ValueError: Ingestion exception"
         ):
             session.read.dbapi(
-                sql_server_create_connection_small_data, SQL_SERVER_TABLE_NAME
+                sql_server_create_connection_small_data, table=SQL_SERVER_TABLE_NAME
             )
 
 
@@ -589,14 +591,14 @@ def test_custom_schema_false(session):
     with pytest.raises(ValueError, match="Invalid schema string: timestamp_tz."):
         session.read.dbapi(
             sql_server_create_connection,
-            SQL_SERVER_TABLE_NAME,
+            table=SQL_SERVER_TABLE_NAME,
             max_workers=4,
             custom_schema="timestamp_tz",
         )
-    with pytest.raises(TypeError, match="Invalid schema type: <class 'int'>."):
+    with pytest.raises(ValueError, match="Invalid schema type: <class 'int'>."):
         session.read.dbapi(
             sql_server_create_connection,
-            SQL_SERVER_TABLE_NAME,
+            table=SQL_SERVER_TABLE_NAME,
             max_workers=4,
             custom_schema=1,
         )
@@ -608,7 +610,7 @@ def test_partition_wrong_input(session, caplog):
         match="when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None",
     ):
         session.read.dbapi(
-            sql_server_create_connection, SQL_SERVER_TABLE_NAME, lower_bound=0
+            sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, lower_bound=0
         )
 
     with pytest.raises(
@@ -616,9 +618,11 @@ def test_partition_wrong_input(session, caplog):
         match="when column is specified, lower_bound, upper_bound, num_partitions must be specified",
     ):
         session.read.dbapi(
-            sql_server_create_connection, SQL_SERVER_TABLE_NAME, column="id"
+            sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, column="id"
         )
-    with pytest.raises(ValueError, match="Column does not exist"):
+    with pytest.raises(
+        ValueError, match="Specified column non_exist_column does not exist"
+    ):
         session.read.dbapi(
             sql_server_create_connection,
             table=SQL_SERVER_TABLE_NAME,
@@ -632,7 +636,7 @@ def test_partition_wrong_input(session, caplog):
     with pytest.raises(ValueError, match="unsupported type BooleanType()"):
         session.read.dbapi(
             sql_server_create_connection,
-            SQL_SERVER_TABLE_NAME,
+            table=SQL_SERVER_TABLE_NAME,
             column="ID",
             lower_bound=0,
             upper_bound=10,

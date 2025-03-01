@@ -33,7 +33,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_file_format_if_exists_statement,
     infer_schema_statement,
     quote_name_without_upper_casing,
-    TEMPORARY_STRING_SET,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -120,7 +119,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
 
-MAX_RETRY_TIME = 3
+_MAX_RETRY_TIME = 3
 
 
 def _validate_stage_path(path: str) -> str:
@@ -1105,21 +1104,29 @@ class DataFrameReader:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[str] = None,
     ) -> DataFrame:
-        """Reads data from a database table using a DBAPI connection.
+        """Reads data from a database table using a DBAPI connection with optional partitioning, parallel processing, and query customization.
+        By default, the function reads the entire table at a time without a query timeout.
+        There are several ways to break data into small pieces and speed up ingestion, you can also combine them to acquire optimal performance:
+            1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing. These must all be specified together, otherwise error will be raised.
+            2.Set max_workers to a proper positive integer. This defines the maximum number of processes and threads used for parallel execution.
+            3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+            4.Use predicates to defining WHERE conditions for partitions, predicates will be ignored if column is specified to generate partition.
+            5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched column name with table in external data source.
+        You can also use session_init_statement to perform any SQL that you want to execute on external data source before fetching data.
         Args:
             create_connection: a function that return a dbapi connection
             table: Specifies the name of the table in the external data source. This parameter cannot be set simultaneously with the query parameter.
             query: A valid SQL query to be used in the FROM clause. This parameter cannot be set simultaneously with the table parameter.
-            column: column name used to create partition
-            lower_bound: lower bound of partition
-            upper_bound: upper bound of partition
-            num_partitions: number of partitions to create
-            max_workers: number of workers for parallelism
-            query_timeout: timeout for each query, default value is 0, meaning never timeout
-            fetch_size: batch size when fetching from external data source
-            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source
+            column: column name used to create partition, the column type must be numeric like int type or float type, or Date type.
+            lower_bound: lower bound of partition, decide the stride of partition along with upper_bound, this parameter does not filter out data.
+            upper_bound: upper bound of partition, decide the stride of partition along with lower_bound, this parameter does not filter out data.
+            num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+            max_workers: number of processes and threads used for parallelism.
+            query_timeout: timeout(seconds) for each query, default value is 0, which means never timeout.
+            fetch_size: batch size when fetching from external data source, which determine how many rows fetched per round trip. This improve performace for drivers that have a low default fetch size.
+            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source. This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING", or StructType, for example: StructType([StructField("ID", IntegerType(), False)])
             predicates: a list of expressions suitable for inclusion in WHERE clauses, each defines a partition
-            session_init_statement: session initiation statements for external data source
+            session_init_statement: session initiation statements for external data source, this statement will be executed before fetch data from external data source, for example: "insert into test_table values (1, 'sample_data')" will insert data into test_table before fetch data from it.
         Note:
             column, lower_bound, upper_bound and num_partitions must be specified if any one of them is specified.
         """
@@ -1132,7 +1139,7 @@ class DataFrameReader:
         start_time = time.perf_counter()
         conn = create_connection()
         dbms_type, driver_info = detect_dbms(conn)
-        logger.info(f"Detected DBMS: {dbms_type}, Driver Info: {driver_info}")
+        logger.debug(f"Detected DBMS: {dbms_type}, Driver Info: {driver_info}")
         if custom_schema is None:
             struct_schema = infer_data_source_schema(
                 conn, table_or_query, dbms_type, driver_info
@@ -1141,16 +1148,19 @@ class DataFrameReader:
             if isinstance(custom_schema, str):
                 struct_schema = type_string_to_type_object(custom_schema)
                 if not isinstance(struct_schema, StructType):
-                    logger.error(f"Invalid schema string: {custom_schema}")
                     raise ValueError(
                         f"Invalid schema string: {custom_schema}. "
                         f"You should provide a valid schema string representing a struct type."
+                        'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     )
             elif isinstance(custom_schema, StructType):
                 struct_schema = custom_schema
             else:
-                logger.error(f"Invalid schema type: {type(custom_schema)}")
-                raise TypeError(f"Invalid schema type: {type(custom_schema)}.")
+                raise ValueError(
+                    f"Invalid schema type: {type(custom_schema)}."
+                    'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
+                    'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
+                )
 
         select_query = generate_select_query(
             table_or_query, struct_schema, dbms_type, driver_info
@@ -1162,7 +1172,6 @@ class DataFrameReader:
                 or upper_bound is not None
                 or num_partitions is not None
             ):
-                logger.error("column is None but bounds or partitions are specified")
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
@@ -1174,7 +1183,6 @@ class DataFrameReader:
                 )
         else:
             if lower_bound is None or upper_bound is None or num_partitions is None:
-                logger.error("column is specified but bounds or partitions are missing")
                 raise ValueError(
                     "when column is specified, lower_bound, upper_bound, num_partitions must be specified"
                 )
@@ -1184,15 +1192,13 @@ class DataFrameReader:
                 if field.name.lower() == column.lower():
                     column_type = field.datatype
             if column_type is None:
-                logger.error("Specified column does not exist in schema")
-                raise ValueError("Column does not exist")
+                raise ValueError(f"Specified column {column} does not exist")
 
             if not isinstance(column_type, _NumericType) and not isinstance(
                 column_type, DateType
             ):
-                logger.error(f"Unsupported column type: {column_type}")
                 raise ValueError(
-                    f"unsupported type {column_type}, we support numeric type and date type"
+                    f"unsupported type {column_type}, column must be a numeric type like int and float, or date type"
                 )
             partitioned_queries = self._generate_partition(
                 select_query,
@@ -1204,18 +1210,19 @@ class DataFrameReader:
             )
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
-            snowflake_table_type = "temporary"
+            snowflake_table_type = "TEMPORARY"
             snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
             create_table_sql = (
                 "CREATE "
-                f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
+                f"{snowflake_table_type} "
                 "TABLE "
-                f"{snowflake_table_name} "
+                f"identifier(?) "
                 f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
                 f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
+            params = (snowflake_table_name,)
             logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-            self._session.sql(create_table_sql).collect(
+            self._session.sql(create_table_sql, params=params).collect(
                 statement_params=statements_params_for_telemetry
             )
             # create temp stage
@@ -1241,7 +1248,7 @@ class DataFrameReader:
                         # clean the local temp file after ingestion to avoid consuming too much temp disk space
                         shutil.rmtree(parquet_file_path, ignore_errors=True)
 
-                    logger.info("Starting to fetch data from the data source.")
+                    logger.debug("Starting to fetch data from the data source.")
                     for partition_idx, query in enumerate(partitioned_queries):
                         process_future = process_executor.submit(
                             DataFrameReader._task_fetch_from_data_source_with_retry,
@@ -1287,16 +1294,10 @@ class DataFrameReader:
                             )
                             for future in process_pool_futures:
                                 if future.done():
-                                    try:
-                                        future.result()  # Throw error if the process failed
-                                        logger.debug(
-                                            "A process future completed successfully."
-                                        )
-                                    except Exception as e:
-                                        logger.error(
-                                            f"Process future failed with error: {e}"
-                                        )
-                                        raise
+                                    future.result()  # Throw error if the process failed
+                                    logger.debug(
+                                        "A process future completed successfully."
+                                    )
                                 else:
                                     unfinished_process_pool_futures.append(future)
                                     all_job_done = False
@@ -1311,12 +1312,8 @@ class DataFrameReader:
                             time.sleep(0.5)
 
                     for future in as_completed(thread_pool_futures):
-                        try:
-                            future.result()  # Throw error if the thread failed
-                            logger.debug("A thread future completed successfully.")
-                        except BaseException as e:
-                            logger.error(f"Thread future failed with error: {e}")
-                            raise
+                        future.result()  # Throw error if the thread failed
+                        logger.debug("A thread future completed successfully.")
 
             except BaseException:
                 # graceful shutdown
@@ -1324,7 +1321,7 @@ class DataFrameReader:
                 thread_executor.shutdown(wait=True)
                 raise
 
-            logger.info(
+            logger.debug(
                 "All data has been successfully loaded into the Snowflake table."
             )
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
@@ -1418,7 +1415,9 @@ class DataFrameReader:
             dt = parser.parse(value)
             return int(dt.replace(tzinfo=pytz.UTC).timestamp())
         else:
-            raise TypeError(f"unsupported column type for partition: {column_type}")
+            raise ValueError(
+                f"unsupported type {column_type} for partition, column must be a numeric type like int and float, or date type"
+            )
 
     # this function is only used in data source API for SQL server
     def _to_external_value(self, value: Union[int, str, float], column_type: DataType):
@@ -1428,7 +1427,9 @@ class DataFrameReader:
             # TODO: SNOW-1909315: support timezone
             return datetime.datetime.fromtimestamp(value, tz=pytz.UTC)
         else:
-            raise TypeError(f"unsupported column type for partition: {column_type}")
+            raise ValueError(
+                f"unsupported type {column_type} for partition, column must be a numeric type like int and float, or date type"
+            )
 
     @staticmethod
     def _retry_run(func: Callable, *args, **kwargs) -> Any:
@@ -1436,7 +1437,7 @@ class DataFrameReader:
         last_error = None
         error_trace = ""
         func_name = func.__name__
-        while retry_count < MAX_RETRY_TIME:
+        while retry_count < _MAX_RETRY_TIME:
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -1444,15 +1445,14 @@ class DataFrameReader:
                 error_trace = traceback.format_exc()
                 retry_count += 1
                 logger.debug(
-                    f"[{func_name}] Attempt {retry_count}/{MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
+                    f"[{func_name}] Attempt {retry_count}/{_MAX_RETRY_TIME} failed with {type(last_error).__name__}: {str(last_error)}. Retrying..."
                 )
         error_message = (
-            f"Function `{func_name}` failed after {MAX_RETRY_TIME} attempts.\n"
+            f"Function `{func_name}` failed after {_MAX_RETRY_TIME} attempts.\n"
             f"Last error: [{type(last_error).__name__}] {str(last_error)}\n"
             f"Traceback:\n{error_trace}"
         )
         final_error = SnowparkDataframeReaderException(message=error_message)
-        logger.error(error_message)
         raise final_error
 
     def _upload_and_copy_into_table(
