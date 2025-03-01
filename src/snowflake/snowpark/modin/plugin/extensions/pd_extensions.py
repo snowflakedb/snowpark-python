@@ -23,10 +23,17 @@ from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
+import functools
 
-register_pd_accessor("Index")(Index)
-register_pd_accessor("DatetimeIndex")(DatetimeIndex)
-register_pd_accessor("TimedeltaIndex")(TimedeltaIndex)
+register_pd_accessor_helper = functools.partial(
+    register_pd_accessor, 
+    engine="Snowflake",
+    storage_format="Snowflake"
+)
+
+register_pd_accessor_helper("Index")(Index)
+register_pd_accessor_helper("DatetimeIndex")(DatetimeIndex)
+register_pd_accessor_helper("TimedeltaIndex")(TimedeltaIndex)
 
 
 def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
@@ -34,7 +41,7 @@ def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
         raise TypeError("obj must be a Snowpark pandas DataFrame or Series")
 
 
-@register_pd_accessor("read_snowflake")
+@register_pd_accessor_helper("read_snowflake")
 def read_snowflake(
     name_or_query: Union[str, Iterable[str]],
     index_col: Union[str, list[str], None] = None,
@@ -397,7 +404,7 @@ def read_snowflake(
     )
 
 
-@register_pd_accessor("to_snowflake")
+@register_pd_accessor_helper("to_snowflake")
 def to_snowflake(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -440,7 +447,7 @@ def to_snowflake(
     )
 
 
-@register_pd_accessor("to_snowpark")
+@register_pd_accessor_helper("to_snowpark")
 def to_snowpark(
     obj: Union[DataFrame, Series],
     index: bool = True,
@@ -589,7 +596,7 @@ def to_snowpark(
     return obj._query_compiler.to_snowpark(index, index_label)
 
 
-@register_pd_accessor("to_pandas")
+@register_pd_accessor_helper("to_pandas")
 @materialization_warning
 def to_pandas(
     obj: Union[DataFrame, Series],
