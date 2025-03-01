@@ -217,7 +217,7 @@ class DataFrameNaFunctions:
             new_df = copy.copy(self._dataframe)
             add_api_call(new_df, "DataFrameNaFunctions.drop")
             if _emit_ast:
-                self._dataframe._ast_id = stmt.var_id.bitfield1
+                new_df._ast_id = stmt.var_id.bitfield1
             return self._dataframe
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
@@ -381,7 +381,7 @@ class DataFrameNaFunctions:
                 for k, v in value.items():
                     # N.B. In Phase 1, error checking will be incorporated directly here.
                     if isinstance(k, str):
-                        entry = ast.value_map.list.add()
+                        entry = ast.value_map.add()
                         entry._1 = k
                         build_expr_from_python_val(entry._2, v)
             else:
@@ -583,24 +583,26 @@ class DataFrameNaFunctions:
 
             if isinstance(to_replace, dict):
                 for k, v in to_replace.items():
-                    entry = ast.replacement_map.list.add()
+                    entry = ast.replacement_map.add()
                     build_expr_from_python_val(entry._1, k)
                     build_expr_from_python_val(entry._2, v)
             elif isinstance(to_replace, Iterable):
                 for v in to_replace:
-                    entry = ast.to_replace_list.list.add()
+                    entry = ast.to_replace_list.add()
                     build_expr_from_python_val(entry, v)
             else:
                 build_expr_from_python_val(ast.to_replace_value, to_replace)
 
             if isinstance(value, Iterable):
                 for v in value:
-                    entry = ast.values.list.add()
+                    entry = ast.values.add()
                     build_expr_from_python_val(entry, v)
             else:
                 build_expr_from_python_val(ast.value, value)
 
-            if subset is not None:
+            if isinstance(subset, str):
+                ast.subset.list.append(subset)
+            elif isinstance(subset, Iterable):
                 ast.subset.list.extend(subset)
 
         # Modify subset.
