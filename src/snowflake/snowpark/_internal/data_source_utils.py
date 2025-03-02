@@ -124,6 +124,9 @@ class Cursor(Protocol):
     def fetchone(self):
         pass
 
+    def fetchmany(self, size: int):
+        pass
+
     def close(self):
         pass
 
@@ -283,7 +286,10 @@ def infer_data_source_schema(
 
 def data_source_data_to_pandas_df(data: List[Any], schema: StructType) -> pd.DataFrame:
     columns = [col.name for col in schema.fields]
-    df = pd.DataFrame.from_records(data, columns=columns)
+    if not data:
+        return pd.DataFrame(columns=columns)
+    # this way handles both list of object and list of tuples and avoid implict pandas type conversion
+    df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
 
     # convert timestamp and date to string to work around SNOW-1911989
     df = df.map(

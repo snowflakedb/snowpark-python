@@ -169,24 +169,25 @@ def test_dbapi_retry(session):
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
 )
-def test_parallel(session):
+@pytest.mark.parametrize("upper_bound, expected_upload_cnt", [(5, 3), (100, 1)])
+def test_parallel(session, upper_bound, expected_upload_cnt):
     num_partitions = 3
 
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
-        table_name, _, _, _ = sqlite3_db(dbpath)
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
 
         start = time.time()
 
         with mock.patch(
             "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
-            wrap=upload_and_copy_into_table_with_retry,
+            side_effect=session.read._upload_and_copy_into_table_with_retry,
         ) as mock_upload_and_copy:
-            session.read.dbapi(
+            df = session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
                 table_name,
                 column="id",
-                upper_bound=100,
+                upper_bound=upper_bound,
                 lower_bound=0,
                 num_partitions=num_partitions,
                 max_workers=4,
@@ -194,7 +195,8 @@ def test_parallel(session):
             )
             # totally time without parallel is 12 seconds
             assert time.time() - start < 12
-            assert mock_upload_and_copy.call_count == num_partitions
+            assert mock_upload_and_copy.call_count == expected_upload_cnt
+            assert df.order_by("ID").collect() == assert_data
 
 
 def test_partition_logic(session):
