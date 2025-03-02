@@ -666,6 +666,10 @@ def test_partition_wrong_input(session, caplog):
     assert "The number of partitions is reduced" in caplog.text
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
 def test_query_parameter(session):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
@@ -686,6 +690,36 @@ def test_query_parameter(session):
         )
         assert df.columns == [col.upper() for col in columns]
         assert df.collect() == assert_data[filter_idx:]
+
+        def sqlite_to_snowpark_type(schema):
+            assert (
+                len(schema) == 2
+                and schema[0][0] == "int_col"
+                and schema[1][0] == "text_col"
+            )
+            return StructType(
+                [
+                    StructField("int_col", IntegerType()),
+                    StructField("text_col", StringType()),
+                ]
+            )
+
+        with mock.patch(
+            "snowflake.snowpark._internal.data_source_utils.sqlite_to_snowpark_type",
+            side_effect=sqlite_to_snowpark_type,
+        ):
+            query = (
+                f"SELECT int_col, text_col FROM PrimitiveTypes WHERE id > {filter_idx}"
+            )
+            df = session.read.dbapi(
+                functools.partial(create_connection_to_sqlite3_db, dbpath),
+                query=f"({query}) as t",
+            )
+            assert df.columns == ["INT_COL", "TEXT_COL"]
+            assert (
+                df.collect()
+                == create_connection_to_sqlite3_db(dbpath).execute(query).fetchall()
+            )
 
 
 def test_option_load(session):

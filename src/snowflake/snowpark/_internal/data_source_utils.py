@@ -254,6 +254,19 @@ def oracledb_to_snowpark_type(schema: List[Any]) -> StructType:
     return StructType(fields)
 
 
+def sqlite_to_snowpark_type(schema):
+    """
+    This method is internal only for testing infer_data_source_schema purpose. It is patched in the test.
+    sqlite3 returns a list of tuples containing only the name information
+    the rest of the description information are all None:
+    type_code, display_size, internal_size, precision, scale, null_ok
+    """
+    raise NotImplementedError(
+        "SQLite is not supported yet. To avoid auto inference, you can manually "
+        "specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
+    )
+
+
 def infer_data_source_schema(
     conn: Connection, table_or_query: str, dbms_type: DBMS_TYPE, driver_info: str
 ) -> StructType:
@@ -265,6 +278,8 @@ def infer_data_source_schema(
             return sql_server_to_snowpark_type(raw_schema)
         elif dbms_type == DBMS_TYPE.ORACLE_DB:
             return oracledb_to_snowpark_type(raw_schema)
+        elif dbms_type == DBMS_TYPE.SQLITE_DB:
+            return sqlite_to_snowpark_type(raw_schema)
         else:
             raise NotImplementedError(
                 f"Failed to infer Snowpark DataFrame schema from source '{table_or_query}'. "
