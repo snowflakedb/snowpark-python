@@ -4146,7 +4146,8 @@ class DataFrame:
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
-            adjust_api_subcalls(df, "DataFrame.agg", len_subcalls=1)
+            # adjust for self.agg
+            adjust_api_subcalls(df, "DataFrame.count", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params,
                 block=block,

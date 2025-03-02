@@ -455,7 +455,6 @@ class RelationalGroupedDataFrame:
 
     applyInPandas = apply_in_pandas
 
-    @relational_group_df_api_usage
     @publicapi
     def pivot(
         self,
