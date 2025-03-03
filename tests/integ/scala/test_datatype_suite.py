@@ -60,6 +60,7 @@ from tests.utils import (
     iceberg_supported,
     structured_types_enabled_session,
     structured_types_supported,
+    is_in_stored_procedure,
 )
 
 # Map of structured type enabled state to test params
@@ -174,7 +175,10 @@ def examples(structured_type_support):
 @pytest.fixture(scope="module")
 def structured_type_session(session, structured_type_support, local_testing_mode):
     # SNOW-1938099: Disable lob parameters until we can better support them
-    if not isinstance(session._conn, MockServerConnection):
+    if (
+        not isinstance(session._conn, MockServerConnection)
+        and not is_in_stored_procedure()
+    ):
         session.sql(
             "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
         ).collect()

@@ -66,6 +66,8 @@ def pytest_addoption(parser, pluginmanager):
     ):
         parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_ast", action="store_true", default=False)
+    parser.addoption("--dataframe_processor_pkg_version", action="store", default=None)
+    parser.addoption("--dataframe_processor_location", action="store", default=None)
     parser.addoption("--validate_ast", action="store_true", default=False)
     parser.addoption(
         "--unparser_jar",
@@ -132,6 +134,16 @@ def local_testing_telemetry_setup():
 @pytest.fixture(scope="session")
 def ast_enabled(pytestconfig):
     return pytestconfig.getoption("enable_ast")
+
+
+@pytest.fixture(scope="session")
+def dataframe_processor_pkg_version(pytestconfig):
+    return pytestconfig.getoption("dataframe_processor_pkg_version")
+
+
+@pytest.fixture(scope="session")
+def dataframe_processor_location(pytestconfig):
+    return pytestconfig.getoption("dataframe_processor_location")
 
 
 @pytest.fixture(scope="session")
