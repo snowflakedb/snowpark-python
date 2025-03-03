@@ -1517,7 +1517,7 @@ class DataFrameReader:
                 logger.debug(
                     f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."
                 )
-                return ""
+                return None
             path = os.path.join(
                 tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
             )
