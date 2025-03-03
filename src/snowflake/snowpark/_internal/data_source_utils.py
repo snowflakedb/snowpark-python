@@ -296,7 +296,9 @@ def infer_data_source_schema(
         ) from exc
 
 
-def data_source_data_to_pandas_df(data: List[Any], schema: StructType) -> pd.DataFrame:
+def data_source_data_to_pandas_df(
+    data: List[Any], schema: StructType
+) -> "pd.DataFrame":
     columns = [col.name for col in schema.fields]
     df = pd.DataFrame.from_records(data, columns=columns)
 
