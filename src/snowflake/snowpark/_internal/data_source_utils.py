@@ -6,6 +6,7 @@ import datetime
 import decimal
 import logging
 from enum import Enum
+from packaging import version
 from typing import List, Any, Tuple, Protocol, Optional
 from snowflake.connector.options import pandas as pd
 
@@ -310,7 +311,11 @@ def data_source_data_to_pandas_df(
     # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.map.html
     # 'map' is introduced in pandas 2.1.0, before that it is 'applymap'
     def df_map_method(pandas_df):
-        return getattr(pandas_df, "map", "applymap")
+        return (
+            pandas_df.applymap
+            if version.parse(pd.__version__) < version.parse("2.1.0")
+            else pandas_df.map
+        )
 
     df = df_map_method(df)(
         lambda x: x.isoformat()
