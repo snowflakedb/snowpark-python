@@ -1,6 +1,13 @@
 # running demos
 
 
+```bash
+conda create --name=hybrid-demo --force python=3.9 --y
+conda activate hybrid-demo
+pip install "snowflake-snowpark-python[modin] @ git+https://github.com/snowflakedb/snowpark-python.git@mvashishtha/hybrid-execution/manual-no-subclasses"
+pip install ipywidgets ipython ipykernel
+```
+
 
 - downloads possibly way too slow on my VPN. Initially I tried on VPN + sfctest0
 
