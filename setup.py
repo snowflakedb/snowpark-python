@@ -39,7 +39,7 @@ PANDAS_REQUIREMENTS = [
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
-    "modin @ git+https://github.com/modin-project/modin.git@hybrid-execution",  # Use branch designed for hybrid client
+    "modin @ git+https://github.com/sfc-gh-mvashishtha/modin.git@hybrid-execution-manual-no-subclasses",
 ]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
