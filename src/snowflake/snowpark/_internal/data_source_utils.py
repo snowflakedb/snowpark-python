@@ -257,20 +257,35 @@ def oracledb_to_snowpark_type(schema: List[Any]) -> StructType:
     return StructType(fields)
 
 
+def sqlite_to_snowpark_type(schema):
+    """
+    This method is internal only for testing infer_data_source_schema purpose. It is patched in the test.
+    sqlite3 returns a list of tuples containing only the name information
+    the rest of the description information are all None:
+    type_code, display_size, internal_size, precision, scale, null_ok
+    """
+    raise NotImplementedError(
+        "SQLite is not supported yet. To avoid auto inference, you can manually "
+        "specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
+    )
+
+
 def infer_data_source_schema(
-    conn: Connection, table: str, dbms_type: DBMS_TYPE, driver_info: str
+    conn: Connection, table_or_query: str, dbms_type: DBMS_TYPE, driver_info: str
 ) -> StructType:
     try:
         cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM {table} WHERE 1 = 0")
+        cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
         raw_schema = cursor.description
         if dbms_type == DBMS_TYPE.SQL_SERVER_DB:
             return sql_server_to_snowpark_type(raw_schema)
         elif dbms_type == DBMS_TYPE.ORACLE_DB:
             return oracledb_to_snowpark_type(raw_schema)
+        elif dbms_type == DBMS_TYPE.SQLITE_DB:
+            return sqlite_to_snowpark_type(raw_schema)
         else:
             raise NotImplementedError(
-                f"Failed to infer Snowpark DataFrame schema from source '{table}'. "
+                f"Failed to infer Snowpark DataFrame schema from source '{table_or_query}'. "
                 f"Currently supported drivers are 'pyodbc' and 'oracledb', but got: '{driver_info}'. "
                 "To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
             )
@@ -278,13 +293,15 @@ def infer_data_source_schema(
     except Exception as exc:
         cursor.close()
         raise SnowparkDataframeReaderException(
-            f"Failed to infer Snowpark DataFrame schema from table '{table}'."
+            f"Failed to infer Snowpark DataFrame schema from '{table_or_query}'."
             f" To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
             f" Please check the stack trace for more details."
         ) from exc
 
 
-def data_source_data_to_pandas_df(data: List[Any], schema: StructType) -> pd.DataFrame:
+def data_source_data_to_pandas_df(
+    data: List[Any], schema: StructType
+) -> "pd.DataFrame":
     columns = [col.name for col in schema.fields]
     if not data:
         return pd.DataFrame(columns=columns)
@@ -303,7 +320,7 @@ def data_source_data_to_pandas_df(data: List[Any], schema: StructType) -> pd.Dat
 
 
 def generate_select_query(
-    table: str, schema: StructType, dbms: DBMS_TYPE, driver_info: str
+    table_or_query: str, schema: StructType, dbms: DBMS_TYPE, driver_info: str
 ) -> str:
     if dbms == DBMS_TYPE.ORACLE_DB:
         cols = []
@@ -324,9 +341,9 @@ def generate_select_query(
                 )
             else:
                 cols.append(field.name)
-        return f"""select {" , ".join(cols)} from {table}"""
+        return f"""select {" , ".join(cols)} from {table_or_query}"""
     else:
-        return f"select * from {table}"
+        return f"select * from {table_or_query}"
 
 
 def generate_sql_with_predicates(select_query: str, predicates: List[str]):
