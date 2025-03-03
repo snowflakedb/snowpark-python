@@ -38,6 +38,9 @@
 
 - Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
 
+#### Improvements
+
+- Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 
 ## 1.28.0 (2025-02-20)
 
