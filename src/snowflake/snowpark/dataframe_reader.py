@@ -531,7 +531,7 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -552,11 +552,12 @@ class DataFrameReader:
         self._format = format
         return self
 
-    def load(self, path: str) -> DataFrame:
+    def load(self, path: Optional[str] = None) -> DataFrame:
         """Specify the path of the file(s) to load.
 
         Args:
             path: The stage location of a file, or a stage location that has files.
+             This parameter is required for all formats except dbapi.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
@@ -565,6 +566,18 @@ class DataFrameReader:
             raise ValueError(
                 "Please specify the format of the file(s) to load using the format() method."
             )
+
+        format_str = self._format.lower()
+        if format_str == "dbapi" and path is not None:
+            raise ValueError(
+                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+            )
+        if format_str != "dbapi" and path is None:
+            raise TypeError(
+                "DataFrameReader.load() missing 1 required positional argument: 'path'"
+            )
+        if format_str == "dbapi":
+            return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
 
         loader = getattr(self, self._format, None)
         if loader is not None:
@@ -1077,8 +1090,9 @@ class DataFrameReader:
     def dbapi(
         self,
         create_connection: Callable[[], "Connection"],
-        table: str,
         *,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
@@ -1101,7 +1115,8 @@ class DataFrameReader:
         You can also use session_init_statement to perform any SQL that you want to execute on external data source before fetching data.
         Args:
             create_connection: a function that return a dbapi connection
-            table: the name of the table in external data source
+            table: Specifies the name of the table in the external data source. This parameter cannot be set simultaneously with the query parameter.
+            query: A valid SQL query to be used in the FROM clause. This parameter cannot be set simultaneously with the table parameter.
             column: column name used to create partition, the column type must be numeric like int type or float type, or Date type.
             lower_bound: lower bound of partition, decide the stride of partition along with upper_bound, this parameter does not filter out data.
             upper_bound: upper bound of partition, decide the stride of partition along with lower_bound, this parameter does not filter out data.
@@ -1115,6 +1130,11 @@ class DataFrameReader:
         Note:
             column, lower_bound, upper_bound and num_partitions must be specified if any one of them is specified.
         """
+        if (not table and not query) or (table and query):
+            raise SnowparkDataframeReaderException(
+                "Either 'table' or 'query' must be provided, but not both."
+            )
+        table_or_query = table or query
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
@@ -1122,7 +1142,7 @@ class DataFrameReader:
         logger.debug(f"Detected DBMS: {dbms_type}, Driver Info: {driver_info}")
         if custom_schema is None:
             struct_schema = infer_data_source_schema(
-                conn, table, dbms_type, driver_info
+                conn, table_or_query, dbms_type, driver_info
             )
         else:
             if isinstance(custom_schema, str):
@@ -1143,7 +1163,7 @@ class DataFrameReader:
                 )
 
         select_query = generate_select_query(
-            table, struct_schema, dbms_type, driver_info
+            table_or_query, struct_schema, dbms_type, driver_info
         )
         logger.debug(f"Generated select query: {select_query}")
         if column is None:
