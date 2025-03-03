@@ -750,6 +750,6 @@ def test_option_load(session):
 
 def test_empty_table(session):
     df = session.read.dbapi(
-        sql_server_create_connection_empty_data, SQL_SERVER_TABLE_NAME
+        sql_server_create_connection_empty_data, table=SQL_SERVER_TABLE_NAME
     )
     assert df.collect() == []
