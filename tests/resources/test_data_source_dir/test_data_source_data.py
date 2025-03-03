@@ -640,6 +640,10 @@ def sql_server_create_connection_small_data():
     )
 
 
+def sql_server_create_connection_empty_data():
+    return FakeConnection([], sql_server_all_type_schema, "pyodbc")
+
+
 def sql_server_create_connection_with_exception():
     return FakeConnectionWithException(
         sql_server_all_type_data, sql_server_all_type_schema, "pyodbc"

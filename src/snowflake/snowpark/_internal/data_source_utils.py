@@ -286,8 +286,6 @@ def infer_data_source_schema(
 
 def data_source_data_to_pandas_df(data: List[Any], schema: StructType) -> pd.DataFrame:
     columns = [col.name for col in schema.fields]
-    if not data:
-        return pd.DataFrame(columns=columns)
     # this way handles both list of object and list of tuples and avoid implict pandas type conversion
     df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
 

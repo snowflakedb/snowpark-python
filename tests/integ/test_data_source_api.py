@@ -62,6 +62,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_all_type_small_data_result,
     oracledb_create_connection_small_data,
     OracleDBType,
+    sql_server_create_connection_empty_data,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -664,3 +665,10 @@ def test_partition_wrong_input(session, caplog):
         num_partitions=20,
     )
     assert "The number of partitions is reduced" in caplog.text
+
+
+def test_empty_table(session):
+    df = session.read.dbapi(
+        sql_server_create_connection_empty_data, SQL_SERVER_TABLE_NAME
+    )
+    assert df.collect() == []
