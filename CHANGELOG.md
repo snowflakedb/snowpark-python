@@ -25,6 +25,8 @@
 
 #### Bug Fixes
 - Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
+- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
+- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
 
 ### Snowpark Local Testing Updates
 
@@ -38,8 +40,8 @@
 
 #### Improvements
 
-- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
-
+- Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
+- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset 
 
 ## 1.28.0 (2025-02-20)
 
