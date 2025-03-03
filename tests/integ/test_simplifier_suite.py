@@ -1490,7 +1490,7 @@ def test_select_limit_orderby(session):
             lambda df: df.select("a", "b").sort(col("a"), col("b")).distinct(),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
             [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
-            False,
+            True,
         ),
     ],
 )
