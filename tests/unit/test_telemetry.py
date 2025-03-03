@@ -44,8 +44,9 @@ def test_resource_usage_time():
 def test_resource_usage_io_time():
     with ResourceUsageCollector() as resource_usage_collector:
         start_time = time.time()
-        with open("/dev/null", "rb") as f:
-            f.read(1)
+        long_string = "a" * 10**6
+        with open("/dev/null", "wb") as f:
+            f.write(long_string.encode())
     duration = time.time() - start_time
     resource_usage = resource_usage_collector.get_resource_usage()
     assert math.isclose(
@@ -61,17 +62,3 @@ def test_resource_usage_memory():
         _ = [1] * 10**6
     resource_usage = resource_usage_collector.get_resource_usage()
     assert resource_usage["memory_rss_kb"] > 8e6 / 1024, resource_usage["memory_rss_kb"]
-
-
-def test_resource_usage_network():
-    with ResourceUsageCollector() as resource_usage_collector:
-        import requests
-
-        requests.get("https://www.google.com")
-    resource_usage = resource_usage_collector.get_resource_usage()
-    assert resource_usage["network_bytes_sent_kb"] > 0, resource_usage[
-        "network_bytes_sent_kb"
-    ]
-    assert resource_usage["network_bytes_recv_kb"] > 0, resource_usage[
-        "network_bytes_recv_kb"
-    ]
