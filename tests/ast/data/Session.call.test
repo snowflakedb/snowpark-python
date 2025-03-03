@@ -53,34 +53,32 @@ body {
           }
         }
         input_types {
-          list {
-            long_type: true
-          }
-          list {
-            string_type {
-              length {
-              }
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
             }
           }
-          list {
-            map_type {
-              key_ty {
-                string_type {
-                  length {
-                  }
-                }
-              }
-              value_ty {
-                string_type {
-                  length {
-                  }
+        }
+        input_types {
+          map_type {
+            key_ty {
+              string_type {
+                length {
                 }
               }
             }
+            value_ty {
+              string_type {
+                length {
+                }
+              }
+            }
           }
-          list {
-            boolean_type: true
-          }
+        }
+        input_types {
+          boolean_type: true
         }
         name {
           name {

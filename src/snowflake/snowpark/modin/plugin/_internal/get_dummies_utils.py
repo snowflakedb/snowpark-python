@@ -161,7 +161,22 @@ def single_get_dummies_pivot(
         index_column_types=None,
     )
 
-    return result_internal_frame
+    # Rename the pivot result column to avoid duplicated column names. Snowpark
+    # dataframe can have duplicate columns names if multiple columns are pivoted,
+    # and they have at least one common value (including null).
+    pivot_result_column_new_snowflake_quoted_identifiers = (
+        pivoted_ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=pivot_result_column_pandas_labels
+        )
+    )
+    return result_internal_frame.rename_snowflake_identifiers(
+        dict(
+            zip(
+                pivot_result_column_snowflake_quoted_identifiers,
+                pivot_result_column_new_snowflake_quoted_identifiers,
+            )
+        )
+    )
 
 
 def get_dummies_helper(

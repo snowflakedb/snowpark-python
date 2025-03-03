@@ -32,7 +32,7 @@ df2 = session.create_dataframe([Row(1, 3, 2), Row(1, 2, 3), Row(3, 2, 1)])
 
 df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df4 = session.create_dataframe([[1, "snow"], [3, "flake"]], schema=StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True)], structured=False))
+df4 = session.create_dataframe([[1, "snow"], [3, "flake"]], schema=StructType(fields=[StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True)], structured=False))
 
 df5 = session.create_dataframe([1, 2, 3, 4], schema=["a"])
 
@@ -63,11 +63,9 @@ body {
           dataframe_data__list {
             vs {
               row {
-                names {
-                  list: "a"
-                  list: "b"
-                  list: "c"
-                }
+                names: "a"
+                names: "b"
+                names: "c"
                 src {
                   end_column: 74
                   end_line: 29
@@ -115,10 +113,8 @@ body {
             }
             vs {
               row {
-                names {
-                  list: "c"
-                  list: "a"
-                }
+                names: "c"
+                names: "a"
                 src {
                   end_column: 74
                   end_line: 29
@@ -523,31 +519,29 @@ body {
           dataframe_schema__struct {
             v {
               fields {
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "a"
-                    }
+                column_identifier {
+                  column_name {
+                    name: "a"
                   }
-                  data_type {
-                    integer_type: true
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "b"
-                    }
-                  }
-                  data_type {
-                    string_type {
-                      length {
-                      }
-                    }
-                  }
-                  nullable: true
+                data_type {
+                  integer_type: true
                 }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "b"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
               }
             }
           }
@@ -852,12 +846,10 @@ body {
           dataframe_data__list {
             vs {
               row {
-                names {
-                  list: "a"
-                  list: "b"
-                  list: "c"
-                  list: "d"
-                }
+                names: "a"
+                names: "b"
+                names: "c"
+                names: "d"
                 src {
                   end_column: 65
                   end_line: 45

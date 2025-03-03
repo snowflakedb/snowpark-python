@@ -25,6 +25,8 @@
 
 #### Bug Fixes
 - Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
+- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
+- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
 
 ### Snowpark Local Testing Updates
 

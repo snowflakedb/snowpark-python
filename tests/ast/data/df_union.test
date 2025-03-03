@@ -16,6 +16,10 @@ df5 = df1.union_by_name(df2)
 
 df6 = df1.union_all_by_name(df2)
 
+df7 = df1.union_by_name(df2, allow_missing_columns=True)
+
+df8 = df1.union_all_by_name(df2, allow_missing_columns=True)
+
 ## EXPECTED UNPARSER OUTPUT
 
 df1 = session.table("df1")
@@ -33,6 +37,10 @@ df2 = session.table("df4")
 df5 = df1.union_by_name(df2)
 
 df6 = df1.union_all_by_name(df2)
+
+df7 = df1.union_by_name(df2, allow_missing_columns=True)
+
+df8 = df1.union_all_by_name(df2, allow_missing_columns=True)
 
 ## EXPECTED ENCODED AST
 
@@ -148,7 +156,8 @@ body {
 body {
   assign {
     expr {
-      dataframe_union_all {
+      dataframe_union {
+        all: true
         df {
           dataframe_ref {
             id {
@@ -248,7 +257,8 @@ body {
 body {
   assign {
     expr {
-      dataframe_union_by_name {
+      dataframe_union {
+        by_name: true
         df {
           dataframe_ref {
             id {
@@ -284,7 +294,9 @@ body {
 body {
   assign {
     expr {
-      dataframe_union_all_by_name {
+      dataframe_union {
+        all: true
+        by_name: true
         df {
           dataframe_ref {
             id {
@@ -314,6 +326,83 @@ body {
     uid: 8
     var_id {
       bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_union {
+        allow_missing_columns: true
+        by_name: true
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        other {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
+        }
+        src {
+          end_column: 64
+          end_line: 41
+          file: 2
+          start_column: 14
+          start_line: 41
+        }
+      }
+    }
+    symbol {
+      value: "df7"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_union {
+        all: true
+        allow_missing_columns: true
+        by_name: true
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        other {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
+        }
+        src {
+          end_column: 68
+          end_line: 43
+          file: 2
+          start_column: 14
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+      value: "df8"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
     }
   }
 }

@@ -929,8 +929,9 @@ class DataFrame:
 
         # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
         # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
-        df = DataFrame(self._session, new_plan)
-        df._ast_id = self._ast_id
+        # We additionally need to consider behavior when a user calls copy.copy() on a Snowpark Dataframe. For now, consider
+        # all calls internal, and leave AST handling to the caller.
+        df = DataFrame(self._session, new_plan, _emit_ast=False)
         return df
 
     if installed_pandas:
@@ -1357,13 +1358,11 @@ class DataFrame:
             self._set_ast_ref(ast.df)
             debug_check_missing_ast(self._ast_id, self)
             if index_col is not None:
-                ast.index_col.list.extend(
+                ast.index_col.extend(
                     index_col if isinstance(index_col, list) else [index_col]
                 )
             if columns is not None:
-                ast.columns.list.extend(
-                    columns if isinstance(columns, list) else [columns]
-                )
+                ast.columns.extend(columns if isinstance(columns, list) else [columns])
 
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
@@ -1597,9 +1596,10 @@ class DataFrame:
         # AST IDs created preceed the AST ID of the select statement so they are deserialized in dependent order.
         if _emit_ast and _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_select__columns, stmt)
+            ast = with_src_position(stmt.expr.dataframe_select, stmt)
             self._set_ast_ref(ast.df)
             ast.cols.variadic = is_variadic
+            ast.expr_variant = False
 
             # Add columns after the statement to ensure any dependent columns have lower ast id.
             for ast_col in ast_cols:
@@ -1663,11 +1663,12 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.dataframe_select__exprs, stmt)
+                ast = with_src_position(stmt.expr.dataframe_select, stmt)
                 self._set_ast_ref(ast.df)
-                ast.exprs.variadic = is_variadic
+                ast.cols.variadic = is_variadic
+                ast.expr_variant = True
                 for expr in exprs:
-                    build_expr_from_python_val(ast.exprs.args.add(), expr)
+                    build_expr_from_python_val(ast.cols.args.add(), expr)
             else:
                 stmt = _ast_stmt
 
@@ -2007,16 +2008,6 @@ class DataFrame:
             ast = with_src_position(stmt.expr.dataframe_alias, stmt)
             ast.name = name
             self._set_ast_ref(ast.df)
-
-        # TODO: Support alias in MockServerConnection.
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
-        if (
-            isinstance(self._session._conn, MockServerConnection)
-            and self._session._conn._suppress_not_implemented_error
-        ):
-            # Allow AST tests to pass.
-            return None
 
         _copy = copy.copy(self)
         _copy._alias = name
@@ -2686,6 +2677,9 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = False
+            ast.by_name = False
+            ast.allow_missing_columns = False
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -2737,7 +2731,10 @@ class DataFrame:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_all, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = True
+            ast.by_name = False
+            ast.allow_missing_columns = False
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -2808,7 +2805,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_by_name, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = False
+            ast.by_name = True
+            ast.allow_missing_columns = allow_missing_columns
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
@@ -2869,7 +2869,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_all_by_name, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = True
+            ast.by_name = True
+            ast.allow_missing_columns = allow_missing_columns
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
@@ -5022,7 +5025,7 @@ class DataFrame:
             if clustering_keys is not None:
                 for col_or_name in clustering_keys:
                     build_expr_from_snowpark_column_or_col_name(
-                        expr.clustering_keys.list.add(), col_or_name
+                        expr.clustering_keys.add(), col_or_name
                     )
             expr.is_transient = is_transient
             if data_retention_time is not None:
