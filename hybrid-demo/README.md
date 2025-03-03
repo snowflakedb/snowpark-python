@@ -13,9 +13,9 @@ pip install ipywidgets ipython ipykernel
 
 3. run the notebook in this directory.
 
-- downloads possibly way too slow on my VPN. Initially I tried on VPN + sfctest0
+# notes:
 
-# other notes:
+DO NOT USE A VPN. downloads possibly way too slow on my VPN. Initially I tried on VPN + sfctest0 and hybrid experience was not fun.
 
 - writing a python-backed DF back to Snowflake:
     - snowflake bug prevents us from writing to sql with to_sql: https://stackoverflow.com/questions/78168268/using-pandas-to-sql-and-getting-typeerror-not-all-arguments-converted-during
