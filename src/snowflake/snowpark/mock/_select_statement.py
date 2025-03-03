@@ -521,7 +521,7 @@ class MockSelectStatement(MockSelectable):
     def limit(self, n: int, *, offset: int = 0) -> "SelectStatement":
         new = copy(self)
         new.from_ = self.from_.to_subqueryable()
-        new.limit_ = min(self.limit_, n) if self.limit_ else n
+        new.limit_ = min(self.limit_, n) if self.limit_ is not None else n
         new.offset = (self.offset + offset) if self.offset else offset
         new._column_states = self._column_states
         return new
