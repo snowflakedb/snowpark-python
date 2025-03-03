@@ -1,5 +1,6 @@
 # running demos
 
+1. run
 
 ```bash
 conda create --name=hybrid-demo --force python=3.9 --y
@@ -8,6 +9,9 @@ pip install "snowflake-snowpark-python[modin] @ git+https://github.com/snowflake
 pip install ipywidgets ipython ipykernel
 ```
 
+2. You MAY need to restart vscode to make the progress bars show up.
+
+3. run the notebook in this directory.
 
 - downloads possibly way too slow on my VPN. Initially I tried on VPN + sfctest0
 
