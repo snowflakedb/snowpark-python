@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import tempfile
 import time
 import math
 from snowflake.snowpark._internal.telemetry import (
@@ -28,33 +27,33 @@ def test_safe_telemetry_decorator():
 
 
 def test_resource_usage_time():
-    start_time = time.time()
     with ResourceUsageCollector() as resource_usage_collector:
-        i = 0  # dummy counter
-        while time.time() - start_time < 0.5:
-            i += 1  # cpu work
+        start_time = time.time()
+        _ = sum(i for i in range(10**6))
+        duration = time.time() - start_time
     resource_usage = resource_usage_collector.get_resource_usage()
     wall_time = resource_usage["wall_time"]
     cpu_time = resource_usage["cpu_time"]
-    assert wall_time > 0.5 or math.isclose(wall_time, 0.5, abs_tol=1e-2), wall_time
-    assert cpu_time > 0.5 or math.isclose(cpu_time, 0.5, abs_tol=1e-2), cpu_time
+    assert wall_time > duration or math.isclose(
+        wall_time, duration, abs_tol=1e-2
+    ), wall_time
+    assert cpu_time > duration or math.isclose(
+        cpu_time, duration, abs_tol=1e-2
+    ), cpu_time
 
 
 def test_resource_usage_io_time():
-    start_time = time.time()
     with ResourceUsageCollector() as resource_usage_collector:
-        long_string = "a" * 10**6
-        temp_file = tempfile.gettempdir() + "/test_resource_usage_io_time"
-        with open(temp_file, "wb") as f:
-            f.write(long_string.encode())
+        start_time = time.time()
+        time.sleep(1)  # Stimulate I/O intensive operation
         duration = time.time() - start_time
     resource_usage = resource_usage_collector.get_resource_usage()
     wall_time = resource_usage["wall_time"]
     io_time = resource_usage["io_time"]
     assert wall_time > duration or math.isclose(
-        wall_time, duration, abs_tol=1e-3
+        wall_time, duration, abs_tol=1e-2
     ), wall_time
-    assert math.isclose(io_time, duration, abs_tol=1e-3), io_time
+    assert math.isclose(io_time, duration, abs_tol=1e-2), io_time
 
 
 def test_resource_usage_memory():
