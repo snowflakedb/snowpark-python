@@ -3,7 +3,12 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from snowflake.snowpark._internal.telemetry import safe_telemetry
+import time
+import math
+from snowflake.snowpark._internal.telemetry import (
+    safe_telemetry,
+    ResourceUsageCollector,
+)
 
 
 @safe_telemetry
@@ -19,3 +24,54 @@ def raise_exception():
 # and then test the telemetry decorator that way
 def test_safe_telemetry_decorator():
     raise_exception()
+
+
+def test_resource_usage_time():
+    with ResourceUsageCollector() as resource_usage_collector:
+        start_time = time.time()
+        i = 0  # dummy counter
+        while time.time() - start_time < 0.1:
+            i += 1  # cpu work
+    resource_usage = resource_usage_collector.get_resource_usage()
+    assert math.isclose(resource_usage["wall_time"], 0.1, abs_tol=1e-3), resource_usage[
+        "wall_time"
+    ]
+    assert math.isclose(resource_usage["cpu_time"], 0.1, abs_tol=1e-3), resource_usage[
+        "cpu_time"
+    ]
+
+
+def test_resource_usage_io_time():
+    with ResourceUsageCollector() as resource_usage_collector:
+        start_time = time.time()
+        with open("/dev/null", "rb") as f:
+            f.read(1)
+    duration = time.time() - start_time
+    resource_usage = resource_usage_collector.get_resource_usage()
+    assert math.isclose(
+        resource_usage["wall_time"], duration, abs_tol=1e-3
+    ), resource_usage["wall_time"]
+    assert math.isclose(
+        resource_usage["io_time"], duration, abs_tol=1e-3
+    ), resource_usage["io_time"]
+
+
+def test_resource_usage_memory():
+    with ResourceUsageCollector() as resource_usage_collector:
+        _ = [1] * 10**6
+    resource_usage = resource_usage_collector.get_resource_usage()
+    assert resource_usage["memory_rss_kb"] > 8e6 / 1024, resource_usage["memory_rss_kb"]
+
+
+def test_resource_usage_network():
+    with ResourceUsageCollector() as resource_usage_collector:
+        import requests
+
+        requests.get("https://www.google.com")
+    resource_usage = resource_usage_collector.get_resource_usage()
+    assert resource_usage["network_bytes_sent_kb"] > 0, resource_usage[
+        "network_bytes_sent_kb"
+    ]
+    assert resource_usage["network_bytes_recv_kb"] > 0, resource_usage[
+        "network_bytes_recv_kb"
+    ]
