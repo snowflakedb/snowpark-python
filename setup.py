@@ -40,7 +40,7 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     # hack: ray required because modin needs Engine.get() to exist before we import snowflake
-    "modin @ git+https://github.com/sfc-gh-mvashishtha/modin.git@hybrid-execution-manual-no-subclasses#egg=modin[ray]",
+    "modin[ray] @ git+https://github.com/sfc-gh-mvashishtha/modin.git@hybrid-execution-manual-no-subclasses",
 ]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
