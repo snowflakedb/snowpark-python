@@ -41,7 +41,7 @@ df = df.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=
 
 df = df.select(col("A").cast(VectorType(IntegerType(), 64)))
 
-df = df.select(col("A").cast(StructType([StructField(ColumnIdentifier("test1"), StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField(ColumnIdentifier("test3"), ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))
+df = df.select(col("A").cast(StructType(fields=[StructField(ColumnIdentifier("test1"), StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField(ColumnIdentifier("test3"), ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))
 
 ## EXPECTED ENCODED AST
 
@@ -89,7 +89,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -173,7 +173,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -257,7 +257,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -341,7 +341,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -425,7 +425,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -510,7 +510,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -598,7 +598,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -683,7 +683,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -731,71 +731,69 @@ body {
               to {
                 struct_type {
                   fields {
-                    list {
+                    column_identifier {
                       column_identifier {
-                        column_identifier {
-                          name: "test1"
+                        name: "test1"
+                      }
+                    }
+                    data_type {
+                      string_type {
+                        length {
                         }
                       }
-                      data_type {
-                        string_type {
-                          length {
+                    }
+                  }
+                  fields {
+                    column_identifier {
+                      column_name {
+                        name: "test2"
+                      }
+                    }
+                    data_type {
+                      integer_type: true
+                    }
+                    nullable: true
+                  }
+                  fields {
+                    column_identifier {
+                      column_identifier {
+                        name: "test3"
+                      }
+                    }
+                    data_type {
+                      array_type {
+                        ty {
+                          long_type: true
+                        }
+                      }
+                    }
+                    nullable: true
+                  }
+                  fields {
+                    column_identifier {
+                      column_name {
+                        name: "test4"
+                      }
+                    }
+                    data_type {
+                      map_type {
+                        key_ty {
+                          decimal_type {
+                            precision: 42
+                            scale: 23
                           }
                         }
-                      }
-                    }
-                    list {
-                      column_identifier {
-                        column_name {
-                          name: "test2"
-                        }
-                      }
-                      data_type {
-                        integer_type: true
-                      }
-                      nullable: true
-                    }
-                    list {
-                      column_identifier {
-                        column_identifier {
-                          name: "test3"
-                        }
-                      }
-                      data_type {
-                        array_type {
-                          ty {
-                            long_type: true
-                          }
-                        }
-                      }
-                      nullable: true
-                    }
-                    list {
-                      column_identifier {
-                        column_name {
-                          name: "test4"
-                        }
-                      }
-                      data_type {
-                        map_type {
-                          key_ty {
-                            decimal_type {
-                              precision: 42
-                              scale: 23
+                        value_ty {
+                          vector_type {
+                            dimension: 64
+                            ty {
+                              float_type: true
                             }
                           }
-                          value_ty {
-                            vector_type {
-                              dimension: 64
-                              ty {
-                                float_type: true
-                              }
-                            }
-                          }
                         }
                       }
-                      nullable: true
                     }
+                    nullable: true
                   }
                   structured: true
                 }

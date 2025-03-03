@@ -10,9 +10,9 @@ df = df.sample(frac=0.5)
 
 df = session.table("table1")
 
-df = df.sample(None, 3)
+df = df.sample(None, 3, None)
 
-df = df.sample(0.5, None)
+df = df.sample(0.5, None, None)
 
 ## EXPECTED ENCODED AST
 

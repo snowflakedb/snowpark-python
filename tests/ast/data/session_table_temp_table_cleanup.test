@@ -93,7 +93,8 @@ body {
 body {
   assign {
     expr {
-      dataframe_union_all {
+      dataframe_union {
+        all: true
         df {
           dataframe_ref {
             id {
@@ -129,7 +130,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             string_val {
