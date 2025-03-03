@@ -322,11 +322,15 @@ class Table(DataFrame):
         set_api_call_source(self, "Table.__init__")
 
     def __copy__(self) -> "Table":
+        # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
+        # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
+        # We additionally need to consider behavior when a user calls copy.copy() on a Snowpark Table. For now, consider
+        # all calls internal, and leave AST handling to the caller.
         return Table(
             self.table_name,
             session=self._session,
             is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
-            _emit_ast=self._session.ast_enabled,
+            _emit_ast=False,
         )
 
     def __enter__(self):
@@ -797,7 +801,7 @@ class Table(DataFrame):
                             if assignments is not None:
                                 for k, v in assignments.items():
                                     t = (
-                                        matched_clause.merge_update_when_matched_clause.update_assignments.list.add()
+                                        matched_clause.merge_update_when_matched_clause.update_assignments.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(
                                         t._1, k
@@ -824,13 +828,13 @@ class Table(DataFrame):
                             if value._clause._keys is not None:
                                 for k in value._clause._keys:
                                     t = (
-                                        matched_clause.merge_insert_when_not_matched_clause.insert_keys.list.add()
+                                        matched_clause.merge_insert_when_not_matched_clause.insert_keys.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(t, k)
                             if value._clause._values is not None:
                                 for v in value._clause._values:
                                     t = (
-                                        matched_clause.merge_insert_when_not_matched_clause.insert_values.list.add()
+                                        matched_clause.merge_insert_when_not_matched_clause.insert_values.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(t, v)
                             if value._condition is not None:

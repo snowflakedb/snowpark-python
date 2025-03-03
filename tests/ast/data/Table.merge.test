@@ -43,7 +43,7 @@ target.merge(source, join_expr=(target["num"] == source["num"]), clauses=[when_m
 
 ## EXPECTED UNPARSER OUTPUT
 
-source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType([StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_1", session)
 
@@ -201,31 +201,29 @@ body {
           dataframe_schema__struct {
             v {
               fields {
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "num"
-                    }
+                column_identifier {
+                  column_name {
+                    name: "num"
                   }
-                  data_type {
-                    integer_type: true
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "str"
-                    }
-                  }
-                  data_type {
-                    string_type {
-                      length {
-                      }
-                    }
-                  }
-                  nullable: true
+                data_type {
+                  integer_type: true
                 }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
               }
             }
           }
@@ -288,30 +286,28 @@ body {
         clauses {
           merge_update_when_matched_clause {
             update_assignments {
-              list {
-                _1 {
-                  string_val {
-                    src {
-                      end_column: 136
-                      end_line: 34
-                      file: 2
-                      start_column: 8
-                      start_line: 34
-                    }
-                    v: "str"
+              _1 {
+                string_val {
+                  src {
+                    end_column: 136
+                    end_line: 34
+                    file: 2
+                    start_column: 8
+                    start_line: 34
                   }
+                  v: "str"
                 }
-                _2 {
-                  string_val {
-                    src {
-                      end_column: 136
-                      end_line: 34
-                      file: 2
-                      start_column: 8
-                      start_line: 34
-                    }
-                    v: "value"
+              }
+              _2 {
+                string_val {
+                  src {
+                    end_column: 136
+                    end_line: 34
+                    file: 2
+                    start_column: 8
+                    start_line: 34
                   }
+                  v: "value"
                 }
               }
             }
@@ -536,30 +532,28 @@ body {
               }
             }
             update_assignments {
-              list {
-                _1 {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 39
-                      file: 2
-                      start_column: 8
-                      start_line: 39
-                    }
-                    v: "str"
+              _1 {
+                string_val {
+                  src {
+                    end_column: 167
+                    end_line: 39
+                    file: 2
+                    start_column: 8
+                    start_line: 39
                   }
+                  v: "str"
                 }
-                _2 {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 39
-                      file: 2
-                      start_column: 8
-                      start_line: 39
-                    }
-                    v: "value2"
+              }
+              _2 {
+                string_val {
+                  src {
+                    end_column: 167
+                    end_line: 39
+                    file: 2
+                    start_column: 8
+                    start_line: 39
                   }
+                  v: "value2"
                 }
               }
             }
@@ -568,30 +562,28 @@ body {
         clauses {
           merge_update_when_matched_clause {
             update_assignments {
-              list {
-                _1 {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 39
-                      file: 2
-                      start_column: 8
-                      start_line: 39
-                    }
-                    v: "num"
+              _1 {
+                string_val {
+                  src {
+                    end_column: 167
+                    end_line: 39
+                    file: 2
+                    start_column: 8
+                    start_line: 39
                   }
+                  v: "num"
                 }
-                _2 {
-                  int64_val {
-                    src {
-                      end_column: 167
-                      end_line: 39
-                      file: 2
-                      start_column: 8
-                      start_line: 39
-                    }
-                    v: 123
+              }
+              _2 {
+                int64_val {
+                  src {
+                    end_column: 167
+                    end_line: 39
+                    file: 2
+                    start_column: 8
+                    start_line: 39
                   }
+                  v: 123
                 }
               }
             }
@@ -714,31 +706,27 @@ body {
         clauses {
           merge_insert_when_not_matched_clause {
             insert_keys {
-              list {
-                string_val {
-                  src {
-                    end_column: 140
-                    end_line: 44
-                    file: 2
-                    start_column: 8
-                    start_line: 44
-                  }
-                  v: "str"
+              string_val {
+                src {
+                  end_column: 140
+                  end_line: 44
+                  file: 2
+                  start_column: 8
+                  start_line: 44
                 }
+                v: "str"
               }
             }
             insert_values {
-              list {
-                string_val {
-                  src {
-                    end_column: 140
-                    end_line: 44
-                    file: 2
-                    start_column: 8
-                    start_line: 44
-                  }
-                  v: "value"
+              string_val {
+                src {
+                  end_column: 140
+                  end_line: 44
+                  file: 2
+                  start_column: 8
+                  start_line: 44
                 }
+                v: "value"
               }
             }
           }
@@ -962,7 +950,35 @@ body {
               }
             }
             insert_keys {
-              list {
+              string_val {
+                src {
+                  end_column: 175
+                  end_line: 49
+                  file: 2
+                  start_column: 8
+                  start_line: 49
+                }
+                v: "str"
+              }
+            }
+            insert_values {
+              string_val {
+                src {
+                  end_column: 175
+                  end_line: 49
+                  file: 2
+                  start_column: 8
+                  start_line: 49
+                }
+                v: "value"
+              }
+            }
+          }
+        }
+        clauses {
+          merge_update_when_matched_clause {
+            update_assignments {
+              _1 {
                 string_val {
                   src {
                     end_column: 175
@@ -974,9 +990,7 @@ body {
                   v: "str"
                 }
               }
-            }
-            insert_values {
-              list {
+              _2 {
                 string_val {
                   src {
                     end_column: 175
@@ -985,39 +999,7 @@ body {
                     start_column: 8
                     start_line: 49
                   }
-                  v: "value"
-                }
-              }
-            }
-          }
-        }
-        clauses {
-          merge_update_when_matched_clause {
-            update_assignments {
-              list {
-                _1 {
-                  string_val {
-                    src {
-                      end_column: 175
-                      end_line: 49
-                      file: 2
-                      start_column: 8
-                      start_line: 49
-                    }
-                    v: "str"
-                  }
-                }
-                _2 {
-                  string_val {
-                    src {
-                      end_column: 175
-                      end_line: 49
-                      file: 2
-                      start_column: 8
-                      start_line: 49
-                    }
-                    v: "value3"
-                  }
+                  v: "value3"
                 }
               }
             }
