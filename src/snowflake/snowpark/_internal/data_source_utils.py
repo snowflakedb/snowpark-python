@@ -307,13 +307,20 @@ def data_source_data_to_pandas_df(
     df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
 
     # convert timestamp and date to string to work around SNOW-1911989
-    df = df.map(
+    # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.map.html
+    # 'map' is introduced in pandas 2.1.0, before that it is 'applymap'
+    def df_map_method(pandas_df):
+        return getattr(pandas_df, "map", "applymap")
+
+    df = df_map_method(df)(
         lambda x: x.isoformat()
         if isinstance(x, (datetime.datetime, datetime.date))
         else x
     )
     # convert binary type to object type to work around SNOW-1912094
-    df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
+    df = df_map_method(df)(
+        lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
+    )
     return df
 
 
