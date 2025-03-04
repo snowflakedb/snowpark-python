@@ -45,8 +45,8 @@ class SnowpandasSessionHolder(ModuleType):
         quoted_identifiers_ignore_case = (
             session.sql(
                 "SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION"
-            )._internal_collect_with_tag_no_telemetry()[0]
-            # .collect()[0]
+            )
+            .collect()[0]
             .value
         )
         if quoted_identifiers_ignore_case == "true":
