@@ -321,16 +321,20 @@ class Table(DataFrame):
         # created from Session object
         set_api_call_source(self, "Table.__init__")
 
-    def __copy__(self) -> "Table":
-        # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
-        # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
-        # We additionally need to consider behavior when a user calls copy.copy() on a Snowpark Table. For now, consider
-        # all calls internal, and leave AST handling to the caller.
+    def _copy_without_ast(self):
         return Table(
             self.table_name,
             session=self._session,
             is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
             _emit_ast=False,
+        )
+
+    def __copy__(self) -> "Table":
+        return Table(
+            self.table_name,
+            session=self._session,
+            is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
+            _emit_ast=self._session.ast_enabled,
         )
 
     def __enter__(self):
