@@ -995,7 +995,7 @@ def test_udfs_and_udtfs_with_snowpark_object_error_msg():
     snow_df = pd.DataFrame([7, 8, 9])
     with SqlCounter(query_count=2):
         with pytest.raises(ValueError, match=expected_error_msg):  # Series.apply
-            snow_df[0].apply(lambda row: snow_df.iloc[0, 0], axis=1)
+            snow_df[0].apply(lambda row: snow_df.iloc[0, 0])
     with SqlCounter(query_count=2):
         with pytest.raises(
             ValueError, match=expected_error_msg
