@@ -32,7 +32,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import RUNNING_ON_GH
+from tests.utils import RUNNING_ON_GH, running_on_public_ci
 
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
 
@@ -985,6 +985,7 @@ def test_apply_numpy_universal_functions(func):
     eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
 
 
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDF/UDTF test")
 def test_udfs_and_udtfs_with_snowpark_object_error_msg():
     expected_error_msg = re.escape(
         "Snowpark pandas only allows native pandas and not Snowpark objects in `apply()`. "
