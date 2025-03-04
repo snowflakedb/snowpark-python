@@ -5,7 +5,6 @@
 
 import array
 import contextlib
-import copy
 import datetime
 import decimal
 import functools
@@ -1551,6 +1550,28 @@ class ExprAliasUpdateDict(dict):
     - `updated_from_inheritance` (bool): A flag indicating whether the expr alias was updated
      because it's inherited from child plan (True) or not (False).
 
+    Below is an example:
+
+    data = [25, 30]
+    columns = ["age"]
+    df1 = session.createDataFrame(data, columns)
+    df2 = session.createDataFrame(data, columns)
+    df3 = df1.join(df2)
+    # in DF3:
+    #    df1.age -> (age_alias_left, False)  # comes from df1 due to being disambiguated in the join condition
+    #    df2.age -> (age_alias_right, False)  # comes from df2 due to being disambiguated in the join condition
+
+    df4 = df3.select(df1.age.alias("age"))
+
+    # in DF4:
+    #    df1.age -> age  # comes from df3 explict alias
+    #    df2.age -> age_alias_right  # unchanged, inherited from df3
+    df5 = df1.join(df4, df1["age"] == df4["age"])
+
+    # in DF5:
+    #    df4.age -> (age_alias_right2, False)  # comes from df4 due to being disambiguated in the join condition, note here df4.age is not the same as df1.age, it's a new attirbute
+    #    df1.age -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #    df1.age -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
     """
 
     def __setitem__(
@@ -1614,15 +1635,7 @@ class ExprAliasUpdateDict(dict):
 
     def __deepcopy__(self, memo) -> "ExprAliasUpdateDict":
         """Deep copy implementation for copy.deepcopy()"""
-        new_copy = ExprAliasUpdateDict()
-        for key, alias in self.items():
-            new_key = copy.deepcopy(key, memo)  # Ensures deep copy of the key (UUID)
-            new_value = (
-                copy.deepcopy(alias, memo),
-                copy.deepcopy(self.was_updated_due_to_inheritance(key), memo),
-            )  # Deep copy of values
-            new_copy[new_key] = new_value
-        return new_copy
+        return self.__copy__()
 
 
 def merge_multiple_snowflake_plan_expr_to_alias(
@@ -1630,6 +1643,27 @@ def merge_multiple_snowflake_plan_expr_to_alias(
 ) -> ExprAliasUpdateDict:
     """
     Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
+    The conflict resolution strategy is as follows:
+
+    1) If they map to the same alias:
+        * Retain the expression in the final expr_to_alias map.
+    2) If they map to different aliases:
+        a) If one appears in the output attributes of the plan and the other does not:
+            * Retain the one present in the output attributes and discard the other. This is because
+            I. The one that shows up in the output attribute can be referenced by users to perform dataframe column operations.
+            II. The one that does not show up in the output is an intermediate alias mapping and can not be referenced directly by users.
+        b) If both appear in the output attributes:
+            * Discard both expressions as this constitutes a valid ambiguous case that cannot be resolved.
+    3) If neither appears in the output attributes:
+        * Discard both expressions since they will no longer be referenced.
+
+    taking our example from the class docstring, the conflicting df1.age in df5:
+    #    df1.age -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #    df1.age -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+
+    we are going to:
+    DROP: df1.age -> (age_alias_right2, True) because it's not directly in the output and can not be referenced
+    KEEP: df1.age -> (age_alias_left2, False) is going to be kept because it's directly in the output and can be referenced
 
     Args:
         snowflake_plans (List[SnowflakePlan]): List of SnowflakePlan objects.

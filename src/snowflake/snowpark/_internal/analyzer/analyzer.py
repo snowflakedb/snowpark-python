@@ -654,6 +654,14 @@ class Analyzer:
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
+                # When resolving an alias, we not only track the current (expr_id,alias) info, but also update the existing
+                # (expr_id,alias) pairs whose alias is equal to expr.child.name in the alias_maps_to_use map.
+                # This is because we create new attribute with new expr id in the new plan,
+                # and we want to make sure that the existing attribute can still be resolved to the latest alias when
+                # we resolve the child plan.
+                # an example is the test case: test_name_alias_on_multiple_join
+                # with the _join_alias_fix enabled, we will track also whether an entry is updated (boolean)
+                # due to inheritance from other plans. this info helps decide which entries to keep during deduplication
                 updated_due_to_inheritance = (
                     (quoted_name, True) if self.session._join_alias_fix else quoted_name
                 )
