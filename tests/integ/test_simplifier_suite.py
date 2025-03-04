@@ -140,44 +140,49 @@ def test_set_same_operator(session, set_operator):
     ],
 )
 def test_distinct_set_operator(session, distinct_table, action, operator):
-    df1 = session.table(distinct_table)
-    df2 = session.table(distinct_table)
+    try:
+        original = session.conf.get("use_simplified_query_generation")
+        session.conf.set("use_simplified_query_generation", True)
+        df1 = session.table(distinct_table)
+        df2 = session.table(distinct_table)
 
-    df = action(df1, df2.distinct())
-    assert (
-        df.queries["queries"][0]
-        == f"""( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table})"""
-    )
+        df = action(df1, df2.distinct())
+        assert (
+            df.queries["queries"][0]
+            == f"""( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table})"""
+        )
 
-    df = action(df1.distinct(), df2)
-    assert (
-        df.queries["queries"][0]
-        == f"""( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table})"""
-    )
+        df = action(df1.distinct(), df2)
+        assert (
+            df.queries["queries"][0]
+            == f"""( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table})"""
+        )
 
-    df = action(df1, df2).distinct()
-    assert (
-        df.queries["queries"][0]
-        == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
-    )
+        df = action(df1, df2).distinct()
+        assert (
+            df.queries["queries"][0]
+            == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+        )
 
-    df = action(df1, df2.distinct()).distinct()
-    assert (
-        df.queries["queries"][0]
-        == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
-    )
+        df = action(df1, df2.distinct()).distinct()
+        assert (
+            df.queries["queries"][0]
+            == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+        )
 
-    df = action(df1.distinct(), df2).distinct()
-    assert (
-        df.queries["queries"][0]
-        == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
-    )
+        df = action(df1.distinct(), df2).distinct()
+        assert (
+            df.queries["queries"][0]
+            == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+        )
 
-    df = action(df1.distinct(), df2.distinct()).distinct()
-    assert (
-        df.queries["queries"][0]
-        == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
-    )
+        df = action(df1.distinct(), df2.distinct()).distinct()
+        assert (
+            df.queries["queries"][0]
+            == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+        )
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
 
 
 @pytest.mark.parametrize("set_operator", [SET_UNION_ALL, SET_EXCEPT, SET_INTERSECT])
