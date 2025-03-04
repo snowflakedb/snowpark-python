@@ -73,7 +73,6 @@ class TelemetryField(Enum):
     KEY_MSG = "msg"
     KEY_WALL_TIME = "wall_time"
     KEY_CPU_TIME = "cpu_time"
-    KEY_IO_TIME = "io_time"
     KEY_NETWORK_SENT = "network_bytes_sent_kb"
     KEY_NETWORK_RECV = "network_bytes_recv_kb"
     KEY_MEMORY_RSS = "memory_rss_kb"
@@ -142,7 +141,6 @@ class ResourceUsageCollector:
         [
             TelemetryField.KEY_WALL_TIME.value,
             TelemetryField.KEY_CPU_TIME.value,
-            TelemetryField.KEY_IO_TIME.value,
             TelemetryField.KEY_NETWORK_SENT.value,
             TelemetryField.KEY_NETWORK_RECV.value,
             TelemetryField.KEY_MEMORY_RSS.value,
@@ -170,11 +168,9 @@ class ResourceUsageCollector:
     def get_resource_usage(self) -> Dict[str, Any]:
         wall_time = self._end_time - self._start_time
         cpu_time = self._end_cpu_time - self._start_cpu_time
-        io_time = wall_time - cpu_time
         resource_usage = {
             TelemetryField.KEY_WALL_TIME.value: wall_time,
             TelemetryField.KEY_CPU_TIME.value: cpu_time,
-            TelemetryField.KEY_IO_TIME.value: io_time,
         }
         if PS_UTIL_AVAILABLE:
             network_sent = (

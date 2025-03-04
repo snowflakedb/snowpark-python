@@ -42,20 +42,6 @@ def test_resource_usage_time():
     ), cpu_time
 
 
-def test_resource_usage_io_time():
-    with ResourceUsageCollector() as resource_usage_collector:
-        start_time = time.time()
-        time.sleep(1)  # Stimulate I/O intensive operation
-        duration = time.time() - start_time
-    resource_usage = resource_usage_collector.get_resource_usage()
-    wall_time = resource_usage["wall_time"]
-    io_time = resource_usage["io_time"]
-    assert wall_time > duration or math.isclose(
-        wall_time, duration, abs_tol=1e-2
-    ), wall_time
-    assert math.isclose(io_time, duration, abs_tol=1e-2), io_time
-
-
 def test_resource_usage_memory():
     with ResourceUsageCollector() as resource_usage_collector:
         _ = [1] * 10**6
