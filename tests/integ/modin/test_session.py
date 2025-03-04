@@ -23,7 +23,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
-from tests.utils import running_on_jenkins, running_on_public_ci
+from tests.utils import IS_IN_STORED_PROC, running_on_jenkins, running_on_public_ci
 
 NO_ACTIVE_SESSION_ERROR_PATTERN = (
     r"Snowpark pandas requires an active snowpark session, but there is none. "
@@ -121,6 +121,10 @@ def test_snowpark_pandas_session_is_global_session(new_session):
     assert new_session is pd.session
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SHOW PARAMETERS statement is not supported in stored proc environment",
+)
 @sql_count_checker(no_check=True)
 def test_warning_if_quoted_identifiers_ignore_case_is_set(new_session):
     assert new_session is pd.session
@@ -133,6 +137,10 @@ def test_warning_if_quoted_identifiers_ignore_case_is_set(new_session):
         assert warning_msg in str(w[-1].message)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SHOW PARAMETERS statement is not supported in stored proc environment",
+)
 @sql_count_checker(no_check=True)
 def test_no_warning_if_quoted_identifiers_ignore_case_is_unset(new_session):
     assert new_session is pd.session

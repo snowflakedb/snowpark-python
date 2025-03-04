@@ -41,32 +41,43 @@ class SnowpandasSessionHolder(ModuleType):
     value to a module property, e.g. `pd.session = session1`.
     """
 
-    def _warn_if_quoted_identifiers_ignore_case_is_set(self, session: Session) -> None:
-        quoted_identifiers_ignore_case = (
-            session.sql(
-                "SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION"
+    def _warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
+        self, session: Session
+    ) -> None:
+        try:
+            quoted_identifiers_ignore_case = (
+                session.sql(
+                    "SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION"
+                )
+                .collect()[0]
+                .value
             )
-            .collect()[0]
-            .value
-        )
-        if quoted_identifiers_ignore_case == "true":
-            warnings.warn(
-                "Snowflake parameter 'QUOTED_IDENTIFIERS_IGNORE_CASE' is set to True."
-                + " Snowpark pandas requires it to be set to False."
-                + " Please consider unsetting it for this session using:"
-                + " pd.session.sql('ALTER SESSION SET QUOTED_IDENTIFIERS_IGNORE_CASE = False').collect()",
-                stacklevel=1,
-            )
+            if quoted_identifiers_ignore_case == "true":
+                warnings.warn(
+                    "Snowflake parameter 'QUOTED_IDENTIFIERS_IGNORE_CASE' is set to True."
+                    + " Snowpark pandas requires it to be set to False."
+                    + " Please consider unsetting it for this session using:"
+                    + " pd.session.sql('ALTER SESSION SET QUOTED_IDENTIFIERS_IGNORE_CASE = False').collect()",
+                    stacklevel=1,
+                )
+        finally:
+            # It's possible that the above statement fails, for example inside a stored proc.
+            # In that case, we will just skip the warning.
+            pass
 
     def _get_active_session(self) -> Session:
         if self._session is not None and self._session in _active_sessions:
-            self._warn_if_quoted_identifiers_ignore_case_is_set(self._session)
+            self._warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
+                self._session
+            )
             return self._session
 
         try:
             session = snowflake.snowpark.context.get_active_session()
             self._session = session
-            self._warn_if_quoted_identifiers_ignore_case_is_set(self._session)
+            self._warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
+                self._session
+            )
             return session
         except SnowparkSessionException as ex:
             if ex.error_code == "1409":
