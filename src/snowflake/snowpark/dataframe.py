@@ -630,7 +630,7 @@ class DataFrame:
         Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
-        debug_check_missing_ast(self._ast_id, self)
+        debug_check_missing_ast(self._ast_id, self._session, self)
         dataframe_expr_builder.dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
@@ -698,7 +698,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_collect)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -748,7 +748,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_collect)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -886,7 +886,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(stmt.expr.dataframe_to_local_iterator)
 
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
 
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
@@ -998,7 +998,7 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_to_pandas, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
@@ -1102,7 +1102,7 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_to_pandas_batches, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
@@ -1356,7 +1356,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.to_snowpark_pandas, stmt)
             self._set_ast_ref(ast.df)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             if index_col is not None:
                 ast.index_col.extend(
                     index_col if isinstance(index_col, list) else [index_col]
@@ -4128,7 +4128,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCount() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_count)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -4600,7 +4600,7 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node that applies DataframeShow() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             if self._ast_id is not None:
                 repr.expr.dataframe_show.id.bitfield1 = self._ast_id
             repr.expr.dataframe_show.n = n
