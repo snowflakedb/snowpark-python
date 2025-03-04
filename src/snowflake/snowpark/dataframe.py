@@ -916,23 +916,36 @@ class DataFrame:
             **kwargs,
         )
 
-    def __copy__(self) -> "DataFrame":
-        """Implements shallow copy protocol for copy.copy(...)."""
+    def _copy_plan(self) -> LogicalPlan:
+        """Returns a shallow copy of the plan of the DataFrame."""
         if self._select_statement:
             new_plan = copy.copy(self._select_statement)
             new_plan.column_states = self._select_statement.column_states
             new_plan._projection_in_str = self._select_statement.projection_in_str
             new_plan._schema_query = self._select_statement.schema_query
             new_plan._query_params = self._select_statement.query_params
+            return new_plan
         else:
-            new_plan = copy.copy(self._plan)
+            return copy.copy(self._plan)
 
-        # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
-        # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
-        # We additionally need to consider behavior when a user calls copy.copy() on a Snowpark Dataframe. For now, consider
-        # all calls internal, and leave AST handling to the caller.
-        df = DataFrame(self._session, new_plan, _emit_ast=False)
-        return df
+    def _copy_without_ast(self) -> "DataFrame":
+        """Returns a shallow copy of the DataFrame without AST generation."""
+        return DataFrame(self._session, self._copy_plan(), _emit_ast=False)
+
+    def __copy__(self) -> "DataFrame":
+        """Implements shallow copy protocol for copy.copy(...)."""
+        stmt = None
+        if self._session.ast_enabled:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.dataframe_ref, stmt)
+            debug_check_missing_ast(self._ast_id, self._session, self)
+            ast.id.bitfield1 = self._ast_id
+        return DataFrame(
+            self._session,
+            self._copy_plan(),
+            _ast_stmt=stmt,
+            _emit_ast=self._session.ast_enabled,
+        )
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -2009,7 +2022,7 @@ class DataFrame:
             ast.name = name
             self._set_ast_ref(ast.df)
 
-        _copy = copy.copy(self)
+        _copy = self._copy_without_ast()
         _copy._alias = name
         for attr in self._plan.attributes:
             if _copy._select_statement:
