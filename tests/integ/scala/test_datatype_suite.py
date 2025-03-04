@@ -471,6 +471,7 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         )
 
 
+@pytest.mark.skip(reason="SNOW-1959569: Undo once structured types issue is fixed")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
