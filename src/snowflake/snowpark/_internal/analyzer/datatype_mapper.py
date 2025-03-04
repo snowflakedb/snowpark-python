@@ -144,9 +144,9 @@ def to_sql(
     if isinstance(datatype, VectorType):
         if value is None:
             return f"NULL :: VECTOR({datatype.element_type},{datatype.dimension})"
-    if isinstance(datatype, VectorType):
+    if isinstance(datatype, FileType):
         if value is None:
-            return "NULL :: FILE"
+            return "TO_FILE(NULL)"
     if value is None:
         return "NULL"
 

@@ -1634,3 +1634,5 @@ def test_file_type(session, resources_path):
         lit(f"@{stage_name}/testCSV.csv", datatype=FileType()).alias("file")
     )
     assert df.schema == StructType([StructField("file", FileType(), True)])
+    df = session.range(1).select(lit(None, datatype=FileType()).alias("file"))
+    assert df.schema == StructType([StructField("file", FileType(), True)])
