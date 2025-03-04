@@ -102,7 +102,7 @@ class DBPerformanceTest:
                     "read.dbapi",
                     session.read.dbapi,
                     source_db.create_connection,
-                    table_name,
+                    table=table_name,
                     dbapi_parameters=config.dbapi_parameters,
                 )
 
