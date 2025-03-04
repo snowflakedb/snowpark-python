@@ -56,27 +56,32 @@ def validate_grouper(val: native_pd.Grouper) -> None:
     """
     Raise an exception if the grouper object has fields unsupported in Snowpark pandas.
     """
+    # Pairs of parameter names + condition for parameter being invalid
+    is_timegrouper = isinstance(val, native_pd.core.resample.TimeGrouper)
     unsupported_params = [
-        "sort",
-        "closed",
-        "label",
-        "convention",
-        "origin",
-        "offset",
-        "dropna",
+        (
+            "sort",
+            not val.sort if is_timegrouper else val.sort,
+        ),  # defaults to True if TimeGrouper, False otherwise
+        ("closed", is_timegrouper and val.closed != "left"),
+        ("label", is_timegrouper and val.label != "left"),
+        ("convention", is_timegrouper and val.convention != "e"),
+        (
+            "origin",
+            is_timegrouper and val.origin != "start_day",
+        ),  # TODO make more permissive
+        ("offset", is_timegrouper and val.offset is not None),
+        ("dropna", not val.dropna),  # defaults to True
     ]
-    if (
-        val.sort
-        or val.closed is not None
-        or val.label is not None
-        or val.convention is not None
-        or val.origin is not None
-        or val.offset is not None
-        or not val.dropna
-    ):
+    found_unsupported_params = [
+        param for param, invalid in unsupported_params if invalid
+    ]
+    if len(found_unsupported_params) > 0:
         ErrorMessage.not_implemented(
-            "Snowpark pandas does not yet support any of the following parameters in Grouper objects: "
-            + ", ".join(unsupported_params)
+            "Invalid parameter(s) passed to Grouper object: "
+            + ", ".join(found_unsupported_params)
+            + "\nSnowpark pandas does not yet support any of the following parameters in Grouper objects: "
+            + ", ".join(param for param, _ in unsupported_params)
         )
 
 
