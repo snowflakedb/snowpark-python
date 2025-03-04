@@ -67,9 +67,9 @@ def to_snowflake(
             Name of the SQL table or fully-qualified object identifier
         if_exists:
             How to behave if table already exists. default 'fail'
-            - fail: Raise ValueError.
-            - replace: Drop the table before inserting new values.
-            - append: Insert new values to the existing table. The order of insertion is not guaranteed.
+                - fail: Raise ValueError.
+                - replace: Drop the table before inserting new values.
+                - append: Insert new values to the existing table. The order of insertion is not guaranteed.
         index: default True
             If true, save Series index columns as table columns.
         index_label:

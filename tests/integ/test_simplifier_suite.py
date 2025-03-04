@@ -109,12 +109,12 @@ def test_set_same_operator(session, set_operator):
     if SET_UNION == set_operator:
         result1 = df1.union(df2).union(df3.union(df4))
         Utils.check_answer(
-            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=True
         )
     elif SET_UNION_ALL == set_operator:
         result1 = df1.union_all(df2).union_all(df3.union_all(df4))
         Utils.check_answer(
-            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=True
         )
     elif SET_EXCEPT == set_operator:
         result1 = df1.except_(df2).except_(df3.except_(df4))
