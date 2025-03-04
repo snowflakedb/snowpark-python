@@ -1,6 +1,6 @@
 ## TEST CASE
 
-from datetime import date
+import datetime
 
 # Load the tables into DataFrames
 visits_df = session.table(tables.visits)
@@ -13,7 +13,7 @@ filtered_visits_df = visits_df.filter((col("country") == "USA") & (col("page_url
 filtered_profiles_df = user_profiles_df.filter(col("membership_type").in_(['Gold', 'Platinum']))
 
 # Add an age column to the user_profiles DataFrame
-current_date = date.today()
+current_date = datetime.date(2025, 3, 4)
 filtered_profiles_df = filtered_profiles_df.with_column(
     "age", floor(months_between(to_date(lit(current_date)), col("dob")) / 12)
 )
