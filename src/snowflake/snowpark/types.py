@@ -531,8 +531,8 @@ class VectorType(DataType):
 class FileType(DataType):
     """File data type. This maps to the FILE data type in Snowflake."""
 
-    # def _fill_ast(self, ast: proto.DataType) -> None:
-    #     ast.file_type = True
+    def _fill_ast(self, ast: proto.DataType) -> None:
+        ast.file_type = True
 
 
 class ColumnIdentifier:

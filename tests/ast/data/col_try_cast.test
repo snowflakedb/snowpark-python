@@ -56,6 +56,7 @@ df = df.select(col("A").try_cast("numeric"))
 
 df = df.select(col("A").try_cast("object"))
 
+df = df.select(col("A").cast("file"))
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -114,6 +115,8 @@ df = df.select(col("A").try_cast(DecimalType(38, 0)))
 df = df.select(col("A").try_cast(DecimalType(38, 0)))
 
 df = df.select(col("A").try_cast(MapType(StringType(), StringType(), structured=False)))
+
+df = df.select(col("A").cast(FileType()))
 
 ## EXPECTED ENCODED AST
 
@@ -2365,6 +2368,86 @@ body {
     uid: 28
     var_id {
       bitfield1: 28
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 81
+                        file: 2
+                        start_column: 23
+                        start_line: 81
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 81
+                    file: 2
+                    start_column: 23
+                    start_line: 81
+                  }
+                }
+              }
+              src {
+                end_column: 44
+                end_line: 81
+                file: 2
+                start_column: 23
+                start_line: 81
+              }
+              to {
+                file_type: true
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 28
+            }
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 29
+    var_id {
+      bitfield1: 29
     }
   }
 }
