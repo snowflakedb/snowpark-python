@@ -155,6 +155,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
+    to_file,
     array_agg,
     col,
     column,
@@ -210,6 +211,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    FileType,
     _AtomicType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration
@@ -3508,6 +3510,8 @@ class Session:
                     converted_row.append(value)
                 elif isinstance(data_type, GeometryType):
                     converted_row.append(value)
+                elif isinstance(data_type, FileType):
+                    converted_row.append(value)
                 elif isinstance(data_type, VectorType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
@@ -3556,6 +3560,9 @@ class Session:
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
                 )
+            # TODO SNOW-1952256: Test file type in create_dataframe once it accepts full path
+            elif isinstance(field.datatype, FileType):
+                project_columns.append(to_file(column(name)).as_(name))
             else:
                 project_columns.append(column(name))
 
