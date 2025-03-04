@@ -191,15 +191,15 @@ def test_patch_on_get_available_versions_for_packages(session):
 def test_add_packages(session, local_testing_mode):
     session.add_packages(
         [
-            "numpy==1.23.5",
-            "pandas==1.5.3",
+            "numpy==1.26.3",
+            "pandas==2.1.4",
             "matplotlib",
             "pyyaml",
         ]
     )
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "numpy": "numpy==1.26.3",
+        "pandas": "pandas==2.1.4",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
@@ -215,7 +215,7 @@ def test_add_packages(session, local_testing_mode):
     res = df.select(call_udf(udf_name)).collect()[0][0]
     # don't need to check the version of dateutil, as it can be changed on the server side
     assert (
-        res.startswith("1.23.5/1.5.3")
+        res.startswith("1.26.3/2.1.4")
         if not local_testing_mode
         else res == get_numpy_pandas_dateutil_version()
     )
@@ -373,8 +373,8 @@ def test_add_requirements(session, resources_path, local_testing_mode):
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "numpy": "numpy==1.26.3",
+        "pandas": "pandas==2.1.4",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -387,7 +387,7 @@ def test_add_requirements(session, resources_path, local_testing_mode):
     res = df.select(call_udf(udf_name))
     Utils.check_answer(
         res,
-        [Row("1.23.5/1.5.3")]
+        [Row("1.26.3/2.1.4")]
         if not local_testing_mode
         else [Row(f"{numpy.__version__}/{pandas.__version__}")],
     )
