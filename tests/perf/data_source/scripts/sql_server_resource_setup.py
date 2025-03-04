@@ -138,6 +138,63 @@ class TestSQLServerDB(TestDBABC):
             "sysname_test",  # sysname
         )
 
+    def insert_null_data(self, num_rows=1, table_name=None):
+        to_insert_table = table_name or self.TABLE_NAME
+        # Define the column names as a list for better maintainability
+        columns = [
+            "bigint_col",
+            "bit_col",
+            "decimal_col",
+            "float_col",
+            "int_col",
+            "money_col",
+            "real_col",
+            "smallint_col",
+            "smallmoney_col",
+            "tinyint_col",
+            "numeric_col",
+            "date_col",
+            "datetime2_col",
+            "datetime_col",
+            "smalldatetime_col",
+            # "datetimeoffset_col",
+            "time_col",
+            "char_col",
+            "text_col",
+            "varchar_col",
+            "nchar_col",
+            "ntext_col",
+            "nvarchar_col",
+            "binary_col",
+            "varbinary_col",
+            "image_col",
+            "sql_variant_col",
+            # "geography_col",
+            # "geometry_col",
+            "uniqueidentifier_col",
+            "xml_col",
+            "sysname_col",
+        ]
+
+        # Dynamically construct the column string and placeholders
+        column_str = ", ".join(columns)
+        placeholders = ", ".join(["?"] * len(columns))
+
+        # Construct the SQL statement dynamically
+        insert_sql = f"""
+            INSERT INTO {to_insert_table} (
+                {column_str}
+            ) VALUES ({placeholders})
+        """
+        with self.connection.cursor() as cursor:
+            for _ in range(num_rows):
+                # Generate a tuple with None for each column
+                null_data = [None] * (len(columns) - 1)
+                null_data.append("sysname_test")  # sysname_col does not allow null
+                cursor.execute(insert_sql, tuple(null_data))
+            self.connection.commit()
+            print(f"Inserted {num_rows} rows with NULL values successfully.")
+
     def insert_data(self, num_rows=1_000_000, table_name=None):
         to_insert_table = table_name or self.TABLE_NAME
         # Define the column names as a list for better maintainability
