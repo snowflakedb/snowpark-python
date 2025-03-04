@@ -60,7 +60,7 @@ class SnowpandasSessionHolder(ModuleType):
                     + " pd.session.sql('ALTER SESSION SET QUOTED_IDENTIFIERS_IGNORE_CASE = False').collect()",
                     stacklevel=1,
                 )
-        finally:
+        except Exception:
             # It's possible that the above statement fails, for example inside a stored proc.
             # In that case, we will just skip the warning.
             pass
