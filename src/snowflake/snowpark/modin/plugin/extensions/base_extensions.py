@@ -6,10 +6,10 @@
 File containing BasePandasDataset APIs defined in Snowpark pandas but not the Modin API layer.
 """
 
-from .base_overrides import register_base_override
+from modin.pandas.api.extensions import register_base_accessor
 
 
-@register_base_override("__array_function__")
+@register_base_accessor("__array_function__", engine="Snowflake", storage_format="Snowflake")
 def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: dict):
     """
     Apply the `func` to the `BasePandasDataset`.
