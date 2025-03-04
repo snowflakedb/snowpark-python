@@ -26,6 +26,7 @@ from modin.pandas import Series
 from modin.pandas.api.extensions import (
     register_dataframe_accessor,
     register_series_accessor,
+    register_base_accessor
 )
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
@@ -83,52 +84,22 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
 from snowflake.snowpark.modin.utils import validate_int_kwarg
+import functools
 
 _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
     "pct_change(axis=1) is invalid when one column is Timedelta another column is not."
 )
 
-
-def register_base_override(method_name: str):
-    """
-    Decorator function to override a method on BasePandasDataset. Since Modin does not provide a mechanism
-    for directly overriding methods on BasePandasDataset, we mock this by performing the override on
-    DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
-    to allow both the docstring extension and method dispatch to work properly.
-    """
-    def decorator(base_method: Any): 
-        parent_method = getattr(BasePandasDataset, method_name, None)
-        if isinstance(parent_method, property):
-            parent_method = parent_method.fget
-        # If the method was not defined on Series/DataFrame and instead inherited from the superclass
-        # we need to override it as well.
-        series_method = getattr(pd.Series, method_name, None)
-        if isinstance(series_method, property):
-            series_method = series_method.fget
-        if (
-            series_method is None
-            or series_method is parent_method
-            or parent_method is None
-        ):
-            register_series_accessor(method_name, engine='Snowflake', storage_format="Snowflake")(base_method)
-        df_method = getattr(pd.DataFrame, method_name, None)
-        if isinstance(df_method, property):
-            df_method = df_method.fget
-        if df_method is None or df_method is parent_method or parent_method is None:
-            register_dataframe_accessor(method_name, engine="Snowflake", storage_format="Snowflake")(base_method)
-        # Replace base method
-        # setattr(BasePandasDataset, method_name, base_method)
-        return base_method
-
-    return decorator
+register_base_override_helper = functools.partial(
+    register_base_accessor,
+    engine="Snowflake",
+    storage_format="Snowflake",
+)
 
 
 def register_base_not_implemented():
     def decorator(base_method: Any):
-        func = base_not_implemented()(base_method)
-        register_series_accessor(base_method.__name__, engine="Snowflake", storage_format="Snowflake")(func)
-        register_dataframe_accessor(base_method.__name__, engine="Snowflake", storage_format="Snowflake")(func)
-        return func
+        return register_base_accessor(base_not_implemented()(base_method), engine="Snowflake", storage_format="Snowflake")
 
     return decorator
 
@@ -247,7 +218,7 @@ def kurt(
     pass  # pragma: no cover
 
 
-register_base_override("kurtosis")(kurt)
+register_base_override_helper("kurtosis")(kurt)
 
 
 @register_base_not_implemented()
@@ -522,7 +493,7 @@ def __sizeof__(self):
 # `aggregate` for axis=1 is performed as a call to `BasePandasDataset.apply` in upstream Modin,
 # which is unacceptable for Snowpark pandas. Upstream Modin should be changed to allow the query
 # compiler or a different layer to control dispatch.
-@register_base_override("aggregate")
+@register_base_override_helper("aggregate")
 def aggregate(
     self, func: AggFuncType = None, axis: Axis | None = 0, *args: Any, **kwargs: Any
 ):
@@ -666,11 +637,11 @@ def aggregate(
 
 # `agg` is an alias of `aggregate`.
 agg = aggregate
-register_base_override("agg")(agg)
+register_base_override_helper("agg")(agg)
 
 
 # `_agg_helper` is not defined in modin, and used by Snowpark pandas to do extra validation.
-@register_base_override("_agg_helper")
+@register_base_override_helper("_agg_helper")
 def _agg_helper(
     self,
     func: str,
@@ -697,7 +668,7 @@ def _agg_helper(
 
 
 # See _agg_helper
-@register_base_override("count")
+@register_base_override_helper("count")
 def count(
     self,
     axis: Axis | None = 0,
@@ -715,7 +686,7 @@ def count(
 
 
 # See _agg_helper
-@register_base_override("max")
+@register_base_override_helper("max")
 def max(
     self,
     axis: Axis | None = 0,
@@ -736,7 +707,7 @@ def max(
 
 
 # See _agg_helper
-@register_base_override("min")
+@register_base_override_helper("min")
 def min(
     self,
     axis: Axis | None | NoDefault = no_default,
@@ -758,7 +729,7 @@ def min(
 
 
 # See _agg_helper
-@register_base_override("mean")
+@register_base_override_helper("mean")
 def mean(
     self,
     axis: Axis | None | NoDefault = no_default,
@@ -779,7 +750,7 @@ def mean(
 
 
 # See _agg_helper
-@register_base_override("median")
+@register_base_override_helper("median")
 def median(
     self,
     axis: Axis | None | NoDefault = no_default,
@@ -800,7 +771,7 @@ def median(
 
 
 # See _agg_helper
-@register_base_override("std")
+@register_base_override_helper("std")
 def std(
     self,
     axis: Axis | None = None,
@@ -824,7 +795,7 @@ def std(
 
 
 # See _agg_helper
-@register_base_override("var")
+@register_base_override_helper("var")
 def var(
     self,
     axis: Axis | None = None,
@@ -856,10 +827,10 @@ def _get_attrs(self) -> dict:  # noqa: RT01, D200
     return self._query_compiler._attrs
 
 
-register_base_override("attrs")(property(_get_attrs, _set_attrs))
+register_base_override_helper("attrs")(property(_get_attrs, _set_attrs))
 
 
-@register_base_override("align")
+@register_base_override_helper("align")
 def align(
     self,
     other: BasePandasDataset,
@@ -927,7 +898,7 @@ def align(
 
 # Modin does not provide `MultiIndex` support and will default to pandas when `level` is specified,
 # and allows binary ops against native pandas objects that Snowpark pandas prohibits.
-@register_base_override("_binary_op")
+@register_base_override_helper("_binary_op")
 def _binary_op(
     self,
     op: str,
@@ -1009,7 +980,7 @@ def _binary_op(
 # Current Modin does not use _dropna and instead defines `dropna` directly, but Snowpark pandas
 # Series/DF still do. Snowpark pandas still needs to add support for the `ignore_index` parameter
 # (added in pandas 2.0), and should be able to refactor to remove this override.
-@register_base_override("_dropna")
+@register_base_override_helper("_dropna")
 def _dropna(
     self,
     axis: Axis = 0,
@@ -1054,7 +1025,7 @@ def _dropna(
 
 # Snowpark pandas uses `self_is_series` instead of `squeeze_self` and `squeeze_value` to determine
 # the shape of `self` and `value`. Further work is needed to reconcile these two approaches.
-@register_base_override("fillna")
+@register_base_override_helper("fillna")
 def fillna(
     self,
     self_is_series,
@@ -1144,7 +1115,7 @@ def fillna(
 
 
 # Snowpark pandas passes the query compiler object from a BasePandasDataset, which Modin does not do.
-@register_base_override("isin")
+@register_base_override_helper("isin")
 def isin(
     self, values: BasePandasDataset | ListLike | dict[Hashable, ListLike]
 ) -> BasePandasDataset:  # noqa: PR01, RT01, D200
@@ -1171,7 +1142,7 @@ def isin(
 # Snowpark pandas uses the single `quantiles_along_axis0` query compiler method, while upstream
 # Modin splits this into `quantile_for_single_value` and `quantile_for_list_of_values` calls.
 # It should be possible to merge those two functions upstream and reconcile the implementations.
-@register_base_override("quantile")
+@register_base_override_helper("quantile")
 def quantile(
     self,
     q: Scalar | ListLike = 0.5,
@@ -1247,7 +1218,7 @@ def quantile(
 # Current Modin does not define this method. Snowpark pandas currently only uses it in
 # `DataFrame.set_index`. Modin does not support MultiIndex, or have its own lazy index class,
 # so we may need to keep this method for the foreseeable future.
-@register_base_override("_to_series_list")
+@register_base_override_helper("_to_series_list")
 def _to_series_list(self, index: pd.Index) -> list[pd.Series]:
     """
     Convert index to a list of series
@@ -1269,7 +1240,7 @@ def _to_series_list(self, index: pd.Index) -> list[pd.Series]:
 
 
 # Upstream modin defaults to pandas when `suffix` is provided.
-@register_base_override("shift")
+@register_base_override_helper("shift")
 def shift(
     self,
     periods: int | Sequence[int] = 1,
@@ -1304,7 +1275,7 @@ def shift(
 
 # Snowpark pandas supports only `numeric_only=True`, which is not the default value of the argument,
 # so we have this overridden. We should revisit this behavior.
-@register_base_override("skew")
+@register_base_override_helper("skew")
 def skew(
     self,
     axis: Axis | None | NoDefault = no_default,
@@ -1319,7 +1290,7 @@ def skew(
     return self._stat_operation("skew", axis, skipna, numeric_only, **kwargs)
 
 
-@register_base_override("resample")
+@register_base_override_helper("resample")
 def resample(
     self,
     rule,
@@ -1377,7 +1348,7 @@ def resample(
 # Snowpark pandas needs to return a custom Expanding window object. We cannot use the
 # extensions module for this at the moment because modin performs a relative import of
 # `from .window import Expanding`.
-@register_base_override("expanding")
+@register_base_override_helper("expanding")
 def expanding(self, min_periods=1, axis=0, method="single"):  # noqa: PR01, RT01, D200
     """
     Provide expanding window calculations.
@@ -1415,7 +1386,7 @@ def expanding(self, min_periods=1, axis=0, method="single"):  # noqa: PR01, RT01
 
 
 # Same as Expanding: Snowpark pandas needs to return a custmo Window object.
-@register_base_override("rolling")
+@register_base_override_helper("rolling")
 def rolling(
     self,
     window,
@@ -1485,7 +1456,7 @@ def rolling(
 
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
-@register_base_override("iloc")
+@register_base_override_helper("iloc")
 @property
 def iloc(self):
     """
@@ -1501,7 +1472,7 @@ def iloc(self):
 
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
-@register_base_override("loc")
+@register_base_override_helper("loc")
 @property
 def loc(self):
     """
@@ -1518,7 +1489,7 @@ def loc(self):
 
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
-@register_base_override("iat")
+@register_base_override_helper("iat")
 @property
 def iat(self, axis=None):  # noqa: PR01, RT01, D200
     """
@@ -1533,7 +1504,7 @@ def iat(self, axis=None):  # noqa: PR01, RT01, D200
 
 
 # Snowpark pandas uses a custom indexer object for all indexing methods.
-@register_base_override("at")
+@register_base_override_helper("at")
 @property
 def at(self, axis=None):  # noqa: PR01, RT01, D200
     """
@@ -1547,7 +1518,7 @@ def at(self, axis=None):  # noqa: PR01, RT01, D200
 
 # Snowpark pandas performs different dispatch logic; some changes may need to be upstreamed
 # to fix edge case indexing behaviors.
-@register_base_override("__getitem__")
+@register_base_override_helper("__getitem__")
 def __getitem__(self, key):
     """
     Retrieve dataset according to `key`.
@@ -1599,7 +1570,7 @@ def __getitem__(self, key):
 
 # Modin uses the unique() query compiler method instead of aliasing the duplicated frontend method as of 0.30.1.
 # TODO SNOW-1758721: use the more efficient implementation
-@register_base_override("drop_duplicates")
+@register_base_override_helper("drop_duplicates")
 def drop_duplicates(
     self, keep="first", inplace=False, **kwargs
 ):  # noqa: PR01, RT01, D200
@@ -1631,7 +1602,7 @@ def drop_duplicates(
 
 
 # Snowpark pandas does extra argument validation, which may need to be upstreamed.
-@register_base_override("sort_values")
+@register_base_override_helper("sort_values")
 def sort_values(
     self,
     by,
@@ -1710,7 +1681,7 @@ def sort_values(
 
 # Modin does not define `where` on BasePandasDataset, and defaults to pandas at the frontend
 # layer for Series.
-@register_base_override("where")
+@register_base_override_helper("where")
 def where(
     self,
     cond: BasePandasDataset | Callable | AnyArrayLike,
@@ -1771,7 +1742,7 @@ def where(
 
 # Snowpark pandas performs extra argument validation, some of which should be pushed down
 # to the QC layer.
-@register_base_override("mask")
+@register_base_override_helper("mask")
 def mask(
     self,
     cond: BasePandasDataset | Callable | AnyArrayLike,
@@ -1831,7 +1802,7 @@ def mask(
 
 
 # Snowpark pandas uses a custom I/O dispatcher class.
-@register_base_override("to_csv")
+@register_base_override_helper("to_csv")
 def to_csv(
     self,
     path_or_buf=None,
@@ -1885,7 +1856,7 @@ def to_csv(
 
 
 # Modin has support for a custom NumPy wrapper module.
-@register_base_override("to_numpy")
+@register_base_override_helper("to_numpy")
 @materialization_warning
 def to_numpy(
     self,
@@ -1912,7 +1883,7 @@ def to_numpy(
 
 
 # Modin performs extra argument validation and defaults to pandas for some edge cases.
-@register_base_override("sample")
+@register_base_override_helper("sample")
 def sample(
     self,
     n: int | None = None,
@@ -1958,7 +1929,7 @@ def sample(
 
 
 # Modin performs an extra query calling self.isna() to raise a warning when fill_method is unspecified.
-@register_base_override("pct_change")
+@register_base_override_helper("pct_change")
 def pct_change(
     self, periods=1, fill_method=no_default, limit=no_default, freq=None, **kwargs
 ):  # noqa: PR01, RT01, D200
@@ -2024,7 +1995,7 @@ def pct_change(
 
 
 # Snowpark pandas has different `copy` behavior, and some different behavior with native series arguments.
-@register_base_override("astype")
+@register_base_override_helper("astype")
 def astype(
     self,
     dtype: str | type | pd.Series | dict[str, type],
@@ -2072,7 +2043,7 @@ def astype(
 
 # Modin defaults to pandsa when `level` is specified, and has some extra axis validation that
 # is guarded in newer versions.
-@register_base_override("drop")
+@register_base_override_helper("drop")
 def drop(
     self,
     labels: IndexLabel = None,
@@ -2116,7 +2087,7 @@ def drop(
 
 
 # Modin calls len(self.index) instead of a direct query compiler method.
-@register_base_override("__len__")
+@register_base_override_helper("__len__")
 def __len__(self) -> int:
     """
     Return length of info axis.
@@ -2130,7 +2101,7 @@ def __len__(self) -> int:
 
 
 # Snowpark pandas ignores `copy`.
-@register_base_override("set_axis")
+@register_base_override_helper("set_axis")
 def set_axis(
     self,
     labels: IndexLabel,
@@ -2165,7 +2136,7 @@ def set_axis(
 
 
 # Modin has different behavior for empty dataframes and some slightly different length validation.
-@register_base_override("describe")
+@register_base_override_helper("describe")
 def describe(
     self,
     percentiles: ListLike | None = None,
@@ -2211,7 +2182,7 @@ def describe(
 
 
 # Modin does type validation on self that Snowpark pandas defers to SQL.
-@register_base_override("diff")
+@register_base_override_helper("diff")
 def diff(self, periods: int = 1, axis: Axis = 0):
     """
     First discrete difference of element.
@@ -2227,7 +2198,7 @@ def diff(self, periods: int = 1, axis: Axis = 0):
 
 
 # Modin does an unnecessary len call when n == 0.
-@register_base_override("tail")
+@register_base_override_helper("tail")
 def tail(self, n: int = 5):
     if n == 0:
         return self.iloc[0:0]
@@ -2235,7 +2206,7 @@ def tail(self, n: int = 5):
 
 
 # Snowpark pandas does extra argument validation (which should probably be deferred to SQL instead).
-@register_base_override("idxmax")
+@register_base_override_helper("idxmax")
 def idxmax(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, D200
     """
     Return index of first occurrence of maximum over requested axis.
@@ -2263,7 +2234,7 @@ def idxmax(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, 
 
 
 # Snowpark pandas does extra argument validation (which should probably be deferred to SQL instead).
-@register_base_override("idxmin")
+@register_base_override_helper("idxmin")
 def idxmin(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, D200
     """
     Return index of first occurrence of minimum over requested axis.
@@ -2291,7 +2262,7 @@ def idxmin(self, axis=0, skipna=True, numeric_only=False):  # noqa: PR01, RT01, 
 
 
 # Modin does dtype validation on unary ops that Snowpark pandas does not.
-@register_base_override("__abs__")
+@register_base_override_helper("__abs__")
 def abs(self):  # noqa: RT01, D200
     """
     Return a `BasePandasDataset` with absolute numeric value of each element.
@@ -2301,7 +2272,7 @@ def abs(self):  # noqa: RT01, D200
 
 
 # Modin does dtype validation on unary ops that Snowpark pandas does not.
-@register_base_override("__invert__")
+@register_base_override_helper("__invert__")
 def __invert__(self):
     """
     Apply bitwise inverse to each element of the `BasePandasDataset`.
@@ -2315,7 +2286,7 @@ def __invert__(self):
     return self.__constructor__(query_compiler=self._query_compiler.invert())
 
 # Modin does dtype validation on unary ops that Snowpark pandas does not.
-@register_base_override("__neg__")
+@register_base_override_helper("__neg__")
 def __neg__(self):
     """
     Change the sign for every value of self.
@@ -2330,7 +2301,7 @@ def __neg__(self):
 
 # Modin needs to add a check for mapper is not None, which changes query counts in test_concat.py
 # if not present.
-@register_base_override("rename_axis")
+@register_base_override_helper("rename_axis")
 def rename_axis(
     self,
     mapper=lib.no_default,
@@ -2399,7 +2370,7 @@ def rename_axis(
 
 
 # Snowpark pandas has custom dispatch logic for ufuncs, while modin defaults to pandas.
-@register_base_override("__array_ufunc__")
+@register_base_override_helper("__array_ufunc__")
 def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
     """
     Apply the `ufunc` to the `BasePandasDataset`.
@@ -2441,7 +2412,7 @@ def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
 
 
 # Snowpark pandas does extra argument validation.
-@register_base_override("reindex")
+@register_base_override_helper("reindex")
 def reindex(
     self,
     index=None,
@@ -2521,4 +2492,4 @@ def _set_index(self, new_index: Axes) -> None:
 
 
 # Snowpark pandas may return a custom lazy index object.
-register_base_override("index")(property(_get_index, _set_index))
+register_base_override_helper("index")(property(_get_index, _set_index))
