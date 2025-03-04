@@ -5739,6 +5739,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             query_compiler, by = resample_and_extract_groupby_column_pandas_labels(
                 self, by, level
             )
+        else:
+            query_compiler = self
 
         frame = query_compiler._modin_frame
 
