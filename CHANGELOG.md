@@ -1,6 +1,6 @@
 # Release History
 
-## 1.29.0 (TBD)
+## 1.29.0 (2025-03-05)
 
 ### Snowpark Python API Updates
 
@@ -19,14 +19,7 @@
 #### Improvements
 
 - Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
-- Bumped cloudpickle dependency to work with `cloudpickle==3.0.0`
-
-### Snowpark pandas API Updates
-
-#### Bug Fixes
-- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
-- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
-- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
+- Bumped cloudpickle dependency to work with `cloudpickle==3.0.0`.
 
 ### Snowpark Local Testing Updates
 
@@ -37,6 +30,14 @@
 #### Bug Fixes
 
 - Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
+
+### Snowpark pandas API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
+- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
+- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
 
 #### Improvements
 
