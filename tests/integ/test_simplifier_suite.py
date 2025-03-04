@@ -109,12 +109,12 @@ def test_set_same_operator(session, set_operator):
     if SET_UNION == set_operator:
         result1 = df1.union(df2).union(df3.union(df4))
         Utils.check_answer(
-            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=True
         )
     elif SET_UNION_ALL == set_operator:
         result1 = df1.union_all(df2).union_all(df3.union_all(df4))
         Utils.check_answer(
-            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=True
         )
     elif SET_EXCEPT == set_operator:
         result1 = df1.except_(df2).except_(df3.except_(df4))
@@ -1445,46 +1445,46 @@ def test_select_limit_orderby(session):
             lambda df: df.select("a", "b").distinct().select("a"),
             lambda table: f"""SELECT "A" FROM ( SELECT  DISTINCT "A", "B" FROM {table})""",
             [Row(5), Row(3), Row(1), Row(3)],
-            False,
+            True,
         ),
         (
             lambda df: df.select("a", "b").select("a").distinct(),
             lambda table: f"""SELECT  DISTINCT "A" FROM {table}""",
             [Row(5), Row(3), Row(1)],
-            False,
+            True,
         ),
         # df.select().distinct().limit() != df.distinct().select().limit() for optimization
         (
             lambda df: df.select("a", "b").distinct().limit(4),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} LIMIT 4""",
             [Row(5, "a"), Row(3, "b"), Row(1, "c"), Row(3, "c")],
-            False,
+            True,
         ),
         (
             lambda df: df.select("a", "b").limit(4).distinct(),
             lambda table: f"""SELECT  DISTINCT  *  FROM ( SELECT "A", "B" FROM {table} LIMIT 4)""",
             None,
-            False,
+            True,
         ),
         # df.distinct().filter() = df.filter().distinct()
         (
             lambda df: df.select("a", "b").distinct().filter(col("a") > 1),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} WHERE ("A" > 1)""",
             [Row(5, "a"), Row(3, "b"), Row(3, "c")],
-            False,
+            True,
         ),
         (
             lambda df: df.select("a", "b").filter(col("a") > 1).distinct(),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} WHERE ("A" > 1)""",
             [Row(5, "a"), Row(3, "b"), Row(3, "c")],
-            False,
+            True,
         ),
         # df.distinct().sort() = df.sort().distinct()
         (
             lambda df: df.select("a", "b").distinct().sort(col("a"), col("b")),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
             [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
-            True,
+            False,
         ),
         (
             lambda df: df.select("a", "b").sort(col("a"), col("b")).distinct(),
