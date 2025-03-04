@@ -122,7 +122,8 @@ def test_snowpark_pandas_session_is_global_session(new_session):
 
 
 @sql_count_checker(no_check=True)
-def test_warning_if_quoted_identifiers_ignore_case_is_set():
+def test_warning_if_quoted_identifiers_ignore_case_is_set(new_session):
+    assert new_session is pd.session
     pd.session.sql("ALTER SESSION SET QUOTED_IDENTIFIERS_IGNORE_CASE = True").collect()
     warning_msg = "Snowflake parameter 'QUOTED_IDENTIFIERS_IGNORE_CASE' is set to True"
     with warnings.catch_warnings(record=True) as w:
@@ -133,7 +134,8 @@ def test_warning_if_quoted_identifiers_ignore_case_is_set():
 
 
 @sql_count_checker(no_check=True)
-def test_no_warning_if_quoted_identifiers_ignore_case_is_unset():
+def test_no_warning_if_quoted_identifiers_ignore_case_is_unset(new_session):
+    assert new_session is pd.session
     pd.session.sql("ALTER SESSION SET QUOTED_IDENTIFIERS_IGNORE_CASE = False").collect()
     with warnings.catch_warnings(record=True) as w:
         warnings.filterwarnings("always")
