@@ -404,6 +404,7 @@ def test_structured_dtypes(structured_type_session, examples, structured_type_su
     assert df.dtypes == expected_dtypes
 
 
+@pytest.mark.skip(reason="SNOW-1959569: Undo once structured types issue is fixed")
 @pytest.mark.skipif(
     "config.getoption('disable_sql_simplifier', default=False)",
     reason="without sql_simplifier returned types are all variants",
@@ -470,6 +471,7 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         )
 
 
+@pytest.mark.skip(reason="SNOW-1959569: Undo once structured types issue is fixed")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",

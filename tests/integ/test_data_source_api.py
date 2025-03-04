@@ -62,6 +62,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_all_type_small_data_result,
     oracledb_create_connection_small_data,
     OracleDBType,
+    sql_server_create_connection_empty_data,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -169,32 +170,30 @@ def test_dbapi_retry(session):
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
 )
-def test_parallel(session):
+@pytest.mark.parametrize("upper_bound, expected_upload_cnt", [(5, 3), (100, 1)])
+def test_parallel(session, upper_bound, expected_upload_cnt):
     num_partitions = 3
 
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
-        table_name, _, _, _ = sqlite3_db(dbpath)
-
-        start = time.time()
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
 
         with mock.patch(
             "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
-            wrap=upload_and_copy_into_table_with_retry,
+            side_effect=session.read._upload_and_copy_into_table_with_retry,
         ) as mock_upload_and_copy:
-            session.read.dbapi(
+            df = session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
                 table=table_name,
                 column="id",
-                upper_bound=100,
+                upper_bound=upper_bound,
                 lower_bound=0,
                 num_partitions=num_partitions,
                 max_workers=4,
                 custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
             )
-            # totally time without parallel is 12 seconds
-            assert time.time() - start < 12
-            assert mock_upload_and_copy.call_count == num_partitions
+            assert mock_upload_and_copy.call_count == expected_upload_cnt
+            assert df.order_by("ID").collect() == assert_data
 
 
 def test_partition_logic(session):
@@ -743,3 +742,10 @@ def test_option_load(session):
         TypeError, match="missing 1 required positional argument: 'create_connection'"
     ):
         session.read.format("dbapi").load()
+
+
+def test_empty_table(session):
+    df = session.read.dbapi(
+        sql_server_create_connection_empty_data, table=SQL_SERVER_TABLE_NAME
+    )
+    assert df.collect() == []
