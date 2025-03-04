@@ -3,6 +3,7 @@
 #
 
 import datetime
+import re
 
 import modin.pandas as pd
 import numpy as np
@@ -982,3 +983,40 @@ def test_apply_numpy_universal_functions(func):
     )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
+
+
+def test_udfs_and_udtfs_with_snowpark_object_error_msg():
+    expected_error_msg = re.escape(
+        "Snowpark pandas only allows native pandas and not Snowpark objects in `apply()`. "
+        + "Instead, try calling `to_pandas()` on any DataFrame or Series objects passed to `apply()`. See Limitations"
+        + "(https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations) section of"
+        + "the Snowpark pandas documentation for more details."
+    )
+    snow_df = pd.DataFrame([7, 8, 9])
+    with SqlCounter(query_count=2):
+        with pytest.raises(ValueError, match=expected_error_msg):  # Series.apply
+            snow_df[0].apply(lambda row: snow_df.iloc[0, 0], axis=1)
+    with SqlCounter(query_count=2):
+        with pytest.raises(
+            ValueError, match=expected_error_msg
+        ):  # DataFrame.apply axis=0
+            snow_df.apply(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(query_count=2):
+        with pytest.raises(
+            ValueError, match=expected_error_msg
+        ):  # DataFrame.apply axis=1
+            snow_df.apply(lambda row: snow_df.iloc[0, 0], axis=1)
+    with SqlCounter(
+        query_count=16,
+        high_count_expected=True,
+        high_count_reason="DataFrame.map has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.map
+            snow_df.map(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(
+        query_count=16,
+        high_count_expected=True,
+        high_count_reason="Series.map has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # Series.map
+            snow_df[0].map(lambda row: snow_df.iloc[0, 0])
