@@ -1491,42 +1491,45 @@ def test_nested_join_diamond_shape_error(
 def test_nested_join_diamond_shape(
     session,
 ):  # TODO: local testing match error behavior
-    if not session._join_alias_fix:
-        pytest.skip("this is only fixed with join alias fix")
-    df1 = session.create_dataframe([[1]], schema=["a"])
-    df2 = session.create_dataframe([[1]], schema=["a"])
-    df3 = df1.join(df2, df1["a"] == df2["a"])
-    df4 = df3.select(df1["a"].as_("a"))
-    # df1["a"] and df4["a"] has the same expr_id in map expr_to_alias. When they join, only one will be in df5's alias
-    # map. It leaves the other one resolved to "a" instead of the alias.
-    df5 = df1.join(df4, df1["a"] == df4["a"])  # (df1) JOIN ((df1 JOIN df2)->df4)
-    Utils.check_answer(df5, [Row(1, 1)])
-    # show issues schema query, this triggers a different execution path than collect
-    df5.show()
+    origin = session._join_alias_fix
+    try:
+        session._join_alias_fix = True
+        df1 = session.create_dataframe([[1]], schema=["a"])
+        df2 = session.create_dataframe([[1]], schema=["a"])
+        df3 = df1.join(df2, df1["a"] == df2["a"])
+        df4 = df3.select(df1["a"].as_("a"))
+        # df1["a"] and df4["a"] has the same expr_id in map expr_to_alias. When they join, only one will be in df5's alias
+        # map. It leaves the other one resolved to "a" instead of the alias.
+        df5 = df1.join(df4, df1["a"] == df4["a"])  # (df1) JOIN ((df1 JOIN df2)->df4)
+        Utils.check_answer(df5, [Row(1, 1)])
+        # show issues schema query, this triggers a different execution path than collect
+        df5.show()
 
-    # df5 is from left df 1, right df4, df4 is from left df1, right df2
-    df6 = df5.select(df4.a.alias("a"))
-    # df7 is from left df6, right df2, df6 is from left df1, right df4, df4 is from left df1, right df2
-    # valid select from two direct children
-    df7 = df6.join(df2, df6["a"] == df2["a"]).select(df2["a"], df6["a"])
-    df7.show()
-    Utils.check_answer(df7, [Row(1, 1)])
+        # df5 is from left df 1, right df4, df4 is from left df1, right df2
+        df6 = df5.select(df4.a.alias("a"))
+        # df7 is from left df6, right df2, df6 is from left df1, right df4, df4 is from left df1, right df2
+        # valid select from two direct children
+        df7 = df6.join(df2, df6["a"] == df2["a"]).select(df2["a"], df6["a"])
+        df7.show()
+        Utils.check_answer(df7, [Row(1, 1)])
 
-    # negative case: df1 shows up in both 4 and 6, can not be decided
-    with pytest.raises(
-        SnowparkSQLException,
-        match='The column specified in df\\("A"\\) is not present in the output of the DataFrame.',
-    ):
-        df_invalid = df6.join(df4, df1["a"] == df6["a"])
-        df_invalid.show()
+        # negative case: df1 shows up in both 4 and 6, can not be decided
+        with pytest.raises(
+            SnowparkSQLException,
+            match='The column specified in df\\("A"\\) is not present in the output of the DataFrame.',
+        ):
+            df_invalid = df6.join(df4, df1["a"] == df6["a"])
+            df_invalid.show()
 
-    with pytest.raises(
-        SnowparkSQLException,
-        match='The column specified in df\\("A"\\) is not present in the output of the DataFrame.',
-    ):
-        # df1 shows up in both 4 and 6, can not be decided
-        df_invalid = df6.join(df4).select(df1["a"])
-        df_invalid.show()
+        with pytest.raises(
+            SnowparkSQLException,
+            match='The column specified in df\\("A"\\) is not present in the output of the DataFrame.',
+        ):
+            # df1 shows up in both 4 and 6, can not be decided
+            df_invalid = df6.join(df4).select(df1["a"])
+            df_invalid.show()
+    finally:
+        session._join_alias_fix = origin
 
 
 def test_nested_join_diamond_shape_workaround(session):

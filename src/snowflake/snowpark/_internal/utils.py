@@ -1550,7 +1550,7 @@ class ExprAliasUpdateDict(dict):
     - `updated_from_inheritance` (bool): A flag indicating whether the expr alias was updated
      because it's inherited from child plan (True) or not (False).
 
-    Below is an example:
+    Below is an example for resolving alias mapping:
 
     data = [25, 30]
     columns = ["age"]
@@ -1558,20 +1558,28 @@ class ExprAliasUpdateDict(dict):
     df2 = session.createDataFrame(data, columns)
     df3 = df1.join(df2)
     # in DF3:
-    #    df1.age -> (age_alias_left, False)  # comes from df1 due to being disambiguated in the join condition
-    #    df2.age -> (age_alias_right, False)  # comes from df2 due to being disambiguated in the join condition
+    #    df1.age expr_id -> (age_alias_left, False)  # comes from df1 due to being disambiguated in the join condition
+    #    df2.age expr_id -> (age_alias_right, False)  # comes from df2 due to being disambiguated in the join condition
 
     df4 = df3.select(df1.age.alias("age"))
 
     # in DF4:
-    #    df1.age -> age  # comes from df3 explict alias
-    #    df2.age -> age_alias_right  # unchanged, inherited from df3
+    #    df1.age.expr_id -> (age, False)  # comes from df3 explict alias
+    #    df2.age.expr_id -> (age_alias_right, False)  # unchanged, inherited from df3
     df5 = df1.join(df4, df1["age"] == df4["age"])
 
+    # in the middle of df1.join(df2) operation, we have the following expr_to_alias mapping:
+    #  DF4 intermediate expr_to_alias:
+    #    df4.age.expr_id -> (age_alias_right2, False)  # comes from df4 due to being disambiguated in the join condition, note here df4.age is not the same as df1.age, it's a new attribute
+    #    df1.age.expr_id -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #  DF1 intermediate expr_to_alias:
+    #    df1.age.expr_id -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+
+    # when executing merge_multiple_snowflake_plan_expr_to_alias, we drop df1.age.expr_id -> (age_alias_right2, True)
+
     # in DF5:
-    #    df4.age -> (age_alias_right2, False)  # comes from df4 due to being disambiguated in the join condition, note here df4.age is not the same as df1.age, it's a new attirbute
-    #    df1.age -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
-    #    df1.age -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+    #    df4.age.expr_id -> (age_alias_right2, False)
+    #    df1.age.expr_id -> (age_alias_left2, False)
     """
 
     def __setitem__(
