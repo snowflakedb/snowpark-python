@@ -350,6 +350,36 @@ df328 = df.select(ai_agg("A", "B"))
 
 df329 = df.select(summarize_agg("A"))
 
+df330 = df.select(to_file("A/B"))
+
+df331 = df.select(fl_get_content_type("A"))
+
+df332 = df.select(fl_get_etag("A"))
+
+df333 = df.select(fl_get_file_type("A"))
+
+df334 = df.select(fl_get_last_modified("A"))
+
+df335 = df.select(fl_get_relative_path("A"))
+
+df336 = df.select(fl_get_scoped_file_url("A"))
+
+df337 = df.select(fl_get_size("A"))
+
+df338 = df.select(fl_get_stage("A"))
+
+df339 = df.select(fl_get_stage_file_url("A"))
+
+df340 = df.select(fl_is_audio("A"))
+
+df341 = df.select(fl_is_compressed("A"))
+
+df342 = df.select(fl_is_document("A"))
+
+df343 = df.select(fl_is_image("A"))
+
+df344 = df.select(fl_is_video("A"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -699,6 +729,36 @@ df327 = df.select(ai_filter("A", "B"))
 df328 = df.select(ai_agg("A", "B"))
 
 df329 = df.select(summarize_agg("A"))
+
+df330 = df.select(to_file("A/B"))
+
+df331 = df.select(fl_get_content_type("A"))
+
+df332 = df.select(fl_get_etag("A"))
+
+df333 = df.select(fl_get_file_type("A"))
+
+df334 = df.select(fl_get_last_modified("A"))
+
+df335 = df.select(fl_get_relative_path("A"))
+
+df336 = df.select(fl_get_scoped_file_url("A"))
+
+df337 = df.select(fl_get_size("A"))
+
+df338 = df.select(fl_get_stage("A"))
+
+df339 = df.select(fl_get_stage_file_url("A"))
+
+df340 = df.select(fl_is_audio("A"))
+
+df341 = df.select(fl_is_compressed("A"))
+
+df342 = df.select(fl_is_document("A"))
+
+df343 = df.select(fl_is_image("A"))
+
+df344 = df.select(fl_is_video("A"))
 
 ## EXPECTED ENCODED AST
 
@@ -24368,6 +24428,996 @@ body {
     uid: 174
     var_id {
       bitfield1: 174
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "to_file"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 40
+                    end_line: 375
+                    file: 2
+                    start_column: 26
+                    start_line: 375
+                  }
+                  v: "A/B"
+                }
+              }
+              src {
+                end_column: 40
+                end_line: 375
+                file: 2
+                start_column: 26
+                start_line: 375
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 375
+          file: 2
+          start_column: 16
+          start_line: 375
+        }
+      }
+    }
+    symbol {
+      value: "df330"
+    }
+    uid: 175
+    var_id {
+      bitfield1: 175
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_content_type"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 50
+                    end_line: 377
+                    file: 2
+                    start_column: 26
+                    start_line: 377
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 50
+                end_line: 377
+                file: 2
+                start_column: 26
+                start_line: 377
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 51
+          end_line: 377
+          file: 2
+          start_column: 16
+          start_line: 377
+        }
+      }
+    }
+    symbol {
+      value: "df331"
+    }
+    uid: 176
+    var_id {
+      bitfield1: 176
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_etag"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 42
+                    end_line: 379
+                    file: 2
+                    start_column: 26
+                    start_line: 379
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 42
+                end_line: 379
+                file: 2
+                start_column: 26
+                start_line: 379
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 379
+          file: 2
+          start_column: 16
+          start_line: 379
+        }
+      }
+    }
+    symbol {
+      value: "df332"
+    }
+    uid: 177
+    var_id {
+      bitfield1: 177
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_file_type"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 47
+                    end_line: 381
+                    file: 2
+                    start_column: 26
+                    start_line: 381
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 47
+                end_line: 381
+                file: 2
+                start_column: 26
+                start_line: 381
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 381
+          file: 2
+          start_column: 16
+          start_line: 381
+        }
+      }
+    }
+    symbol {
+      value: "df333"
+    }
+    uid: 178
+    var_id {
+      bitfield1: 178
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_last_modified"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 51
+                    end_line: 383
+                    file: 2
+                    start_column: 26
+                    start_line: 383
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 51
+                end_line: 383
+                file: 2
+                start_column: 26
+                start_line: 383
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 52
+          end_line: 383
+          file: 2
+          start_column: 16
+          start_line: 383
+        }
+      }
+    }
+    symbol {
+      value: "df334"
+    }
+    uid: 179
+    var_id {
+      bitfield1: 179
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_relative_path"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 51
+                    end_line: 385
+                    file: 2
+                    start_column: 26
+                    start_line: 385
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 51
+                end_line: 385
+                file: 2
+                start_column: 26
+                start_line: 385
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 52
+          end_line: 385
+          file: 2
+          start_column: 16
+          start_line: 385
+        }
+      }
+    }
+    symbol {
+      value: "df335"
+    }
+    uid: 180
+    var_id {
+      bitfield1: 180
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_scoped_file_url"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 387
+                    file: 2
+                    start_column: 26
+                    start_line: 387
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 53
+                end_line: 387
+                file: 2
+                start_column: 26
+                start_line: 387
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 54
+          end_line: 387
+          file: 2
+          start_column: 16
+          start_line: 387
+        }
+      }
+    }
+    symbol {
+      value: "df336"
+    }
+    uid: 181
+    var_id {
+      bitfield1: 181
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_size"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 42
+                    end_line: 389
+                    file: 2
+                    start_column: 26
+                    start_line: 389
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 42
+                end_line: 389
+                file: 2
+                start_column: 26
+                start_line: 389
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 389
+          file: 2
+          start_column: 16
+          start_line: 389
+        }
+      }
+    }
+    symbol {
+      value: "df337"
+    }
+    uid: 182
+    var_id {
+      bitfield1: 182
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_stage"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 43
+                    end_line: 391
+                    file: 2
+                    start_column: 26
+                    start_line: 391
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 43
+                end_line: 391
+                file: 2
+                start_column: 26
+                start_line: 391
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 44
+          end_line: 391
+          file: 2
+          start_column: 16
+          start_line: 391
+        }
+      }
+    }
+    symbol {
+      value: "df338"
+    }
+    uid: 183
+    var_id {
+      bitfield1: 183
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_get_stage_file_url"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 52
+                    end_line: 393
+                    file: 2
+                    start_column: 26
+                    start_line: 393
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 52
+                end_line: 393
+                file: 2
+                start_column: 26
+                start_line: 393
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 53
+          end_line: 393
+          file: 2
+          start_column: 16
+          start_line: 393
+        }
+      }
+    }
+    symbol {
+      value: "df339"
+    }
+    uid: 184
+    var_id {
+      bitfield1: 184
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_is_audio"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 42
+                    end_line: 395
+                    file: 2
+                    start_column: 26
+                    start_line: 395
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 42
+                end_line: 395
+                file: 2
+                start_column: 26
+                start_line: 395
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 395
+          file: 2
+          start_column: 16
+          start_line: 395
+        }
+      }
+    }
+    symbol {
+      value: "df340"
+    }
+    uid: 185
+    var_id {
+      bitfield1: 185
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_is_compressed"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 47
+                    end_line: 397
+                    file: 2
+                    start_column: 26
+                    start_line: 397
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 47
+                end_line: 397
+                file: 2
+                start_column: 26
+                start_line: 397
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 397
+          file: 2
+          start_column: 16
+          start_line: 397
+        }
+      }
+    }
+    symbol {
+      value: "df341"
+    }
+    uid: 186
+    var_id {
+      bitfield1: 186
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_is_document"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 45
+                    end_line: 399
+                    file: 2
+                    start_column: 26
+                    start_line: 399
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 45
+                end_line: 399
+                file: 2
+                start_column: 26
+                start_line: 399
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 46
+          end_line: 399
+          file: 2
+          start_column: 16
+          start_line: 399
+        }
+      }
+    }
+    symbol {
+      value: "df342"
+    }
+    uid: 187
+    var_id {
+      bitfield1: 187
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_is_image"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 42
+                    end_line: 401
+                    file: 2
+                    start_column: 26
+                    start_line: 401
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 42
+                end_line: 401
+                file: 2
+                start_column: 26
+                start_line: 401
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 401
+          file: 2
+          start_column: 16
+          start_line: 401
+        }
+      }
+    }
+    symbol {
+      value: "df343"
+    }
+    uid: 188
+    var_id {
+      bitfield1: 188
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "fl_is_video"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 42
+                    end_line: 403
+                    file: 2
+                    start_column: 26
+                    start_line: 403
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 42
+                end_line: 403
+                file: 2
+                start_column: 26
+                start_line: 403
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 403
+          file: 2
+          start_column: 16
+          start_line: 403
+        }
+      }
+    }
+    symbol {
+      value: "df344"
+    }
+    uid: 189
+    var_id {
+      bitfield1: 189
     }
   }
 }
