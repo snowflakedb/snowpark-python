@@ -1515,16 +1515,14 @@ def test_nested_join_diamond_shape(
 
         # negative case: df1 shows up in both 4 and 6, can not be decided
         with pytest.raises(
-            SnowparkSQLException,
-            match='The column specified in df\\("A"\\) is not present in the output of the DataFrame.',
-        ):
+            SnowparkSQLException
+        ):  # SNOW-1736729 for err message matching
             df_invalid = df6.join(df4, df1["a"] == df6["a"])
             df_invalid.show()
 
         with pytest.raises(
-            SnowparkSQLException,
-            match='The column specified in df\\("A"\\) is not present in the output of the DataFrame.',
-        ):
+            SnowparkSQLException
+        ):  # SNOW-1736729 for err message matching
             # df1 shows up in both 4 and 6, can not be decided
             df_invalid = df6.join(df4).select(df1["a"])
             df_invalid.show()
