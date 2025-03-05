@@ -11,20 +11,20 @@
   - `ai_agg`
   - `summarize_agg`
 - Added support for the new FILE SQL type support, with the following related functions in `functions.py` (private preview):
-  - fl_get_content_type
-  - fl_get_etag
-  - fl_get_file_type
-  - fl_get_last_modified
-  - fl_get_relative_path
-  - fl_get_scoped_file_url
-  - fl_get_size
-  - fl_get_stage
-  - fl_get_stage_file_url
-  - fl_is_audio
-  - fl_is_compressed
-  - fl_is_document
-  - fl_is_image
-  - fl_is_video
+  - `fl_get_content_type`
+  - `fl_get_etag`
+  - `fl_get_file_type`
+  - `fl_get_last_modified`
+  - `fl_get_relative_path`
+  - `fl_get_scoped_file_url`
+  - `fl_get_size`
+  - `fl_get_stage`
+  - `fl_get_stage_file_url`
+  - `fl_is_audio`
+  - `fl_is_compressed`
+  - `fl_is_document`
+  - `fl_is_image`
+  - `fl_is_video`
 
 #### Bug Fixes
 
@@ -44,24 +44,21 @@
 
 - Added support for literal values to `range_between` window function.
 
-#### Bug Fixes
-
-- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
-
 ### Snowpark pandas API Updates
-
-#### Bug Fixes
-
-- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
-- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
-- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
-- Update `pd.get_dummies` to return bool values instead of int.
 
 #### Improvements
 
 - Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 - Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
 - Improve error message for all pandas functions that use UDFs with Snowpark objects.
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
+- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
+- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
+- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
+- Update `pd.get_dummies` to return bool values instead of int.
 
 ## 1.28.0 (2025-02-20)
 
