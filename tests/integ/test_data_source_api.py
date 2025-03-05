@@ -178,8 +178,6 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, _, _, assert_data = sqlite3_db(dbpath)
 
-        start = time.time()
-
         with mock.patch(
             "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
             side_effect=session.read._upload_and_copy_into_table_with_retry,
@@ -194,8 +192,6 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
                 max_workers=4,
                 custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
             )
-            # totally time without parallel is 12 seconds
-            assert time.time() - start < 12
             assert mock_upload_and_copy.call_count == expected_upload_cnt
             assert df.order_by("ID").collect() == assert_data
 

@@ -40,6 +40,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 from snowflake.snowpark.modin.plugin._internal.utils import (
     TempObjectType,
     generate_snowflake_quoted_identifiers_helper,
+    get_default_snowpark_pandas_statement_params,
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
@@ -310,6 +311,7 @@ def create_udtf_for_apply_axis_1(
             # We have to use the current pandas version to ensure the behavior consistency
             packages=[native_pd] + packages,
             session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
         )
         return func_udtf
     except NotImplementedError:
@@ -695,6 +697,7 @@ def create_udtf_for_groupby_transform(
             # behavior is consistent with client-side pandas behavior.
             packages=[native_pd] + list(session.get_packages().values()),
             session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
         )
     except NotImplementedError:
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
@@ -971,6 +974,7 @@ def create_udtf_for_groupby_apply(
             # behavior is consistent with client-side pandas behavior.
             packages=[native_pd] + list(session.get_packages().values()),
             session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
         )
     except NotImplementedError:
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
@@ -1049,6 +1053,7 @@ def create_udf_for_series_apply(
             strict=bool(na_action == "ignore"),
             session=session,
             packages=packages,
+            statement_params=get_default_snowpark_pandas_statement_params(),
         )
         return func_udf
     except NotImplementedError:
