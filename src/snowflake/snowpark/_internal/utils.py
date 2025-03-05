@@ -1514,3 +1514,15 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+def str_contains_alphabet(ver):
+    """Return True if ver contains alphabet, e.g., 1a1; otherwise, return False, e.g., 112"""
+    return bool(re.search("[a-zA-Z]", ver))
+
+
+def get_sorted_key_for_version(version_str):
+    """Generate a key to sort versions. Note if a version component is not a number, e.g., "1a1", we will treat it as -1. E.g., 1.11.1a1 will be treated as 1.11.-1"""
+    return tuple(
+        -1 if str_contains_alphabet(num) else int(num) for num in version_str.split(".")
+    )
