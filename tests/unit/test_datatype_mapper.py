@@ -169,7 +169,11 @@ def test_to_sql():
     )
     assert (
         to_sql(datetime.timedelta(seconds=100), _TimeDeltaType())
-        == "INTERVAL '100.0 seconds'"
+        == "INTERVAL '0 days, 100 seconds, 0 microseconds'"
+    )
+    assert (
+        to_sql(datetime.timedelta(seconds=1, microseconds=-123456), _TimeDeltaType())
+        == "INTERVAL '0 days, 0 seconds, 876544 microseconds'"
     )
 
 
