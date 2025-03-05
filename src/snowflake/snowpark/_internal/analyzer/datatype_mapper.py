@@ -235,7 +235,7 @@ def to_sql(
         return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
 
     if isinstance(datatype, _TimeDeltaType):
-        assert value is not None
+        assert value is not None and isinstance(value, timedelta)
         return f"INTERVAL '{value.total_seconds()} seconds'"
 
     if isinstance(datatype, FileType):
