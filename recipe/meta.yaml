@@ -43,7 +43,6 @@ requirements:
     # This might no longer hold true but keep it just to avoid it from biting us again
     - libffi <=3.4.4
     - pyyaml
-    - packaging
     # Snowpark IR
     - protobuf >=3.20,<6
     - python-dateutil
