@@ -1928,6 +1928,24 @@ def test_array_negative(session):
     )
 
 
+def test_lit_with_timedelta(session):
+    df = session.create_dataframe([[1, "snow"]])
+    fixed_date = datetime.date(2025, 3, 1)
+    df = df.with_column(
+        "expiry_date",
+        lit(fixed_date)
+        + lit(
+            datetime.timedelta(
+                days=30, seconds=100, microseconds=1234, milliseconds=3333
+            )
+        ),
+    )
+
+    expected = [Row(1, "snow", datetime.datetime(2025, 3, 31, 0, 1, 43, 334234))]
+    res1 = df.collect()
+    Utils.assert_rows(res1, expected)
+
+
 def test_object_negative(session):
     df = session.create_dataframe([1], schema=["a"])
 
