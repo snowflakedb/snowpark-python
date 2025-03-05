@@ -1278,6 +1278,9 @@ class SelectStatement(Selectable):
             # has a limit clause to avoid moving distinct in front of limit.
             and (not self.limit_)
             and (not self.offset)
+            # .order_by(col1).select(col2).distinct() cannot be flattened because
+            # SELECT DISTINCT B FROM TABLE ORDER BY A is not valid SQL
+            and (not (self.order_by and self.projection))
             and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
