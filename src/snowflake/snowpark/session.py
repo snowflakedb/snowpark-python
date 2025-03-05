@@ -373,7 +373,7 @@ class Session:
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
                 "collect_stacktrace_in_query_tag": False,
-                "use_simplified_query_generation": True,
+                "use_simplified_query_generation": False,
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
@@ -4083,10 +4083,15 @@ class Session:
                     entry._1 = k
                     build_expr_from_python_val(entry._2, statement_params[k])
             expr.fn.stored_procedure.log_on_exception.value = log_on_exception
+            self._ast_batch.eval(stmt)
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
-                sproc_name, *args, session=self, statement_params=statement_params
+                sproc_name,
+                *args,
+                session=self,
+                statement_params=statement_params,
+                _emit_ast=False,
             )
 
         validate_object_name(sproc_name)

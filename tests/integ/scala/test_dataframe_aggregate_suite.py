@@ -623,15 +623,19 @@ def test_rel_grouped_dataframe_max(session):
 
     # below 2 ways to call max() must return the same result.
     expected = [Row("a", 3, 33), Row("b", 4, 44)]
-    assert df1.group_by("key").max(col("value1"), col("value2")).collect() == expected
-    assert (
-        df1.group_by("key").agg([max(col("value1")), max(col("value2"))]).collect()
-        == expected
+    Utils.check_answer(
+        df1.group_by("key").max(col("value1"), col("value2")).collect(), expected
+    )
+    Utils.check_answer(
+        df1.group_by("key").agg([max(col("value1")), max(col("value2"))]).collect(),
+        expected,
     )
 
     # same as above, but pass str instead of Column
-    assert df1.group_by("key").max("value1", "value2").collect() == expected
-    assert df1.group_by("key").agg([max("value1"), max("value2")]).collect() == expected
+    Utils.check_answer(df1.group_by("key").max("value1", "value2").collect(), expected)
+    Utils.check_answer(
+        df1.group_by("key").agg([max("value1"), max("value2")]).collect(), expected
+    )
 
 
 def test_rel_grouped_dataframe_avg_mean(session):
