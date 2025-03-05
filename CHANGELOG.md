@@ -6,11 +6,11 @@
 
 #### New Features
 
-- Added support for the following AI-powered functions in `functions.py` (private preview):
+- Added support for the following AI-powered functions in `functions.py` (Private Preview):
   - `ai_filter`
   - `ai_agg`
   - `summarize_agg`
-- Added support for the new FILE SQL type support, with the following related functions in `functions.py` (private preview):
+- Added support for the new FILE SQL type support, with the following related functions in `functions.py` (Private Preview):
   - `fl_get_content_type`
   - `fl_get_etag`
   - `fl_get_file_type`
@@ -25,6 +25,8 @@
   - `fl_is_document`
   - `fl_is_image`
   - `fl_is_video`
+- Added support for importing third-party packages from PyPi using Artifact Repository (Private Preview):
+  - Use keyword arguments `artifact_repository` and `artifact_repository_packages` to specify your `ARTIFACT_REPOSITORY` and `ARTIFACT_REPOSITORY_PACKAGES` respectively when registering stored procedures or user defined functions.
 
 #### Bug Fixes
 
