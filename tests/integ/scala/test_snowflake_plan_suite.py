@@ -210,7 +210,7 @@ def test_plan_height(session, temp_table, sql_simplifier_enabled):
 
     aggregate1 = df3.distinct()
     if sql_simplifier_enabled:
-        assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
+        assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
     else:
         assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 3
 

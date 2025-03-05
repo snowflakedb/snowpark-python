@@ -15,6 +15,8 @@
 
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
 - Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
+- Fixed a bug where `df.order_by(A).select(B).distinct()` would generate invalid SQL when simplified query generation was enabled using `session.conf.set("use_simplified_query_generation", True)`.
+  - Disabled simplified query generation by default.
 
 #### Improvements
 
@@ -42,7 +44,8 @@
 
 - Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 - Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
-- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset 
+- Improve error message for all pandas functions that use UDFs with Snowpark objects.
+- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it. 
 
 ## 1.28.0 (2025-02-20)
 

@@ -276,6 +276,9 @@ _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION = (
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
 )
+_PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION = (
+    "PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION"
+)
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
 # TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
@@ -371,7 +374,7 @@ class Session:
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
                 "collect_stacktrace_in_query_tag": False,
-                "use_simplified_query_generation": True,
+                "use_simplified_query_generation": False,
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
@@ -651,6 +654,10 @@ class Session:
                 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND,
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
+        )
+        # TODO: SNOW-1951048 local testing diamond join fix
+        self._join_alias_fix: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
         )
 
         self._thread_store = create_thread_local(
@@ -4076,10 +4083,15 @@ class Session:
                     entry._1 = k
                     build_expr_from_python_val(entry._2, statement_params[k])
             expr.fn.stored_procedure.log_on_exception.value = log_on_exception
+            self._ast_batch.eval(stmt)
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
-                sproc_name, *args, session=self, statement_params=statement_params
+                sproc_name,
+                *args,
+                session=self,
+                statement_params=statement_params,
+                _emit_ast=False,
             )
 
         validate_object_name(sproc_name)

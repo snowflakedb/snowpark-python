@@ -121,6 +121,7 @@ def test_get_result_set_exception(mock_server_connection):
     fake_session._last_canceled_id = 100
     fake_session._conn = mock_server_connection
     fake_session._cte_optimization_enabled = False
+    fake_session._join_alias_fix = False
     fake_session._query_compilation_stage_enabled = False
     fake_plan = SnowflakePlan(
         queries=[Query("fake query 1"), Query("fake query 2")],

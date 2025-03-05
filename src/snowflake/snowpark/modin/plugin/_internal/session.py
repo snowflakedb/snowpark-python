@@ -52,7 +52,7 @@ class SnowpandasSessionHolder(ModuleType):
                 .collect()[0]
                 .value
             )
-            if quoted_identifiers_ignore_case == "true":
+            if quoted_identifiers_ignore_case.lower() == "true":
                 warnings.warn(
                     "Snowflake parameter 'QUOTED_IDENTIFIERS_IGNORE_CASE' is set to True."
                     + " Snowpark pandas requires it to be set to False."
