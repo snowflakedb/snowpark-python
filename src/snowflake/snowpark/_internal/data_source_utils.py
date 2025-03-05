@@ -6,7 +6,6 @@ import datetime
 import decimal
 import logging
 from enum import Enum
-from packaging import version
 from typing import List, Any, Tuple, Protocol, Optional
 from snowflake.connector.options import pandas as pd
 
@@ -313,7 +312,7 @@ def data_source_data_to_pandas_df(
     def df_map_method(pandas_df):
         return (
             pandas_df.applymap
-            if version.parse(pd.__version__) < version.parse("2.1.0")
+            if tuple(map(int, (str(pd.__version__).split(".")))) < (2, 1, 0)
             else pandas_df.map
         )
 
