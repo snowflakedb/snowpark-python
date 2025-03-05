@@ -340,7 +340,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     count_rows,
     create_frame_with_data_columns,
     create_ordered_dataframe_from_pandas,
-    create_ordered_dataframe_with_readonly_temp_table,
+    create_ordered_dataframe_possibly_with_readonly_temp_table,
     extract_all_duplicates,
     extract_pandas_label_from_snowflake_quoted_identifier,
     fill_missing_levels_for_pandas_label,
@@ -1029,6 +1029,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         name_or_query: Union[str, Iterable[str]],
         index_col: Optional[Union[str, list[str]]] = None,
         columns: Optional[list[str]] = None,
+        create_temp_table: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
@@ -1037,12 +1038,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if columns is not None and not isinstance(columns, list):
             raise ValueError("columns must be provided as list, i.e ['A'].")
 
-        # create ordered dataframe with all columns in a read only table first
+        # create ordered dataframe, possibly with all columns in a read only table first
         (
             ordered_dataframe,
             row_position_snowflake_quoted_identifier,
-        ) = create_ordered_dataframe_with_readonly_temp_table(
-            table_name_or_query=name_or_query
+        ) = create_ordered_dataframe_possibly_with_readonly_temp_table(
+            table_name_or_query=name_or_query,
+            create_temp_table=create_temp_table,
         )
         pandas_labels_to_snowflake_quoted_identifiers_map = {
             # pandas labels of resulting Snowpark pandas dataframe will be snowflake identifier
@@ -1226,7 +1228,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             table_type="temporary",
             use_logical_type=True,
         )
-        qc = cls.from_snowflake(temporary_table_name)
+        qc = cls.from_snowflake(temporary_table_name, create_temp_table=True)
         return cls._post_process_file(qc, filetype="csv", **kwargs)
 
     @classmethod
@@ -1289,7 +1291,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             statement_params=get_default_snowpark_pandas_statement_params(),
         )
 
-        qc = cls.from_snowflake(name_or_query=temporary_table_name)
+        qc = cls.from_snowflake(
+            name_or_query=temporary_table_name, create_temp_table=True
+        )
 
         return cls._post_process_file(qc=qc, filetype=filetype, **kwargs)
 

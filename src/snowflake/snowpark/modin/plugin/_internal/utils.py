@@ -316,16 +316,20 @@ def _create_read_only_table(
     return readonly_table_name
 
 
-def create_ordered_dataframe_with_readonly_temp_table(
+def create_ordered_dataframe_possibly_with_readonly_temp_table(
     table_name_or_query: Union[str, Iterable[str]],
+    create_temp_table: bool,
 ) -> tuple[OrderedDataFrame, str]:
     """
-    create read only temp table on top of the existing table or Snowflake query, and create a OrderedDataFrame
-    with row position column using the read only temp table created.
+    create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
+    with row position column using the read only temp table created or directly using the existing table.
 
     Args:
         table_name_or_query: A string or list of strings that specify the table name or
             fully-qualified object identifier (database name, schema name, and table name) or SQL query.
+        create_temp_table: If True, create a read only temp table on top of the existing table or Snowflake query, and.
+            and create the OrderedDataFrame using the read only temp table creatd.
+            Otherwise, directly using the existing table.
 
     Returns:
         OrderedDataFrame with row position column.
@@ -348,10 +352,11 @@ def create_ordered_dataframe_with_readonly_temp_table(
     is_query = not _is_table_name(table_name_or_query)
     if not is_query:
         try:
-            readonly_table_name = _create_read_only_table(
-                table_name=table_name_or_query,
-                materialize_into_temp_table=False,
-            )
+            if create_temp_table:
+                readonly_table_name = _create_read_only_table(
+                    table_name=table_name_or_query,
+                    materialize_into_temp_table=False,
+                )
         except SnowparkSQLException as ex:
             _logger.debug(
                 f"Failed to create read only table for {table_name_or_query}: {ex}"
@@ -387,6 +392,8 @@ def create_ordered_dataframe_with_readonly_temp_table(
                 ) from ex
         initial_ordered_dataframe = OrderedDataFrame(
             DataFrameReference(session.table(readonly_table_name, _emit_ast=False))
+            if create_temp_table
+            else DataFrameReference(session.table(table_name_or_query, _emit_ast=False))
         )
         # generate a snowflake quoted identifier for row position column that can be used for aliasing
         snowflake_quoted_identifiers = (
@@ -401,7 +408,10 @@ def create_ordered_dataframe_with_readonly_temp_table(
 
         # create snowpark dataframe with columns: row_position_snowflake_quoted_identifier + snowflake_quoted_identifiers
         # if no snowflake_quoted_identifiers is specified, all columns will be selected
-        row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
+        if create_temp_table:
+            row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
+        else:
+            row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
 
         columns_to_select = ", ".join(
             [row_position_column_str] + snowflake_quoted_identifiers
@@ -411,8 +421,12 @@ def create_ordered_dataframe_with_readonly_temp_table(
         # which creates a view without metadata column, we won't be able to access the metadata columns
         # with the created snowpark dataframe. In order to get the metadata column access in the created
         # dataframe, we create dataframe through sql which access the corresponding metadata column.
-        dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
+        if create_temp_table:
+            dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
+        else:
+            dataframe_sql = f"SELECT {columns_to_select} FROM ({table_name_or_query})"
         snowpark_df = session.sql(dataframe_sql, _emit_ast=False)
+        # assert dataframe_sql is None
 
         result_columns_quoted_identifiers = [
             row_position_snowflake_quoted_identifier
@@ -424,6 +438,12 @@ def create_ordered_dataframe_with_readonly_temp_table(
             row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
         )
     else:
+        if not create_temp_table:
+            raise NotImplementedError(
+                "The 'pd.read_snowflake' method does not currently support 'relaxed_ordering=True'"
+                " when 'name_or_query' is a query"
+            )
+
         # If the string passed in to `pd.read_snowflake` is a SQL query, we can simply create
         # a Snowpark DataFrame, and convert that to a Snowpark pandas DataFrame, and extract
         # the OrderedDataFrame and row_position_snowflake_quoted_identifier from there.
