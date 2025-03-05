@@ -25,6 +25,7 @@
   - fl_is_document
   - fl_is_image
   - fl_is_video
+- Added support for datetime.timedelta as a literal value 
 
 #### Bug Fixes
 
