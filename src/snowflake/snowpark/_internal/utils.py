@@ -1687,44 +1687,44 @@ def merge_multiple_snowflake_plan_expr_to_alias(
     merged_dict = ExprAliasUpdateDict()
 
     # Collect all unique keys from all dictionaries
-    all_keys = set().union(*all_expr_to_alias_dicts)
+    all_expr_ids = set().union(*all_expr_to_alias_dicts)
 
-    conflicted_keys = {}
+    conflicted_expr_ids = {}
 
-    for key in all_keys:
+    for expr_id in all_expr_ids:
         values = list(
             {
-                (d[key], d.was_updated_due_to_inheritance(key))
+                (d[expr_id], d.was_updated_due_to_inheritance(expr_id))
                 for d in all_expr_to_alias_dicts
-                if key in d
+                if expr_id in d
             }
         )
         # Check if all aliases are identical
         if len(values) == 1:
-            merged_dict[key] = values[0]
+            merged_dict[expr_id] = values[0]
         else:
-            conflicted_keys[key] = values
+            conflicted_expr_ids[expr_id] = values
 
-    if not conflicted_keys:
+    if not conflicted_expr_ids:
         return merged_dict
 
-    for key in conflicted_keys:
-        candidate = set()
+    for expr_id in conflicted_expr_ids:
+        expr_id_alias_candidates = set()
         for plan in snowflake_plans:
             output_columns = []
             if plan.schema_query is not None:
                 output_columns = [attr.name for attr in plan.output]
             tmp_alias_name, tmp_updated_due_to_inheritance = plan.expr_to_alias[
-                key
-            ], plan.expr_to_alias.was_updated_due_to_inheritance(key)
+                expr_id
+            ], plan.expr_to_alias.was_updated_due_to_inheritance(expr_id)
             if tmp_alias_name not in output_columns or tmp_updated_due_to_inheritance:
                 # alias updated due to inheritance are not considered as they are not used in the output
                 # check Analyzer.unary_expression_extractor functions
                 continue
-            if len(candidate) == 1:
+            if len(expr_id_alias_candidates) == 1:
                 # Only one candidate so far
                 candidate_name, candidate_updated_due_to_inheritance = next(
-                    iter(candidate)
+                    iter(expr_id_alias_candidates)
                 )
                 if candidate_name == tmp_alias_name:
                     # The candidate is the same as the current alias
@@ -1734,16 +1734,18 @@ def merge_multiple_snowflake_plan_expr_to_alias(
                         candidate_updated_due_to_inheritance
                         and tmp_updated_due_to_inheritance
                     )
-                    candidate.pop()
-            candidate.add((tmp_alias_name, tmp_updated_due_to_inheritance))
+                    expr_id_alias_candidates.pop()
+            expr_id_alias_candidates.add(
+                (tmp_alias_name, tmp_updated_due_to_inheritance)
+            )
         # Add the candidate to the merged dictionary if resolved
-        if len(candidate) == 1:
-            merged_dict[key] = candidate.pop()
+        if len(expr_id_alias_candidates) == 1:
+            merged_dict[expr_id] = expr_id_alias_candidates.pop()
         else:
             # No valid candidate found
             _logger.debug(
-                f"Expression '{key}' is associated with multiple aliases across different plans. "
-                f"Unable to determine which alias to use. Conflicting values: {conflicted_keys[key]}"
+                f"Expression '{expr_id}' is associated with multiple aliases across different plans. "
+                f"Unable to determine which alias to use. Conflicting values: {conflicted_expr_ids[expr_id]}"
             )
 
     return merged_dict
