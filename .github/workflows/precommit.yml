@@ -88,6 +88,7 @@ jobs:
 
   test:
     name: Test py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    if: ${{ !github.event.pull_request.draft && !contains(github.event.pull_request.labels.*.name, 'DO_NOT_RUN_PRECOMMIT')}}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -233,6 +234,7 @@ jobs:
             .tox/coverage.xml
 
   test-local-testing:
+    if: ${{ !github.event.pull_request.draft && !contains(github.event.pull_request.labels.*.name, 'DO_NOT_RUN_PRECOMMIT')}}
     name: Test Local Testing Module py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
@@ -240,25 +242,23 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: [ "3.8", "3.9", "3.10", "3.11", "3.12" ]
+        python-version: [ "3.9", "3.10", "3.11", "3.12" ]
         cloud-provider: [aws]
         exclude:
           # only run each version on one os
           # daily-precommit does full matrix
-          # macos runs 3.8 and 3.9
+          # macos runs 3.9
           - os: macos-latest
             python-version: "3.12"
           - os: macos-latest
             python-version: "3.11"
           - os: macos-latest
-            python-version: "3.9"
+            python-version: "3.10"
           # windows runs 3.9 and 3.11
           - os: windows-latest
             python-version: "3.12"
           - os: windows-latest
             python-version: "3.10"
-          - os: windows-latest
-            python-version: "3.8"
           # ubuntu runs 3.12
           - os: ubuntu-latest
             python-version: "3.11"
@@ -266,8 +266,6 @@ jobs:
             python-version: "3.10"
           - os: ubuntu-latest
             python-version: "3.9"
-          - os: ubuntu-latest
-            python-version: "3.8"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -325,6 +323,7 @@ jobs:
             .tox/coverage.xml
 
   test-ast-encoding:
+    if: ${{ !github.event.pull_request.draft && !contains(github.event.pull_request.labels.*.name, 'DO_NOT_RUN_PRECOMMIT')}}
     name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
@@ -401,6 +400,7 @@ jobs:
             .tox/coverage.xml
 
   doctest-ast-phase0:
+    if: ${{ !github.event.pull_request.draft && !contains(github.event.pull_request.labels.*.name, 'DO_NOT_RUN_PRECOMMIT')}}
     name: Doctest AST (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
@@ -450,6 +450,7 @@ jobs:
         shell: bash
 
   test-ast-phase0:
+    if: ${{ !github.event.pull_request.draft && !contains(github.event.pull_request.labels.*.name, 'DO_NOT_RUN_PRECOMMIT')}}
     name: Test AST enabled (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
@@ -538,6 +539,7 @@ jobs:
             .tox/coverage.xml
 
   test-snowpark-pandas:
+    if: ${{ !github.event.pull_request.draft && !contains(github.event.pull_request.labels.*.name, 'DO_NOT_RUN_PRECOMMIT')}}
     name: Test modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
@@ -655,6 +657,7 @@ jobs:
             .tox/coverage.xml
 
   test-modin-extra-without-pandas-extra:
+    if: ${{ !github.event.pull_request.draft && !contains(github.event.pull_request.labels.*.name, 'DO_NOT_RUN_PRECOMMIT')}}
     name: Test modin extra without pandas extra py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}.
     needs: build
     runs-on: ${{ matrix.os.image_name }}
