@@ -371,7 +371,7 @@ class Session:
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
                 "collect_stacktrace_in_query_tag": False,
-                "use_simplified_query_generation": True,
+                "use_simplified_query_generation": False,
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
