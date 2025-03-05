@@ -100,8 +100,8 @@ def resolve_and_update_snowflake_plan(
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
     node._output_dict = new_snowflake_plan._output_dict
-    node.df_aliased_col_name_to_real_col_name.update(
-        new_snowflake_plan.df_aliased_col_name_to_real_col_name
+    node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+        new_snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
     )
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
@@ -283,8 +283,8 @@ def update_resolvable_node(
 
         if isinstance(node, SelectSnowflakePlan):
             node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
-            node.df_aliased_col_name_to_real_col_name.update(
-                node._snowflake_plan.df_aliased_col_name_to_real_col_name
+            node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+                node._snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
             )
             node._query_params = []
             for query in node._snowflake_plan.queries:

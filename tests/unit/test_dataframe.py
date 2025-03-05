@@ -121,6 +121,7 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
     fake_session._cte_optimization_enabled = False
     fake_session._query_compilation_stage_enabled = False
+    fake_session._join_alias_fix = False
     fake_session._conn = mock.create_autospec(ServerConnection)
     fake_session._conn._thread_safe_session_enabled = True
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)

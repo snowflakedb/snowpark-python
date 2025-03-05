@@ -40,6 +40,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 from snowflake.snowpark.modin.plugin._internal.utils import (
     TempObjectType,
     generate_snowflake_quoted_identifiers_helper,
+    get_default_snowpark_pandas_statement_params,
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
@@ -71,6 +72,12 @@ from snowflake.snowpark.window import Window
 
 APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER = '"LABEL"'
 APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER = '"VALUE"'
+APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG = (
+    "Snowpark pandas only allows native pandas and not Snowpark objects in `apply()`. "
+    + "Instead, try calling `to_pandas()` on any DataFrame or Series objects passed to `apply()`. See Limitations"
+    + "(https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations) section of"
+    + "the Snowpark pandas documentation for more details."
+)
 
 # Default partition size to use when applying a UDTF. A higher value results in less parallelism, less contention and higher batching.
 DEFAULT_UDTF_PARTITION_SIZE = 1000
@@ -289,23 +296,29 @@ def create_udtf_for_apply_axis_1(
     ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
 
     packages = list(session.get_packages().values()) + udf_packages
-    func_udtf = sp_func.udtf(
-        ApplyFunc,
-        output_schema=PandasDataFrameType(
-            [LongType(), StringType(), VariantType()],
-            [
-                row_position_snowflake_quoted_identifier,
-                APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
-            ],
-        ),
-        input_types=[PandasDataFrameType([LongType()] + input_types)],
-        # We have to use the current pandas version to ensure the behavior consistency
-        packages=[native_pd] + packages,
-        session=session,
-    )
-
-    return func_udtf
+    try:
+        func_udtf = sp_func.udtf(
+            ApplyFunc,
+            output_schema=PandasDataFrameType(
+                [LongType(), StringType(), VariantType()],
+                [
+                    row_position_snowflake_quoted_identifier,
+                    APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
+                    APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
+                ],
+            ),
+            input_types=[PandasDataFrameType([LongType()] + input_types)],
+            # We have to use the current pandas version to ensure the behavior consistency
+            packages=[native_pd] + packages,
+            session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+        return func_udtf
+    except NotImplementedError:
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def convert_groupby_apply_dataframe_result_to_standard_schema(
@@ -675,15 +688,22 @@ def create_udtf_for_groupby_transform(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
-    return sp_func.udtf(
-        ApplyFunc,
-        output_schema=PandasDataFrameType(output_col_types, output_col_ids),
-        input_types=[PandasDataFrameType(col_types=input_types)],
-        # We have to specify the local pandas package so that the UDF's pandas
-        # behavior is consistent with client-side pandas behavior.
-        packages=[native_pd] + list(session.get_packages().values()),
-        session=session,
-    )
+    try:
+        return sp_func.udtf(
+            ApplyFunc,
+            output_schema=PandasDataFrameType(output_col_types, output_col_ids),
+            input_types=[PandasDataFrameType(col_types=input_types)],
+            # We have to specify the local pandas package so that the UDF's pandas
+            # behavior is consistent with client-side pandas behavior.
+            packages=[native_pd] + list(session.get_packages().values()),
+            session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+    except NotImplementedError:
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def create_udtf_for_groupby_apply(
@@ -936,18 +956,31 @@ def create_udtf_for_groupby_apply(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
-    return sp_func.udtf(
-        ApplyFunc,
-        output_schema=PandasDataFrameType(
-            [StringType(), IntegerType(), VariantType(), IntegerType(), IntegerType()],
-            col_names,
-        ),
-        input_types=[PandasDataFrameType(col_types=input_types)],
-        # We have to specify the local pandas package so that the UDF's pandas
-        # behavior is consistent with client-side pandas behavior.
-        packages=[native_pd] + list(session.get_packages().values()),
-        session=session,
-    )
+    try:
+        return sp_func.udtf(
+            ApplyFunc,
+            output_schema=PandasDataFrameType(
+                [
+                    StringType(),
+                    IntegerType(),
+                    VariantType(),
+                    IntegerType(),
+                    IntegerType(),
+                ],
+                col_names,
+            ),
+            input_types=[PandasDataFrameType(col_types=input_types)],
+            # We have to specify the local pandas package so that the UDF's pandas
+            # behavior is consistent with client-side pandas behavior.
+            packages=[native_pd] + list(session.get_packages().values()),
+            session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+    except NotImplementedError:
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def create_udf_for_series_apply(
@@ -1012,15 +1045,22 @@ def create_udf_for_series_apply(
             #  actual type.
             return x.apply(func, args=args, **kwargs)
 
-    func_udf = sp_func.udf(
-        apply_func,
-        return_type=PandasSeriesType(return_type),
-        input_types=[PandasSeriesType(input_type)],
-        strict=bool(na_action == "ignore"),
-        session=session,
-        packages=packages,
-    )
-    return func_udf
+    try:
+        func_udf = sp_func.udf(
+            apply_func,
+            return_type=PandasSeriesType(return_type),
+            input_types=[PandasSeriesType(input_type)],
+            strict=bool(na_action == "ignore"),
+            session=session,
+            packages=packages,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+        return func_udf
+    except NotImplementedError:
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def handle_missing_value_in_variant(value: Any) -> Any:
