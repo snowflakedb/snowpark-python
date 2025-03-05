@@ -721,6 +721,10 @@ def test_query_parameter(session):
             )
 
 
+@pytest.mark.skipif(
+    "config.getoption('enable_ast', default=False)",
+    reason="SNOW-1961756: Data source APIs not supported by AST",
+)
 def test_option_load(session):
     df = (
         session.read.format("dbapi")

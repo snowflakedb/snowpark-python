@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
-from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional
+from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import CreateViewCommand
 from snowflake.snowpark.session import Session
+from snowflake.snowpark._internal.utils import ExprAliasUpdateDict
 
 
 class SnowflakeCreateTablePlanInfo(NamedTuple):
@@ -131,7 +132,9 @@ class QueryGenerator(Analyzer):
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: Union[
+            DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+        ],
     ) -> SnowflakePlan:
 
         if isinstance(logical_plan, SnowflakeCreateTable):

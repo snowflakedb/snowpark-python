@@ -35,6 +35,7 @@ from snowflake.snowpark.version import VERSION
 def test_stored_procedure_execute_as(execute_as):
     """Make sure that EXECUTE AS option is rendered into SQL correctly."""
     fake_session = mock.create_autospec(Session)
+    fake_session._join_alias_fix = False
     fake_session._conn = mock.create_autospec(ServerConnection)
     fake_session._conn._telemetry_client = mock.create_autospec(TelemetryClient)
     fake_session.sproc = StoredProcedureRegistration(fake_session)
