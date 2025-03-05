@@ -6,15 +6,32 @@
 
 #### New Features
 
-- Added support for the following AI-powered functions in `functions.py`
+- Added support for the following AI-powered functions in `functions.py` (private preview):
   - `ai_filter`
   - `ai_agg`
   - `summarize_agg`
+- Added support for the new FILE SQL type support, with the following related functions in `functions.py` (private preview):
+  - fl_get_content_type
+  - fl_get_etag
+  - fl_get_file_type
+  - fl_get_last_modified
+  - fl_get_relative_path
+  - fl_get_scoped_file_url
+  - fl_get_size
+  - fl_get_stage
+  - fl_get_stage_file_url
+  - fl_is_audio
+  - fl_is_compressed
+  - fl_is_document
+  - fl_is_image
+  - fl_is_video
 
 #### Bug Fixes
 
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
 - Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
+- Fixed a bug where `df.order_by(A).select(B).distinct()` would generate invalid SQL when simplified query generation was enabled using `session.conf.set("use_simplified_query_generation", True)`.
+  - Disabled simplified query generation by default.
 
 #### Improvements
 
@@ -38,11 +55,13 @@
 - Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
 - Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
 - Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
+- Update `pd.get_dummies` to return bool values instead of int.
 
 #### Improvements
 
 - Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 - Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
+- Improve error message for all pandas functions that use UDFs with Snowpark objects.
 
 ## 1.28.0 (2025-02-20)
 

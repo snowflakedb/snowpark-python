@@ -13,7 +13,10 @@ from typing import Any
 
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
-from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
+from snowflake.snowpark._internal.utils import (
+    PythonObjJSONEncoder,
+    validate_stage_location,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -32,6 +35,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    FileType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -140,6 +144,9 @@ def to_sql(
     if isinstance(datatype, VectorType):
         if value is None:
             return f"NULL :: VECTOR({datatype.element_type},{datatype.dimension})"
+    if isinstance(datatype, FileType):
+        if value is None:
+            return "TO_FILE(NULL)"
     if value is None:
         return "NULL"
 
@@ -226,6 +233,14 @@ def to_sql(
     if isinstance(datatype, VectorType):
         return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
 
+    if isinstance(datatype, FileType):
+        # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI
+        parts = validate_stage_location(str(value)).split("/", maxsplit=1)
+        if len(parts) != 2:
+            raise ValueError(f"Invalid stage file URI: {value}")
+        stage_name, relative_file_path = parts
+        return f"TO_FILE(BUILD_STAGE_FILE_URL({str_to_sql(stage_name)}, {str_to_sql(relative_file_path)}))"
+
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
 
@@ -307,6 +322,12 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             raise TypeError(f"Invalid vector element type: {data_type.element_type}")
         values = [i + zero for i in range(data_type.dimension)]
         return f"{values} :: VECTOR({data_type.element_type},{data_type.dimension})"
+    if isinstance(data_type, FileType):
+        return (
+            "TO_FILE(OBJECT_CONSTRUCT('RELATIVE_PATH', 'some_new_file.jpeg', 'STAGE', '@myStage', "
+            "'STAGE_FILE_URL', 'some_new_file.jpeg', 'SIZE', 123, 'ETAG', 'xxx', 'CONTENT_TYPE', 'image/jpeg', "
+            "'LAST_MODIFIED', '2025-01-01'))"
+        )
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
