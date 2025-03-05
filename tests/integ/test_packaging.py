@@ -400,8 +400,8 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "numpy": "numpy==1.26.3",
+        "pandas": "pandas==2.1.4",
     }
 
     with pytest.raises(ValueError, match="Cannot add package"):
@@ -485,7 +485,7 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
         with pytest.raises(ValueError, match="Cannot add dependency package"):
             session.add_packages("sktime==0.20.0")
 
-        @udf(name=udf_name, packages=["arch==6.1.0", "scipy==1.11.1", "pandas==1.5.3"])
+        @udf(name=udf_name, packages=["arch==6.1.0", "scipy==1.11.1", "pandas==2.1.4"])
         def arch_function() -> list:
             import arch
             import pandas
@@ -499,7 +499,7 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
 
         Utils.check_answer(
             session.sql(f"select {udf_name}()"),
-            [Row('[\n  "arch/6.1.0",\n  "scipy/1.11.1",\n  "pandas/1.5.3"\n]')],
+            [Row('[\n  "arch/6.1.0",\n  "scipy/1.11.1",\n  "pandas/2.1.4"\n]')],
         )
 
 
@@ -832,8 +832,8 @@ def test_add_requirements_with_empty_stage_as_cache_path(
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "numpy": "numpy==1.26.3",
+        "pandas": "pandas==2.1.4",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
