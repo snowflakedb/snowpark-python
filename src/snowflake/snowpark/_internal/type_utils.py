@@ -73,6 +73,8 @@ from snowflake.snowpark.types import (
     _FractionalType,
     _IntegralType,
     _NumericType,
+    FileType,
+    File,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -204,6 +206,8 @@ def convert_sf_to_sp_type(
         return GeographyType()
     if column_type_name == "GEOMETRY":
         return GeometryType()
+    if column_type_name == "FILE":
+        return FileType()
     if column_type_name == "BOOLEAN":
         return BooleanType()
     if column_type_name == "BINARY":
@@ -321,6 +325,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
         return "GEOGRAPHY"
     if isinstance(datatype, GeometryType):
         return "GEOMETRY"
+    if isinstance(datatype, FileType):
+        return "FILE"
     if isinstance(datatype, VectorType):
         return f"VECTOR({datatype.element_type},{datatype.dimension})"
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
@@ -364,6 +370,7 @@ VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     ArrayType,
     MapType,
     VariantType,
+    FileType,
 )
 
 # Mapping Python array types to DataType
@@ -588,7 +595,7 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
             for k, v in curr_dict.items()
         }
 
-    if isinstance(tp, (GeometryType, GeographyType, VariantType)):
+    if isinstance(tp, (GeometryType, GeographyType, VariantType, FileType)):
         if value.strip() == "None":
             return None
         return value
@@ -720,6 +727,9 @@ def python_type_to_snow_type(
     if tp == Geometry:
         return GeometryType(), False
 
+    if tp == File:
+        return FileType(), False
+
     if tp == Timestamp or tp_origin == Timestamp:
         if not tp_args:
             timezone = TimestampTimeZone.DEFAULT
@@ -752,6 +762,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             GeographyType,
             GeometryType,
             VariantType,
+            FileType,
         ),
     ):
         return snow_type.__class__.__name__[:-4].lower()
