@@ -235,8 +235,8 @@ def to_sql(
         return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
 
     if isinstance(datatype, _TimeDeltaType):
-        assert value is not None and isinstance(value, timedelta)
-        return f"INTERVAL '{value.total_seconds()} seconds'"
+        if isinstance(value, timedelta):
+            return f"INTERVAL '{value.total_seconds()} seconds'"
 
     if isinstance(datatype, FileType):
         # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI

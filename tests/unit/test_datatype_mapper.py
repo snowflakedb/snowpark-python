@@ -168,8 +168,8 @@ def test_to_sql():
         == "[1, 2, 31234567, -1928, 0, -3] :: VECTOR(int,5)"
     )
     assert (
-        to_sql(datetime.timedelta(seconds=100), _TimeDeltaType)
-        == "INTERVAL '100 seconds'"
+        to_sql(datetime.timedelta(seconds=100), _TimeDeltaType())
+        == "INTERVAL '100.0 seconds'"
     )
 
 
