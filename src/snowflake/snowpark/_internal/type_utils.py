@@ -69,6 +69,7 @@ from snowflake.snowpark.types import (
     TimeType,
     Variant,
     VariantType,
+    _TimeDeltaType,
     VectorType,
     _FractionalType,
     _IntegralType,
@@ -363,6 +364,7 @@ VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
     list,
     tuple,
     dict,
+    datetime.timedelta,
 )
 VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     *PYTHON_TO_SNOW_TYPE_MAPPINGS.values(),
@@ -371,6 +373,7 @@ VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     MapType,
     VariantType,
     FileType,
+    _TimeDeltaType,
 )
 
 # Mapping Python array types to DataType
@@ -470,6 +473,8 @@ def infer_type(obj: Any) -> DataType:
             return ArrayType(ARRAY_TYPE_MAPPINGS[obj.typecode]())
         else:
             raise TypeError("not supported type: array(%s)" % obj.typecode)
+    elif isinstance(obj, datetime.timedelta):
+        return _TimeDeltaType()
     else:
         raise TypeError("not supported type: %s" % type(obj))
 
