@@ -9,6 +9,7 @@ from enum import Enum
 from typing import List, Any, Tuple, Protocol, Optional
 from snowflake.connector.options import pandas as pd
 
+from snowflake.snowpark._internal.utils import get_sorted_key_for_version
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StringType,
@@ -312,7 +313,7 @@ def data_source_data_to_pandas_df(
     def df_map_method(pandas_df):
         return (
             pandas_df.applymap
-            if tuple(map(int, (str(pd.__version__).split(".")))) < (2, 1, 0)
+            if get_sorted_key_for_version(str(pd.__version__)) < (2, 1, 0)
             else pandas_df.map
         )
 
