@@ -27,6 +27,7 @@ from snowflake.snowpark.functions import (
     sum_distinct,
     when,
 )
+from snowflake.snowpark.modin.plugin._internal.join_utils import join, InheritJoinIndex
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import OrderedDataFrame
 from snowflake.snowpark.modin.plugin._internal.utils import (
@@ -36,8 +37,8 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     compute_resample_start_and_end_date,
     perform_resample_binning_on_frame,
-    fill_missing_resample_bins_for_frame,
     rule_to_snowflake_width_and_slice_unit,
+    get_expected_resample_bins_frame,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
@@ -68,8 +69,8 @@ def validate_grouper(val: native_pd.Grouper) -> None:
         ("convention", is_timegrouper and val.convention != "e"),
         (
             "origin",
-            is_timegrouper and val.origin != "start_day",
-        ),  # TODO make more permissive
+            is_timegrouper and val.origin not in ("start_day", "start"),
+        ),  # start_day is the default, but we also support start
         ("offset", is_timegrouper and val.offset is not None),
         ("dropna", not val.dropna),  # defaults to True
     ]
@@ -459,13 +460,13 @@ def resample_and_extract_groupby_column_pandas_labels(
 
     def find_resample_columns(
         frame: InternalFrame, by: Any
-    ) -> tuple[List[Any], list[tuple[Hashable, str, str]]]:
+    ) -> tuple[List[Any], list[tuple[Hashable, native_pd.Grouper]]]:
         """
         Identify which columns need to be resampled.
 
         Returns a pair with two items:
         - The input `by` list with any datetime Grouper objects replaced by a label for the resampled column.
-        - A list of (original column label, new resampled column label, freq) tuples.
+        - A list of (original column label, Grouper) tuples.
 
         TODO: if we support other time Grouper parameters (offset, closed, convention), then these
         will need to be passed as well.
@@ -491,43 +492,39 @@ def resample_and_extract_groupby_column_pandas_labels(
                         col_label = frame.index_column_pandas_labels[0]
                 else:
                     col_label = by_item.key
-                new_label = f"{col_label}__{len(new_by_list)}"
-                resample_list.append((col_label, new_label, by_item.freq))
-                new_by_list.append(new_label)
+                resample_list.append((col_label, by_item))
+                new_by_list.append(col_label)
             else:
                 new_by_list.append(by_item)
         return new_by_list, resample_list
 
     by, to_resample = find_resample_columns(frame, by)
     if len(to_resample) > 0:
-        original_labels, new_labels, freqs = zip(*to_resample)
+        original_labels, groupers = zip(*to_resample)
         identifiers_to_resample = [
             identifier[0]
             for identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                 original_labels, include_index=True
             )
         ]
-        # Insert empty columns to prepare for resample
-        for new_label in new_labels:
-            frame = frame.append_column(new_label, pandas_lit(None))
-        new_identifiers = [
-            identifier[0]
-            for identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                new_labels, include_index=True
-            )
-        ]
         # 1. For every column, determine the start and end dates of the resample intervals.
         start_and_end_dates = {
-            identifier: compute_resample_start_and_end_date(frame, identifier, freq)
-            for identifier, freq in zip(identifiers_to_resample, freqs)
+            identifier: compute_resample_start_and_end_date(
+                frame,
+                identifier,
+                grouper.freq,
+                origin_is_start_day=grouper.origin == "start_day",
+            )
+            for identifier, grouper in zip(identifiers_to_resample, groupers)
         }
         # 2. For every column to resample,
-        #    a. Append a new, resampled version of the original column.
-        #    b. Interpolate other columns with empty values if a column is upsampled.
-        for original_identifier, new_identifier, freq in zip(
-            identifiers_to_resample, new_identifiers, freqs
+        #    a. Relabel the original column with values converted to bin edges.
+        #    b. Interpolate other columns with empty values if any column is upsampled (this incurs a join).
+        # This breaks if the same grouping column is resampled twice, but this edge case is annoying to support.
+        for original_identifier, original_label, grouper in zip(
+            identifiers_to_resample, original_labels, groupers
         ):
-            # TODO figure out what's going wrong with the binning
+            freq = grouper.freq
             slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(freq)
             start_date, end_date = start_and_end_dates[original_identifier]
             binned_frame = perform_resample_binning_on_frame(
@@ -536,15 +533,36 @@ def resample_and_extract_groupby_column_pandas_labels(
                 start_date,
                 slice_width,
                 slice_unit,
-                resample_output_col_identifier=new_identifier,
+                resample_output_col_identifier=original_identifier,
             )
-            resampled_frame = fill_missing_resample_bins_for_frame(
-                binned_frame,
-                freq,
-                start_date,
-                end_date,
+            # Manual copy-paste of some code from resample_utils.fill_missing_resample_bins_for_frame,
+            # but without any assumptions on whether the column is an index
+            expected_resample_bins_frame = get_expected_resample_bins_frame(
+                freq, start_date, end_date
             )
-            frame = resampled_frame
+            joined_frame = join(
+                left=binned_frame,
+                right=expected_resample_bins_frame,
+                how="right",
+                # identifier might get mangled; look it up again
+                left_on=binned_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    [original_label]
+                )[
+                    0
+                ],
+                right_on=expected_resample_bins_frame.index_column_snowflake_quoted_identifiers,
+                inherit_join_index=InheritJoinIndex.FROM_RIGHT,
+            ).result_frame
+            frame = InternalFrame.create(
+                ordered_dataframe=joined_frame.ordered_dataframe,
+                data_column_pandas_labels=binned_frame.data_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=binned_frame.data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=binned_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
+                data_column_pandas_index_names=binned_frame.data_column_pandas_index_names,
+                data_column_types=binned_frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=binned_frame.cached_index_column_snowpark_pandas_types,
+            )
         query_compiler = snowflake_query_compiler.SnowflakeQueryCompiler(frame)
     return query_compiler, extract_groupby_column_pandas_labels(
         query_compiler, by, level

@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime as dt
 from typing import Any, Literal, NoReturn, Optional, Union
 
 import modin.pandas as pd
@@ -350,12 +351,25 @@ def compute_resample_start_and_end_date(
     frame: InternalFrame,
     datetime_index_col_identifier: str,
     rule: Frequency,
+    *,
+    origin_is_start_day: bool = False,
 ) -> tuple[str, str]:
     """
     Compute the start and end datetimes implied by `rule`, returning start_date and end_date.
 
     This computation is done eagerly, as start_date and end_date must be known to determine
     resample bins.
+
+    If origin_is_start_day is passed, then the returned start_date will truncate the date of
+    the smallest timestamp, then add multiples of the frequency until the smallest timestamp
+    is in a bin. That is,
+
+        start_date = date_trunc(DAY, min(datetime_col)) + (k * freq)
+        end_date = date_trunc(DAY, min(datetime_col)) + (j * freq)
+        start_date <= min(datetime_col)
+        end_date <= max(datetime_col)
+
+    for the largest possible integers k and j.
     """
     slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
@@ -383,6 +397,30 @@ def compute_resample_start_and_end_date(
                 min_max_index_column_quoted_identifier[1]
             ),
         ).collect()[0]
+        if origin_is_start_day:
+            # If this resample was called with origin=start_day, then manually compute the correct
+            # bins that are an integer multiple of the slice width starting from midnight of the
+            # start date. This is easier to express in plain Python than SQL, and we already performed
+            # a query anyway.
+            start_day_base = dt.datetime(
+                start_date.year, start_date.month, start_date.day
+            )
+            # Now, compute
+            #   start_date = start_day_base + (k * freq)
+            #   start_date <= min(datetime_col)
+            #   end_date = start_day_base + (j * freq)
+            #   end_date <= max(datetime_col)
+            # for the largest possible integers k and j.
+            # The inequalities solve as follows:
+            #   k <= (min(datetime_col) - start_day_base) / freq
+            #   j <= (max(datetime_col) - start_day_base) / freq
+            # and since we're only interested in integer values of k and j, we can just floor the right
+            # side of the inequalities to get their values.
+            increment = dt.timedelta(**{f"{slice_unit}s": slice_width})
+            k = int((start_date - start_day_base) / increment)
+            j = int((end_date - start_day_base) / increment)
+            start_date = start_day_base + (k * increment)
+            end_date = start_day_base + (j * increment)
     else:
         assert slice_unit in RULE_WEEK_TO_YEAR
         # `slice_unit` in 'week', 'month', 'quarter', or 'year'. Set the start and end dates
