@@ -341,7 +341,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_table)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             # Function signature:
@@ -594,7 +594,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_copy_into_location)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_write_file(
@@ -790,7 +790,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteCsv() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_csv)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_write_file(
@@ -862,7 +862,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteJson() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_json)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_write_file(
@@ -934,7 +934,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteParquet() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_parquet)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_write_file(

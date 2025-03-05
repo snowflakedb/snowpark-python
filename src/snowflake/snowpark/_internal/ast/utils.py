@@ -66,12 +66,12 @@ _logger = getLogger(__name__)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def debug_check_missing_ast(ast, container) -> None:  # type: ignore[no-untyped-def] # pragma: no cover
+def debug_check_missing_ast(ast, session, container) -> None:  # type: ignore[no-untyped-def] # pragma: no cover
     """
     Debug check for missing AST. This is invoked with various arguments that are expected to be non-NULL if the AST
     is emitted correctly.
     """
-    if ast is None and FAIL_ON_MISSING_AST:
+    if session.ast_enabled and FAIL_ON_MISSING_AST and ast is None:
         _logger.debug(container._explain_string())
         raise NotImplementedError(
             f"DataFrame with API usage {container._plan.api_calls} is missing complete AST logging."
