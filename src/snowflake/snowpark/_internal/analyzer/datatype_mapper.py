@@ -39,6 +39,7 @@ from snowflake.snowpark.types import (
     _FractionalType,
     _IntegralType,
     _NumericType,
+    _TimeDeltaType,
 )
 
 MILLIS_PER_DAY = 24 * 3600 * 1000
@@ -232,6 +233,10 @@ def to_sql(
 
     if isinstance(datatype, VectorType):
         return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
+
+    if isinstance(datatype, _TimeDeltaType):
+        assert value is not None
+        return f"INTERVAL '{value.total_seconds()} seconds'"
 
     if isinstance(datatype, FileType):
         # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI

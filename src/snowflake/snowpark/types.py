@@ -230,6 +230,10 @@ class TimeType(_AtomicType):
         ast.time_type = True
 
 
+class _TimeDeltaType(_AtomicType):
+    pass
+
+
 # Numeric types
 class _IntegralType(_NumericType):
     pass
