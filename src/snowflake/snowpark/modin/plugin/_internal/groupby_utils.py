@@ -664,7 +664,9 @@ def get_frame_with_groupby_columns_as_index(
     2000-10-01 23:08:00    2
     2000-10-01 23:12:00    3
     2000-10-01 23:16:00    4
-    Freq: 4min, dtype: int64
+    Freq: None, dtype: int64
+
+    (Snowpark pandas drops the freq field)
 
     Upsampling will fill other columns with NULL values, under the assumption that they will be
     coalesced away by the resulting groupby operation:
