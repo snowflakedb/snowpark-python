@@ -418,7 +418,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
         protobuf-version: ["3.20.1", "4.25.3", "5.28.3"]
     steps:
@@ -462,7 +462,7 @@ jobs:
             echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Run tests
         # TODO: SNOW-1763186 use pytest marker to test multiple TZs
-        run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast"
+        run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast-modin"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
