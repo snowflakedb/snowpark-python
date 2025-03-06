@@ -591,17 +591,27 @@ def resample_and_extract_groupby_column_pandas_labels(
                     0
                 ],
                 right_on=expected_resample_bins_frame.index_column_snowflake_quoted_identifiers,
-                # Inherit the index from both sides; the resampled column will be replaced
-                # during the join operation.
+                # Inherit the index from both sides to preserve additional index columns if
+                # the original frame had a MultiIndex.
+                # The resampled column will be replaced during the join operation by coalescing
+                # from the right in order to support upsampling.
                 join_key_coalesce_config=[JoinKeyCoalesceConfig.RIGHT],
                 inherit_join_index=InheritJoinIndex.FROM_BOTH,
             ).result_frame
+            # After the join, the index columns may be out of order, so we need to look up the appropriate identifiers
+            # instead of accessing them directly.
+            new_index_identifiers = [
+                identifier[0]
+                for identifier in joined_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    binned_frame.index_column_pandas_labels
+                )
+            ]
             frame = InternalFrame.create(
                 ordered_dataframe=joined_frame.ordered_dataframe,
                 data_column_pandas_labels=binned_frame.data_column_pandas_labels,
                 data_column_snowflake_quoted_identifiers=binned_frame.data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=binned_frame.index_column_pandas_labels,
-                index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
+                index_column_snowflake_quoted_identifiers=new_index_identifiers,
                 data_column_pandas_index_names=binned_frame.data_column_pandas_index_names,
                 data_column_types=binned_frame.cached_data_column_snowpark_pandas_types,
                 index_column_types=binned_frame.cached_index_column_snowpark_pandas_types,

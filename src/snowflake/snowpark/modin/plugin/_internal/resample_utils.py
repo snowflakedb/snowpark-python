@@ -6,7 +6,7 @@ import datetime as dt
 from typing import Any, Literal, NoReturn, Optional, Union
 
 import modin.pandas as pd
-from pandas._libs.lib import no_default
+from pandas._libs.lib import no_default, NoDefault
 from pandas._libs.tslibs import to_offset
 from pandas._typing import Frequency
 
@@ -590,7 +590,11 @@ def perform_resample_binning_on_frame(
 
 
 def get_expected_resample_bins_frame(
-    rule: str, start_date: str, end_date: str, *, index_label: Optional[str] = None
+    rule: str,
+    start_date: str,
+    end_date: str,
+    *,
+    index_label: Union[str, None, NoDefault] = no_default,
 ) -> InternalFrame:
     """
     Returns an InternalFrame with a single DatetimeIndex column that holds the
@@ -606,9 +610,10 @@ def get_expected_resample_bins_frame(
     end_date : str
         The latest date in the timeseries data.
 
-    index_label : Optional[str], default None
+    index_label : Optional[str] | NoDefault, default no_default
         The value to use as the pandas label of the resampled column. Defaults to RESAMPLE_INDEX_LABEL
         if left unspecified.
+        Note that a None value is a valid pandas label, which will be used if explicitly specified.
 
     Returns
     -------
@@ -634,7 +639,7 @@ def get_expected_resample_bins_frame(
         data_column_pandas_labels=[],
         data_column_snowflake_quoted_identifiers=[],
         index_column_pandas_labels=[
-            RESAMPLE_INDEX_LABEL if index_label is None else index_label
+            RESAMPLE_INDEX_LABEL if index_label == no_default else index_label
         ],
         index_column_snowflake_quoted_identifiers=expected_resample_bins_snowpark_frame.index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=[None],

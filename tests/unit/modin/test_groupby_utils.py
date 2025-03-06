@@ -128,7 +128,7 @@ def test_is_groupby_value_label_like(val, expected_result):
                 origin="end_day",
                 offset="1s",
             ),
-            ["closed", "label", "convention", "origin", "offset"],
+            ["sort", "origin", "offset", "dropna"],
         ),
     ],
 )
