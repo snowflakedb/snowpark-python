@@ -1,5 +1,13 @@
 # Release History
 
+## 1.30.0 (TBD)
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
+
 ## 1.29.0 (TBD)
 
 ### Snowpark Python API Updates
