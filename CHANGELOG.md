@@ -61,6 +61,7 @@
 - Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 - Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
 - Improve error message for all pandas functions that use UDFs with Snowpark objects.
+- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it. 
 
 ## 1.28.0 (2025-02-20)
 
