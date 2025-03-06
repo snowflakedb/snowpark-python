@@ -27,7 +27,11 @@ from snowflake.snowpark.functions import (
     sum_distinct,
     when,
 )
-from snowflake.snowpark.modin.plugin._internal.join_utils import join, InheritJoinIndex
+from snowflake.snowpark.modin.plugin._internal.join_utils import (
+    join,
+    InheritJoinIndex,
+    JoinKeyCoalesceConfig,
+)
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import OrderedDataFrame
 from snowflake.snowpark.modin.plugin._internal.utils import (
@@ -59,14 +63,13 @@ def validate_grouper(val: native_pd.Grouper) -> None:
     """
     # Pairs of parameter names + condition for parameter being invalid
     is_timegrouper = isinstance(val, native_pd.core.resample.TimeGrouper)
+    # We do not validate closed/label/convention because their default values change depending
+    # on the specified freq.
     unsupported_params = [
         (
             "sort",
             not val.sort if is_timegrouper else val.sort,
         ),  # defaults to True if TimeGrouper, False otherwise
-        ("closed", is_timegrouper and val.closed != "left"),
-        ("label", is_timegrouper and val.label != "left"),
-        ("convention", is_timegrouper and val.convention != "e"),
         (
             "origin",
             is_timegrouper and val.origin not in ("start_day", "start"),
@@ -126,7 +129,9 @@ def get_column_label_from_grouper(
         if is_list_like(grouper.level):
             raise ValueError("`level` parameter of Grouper must be scalar")
         # Must always return exactly one level (will raise KeyError internally if specified level is invalid)
-        return frame.parse_levels_to_integer_levels([grouper.level])[0]
+        return frame.get_pandas_labels_for_levels(
+            frame.parse_levels_to_integer_levels([grouper.level], allow_duplicates=True)
+        )[0]
     if grouper.key is None:
         if grouper.freq is not None:
             # If freq is specified, it implicitly references the first index column
@@ -436,6 +441,8 @@ def resample_and_extract_groupby_column_pandas_labels(
     query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
     by: Any,
     level: Optional[IndexLabel],
+    *,
+    skip_resample: bool = False,
 ) -> tuple[
     "snowflake_query_compiler.snowflake_query_compiler", Optional[list[Hashable]]
 ]:
@@ -454,6 +461,8 @@ def resample_and_extract_groupby_column_pandas_labels(
     level: int, level name, or sequence of such, default None. If the axis is a
         MultiIndex(hierarchical), group by a particular level or levels. Do not specify
         both by and level.
+    skip_resample: bool, default False
+        If specified, do not peform resampling, and only extract column labels from the groupers.
 
     Returns
     -------
@@ -497,10 +506,15 @@ def resample_and_extract_groupby_column_pandas_labels(
             by_list = [by]
         new_by_list: List[Any] = []
         for by_item in by_list:
-            if isinstance(by_item, native_pd.Grouper) and by_item.freq is not None:
+            if (
+                not skip_resample
+                and isinstance(by_item, native_pd.Grouper)
+                and by_item.freq is not None
+            ):
                 if by_item.level is not None:
                     int_levels = frame.parse_levels_to_integer_levels(
                         [by_item.level],
+                        allow_duplicates=True,
                     )
                     col_label = frame.get_pandas_labels_for_levels(int_levels)[0]
                 elif by_item.key is None:
@@ -526,6 +540,12 @@ def resample_and_extract_groupby_column_pandas_labels(
                 original_labels, include_index=True
             )
         ]
+        if len(set(identifiers_to_resample)) != len(identifiers_to_resample):
+            # Because we need to return a label, we don't currently support resampling the same column
+            # multiple times as we replace the original column.
+            ErrorMessage.not_implemented(
+                "Resampling the same column multiple times is not yet supported in Snowpark pandas."
+            )
         # 1. For every column, determine the start and end dates of the resample intervals.
         start_and_end_dates = {
             identifier: compute_resample_start_and_end_date(
@@ -557,20 +577,24 @@ def resample_and_extract_groupby_column_pandas_labels(
             # Manual copy-paste of some code from resample_utils.fill_missing_resample_bins_for_frame,
             # but without any assumptions on whether the column is an index
             expected_resample_bins_frame = get_expected_resample_bins_frame(
-                freq, start_date, end_date
+                freq, start_date, end_date, index_label=original_label
             )
             joined_frame = join(
                 left=binned_frame,
                 right=expected_resample_bins_frame,
-                how="right",
-                # identifier might get mangled; look it up again
+                # Perform an outer join to preserve additional index columns.
+                how="outer",
+                # identifier might get mangled by binning operation; look it up again
                 left_on=binned_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                     [original_label]
                 )[
                     0
                 ],
                 right_on=expected_resample_bins_frame.index_column_snowflake_quoted_identifiers,
-                inherit_join_index=InheritJoinIndex.FROM_RIGHT,
+                # Inherit the index from both sides; the resampled column will be replaced
+                # during the join operation.
+                join_key_coalesce_config=[JoinKeyCoalesceConfig.RIGHT],
+                inherit_join_index=InheritJoinIndex.FROM_BOTH,
             ).result_frame
             frame = InternalFrame.create(
                 ordered_dataframe=joined_frame.ordered_dataframe,

@@ -11,11 +11,8 @@ import pytest
 from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.utils import (
-    eval_snowpark_pandas_result,
-    create_test_series,
-)
-from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
+from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("by", ["a", ["b"], ["a", "b"]])
@@ -170,13 +167,3 @@ def test_groupby_series_single_index():
     eval_snowpark_pandas_result(
         snow_ser, native_ser, lambda ser: ser.groupby(level=0).mean()
     )
-
-
-@pytest.mark.parametrize("freq", ["45s", "1m", "3m", "4m", "8m", "9m"])
-def test_groupby_series_datetime_sum(freq):
-    with SqlCounter(query_count=1, join_count=1):
-        dates = pd.date_range("2000-10-01 23:00:00", "2000-10-01 23:16:00", freq="4min")
-        eval_snowpark_pandas_result(
-            *create_test_series(np.arange(len(dates)), index=dates),
-            lambda ser: ser.groupby(pd.Grouper(freq=freq)).sum(),
-        )

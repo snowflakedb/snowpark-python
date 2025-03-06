@@ -8,7 +8,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import eval_snowpark_pandas_result, create_test_series
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
@@ -96,7 +96,12 @@ def test_groupby_get_group_with_list():
 
 
 @sql_count_checker(query_count=0)
-def test_error_checking():
-    s = pd.Series(list("abc") * 4)
-    with pytest.raises(NotImplementedError):
-        s.groupby(pd.Grouper("b")).get_group("b")
+def test_error_message():
+    eval_snowpark_pandas_result(
+        *create_test_series(list("abc") * 4),
+        lambda s: s.groupby(pd.Grouper("b")).get_group("b"),
+        expect_exception=True,
+        expect_exception_type=KeyError,
+        expect_exception_match=False,
+        assert_exception_equal=False,
+    )
