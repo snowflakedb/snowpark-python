@@ -101,8 +101,8 @@ def is_groupby_value_label_like(val: Any) -> bool:
     # a `level` or `freq` into an index label.
     return (
         hashable(val)
-        and (not callable(val))
-        and not (isinstance(val, Series))
+        and not callable(val)
+        and not isinstance(val, Series)
         and not (
             isinstance(val, native_pd.Grouper)
             and val.key is None
@@ -141,7 +141,7 @@ def get_column_labels_from_by_list(
     frame: InternalFrame, by_list: List[Hashable]
 ) -> List[Hashable]:
     """
-    Filter hashable labels in the list.
+    Filter labels in the list that can be mapped to a column label.
 
     If any element of the list is an instance of pd.Grouper with no level, then its key field is used.
     """
@@ -150,6 +150,7 @@ def get_column_labels_from_by_list(
         if isinstance(val, native_pd.Grouper)
         else val
         for val in by_list
+        if is_groupby_value_label_like(val)
     ]
 
 
@@ -336,7 +337,12 @@ def groupby_internal_columns(
         by_list = by
 
     # Extract keys from Grouper objects, which must each specify either key or level
-    by_list = get_column_labels_from_by_list(frame, by_list)
+    by_list = [
+        get_column_label_from_grouper(frame, val)
+        if isinstance(val, native_pd.Grouper)
+        else val
+        for val in by_list
+    ]
 
     # this part of code relies on the fact that all internal by columns have been
     # processed into column labels. SnowSeries that does not belong to the current
@@ -460,7 +466,7 @@ def resample_and_extract_groupby_column_pandas_labels(
 
     def find_resample_columns(
         frame: InternalFrame, by: Any
-    ) -> tuple[List[Any], list[tuple[Hashable, native_pd.Grouper]]]:
+    ) -> tuple[Any, list[tuple[Hashable, native_pd.Grouper]]]:
         """
         Identify which columns need to be resampled.
 
@@ -468,11 +474,24 @@ def resample_and_extract_groupby_column_pandas_labels(
         - The input `by` list with any datetime Grouper objects replaced by a label for the resampled column.
         - A list of (original column label, Grouper) tuples.
 
+        If the by argument is a Series, function, or None, then it is returned directly, and the returned
+        resample column list is empty.
+
         TODO: if we support other time Grouper parameters (offset, closed, convention), then these
         will need to be passed as well.
         """
+        # If by is None, then assume `level` was passed. This case is handled by extract_column_pandas_labels
+        # We currently do not support passing `freq` directly to the groupby call (only via Grouper objects).
+        # Also short-circuit if the passed object is a Snowpark pandas Series or a callable, as
+        # those cannot be treated as column labels.
+        if by is None or (
+            not isinstance(by, list) and not is_groupby_value_label_like(by)
+        ):
+            return by, []
         resample_list = []
-        if is_list_like(by):  # TODO direct list instance check instead?
+        # Use an explicit list check instead of is_list_like to allow for referencing
+        # multiindex labels as tuples.
+        if isinstance(by, list):
             by_list = by
         else:
             by_list = [by]
@@ -613,17 +632,12 @@ def get_frame_with_groupby_columns_as_index(
     2000-10-01 23:16:00    4
     Freq: 4min, dtype: int64
 
-    The newly resampled index column will have the suffix "__resample{i}" appended to the original
-    column's identifier, where i increments every time a column is resampled. This ensures
-    that we can support the same column being resampled multiple times, or being used elsewhere
-    without a resample.
-
     Upsampling will fill other columns with NULL values, under the assumption that they will be
     coalesced away by the resulting groupby operation:
 
     >>> get_frame_with_groupby_columns_as_index(ts._query_compiler, pd.Grouper(freq="2min"), None, True)
     +----------------------+-------------+
-    | __index____resample0 | __reduced__ |
+    |       __index__      | __reduced__ |
     +----------------------+-------------+
     |  2000-10-01 23:00:00 |           0 |
     |  2000-10-01 23:02:00 |        NULL |
@@ -637,11 +651,12 @@ def get_frame_with_groupby_columns_as_index(
     +----------------------+-------------+
 
     Conversely, downsampling will forward-fill values into the resampled time column to represent
-    that they belong to the same bin. Note that in this example, the bins are shifted.
+    that they belong to the same bin. Note that in this example, the bins are shifted because the
+    Grouper defaults to origin="start_date".
 
     >>> get_frame_with_groupby_columns_as_index(ts._query_compiler, pd.Grouper(freq="8min"), None, True)
     +----------------------+-------------+
-    | __index____resample0 | __reduced__ |
+    |       __index__      | __reduced__ |
     +----------------------+-------------+
     |  2000-10-01 22:56:00 |           0 |
     |  2000-10-01 23:04:00 |           1 |
