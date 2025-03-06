@@ -1104,36 +1104,40 @@ class DataFrameReader:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[str] = None,
     ) -> DataFrame:
-        """Reads data from a database table using a DBAPI connection with optional partitioning,
+        """
+        Reads data from a database table using a DBAPI connection with optional partitioning,
         parallel processing, and query customization. By default, the function reads the entire table at
         a time without a query timeout.
 
-        There are several ways to break data into small pieces and speed up ingestion, you can also combine them to acquire optimal performance:
-            1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
-             These must all be specified together, otherwise error will be raised.
-            2.Set max_workers to a proper positive integer.
-             This defines the maximum number of processes and threads used for parallel execution.
-            3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
-            4.Use predicates to defining WHERE conditions for partitions,
-             predicates will be ignored if column is specified to generate partition.
-            5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
-             column name with table in external data source.
+        There are several ways to break data into small pieces and speed up ingestion,
+        you can also combine them to acquire optimal performance:
+
+        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
+        These must all be specified together, otherwise error will be raised.
+        2.Set max_workers to a proper positive integer.
+        This defines the maximum number of processes and threads used for parallel execution.
+        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+        4.Use predicates to defining WHERE conditions for partitions,
+        predicates will be ignored if column is specified to generate partition.
+        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
+        column name with table in external data source.
 
         Args:
             create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
                 The callable must be picklable, as it will be passed to and executed in child processes.
             table: The name of the table in the external data source.
-                   This parameter cannot be used together with the `query` parameter.
+                This parameter cannot be used together with the `query` parameter.
             query: A valid SQL query to be used as the data source in the FROM clause.
-                   This parameter cannot be used together with the `table` parameter.
+                This parameter cannot be used together with the `table` parameter.
             column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
                 The column must be of a numeric type (e.g., int or float) or a date type.
                 When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
             lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
-                This parameter does not filter out data.
+                This parameter does not filter out data. It must be provided when `column` is specified.
             upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
-                This parameter does not filter out data.
+                This parameter does not filter out data. It must be provided when `column` is specified.
             num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+                It must be provided when `column` is specified.
             max_workers: number of processes and threads used for parallelism.
             query_timeout: The timeout (in seconds) for each query execution.  A default value of `0` means
                 the query will never time out. The timeout behavior can also be configured within
@@ -1151,18 +1155,16 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
-        Note:
-            column, lower_bound, upper_bound and num_partitions must be specified if any one of them is specified.
 
         Example::
             .. code-block:: python
 
-            import oracledb
-            def create_oracledb_connection():
-                connection = oracledb.connect(...)
-                return connection
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
 
-            df = session.read.dbapi(create_oracledb_connection, table=...)
+                df = session.read.dbapi(create_oracledb_connection, table=...)
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
