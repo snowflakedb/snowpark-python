@@ -288,6 +288,12 @@ def build_expr_from_python_val(
         ast.second = obj.second  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "second"
         ast.microsecond = obj.microsecond  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "microsecond"
 
+    elif isinstance(obj, datetime.timedelta):
+        ast = with_src_position(expr_builder.python_timestamp_val)
+        ast.day = obj.days
+        ast.second = obj.seconds
+        ast.microsecond = obj.microseconds
+
     elif isinstance(obj, dict):
         ast = with_src_position(expr_builder.seq_map_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SeqMapVal"; expected "Expr"
         for key, value in obj.items():
