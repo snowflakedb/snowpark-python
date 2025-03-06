@@ -26,7 +26,18 @@
   - `fl_is_image`
   - `fl_is_video`
 - Added support for importing third-party packages from PyPi using Artifact Repository (Private Preview):
-  - Use keyword arguments `artifact_repository` and `artifact_repository_packages` to specify your `ARTIFACT_REPOSITORY` and `ARTIFACT_REPOSITORY_PACKAGES` respectively when registering stored procedures or user defined functions.
+  - Use keyword arguments `artifact_repository` and `artifact_repository_packages` to specify your artifact repository and packages respectively when registering stored procedures or user defined functions.
+  - Supported APIs are:
+    - `Session.sproc.register`
+    - `Session.udf.register`
+    - `Session.udaf.register`
+    - `Session.udtf.register`
+    - `functions.sproc`
+    - `functions.udf`
+    - `functions.udaf`
+    - `functions.udtf`
+    - `functions.pandas_udf`
+    - `functions.pandas_udtf`
 
 #### Bug Fixes
 
@@ -38,7 +49,7 @@
 #### Improvements
 
 - Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
-- Bumped cloudpickle dependency to work with `cloudpickle==3.0.0`.
+- Bumped cloudpickle dependency to also support `cloudpickle==3.0.0` in addition to previous versions.
 
 ### Snowpark Local Testing Updates
 
