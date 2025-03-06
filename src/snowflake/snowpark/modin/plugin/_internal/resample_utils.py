@@ -590,7 +590,7 @@ def perform_resample_binning_on_frame(
 
 
 def get_expected_resample_bins_frame(
-    rule: str, start_date: str, end_date: str
+    rule: str, start_date: str, end_date: str, *, index_label: Optional[str] = None
 ) -> InternalFrame:
     """
     Returns an InternalFrame with a single DatetimeIndex column that holds the
@@ -604,7 +604,11 @@ def get_expected_resample_bins_frame(
         The earliest date in the timeseries data.
 
     end_date : str
-         The latest date in the timeseries data.
+        The latest date in the timeseries data.
+
+    index_label : Optional[str], default None
+        The value to use as the pandas label of the resampled column. Defaults to RESAMPLE_INDEX_LABEL
+        if left unspecified.
 
     Returns
     -------
@@ -629,7 +633,9 @@ def get_expected_resample_bins_frame(
         ordered_dataframe=expected_resample_bins_snowpark_frame.ordered_dataframe,
         data_column_pandas_labels=[],
         data_column_snowflake_quoted_identifiers=[],
-        index_column_pandas_labels=[RESAMPLE_INDEX_LABEL],
+        index_column_pandas_labels=[
+            RESAMPLE_INDEX_LABEL if index_label is None else index_label
+        ],
         index_column_snowflake_quoted_identifiers=expected_resample_bins_snowpark_frame.index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=[None],
         data_column_types=None,

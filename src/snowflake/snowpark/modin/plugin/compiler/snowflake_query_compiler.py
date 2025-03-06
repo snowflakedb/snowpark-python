@@ -5089,12 +5089,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         if not is_list_like(by):
             by = [by]
+        query_compiler, by = resample_and_extract_groupby_column_pandas_labels(
+            self, by, level=level
+        )
         positions_col_name = f"__TEMP_POS_NAME_{uuid.uuid4().hex[-6:]}__"
         # We reset index twice to ensure we perform the count aggregation on the row
         # positions (which cannot be null). We name the column a unique new name to
         # avoid collisions. We rename them to their final names at the end.
         result = (
-            self.reset_index(drop=True)
+            query_compiler.reset_index(drop=True)
             .reset_index(drop=False, names=positions_col_name)
             .take_2d_labels(slice(None), [positions_col_name] + by)
             .groupby_agg(
@@ -17578,7 +17581,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             A SnowflakeQueryCompiler object representing a DataFrame.
         """
         original_frame = self._modin_frame
-        ordered_dataframe = original_frame.ordered_dataframe
 
         assert op_type in ["head", "tail"], "op_type must be head or tail."
 
@@ -17588,9 +17590,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # STEP 1: Extract the column(s) used to group the data by.
         query_compiler, by_list = resample_and_extract_groupby_column_pandas_labels(
-            self, by, level
+            self,
+            by,
+            level,
+            skip_resample=True,
         )
         original_frame = query_compiler._modin_frame
+        ordered_dataframe = original_frame.ordered_dataframe
         by_snowflake_quoted_identifiers_list = [
             entry[0]
             for entry in original_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
@@ -19854,7 +19860,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         compiler = SnowflakeQueryCompiler(
             self._modin_frame.ensure_row_position_column()
         )
-        by_list = resample_and_extract_groupby_column_pandas_labels(
+        compiler, by_list = resample_and_extract_groupby_column_pandas_labels(
             compiler, by, groupby_kwargs.get("level", None)
         )
         by_snowflake_quoted_identifiers_list = []
