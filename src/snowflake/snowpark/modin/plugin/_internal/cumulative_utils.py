@@ -17,7 +17,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     check_is_groupby_supported_by_snowflake,
-    extract_groupby_column_pandas_labels,
+    resample_and_extract_groupby_column_pandas_labels,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
@@ -123,9 +123,10 @@ def get_groupby_cumagg_frame_axis0(
             f"GroupBy {cumagg_func_name} with level = {level} is not supported yet in Snowpark pandas."
         )
 
-    by_list = extract_groupby_column_pandas_labels(query_compiler, by, level)
+    qc, by_list = resample_and_extract_groupby_column_pandas_labels(
+        query_compiler, by, level
+    )
 
-    qc = query_compiler
     if numeric_only:
         qc = drop_non_numeric_data_columns(query_compiler, by_list)
 

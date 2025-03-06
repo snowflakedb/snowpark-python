@@ -196,8 +196,15 @@ Methods
 | ``get``                     | Y                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``groupby``                 | P                               | ``observed`` is ignored since    | ``Y``, support ``axis == 0`` and ``by`` is column  |
-|                             |                                 | Categoricals are not implemented | label or Series from the current DataFrame;        |
-|                             |                                 | yet                              | otherwise ``N``;                                   |
+|                             |                                 | Categoricals are not implemented | label or Series from the current DataFrame, or a   |
+|                             |                                 | yet                              | ``pd.Grouper`` object; otherwise ``N``.            |
+|                             |                                 |                                  |                                                    |
+|                             |                                 |                                  | If a ``pd.Grouper`` object is passed, then only    |
+|                             |                                 |                                  | the default values of the ``sort``, ``closed``,    |
+|                             |                                 |                                  | ``label``, and ``convention`` arguments are        |
+|                             |                                 |                                  | supported. The ``origin`` argument currently       |
+|                             |                                 |                                  | supports ``"start_day"`` and ``"start"``.          |
+|                             |                                 |                                  |                                                    |
 |                             |                                 |                                  | Note that supported functions are agg, count,      |
 |                             |                                 |                                  | cumcount, cummax, cummin, cumsum, first, last,     |
 |                             |                                 |                                  | max, mean, median, min, quantile, shift, size,     |

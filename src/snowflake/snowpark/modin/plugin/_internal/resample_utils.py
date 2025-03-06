@@ -2,10 +2,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime as dt
 from typing import Any, Literal, NoReturn, Optional, Union
 
 import modin.pandas as pd
-from pandas._libs.lib import no_default
+from pandas._libs.lib import no_default, NoDefault
 from pandas._libs.tslibs import to_offset
 from pandas._typing import Frequency
 
@@ -18,6 +19,9 @@ from snowflake.snowpark.functions import (
     last_day,
     lit,
     to_timestamp_ntz,
+    date_trunc,
+    max as max_,
+    min as min_,
 )
 from snowflake.snowpark.modin.plugin._internal import join_utils
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
@@ -26,6 +30,7 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     MatchComparator,
     join,
 )
+from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import DateType, TimestampType
 
@@ -342,12 +347,120 @@ def time_slice(
     return builtin("TIME_SLICE")(column, slice_length, date_or_time_part, start_or_end)
 
 
+def compute_resample_start_and_end_date(
+    frame: InternalFrame,
+    datetime_index_col_identifier: str,
+    rule: Frequency,
+    *,
+    origin_is_start_day: bool = False,
+) -> tuple[str, str]:
+    """
+    Compute the start and end datetimes implied by `rule`, returning start_date and end_date.
+
+    This computation is done eagerly, as start_date and end_date must be known to determine
+    resample bins.
+
+    If origin_is_start_day is passed, then the returned start_date will truncate the date of
+    the smallest timestamp, then add multiples of the frequency until the smallest timestamp
+    is in a bin. That is,
+
+        start_date = date_trunc(DAY, min(datetime_col)) + (k * freq)
+        end_date = date_trunc(DAY, min(datetime_col)) + (j * freq)
+        start_date <= min(datetime_col)
+        end_date <= max(datetime_col)
+
+    for the largest possible integers k and j.
+    """
+    slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
+
+    min_max_index_column_quoted_identifier = (
+        frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=["min_index", "max_index"]
+        )
+    )
+
+    # There are two reasons for why we eagerly compute these values:
+    # 1. The earliest date, start_date, is needed to perform resampling binning.
+    # 2. start_date and end_date are used to fill in any missing resample bins for the frame.
+
+    # date_trunc gives us the correct start date.
+    # For instance, if rule='3D' and the earliest date is
+    # 2020-03-01 1:00:00, the first date should be 2020-03-01,
+    # which is what date_trunc gives us.
+    if slice_unit in RULE_SECOND_TO_DAY:
+        # `slice_unit` in 'second', 'minute', 'hour', 'day'
+        start_date, end_date = frame.ordered_dataframe.agg(
+            date_trunc(slice_unit, min_(datetime_index_col_identifier)).as_(
+                min_max_index_column_quoted_identifier[0]
+            ),
+            date_trunc(slice_unit, max_(datetime_index_col_identifier)).as_(
+                min_max_index_column_quoted_identifier[1]
+            ),
+        ).collect()[0]
+        if origin_is_start_day:
+            # If this resample was called with origin=start_day, then manually compute the correct
+            # bins that are an integer multiple of the slice width starting from midnight of the
+            # start date. This is easier to express in plain Python than SQL, and we already performed
+            # a query anyway.
+            start_day_base = dt.datetime(
+                start_date.year, start_date.month, start_date.day
+            )
+            # Now, compute
+            #   start_date = start_day_base + (k * freq)
+            #   start_date <= min(datetime_col)
+            #   end_date = start_day_base + (j * freq)
+            #   end_date <= max(datetime_col)
+            # for the largest possible integers k and j.
+            # The inequalities solve as follows:
+            #   k <= (min(datetime_col) - start_day_base) / freq
+            #   j <= (max(datetime_col) - start_day_base) / freq
+            # and since we're only interested in integer values of k and j, we can just floor the right
+            # side of the inequalities to get their values.
+            increment = dt.timedelta(**{f"{slice_unit}s": slice_width})
+            k = int((start_date - start_day_base) / increment)
+            j = int((end_date - start_day_base) / increment)
+            start_date = start_day_base + (k * increment)
+            end_date = start_day_base + (j * increment)
+    else:
+        assert slice_unit in RULE_WEEK_TO_YEAR
+        # `slice_unit` in 'week', 'month', 'quarter', or 'year'. Set the start and end dates
+        # to the last day of the given `slice_unit`. Use the right bin edge by adding a `slice_width`
+        # of the given `slice_unit` to the first and last date of the index.
+        start_date, end_date = frame.ordered_dataframe.agg(
+            last_day(
+                date_trunc(
+                    slice_unit,
+                    dateadd(
+                        slice_unit,
+                        pandas_lit(slice_width),
+                        min_(datetime_index_col_identifier),
+                    ),
+                ),
+                slice_unit,
+            ).as_(min_max_index_column_quoted_identifier[0]),
+            last_day(
+                date_trunc(
+                    slice_unit,
+                    dateadd(
+                        slice_unit,
+                        pandas_lit(slice_width),
+                        max_(datetime_index_col_identifier),
+                    ),
+                ),
+                slice_unit,
+            ).as_(min_max_index_column_quoted_identifier[1]),
+        ).collect()[0]
+    return start_date, end_date
+
+
 def perform_resample_binning_on_frame(
     frame: InternalFrame,
     datetime_index_col_identifier: str,
     start_date: str,
     slice_width: int,
     slice_unit: str,
+    *,
+    resample_output_col_identifier: Optional[str] = None,
 ) -> InternalFrame:
     """
     Returns a new dataframe where each item of the index column
@@ -372,12 +485,18 @@ def perform_resample_binning_on_frame(
     slice_unit : str
         Time unit for the slice length.
 
+    resample_output_col_identifier : Optional[str]
+        The identifier of the column for the resampled output. If left unspecified, then
+        datetime_index_col_identifier is overwritten.
+
     Returns
     -------
     frame : InternalFrame
         A new internal frame where items in the index column are
         placed in a bin based on `slice_width` and `slice_unit`
     """
+    if resample_output_col_identifier is None:
+        resample_output_col_identifier = datetime_index_col_identifier
     # Consider the following example:
     # frame:
     #             data_col
@@ -466,12 +585,16 @@ def perform_resample_binning_on_frame(
     # 2023-08-16         9
 
     return frame.update_snowflake_quoted_identifiers_with_expressions(
-        {datetime_index_col_identifier: unnormalized_dates_set_to_bins}
+        {resample_output_col_identifier: unnormalized_dates_set_to_bins}
     ).frame
 
 
 def get_expected_resample_bins_frame(
-    rule: str, start_date: str, end_date: str
+    rule: str,
+    start_date: str,
+    end_date: str,
+    *,
+    index_label: Union[str, None, NoDefault] = no_default,
 ) -> InternalFrame:
     """
     Returns an InternalFrame with a single DatetimeIndex column that holds the
@@ -485,7 +608,12 @@ def get_expected_resample_bins_frame(
         The earliest date in the timeseries data.
 
     end_date : str
-         The latest date in the timeseries data.
+        The latest date in the timeseries data.
+
+    index_label : Optional[str] | NoDefault, default no_default
+        The value to use as the pandas label of the resampled column. Defaults to RESAMPLE_INDEX_LABEL
+        if left unspecified.
+        Note that a None value is a valid pandas label, which will be used if explicitly specified.
 
     Returns
     -------
@@ -510,7 +638,9 @@ def get_expected_resample_bins_frame(
         ordered_dataframe=expected_resample_bins_snowpark_frame.ordered_dataframe,
         data_column_pandas_labels=[],
         data_column_snowflake_quoted_identifiers=[],
-        index_column_pandas_labels=[RESAMPLE_INDEX_LABEL],
+        index_column_pandas_labels=[
+            RESAMPLE_INDEX_LABEL if index_label == no_default else index_label
+        ],
         index_column_snowflake_quoted_identifiers=expected_resample_bins_snowpark_frame.index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=[None],
         data_column_types=None,
