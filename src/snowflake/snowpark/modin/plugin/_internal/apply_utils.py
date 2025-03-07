@@ -461,7 +461,7 @@ def apply_groupby_func_to_df(
     kwargs: dict,
     force_list_like_to_series: bool = False,
 ) -> Tuple[
-    native_pd.Series, native_pd.DataFrame, native_pd.DataFrame
+    native_pd.Series, native_pd.DataFrame, native_pd.DataFrame, bool
 ]:  # pragma: no cover
     """
     Restore input dataframe received in udtf to original schema.
@@ -481,6 +481,7 @@ def apply_groupby_func_to_df(
          1. rows positions
          2. restored input dataframe.
          3. Result of applying the function to input dataframe.
+         4. Whether final result should include index columns.
     """
     # The first column is row position. Save it for later.
     col_offset = 0
@@ -534,7 +535,50 @@ def apply_groupby_func_to_df(
             func_result = native_pd.Series(func_result)
             if len(func_result) == len(df.index):
                 func_result.index = df.index
-    return row_positions, input_object, func_result
+    if isinstance(func_result, native_pd.Series):
+        if series_groupby:
+            func_result_as_frame = func_result.to_frame()
+            func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
+        else:
+            # If function returns series, we have to transpose the series
+            # and change its metadata a little bit, but after that we can
+            # continue largely as if the function has returned a dataframe.
+            #
+            # If the series has a 1-dimensional index, the series name
+            # becomes the name of the column index. For example, if
+            # `func` returned the series native_pd.Series([1], name='a'):
+            #
+            # 0    1
+            # Name: a, dtype: int64
+            #
+            # The result needs to use the dataframe
+            # pd.DataFrame([1], columns=pd.Index([0], name='a'):
+            #
+            # a  0
+            # 0  1
+            #
+            name = func_result.name
+            func_result.name = None
+            func_result_as_frame = func_result.to_frame().T
+            if func_result_as_frame.columns.nlevels == 1:
+                func_result_as_frame.columns.name = name
+        # For DataFrameGroupBy, we don't need to include any
+        # information about the index of `func_result_as_frame`.
+        # The series only has one index, and that index becomes the
+        # columns of `func_result_as_frame`. For SeriesGroupBy, we
+        # do include the result's index in the result.
+        include_index_columns = series_groupby
+    elif isinstance(func_result, native_pd.DataFrame):
+        include_index_columns = True
+        func_result_as_frame = func_result
+    else:
+        # At this point, we know the function result was not a DataFrame
+        # or Series
+        include_index_columns = False
+        func_result_as_frame = native_pd.DataFrame(
+            {MODIN_UNNAMED_SERIES_LABEL: [func_result]}
+        )
+    return row_positions, input_object, func_result_as_frame, include_index_columns
 
 
 def create_udtf_for_groupby_transform(
@@ -613,7 +657,7 @@ def create_udtf_for_groupby_transform(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            row_positions, input_object, func_result = apply_groupby_func_to_df(
+            row_positions, _, func_result, _ = apply_groupby_func_to_df(
                 df,
                 num_by,
                 index_column_names,
@@ -624,34 +668,6 @@ def create_udtf_for_groupby_transform(
                 kwargs,
                 force_list_like_to_series,
             )
-            if isinstance(func_result, native_pd.Series):
-                if series_groupby:
-                    func_result_as_frame = func_result.to_frame()
-                    func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
-                else:
-                    # If function returns series, we have to transpose the series
-                    # and change its metadata a little bit, but after that we can
-                    # continue largely as if the function has returned a dataframe.
-                    #
-                    # If the series has a 1-dimensional index, the series name
-                    # becomes the name of the column index. For example, if
-                    # `func` returned the series native_pd.Series([1], name='a'):
-                    #
-                    # 0    1
-                    # Name: a, dtype: int64
-                    #
-                    # The result needs to use the dataframe
-                    # pd.DataFrame([1], columns=pd.Index([0], name='a'):
-                    #
-                    # a  0
-                    # 0  1
-                    #
-                    name = func_result.name
-                    func_result.name = None
-                    func_result_as_frame = func_result.to_frame().T
-                    if func_result_as_frame.columns.nlevels == 1:
-                        func_result_as_frame.columns.name = name
-                func_result = func_result_as_frame
             func_result = func_result.applymap(
                 lambda x: handle_missing_value_in_variant(
                     convert_numpy_int_result_to_int(x)
@@ -861,7 +877,12 @@ def create_udtf_for_groupby_apply(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            row_positions, input_object, func_result = apply_groupby_func_to_df(
+            (
+                row_positions,
+                input_object,
+                func_result,
+                include_index_columns,
+            ) = apply_groupby_func_to_df(
                 df,
                 num_by,
                 index_column_names,
@@ -872,62 +893,8 @@ def create_udtf_for_groupby_apply(
                 kwargs,
                 force_list_like_to_series,
             )
-            if isinstance(func_result, native_pd.Series):
-                if series_groupby:
-                    func_result_as_frame = func_result.to_frame()
-                    func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
-                else:
-                    # If function returns series, we have to transpose the series
-                    # and change its metadata a little bit, but after that we can
-                    # continue largely as if the function has returned a dataframe.
-                    #
-                    # If the series has a 1-dimensional index, the series name
-                    # becomes the name of the column index. For example, if
-                    # `func` returned the series native_pd.Series([1], name='a'):
-                    #
-                    # 0    1
-                    # Name: a, dtype: int64
-                    #
-                    # The result needs to use the dataframe
-                    # pd.DataFrame([1], columns=pd.Index([0], name='a'):
-                    #
-                    # a  0
-                    # 0  1
-                    #
-                    name = func_result.name
-                    func_result.name = None
-                    func_result_as_frame = func_result.to_frame().T
-                    if func_result_as_frame.columns.nlevels == 1:
-                        func_result_as_frame.columns.name = name
-                return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    input_object,
-                    func_result_as_frame,
-                    row_positions,
-                    # For DataFrameGroupBy, we don't need to include any
-                    # information about the index of `func_result_as_frame`.
-                    # The series only has one index, and that index becomes the
-                    # columns of `func_result_as_frame`. For SeriesGroupBy, we
-                    # do include the result's index in the result.
-                    include_index_columns=series_groupby,
-                )
-            if isinstance(func_result, native_pd.DataFrame):
-                return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    input_object, func_result, row_positions, include_index_columns=True
-                )
-            # At this point, we know the function result was not a DataFrame
-            # or Series
-            return native_pd.DataFrame(
-                {
-                    "label": [
-                        json.dumps({"0": MODIN_UNNAMED_SERIES_LABEL, "data_pos": 0})
-                    ],
-                    "row_position_within_group": [0],
-                    "value": [convert_numpy_int_result_to_int(func_result)],
-                    "original_row_number": [-1],
-                    "first_position_for_group": [row_positions.iloc[0]],
-                },
-                # use object dtype so result is JSON-serializable
-                dtype=object,
+            return convert_groupby_apply_dataframe_result_to_standard_schema(
+                input_object, func_result, row_positions, include_index_columns
             )
 
     input_types = [

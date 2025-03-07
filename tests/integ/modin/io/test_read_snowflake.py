@@ -81,16 +81,22 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
             table_name_or_query, **kwargs, relaxed_ordering=relaxed_ordering
         )
 
+    filtered_query_history = [
+        query
+        for query in query_history.queries
+        if "SHOW PARAMETERS LIKE" not in query.sql_text
+    ]
+
     if relaxed_ordering:
-        assert len(query_history.queries) == 0
+        assert len(filtered_query_history) == 0
     else:
         if materialization_expected:
             # when materialization happens, two queries are executed during read_snowflake:
             # 1) temp table creation out of the current table or query
             # 2) read only temp table creation
-            assert len(query_history.queries) == 2
+            assert len(filtered_query_history) == 2
         else:
-            assert len(query_history.queries) == 1
+            assert len(filtered_query_history) == 1
 
         # test if the scoped snapshot is created
         scoped_pattern = " SCOPED " if session._use_scoped_temp_read_only_table else " "
