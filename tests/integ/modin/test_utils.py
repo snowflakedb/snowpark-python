@@ -13,7 +13,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
-    create_ordered_dataframe_possibly_with_readonly_temp_table,
+    create_initial_ordered_dataframe,
 )
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
@@ -35,9 +35,7 @@ def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
     (
         ordered_df,
         row_position_quoted_identifier,
-    ) = create_ordered_dataframe_possibly_with_readonly_temp_table(
-        test_table_name, create_temp_table=True
-    )
+    ) = create_initial_ordered_dataframe(test_table_name, relaxed_ordering=False)
 
     # verify the ordered df columns are row_position_quoted_identifier + quoted_identifiers
     assert ordered_df.projected_column_snowflake_quoted_identifiers == [
@@ -60,9 +58,7 @@ def test_create_snowpark_dataframe_with_no_readonly_temp_table(session, columns)
     (
         ordered_df,
         row_position_quoted_identifier,
-    ) = create_ordered_dataframe_possibly_with_readonly_temp_table(
-        test_table_name, create_temp_table=False
-    )
+    ) = create_initial_ordered_dataframe(test_table_name, relaxed_ordering=True)
 
     # verify the ordered df columns are row_position_quoted_identifier + quoted_identifiers
     assert ordered_df.projected_column_snowflake_quoted_identifiers == [

@@ -219,7 +219,7 @@ class PandasOnSnowflakeIO(BaseIO):
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
         return cls.query_compiler_cls.from_snowflake(
-            name_or_query, index_col, columns, create_temp_table=not relaxed_ordering
+            name_or_query, index_col, columns, relaxed_ordering=relaxed_ordering
         )
 
     @classmethod

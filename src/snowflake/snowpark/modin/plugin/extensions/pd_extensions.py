@@ -76,7 +76,7 @@ def read_snowflake(
         * When `relaxed_ordering` is set to True, Snowpark pandas provides relaxed consistency and ordering guarantees. In particular, the returned DataFrame object will be
           directly based on the source given by `name_or_query` as long as it is not a query. Setting `relaxed_ordering` to True along with passing a query in `name_or_query`
           is not currently supported. Consistency and isolation guarantees are relaxed in this case because any changes that happen to the source will be reflected in the
-          DataFrame object returned by `ps.read_snowflake`.
+          DataFrame object returned by `pd.read_snowflake`.
 
           Ordering guarantees will also be relaxed in the sense that each time an operation is run on the returned DataFrame object, the underlying ordering of rows maybe
           different. For example, calling `df.head(5)` two consecutive times can result in a different set of 5 rows each time and with different ordering.
@@ -85,6 +85,7 @@ def read_snowflake(
           ensure that future oprerations will consistently experience the same sort order, but the consistency guarantees will remain relaxed.
 
         * When `relaxed_ordering` is set to False, Snowpark pandas provides the same consistency and ordering guarantees for `read_snowflake` as if local files were read.
+          For example, calling `df.head(5)` two consecutive times is guaranteed to result in the exact same set of 5 rows each time and with the same ordering.
           Depending on the type of source, `pd.read_snowflake` will do one of the following
           at the time of calling `pd.read_snowflake`:
 

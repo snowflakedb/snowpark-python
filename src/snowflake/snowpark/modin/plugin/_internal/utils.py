@@ -316,9 +316,9 @@ def _create_read_only_table(
     return readonly_table_name
 
 
-def create_ordered_dataframe_possibly_with_readonly_temp_table(
+def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
-    create_temp_table: bool,
+    relaxed_ordering: bool,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -327,7 +327,7 @@ def create_ordered_dataframe_possibly_with_readonly_temp_table(
     Args:
         table_name_or_query: A string or list of strings that specify the table name or
             fully-qualified object identifier (database name, schema name, and table name) or SQL query.
-        create_temp_table: If True, create a read only temp table on top of the existing table or Snowflake query, and.
+        relaxed_ordering: If False, create a read only temp table on top of the existing table or Snowflake query, and.
             and create the OrderedDataFrame using the read only temp table creatd.
             Otherwise, directly using the existing table.
 
@@ -351,48 +351,49 @@ def create_ordered_dataframe_possibly_with_readonly_temp_table(
     )
     is_query = not _is_table_name(table_name_or_query)
     if not is_query:
-        try:
-            if create_temp_table:
+        if not relaxed_ordering:
+            try:
                 readonly_table_name = _create_read_only_table(
                     table_name=table_name_or_query,
                     materialize_into_temp_table=False,
                 )
-        except SnowparkSQLException as ex:
-            _logger.debug(
-                f"Failed to create read only table for {table_name_or_query}: {ex}"
-            )
-            # Creation of read only table fails for following cases which are not possible
-            # (or very difficult) to detect on client side in advance. We explicitly check
-            # for these errors and create a temporary table by copying the content of the
-            # original table and then create the read only table on the top of this
-            # temporary table.
-            # 1. Row access Policy:
-            #   If the table has row access policy associated, read only table creation will
-            #   fail. SNOW-850878 is created to support the query for row access policy on
-            #   server side.
-            # 2. Table can not be cloned:
-            #   Clone is not supported for tables that are imported from a share, views etc.
-            # 3. Table doesn't support read only table creation:
-            #   Includes iceberg table, hybrid table etc.
-            known_errors = (
-                "Row access policy is not supported on read only table",  # case 1
-                "Cannot clone",  # case 2
-                "Unsupported feature",  # case 3
-            )
-            if any(error in ex.message for error in known_errors):
-                readonly_table_name = _create_read_only_table(
-                    table_name=table_name_or_query,
-                    materialize_into_temp_table=True,
-                    materialization_reason=ex.message,
+            except SnowparkSQLException as ex:
+                _logger.debug(
+                    f"Failed to create read only table for {table_name_or_query}: {ex}"
                 )
-            else:
-                raise SnowparkPandasException(
-                    f"Failed to create Snowpark pandas DataFrame out of table {table_name_or_query} with error {ex}",
-                    error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
-                ) from ex
+                # Creation of read only table fails for following cases which are not possible
+                # (or very difficult) to detect on client side in advance. We explicitly check
+                # for these errors and create a temporary table by copying the content of the
+                # original table and then create the read only table on the top of this
+                # temporary table.
+                # 1. Row access Policy:
+                #   If the table has row access policy associated, read only table creation will
+                #   fail. SNOW-850878 is created to support the query for row access policy on
+                #   server side.
+                # 2. Table can not be cloned:
+                #   Clone is not supported for tables that are imported from a share, views etc.
+                # 3. Table doesn't support read only table creation:
+                #   Includes iceberg table, hybrid table etc.
+                known_errors = (
+                    "Row access policy is not supported on read only table",  # case 1
+                    "Cannot clone",  # case 2
+                    "Unsupported feature",  # case 3
+                )
+                if any(error in ex.message for error in known_errors):
+                    readonly_table_name = _create_read_only_table(
+                        table_name=table_name_or_query,
+                        materialize_into_temp_table=True,
+                        materialization_reason=ex.message,
+                    )
+                else:
+                    raise SnowparkPandasException(
+                        f"Failed to create Snowpark pandas DataFrame out of table {table_name_or_query} with error {ex}",
+                        error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
+                    ) from ex
+
         initial_ordered_dataframe = OrderedDataFrame(
             DataFrameReference(session.table(readonly_table_name, _emit_ast=False))
-            if create_temp_table
+            if not relaxed_ordering
             else DataFrameReference(session.table(table_name_or_query, _emit_ast=False))
         )
         # generate a snowflake quoted identifier for row position column that can be used for aliasing
@@ -408,7 +409,7 @@ def create_ordered_dataframe_possibly_with_readonly_temp_table(
 
         # create snowpark dataframe with columns: row_position_snowflake_quoted_identifier + snowflake_quoted_identifiers
         # if no snowflake_quoted_identifiers is specified, all columns will be selected
-        if create_temp_table:
+        if not relaxed_ordering:
             row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
         else:
             row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
@@ -421,7 +422,7 @@ def create_ordered_dataframe_possibly_with_readonly_temp_table(
         # which creates a view without metadata column, we won't be able to access the metadata columns
         # with the created snowpark dataframe. In order to get the metadata column access in the created
         # dataframe, we create dataframe through sql which access the corresponding metadata column.
-        if create_temp_table:
+        if not relaxed_ordering:
             dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
         else:
             dataframe_sql = f"SELECT {columns_to_select} FROM ({table_name_or_query})"
@@ -438,7 +439,7 @@ def create_ordered_dataframe_possibly_with_readonly_temp_table(
             row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
         )
     else:
-        if not create_temp_table:
+        if relaxed_ordering:
             raise NotImplementedError(
                 "The 'pd.read_snowflake' method does not currently support 'relaxed_ordering=True'"
                 " when 'name_or_query' is a query"
