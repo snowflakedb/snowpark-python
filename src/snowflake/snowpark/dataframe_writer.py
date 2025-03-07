@@ -25,6 +25,10 @@ from snowflake.snowpark._internal.ast.utils import (
     DATAFRAME_AST_PARAMETER,
     build_table_name,
 )
+from snowflake.snowpark._internal.data_source_utils import (
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    STATEMENT_PARAMS_DATA_SOURCE,
+)
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
@@ -94,6 +98,24 @@ class DataFrameWriter:
         self._cur_options: Dict[str, Any] = {}
         self.__format: Optional[str] = None
         self._ast_stmt = _ast_stmt
+
+    @staticmethod
+    def _track_data_source_statement_params(
+        dataframe, statement_params: Optional[Dict] = None
+    ) -> Optional[Dict]:
+        """
+        Helper method to initialize and update data source tracking statement_params based on dataframe attributes.
+        """
+        statement_params = statement_params or {}
+        if (
+            dataframe._plan
+            and dataframe._plan.api_calls
+            and dataframe._plan.api_calls[0].get("name") == DATA_SOURCE_DBAPI_SIGNATURE
+        ):
+            # Track data source ingestion
+            statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
+
+        return statement_params if statement_params else None
 
     @publicapi
     def mode(self, save_mode: str, _emit_ast: bool = True) -> "DataFrameWriter":
@@ -319,7 +341,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_table)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             # Function signature:
@@ -444,6 +466,9 @@ class DataFrameWriter:
             else:
                 table_exists = None
 
+            statement_params = self._track_data_source_statement_params(
+                self._dataframe, statement_params or self._dataframe._statement_params
+            )
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
                 column_names,
@@ -464,7 +489,7 @@ class DataFrameWriter:
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(
                 snowflake_plan,
-                _statement_params=statement_params or self._dataframe._statement_params,
+                _statement_params=statement_params,
                 block=block,
                 data_type=_AsyncResultType.NO_RESULT,
                 **kwargs,
@@ -569,7 +594,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_copy_into_location)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_write_file(
@@ -624,6 +649,10 @@ class DataFrameWriter:
 
             cur_format_type_options.update(format_type_aliased_options)
 
+        statement_params = self._track_data_source_statement_params(
+            self._dataframe, statement_params or self._dataframe._statement_params
+        )
+
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
@@ -638,7 +667,7 @@ class DataFrameWriter:
         )
         add_api_call(df, "DataFrameWriter.copy_into_location")
         return df._internal_collect_with_tag(
-            statement_params=statement_params or self._dataframe._statement_params,
+            statement_params=statement_params,
             block=block,
             **kwargs,
         )
@@ -761,7 +790,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteCsv() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_csv)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_write_file(
@@ -833,7 +862,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteJson() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_json)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_write_file(
@@ -905,7 +934,7 @@ class DataFrameWriter:
             # Add an Assign node that applies WriteParquet() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_parquet)
-            debug_check_missing_ast(self._ast_stmt, self)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             fill_write_file(

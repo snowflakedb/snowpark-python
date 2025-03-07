@@ -66,6 +66,8 @@ def pytest_addoption(parser, pluginmanager):
     ):
         parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_ast", action="store_true", default=False)
+    parser.addoption("--dataframe_processor_pkg_version", action="store", default=None)
+    parser.addoption("--dataframe_processor_location", action="store", default=None)
     parser.addoption("--validate_ast", action="store_true", default=False)
     parser.addoption(
         "--unparser_jar",
@@ -74,6 +76,7 @@ def pytest_addoption(parser, pluginmanager):
         type=str,
         help="Path to the Unparser JAR built in the monorepo.",
     )
+    parser.addoption("--join_alias_fix", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -134,6 +137,16 @@ def ast_enabled(pytestconfig):
 
 
 @pytest.fixture(scope="session")
+def dataframe_processor_pkg_version(pytestconfig):
+    return pytestconfig.getoption("dataframe_processor_pkg_version")
+
+
+@pytest.fixture(scope="session")
+def dataframe_processor_location(pytestconfig):
+    return pytestconfig.getoption("dataframe_processor_location")
+
+
+@pytest.fixture(scope="session")
 def validate_ast(pytestconfig):
     return pytestconfig.getoption("validate_ast")
 
@@ -141,6 +154,11 @@ def validate_ast(pytestconfig):
 @pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):
     return not pytestconfig.getoption("disable_cte_optimization")
+
+
+@pytest.fixture(scope="session")
+def join_alias_fix(pytestconfig):
+    return pytestconfig.getoption("join_alias_fix")
 
 
 @pytest.fixture(scope="module", autouse=True)

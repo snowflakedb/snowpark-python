@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import copy
 import math
 import sys
 from logging import getLogger
@@ -214,7 +213,7 @@ class DataFrameNaFunctions:
         # if thresh is less than 1, or no column is specified
         # to be dropped, return the dataframe directly
         if thresh < 1 or len(subset) == 0:
-            new_df = copy.copy(self._dataframe)
+            new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.drop")
             if _emit_ast:
                 new_df._ast_id = stmt.var_id.bitfield1
@@ -405,7 +404,7 @@ class DataFrameNaFunctions:
         else:
             value_dict = {col_name: value for col_name in subset}
         if not value_dict:
-            new_df = copy.copy(self._dataframe)
+            new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.fill")
             if _emit_ast:
                 new_df._ast_id = stmt.var_id.bitfield1
@@ -612,7 +611,7 @@ class DataFrameNaFunctions:
             subset = [subset]
 
         if len(subset) == 0:
-            new_df = copy.copy(self._dataframe)
+            new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             if _emit_ast:
                 new_df._ast_id = stmt.var_id.bitfield1
@@ -634,7 +633,7 @@ class DataFrameNaFunctions:
         else:
             replacement = {to_replace: value}
         if not replacement:
-            new_df = copy.copy(self._dataframe)
+            new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             if _emit_ast:
                 new_df._ast_id = stmt.var_id.bitfield1
