@@ -322,10 +322,10 @@ def create_udtf_for_apply_axis_1(
 
 
 def convert_groupby_apply_dataframe_result_to_standard_schema(
-    func_input_df: native_pd.DataFrame,
     func_output_df: native_pd.DataFrame,
     input_row_positions: native_pd.Series,
     include_index_columns: bool,
+    is_transform: bool,
 ) -> native_pd.DataFrame:  # pragma: no cover: this function runs inside a UDTF, so coverage tools can't detect that we are testing it.
     """
     Take the result of applying the user-provided function to a dataframe, and convert it to a dataframe with known schema that we can output from a vUDTF.
@@ -338,6 +338,7 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
                              func_input_df came from.
         include_index_columns: Whether to include the result's index columns in
                                the output.
+        is_transform: Whether the function is a transform or not.
 
     Returns:
         A 5-column dataframe that represents the function result per the
@@ -346,7 +347,6 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
     """
     result_rows = []
     result_index_names = func_output_df.index.names
-    is_transform = func_output_df.index.equals(func_input_df.index)
     for row_number, (index_label, row) in enumerate(func_output_df.iterrows()):
         output_row_number = input_row_positions.iloc[row_number] if is_transform else -1
         if include_index_columns:
@@ -460,9 +460,7 @@ def apply_groupby_func_to_df(
     args: tuple,
     kwargs: dict,
     force_list_like_to_series: bool = False,
-) -> Tuple[
-    native_pd.Series, native_pd.DataFrame, native_pd.DataFrame, bool
-]:  # pragma: no cover
+) -> Tuple[native_pd.Series, native_pd.DataFrame, bool, bool]:  # pragma: no cover
     """
     Restore input dataframe received in udtf to original schema.
     Args:
@@ -479,9 +477,9 @@ def apply_groupby_func_to_df(
     Returns:
         A Tuple of
          1. rows positions
-         2. restored input dataframe.
-         3. Result of applying the function to input dataframe.
-         4. Whether final result should include index columns.
+         2. Result of applying the function to input dataframe.
+         3. Whether final result should include index columns.
+         4. Whether the index of the result is the same as the index of the input.
     """
     # The first column is row position. Save it for later.
     col_offset = 0
@@ -568,9 +566,11 @@ def apply_groupby_func_to_df(
         # columns of `func_result_as_frame`. For SeriesGroupBy, we
         # do include the result's index in the result.
         include_index_columns = series_groupby
+        is_transform = input_object.index.equals(func_result_as_frame.index)
     elif isinstance(func_result, native_pd.DataFrame):
         include_index_columns = True
         func_result_as_frame = func_result
+        is_transform = input_object.index.equals(func_result_as_frame.index)
     else:
         # At this point, we know the function result was not a DataFrame
         # or Series
@@ -578,7 +578,8 @@ def apply_groupby_func_to_df(
         func_result_as_frame = native_pd.DataFrame(
             {MODIN_UNNAMED_SERIES_LABEL: [func_result]}
         )
-    return row_positions, input_object, func_result_as_frame, include_index_columns
+        is_transform = False
+    return row_positions, func_result_as_frame, include_index_columns, is_transform
 
 
 def create_udtf_for_groupby_transform(
@@ -657,7 +658,7 @@ def create_udtf_for_groupby_transform(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            row_positions, _, func_result, _ = apply_groupby_func_to_df(
+            row_positions, func_result, _, _ = apply_groupby_func_to_df(
                 df,
                 num_by,
                 index_column_names,
@@ -879,9 +880,9 @@ def create_udtf_for_groupby_apply(
             """
             (
                 row_positions,
-                input_object,
                 func_result,
                 include_index_columns,
+                is_transform_func,
             ) = apply_groupby_func_to_df(
                 df,
                 num_by,
@@ -894,7 +895,7 @@ def create_udtf_for_groupby_apply(
                 force_list_like_to_series,
             )
             return convert_groupby_apply_dataframe_result_to_standard_schema(
-                input_object, func_result, row_positions, include_index_columns
+                func_result, row_positions, include_index_columns, is_transform_func
             )
 
     input_types = [
