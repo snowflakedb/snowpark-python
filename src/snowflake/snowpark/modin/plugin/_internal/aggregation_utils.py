@@ -851,6 +851,7 @@ def _is_supported_snowflake_agg_func(
                     The value can be different for different aggregation functions.
     Returns:
         is_valid: bool. Whether it is valid to implement with snowflake or not.
+        unsupported_arguments: list. The list of unsupported functions used for aggregation.
     """
     if isinstance(agg_func, tuple) and len(agg_func) == 2:
         # For named aggregations, like `df.agg(new_col=("old_col", "sum"))`,
@@ -872,8 +873,11 @@ def _are_all_agg_funcs_supported_by_snowflake(
     aggregation functions.
 
     Returns:
-        True if all functions in the list are snowflake supported aggregation functions, otherwise,
-        return False.
+        bool
+            True if all functions in the list are snowflake supported aggregation functions, otherwise,
+        return False
+        list
+            The list of unsupported functions used for aggregation.
     """
     is_supported_bools: list[bool] = []
     unsupported_list: list[str] = []
@@ -904,6 +908,8 @@ def check_is_aggregation_supported_in_snowflake(
     Returns:
         bool
             Whether the aggregation operation can be executed with snowflake sql engine.
+        list
+            The list of unsupported functions used for aggregation.
     """
     # validate agg_func, only snowflake builtin agg function or dict of snowflake builtin agg
     # function can be implemented in distributed way.
