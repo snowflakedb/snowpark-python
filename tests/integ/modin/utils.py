@@ -472,6 +472,8 @@ def eval_snowpark_pandas_result(
             assert (
                 snow_result.attrs == pd_result.attrs
             ), f"Snowpark pandas attrs {snow_result.attrs} doesn't match pandas attrs {pd_result.attrs}"
+        # print(f"pd_result:\n{pd_result}")
+        # print(f"snow_result:\n{snow_result}")
         comparator(snow_result, pd_result, **(kwargs or {}))
 
 
