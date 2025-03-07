@@ -13,9 +13,9 @@ df2 = session.create_dataframe(pd.DataFrame([(99, 98)], columns=["a", "b"]), sch
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType(fields=[StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True), StructField("\"c\"", LongType(), nullable=True), StructField("\"d\"", LongType(), nullable=True)], structured=False))
+df = session.create_dataframe(pandas.DataFrame(<not shown>), schema=StructType(fields=[StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True), StructField("\"c\"", LongType(), nullable=True), StructField("\"d\"", LongType(), nullable=True)], structured=False))
 
-df2 = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType(fields=[StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True)], structured=False))
+df2 = session.create_dataframe(pandas.DataFrame(<not shown>), schema=StructType(fields=[StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True)], structured=False))
 
 ## EXPECTED ENCODED AST
 

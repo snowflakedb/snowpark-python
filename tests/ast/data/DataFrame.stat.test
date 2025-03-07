@@ -32,7 +32,7 @@ sample_df = df.stat.sample_by("name", fractions)
 
 df = session.table("table1")
 
-df2 = df.stat.approx_quantile(["NUM"], [0.5])
+df2 = df.stat.approx_quantile("NUM", [0.5])
 
 df2
 
@@ -116,16 +116,19 @@ body {
     expr {
       dataframe_stat_approx_quantile {
         cols {
-          string_val {
-            src {
-              end_column: 51
-              end_line: 27
-              file: 2
-              start_column: 14
-              start_line: 27
+          args {
+            string_val {
+              src {
+                end_column: 51
+                end_line: 27
+                file: 2
+                start_column: 14
+                start_line: 27
+              }
+              v: "NUM"
             }
-            v: "NUM"
           }
+          variadic: true
         }
         id {
           bitfield1: 1
@@ -162,27 +165,29 @@ body {
     expr {
       dataframe_stat_approx_quantile {
         cols {
-          string_val {
-            src {
-              end_column: 96
-              end_line: 29
-              file: 2
-              start_column: 14
-              start_line: 29
+          args {
+            string_val {
+              src {
+                end_column: 96
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
+              v: "NUM"
             }
-            v: "NUM"
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 96
-              end_line: 29
-              file: 2
-              start_column: 14
-              start_line: 29
+          args {
+            string_val {
+              src {
+                end_column: 96
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
+              v: "NUM"
             }
-            v: "NUM"
           }
         }
         id {

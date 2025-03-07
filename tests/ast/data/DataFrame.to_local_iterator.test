@@ -23,15 +23,11 @@ df.to_local_iterator()
 
 df.to_local_iterator(block=False)
 
-rows = df.select("*")
-
-rows.to_local_iterator()
+df.select("*").to_local_iterator()
 
 df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
-rows = df.filter(df["num"] > 1)
-
-rows.to_local_iterator(block=False)
+df.filter(df["num"] > 1).to_local_iterator(block=False)
 
 df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)
 
@@ -181,7 +177,6 @@ body {
       }
     }
     symbol {
-      value: "rows"
     }
     uid: 6
     var_id {
@@ -324,7 +319,6 @@ body {
       }
     }
     symbol {
-      value: "rows"
     }
     uid: 11
     var_id {
