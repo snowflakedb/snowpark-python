@@ -80,6 +80,7 @@ def read_snowflake(
 
           Ordering guarantees will also be relaxed in the sense that each time an operation is run on the returned DataFrame object, the underlying ordering of rows maybe
           different. For example, calling `df.head(5)` two consecutive times can result in a different set of 5 rows each time and with different ordering.
+          Some order-sensitive operations (such as `df.items`, `df.iterrows`, or `df.itertuples`) may not behave as expected.
 
           With this mode, it is still possible to switch to strict ordering guarantees by explicitly calling `df.sort_values()` and providing a custom sort key. This will
           ensure that future oprerations will consistently experience the same sort order, but the consistency guarantees will remain relaxed.
