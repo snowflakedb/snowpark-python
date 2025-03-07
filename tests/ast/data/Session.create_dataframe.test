@@ -24,6 +24,12 @@ df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
 
+df10 = session.create_dataframe(2**100)
+
+df11 = session.create_dataframe([2**100, 2**100])
+
+df12 = session.create_dataframe([[2**100, 2**100], [2**100, 2**100]])
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
