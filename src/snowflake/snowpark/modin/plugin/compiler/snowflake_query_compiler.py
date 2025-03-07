@@ -3732,10 +3732,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 level=level,
                 dropna=agg_kwargs.get("dropna", True),
             )
-
-        if not check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis):
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas GroupBy.aggregate does not yet support the aggregation {repr_aggregate_function(agg_func, agg_kwargs)} with the given arguments."
+        (
+            is_supported,
+            unsupported_arguments,
+        ) = check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)
+        if not is_supported:
+            raise AttributeError(
+                f"'SeriesGroupBy' object has no attribute '{unsupported_arguments}'"
             )
 
         sort = groupby_kwargs.get("sort", True)
@@ -6103,11 +6106,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # by snowflake engine.
         # If we are using Named Aggregations, we need to do our supported check slightly differently.
         uses_named_aggs = using_named_aggregations_for_func(func)
-        if not check_is_aggregation_supported_in_snowflake(
+        (
+            is_supported,
+            unsupported_arguments,
+        ) = check_is_aggregation_supported_in_snowflake(
             func, kwargs, axis, _is_df_agg=True
-        ):
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas aggregate does not yet support the aggregation {repr_aggregate_function(func, kwargs)} with the given arguments."
+        )
+        if not is_supported:
+            raise AttributeError(
+                f"'SeriesGroupBy' object has no attribute '{unsupported_arguments}'"
             )
 
         query_compiler = self

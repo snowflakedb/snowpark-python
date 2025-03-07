@@ -54,12 +54,13 @@
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
 - Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
 - Fixed a bug where `df.order_by(A).select(B).distinct()` would generate invalid SQL when simplified query generation was enabled using `session.conf.set("use_simplified_query_generation", True)`.
-  - Disabled simplified query generation by default.
+- Disabled simplified query generation by default.
 
 #### Improvements
 
 - Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
 - Bumped cloudpickle dependency to also support `cloudpickle==3.0.0` in addition to previous versions.
+- Improved error message for `groupby.agg` when the function name is not supported.
 
 ### Snowpark Local Testing Updates
 
