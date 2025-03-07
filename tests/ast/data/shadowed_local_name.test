@@ -18,7 +18,7 @@ df_res1 = df.drop(col("NUM"))
 
 df = df_res1.distinct()
 
-df4 = df_res1.flatten("STR", Some("path"), True, False, "BOTH")
+df4 = df_res1.flatten("STR", "path", True, False, "BOTH")
 
 ## EXPECTED ENCODED AST
 

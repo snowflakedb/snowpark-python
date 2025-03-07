@@ -97,10 +97,12 @@ class DataFrameStatFunctions:
             expr.id.bitfield1 = self._dataframe._ast_id
 
             if isinstance(col, Iterable) and not isinstance(col, str):
+                expr.cols.variadic = False
                 for c in col:
-                    build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
             else:
-                build_expr_from_snowpark_column_or_col_name(expr.cols.add(), col)
+                expr.cols.variadic = True
+                build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), col)
 
             # Because we build AST at beginning, error out if not iterable.
             if not isinstance(percentile, Iterable):

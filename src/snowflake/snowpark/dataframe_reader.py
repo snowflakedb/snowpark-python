@@ -458,7 +458,7 @@ class DataFrameReader:
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
 
-        table = self._session.table(name)
+        table = self._session.table(name, _emit_ast=False)
 
         if _emit_ast:
             table._ast_id = stmt.var_id.bitfield1

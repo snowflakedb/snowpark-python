@@ -10,7 +10,7 @@ df2 = df.flatten(col("NUM"), recursive=True, mode="ARRAY")
 
 df = session.table("table1")
 
-df1 = df.flatten("STR", Some("path"), True, False, "BOTH")
+df1 = df.flatten("STR", "path", True, False, "BOTH")
 
 df2 = df.flatten(col("NUM"), None, False, True, "ARRAY")
 

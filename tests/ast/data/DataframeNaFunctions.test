@@ -44,7 +44,7 @@ drop2 = df.na.drop("all")
 
 drop3 = df.na.drop("any", 42)
 
-drop4 = df.na.drop("any", ["STR"])
+drop4 = df.na.drop("any", "STR")
 
 drop5 = df.na.drop("all", ["NUM", "STR"])
 
@@ -56,7 +56,7 @@ fill1 = df.na.fill(42)
 
 fill2 = df.na.fill({"NUM": 42, "STR": "abc"})
 
-fill3 = df.na.fill(42, ["NUM"])
+fill3 = df.na.fill(42, "NUM")
 
 fill4 = df.na.fill("def", ["STR"])
 
@@ -226,7 +226,19 @@ body {
           start_line: 33
         }
         subset {
-          list: "STR"
+          args {
+            string_val {
+              src {
+                end_column: 40
+                end_line: 33
+                file: 2
+                start_column: 16
+                start_line: 33
+              }
+              v: "STR"
+            }
+          }
+          variadic: true
         }
       }
     }
@@ -259,8 +271,30 @@ body {
           start_line: 35
         }
         subset {
-          list: "NUM"
-          list: "STR"
+          args {
+            string_val {
+              src {
+                end_column: 60
+                end_line: 35
+                file: 2
+                start_column: 16
+                start_line: 35
+              }
+              v: "NUM"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 60
+                end_line: 35
+                file: 2
+                start_column: 16
+                start_line: 35
+              }
+              v: "STR"
+            }
+          }
         }
       }
     }
@@ -293,7 +327,18 @@ body {
           start_line: 37
         }
         subset {
-          list: "NUM"
+          args {
+            string_val {
+              src {
+                end_column: 64
+                end_line: 37
+                file: 2
+                start_column: 16
+                start_line: 37
+              }
+              v: "NUM"
+            }
+          }
         }
         thresh {
           value: 42
@@ -460,7 +505,19 @@ body {
           start_line: 45
         }
         subset {
-          list: "NUM"
+          args {
+            string_val {
+              src {
+                end_column: 44
+                end_line: 45
+                file: 2
+                start_column: 16
+                start_line: 45
+              }
+              v: "NUM"
+            }
+          }
+          variadic: true
         }
         value {
           int64_val {
@@ -504,7 +561,18 @@ body {
           start_line: 47
         }
         subset {
-          list: "STR"
+          args {
+            string_val {
+              src {
+                end_column: 49
+                end_line: 47
+                file: 2
+                start_column: 16
+                start_line: 47
+              }
+              v: "STR"
+            }
+          }
         }
         value {
           string_val {
@@ -760,7 +828,18 @@ body {
           start_line: 55
         }
         subset {
-          list: "NUM"
+          args {
+            string_val {
+              src {
+                end_column: 55
+                end_line: 55
+                file: 2
+                start_column: 19
+                start_line: 55
+              }
+              v: "NUM"
+            }
+          }
         }
         to_replace_value {
           int64_val {
