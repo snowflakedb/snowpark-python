@@ -5,6 +5,7 @@
 
 import copy
 import itertools
+import random
 import re
 import sys
 from collections import Counter
@@ -5900,9 +5901,14 @@ class DataFrame:
                     raise ValueError("weights must be positive numbers")
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
+            if seed:
+                local_random = random.Random(seed)
+                python_seed = local_random.random()
+            else:
+                python_seed = random.random()
             cached_df = self.with_column(
                 temp_column_name,
-                abs_(hash_("*")) % _ONE_MILLION,
+                abs_(hash_("*", lit(python_seed))) % _ONE_MILLION,
                 _emit_ast=False,
             )
             sum_weights = sum(weights)
