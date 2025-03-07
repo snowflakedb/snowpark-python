@@ -3733,9 +3733,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 dropna=agg_kwargs.get("dropna", True),
             )
 
-        if not check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis):
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas GroupBy.aggregate does not yet support the aggregation {repr_aggregate_function(agg_func, agg_kwargs)} with the given arguments."
+        if not check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)[
+            0
+        ]:
+            raise AttributeError(
+                f"'SeriesGroupBy' object has no attribute '{check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)[1]}'"
             )
 
         sort = groupby_kwargs.get("sort", True)
@@ -6105,9 +6107,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         uses_named_aggs = using_named_aggregations_for_func(func)
         if not check_is_aggregation_supported_in_snowflake(
             func, kwargs, axis, _is_df_agg=True
-        ):
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas aggregate does not yet support the aggregation {repr_aggregate_function(func, kwargs)} with the given arguments."
+        )[1]:
+            raise AttributeError(
+                f"'SeriesGroupBy' object has no attribute '{check_is_aggregation_supported_in_snowflake(func, kwargs, axis, _is_df_agg=True)[0]}'"
             )
 
         query_compiler = self
