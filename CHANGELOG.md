@@ -10,6 +10,10 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
+
 ## 1.29.0 (2025-03-05)
 
 ### Snowpark Python API Updates
