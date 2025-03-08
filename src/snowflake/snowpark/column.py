@@ -1343,7 +1343,11 @@ class Column:
                 ast.fn.column_alias_fn_name = True
 
         if variant == "_alias":
-            return Column(_InternalAlias(expr, quote_name(alias)))
+            return Column(
+                _InternalAlias(expr, quote_name(alias)),
+                _ast=ast_expr,
+                _emit_ast=_emit_ast,
+            )
         return Column(
             Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast
         )

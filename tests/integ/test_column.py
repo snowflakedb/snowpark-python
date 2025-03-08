@@ -155,6 +155,10 @@ def test_contains(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="window function is not supported in Local Testing",
+)
 def test_internal_alias(session):
     df = session.create_dataframe(
         [[datetime.datetime(1970, 1, 1, 0, 0, 0)]], schema=["ts"]
