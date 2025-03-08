@@ -66,10 +66,24 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
 )
 from tests.utils import Utils, IS_WINDOWS
 
-pytestmark = pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
+try:
+    import pandas  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
+
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="feature not available in local testing",
+    ),
+    pytest.mark.skipif(
+        not is_pandas_available,
+        reason="pandas is not available",
+    ),
+]
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
