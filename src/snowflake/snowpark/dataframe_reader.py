@@ -1513,6 +1513,11 @@ class DataFrameReader:
     ):
         def convert_to_parquet(fetched_data, fetch_idx):
             df = data_source_data_to_pandas_df(fetched_data, schema)
+            if df.empty:
+                logger.debug(
+                    f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."
+                )
+                return None
             path = os.path.join(
                 tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
             )
@@ -1531,7 +1536,9 @@ class DataFrameReader:
         if fetch_size == 0:
             cursor.execute(query)
             result = cursor.fetchall()
-            parquet_file_queue.put(convert_to_parquet(result, 0))
+            parquet_file_path = convert_to_parquet(result, 0)
+            if parquet_file_path:
+                parquet_file_queue.put(parquet_file_path)
         elif fetch_size > 0:
             cursor = cursor.execute(query)
             fetch_idx = 0
@@ -1539,7 +1546,9 @@ class DataFrameReader:
                 rows = cursor.fetchmany(fetch_size)
                 if not rows:
                     break
-                parquet_file_queue.put(convert_to_parquet(rows, fetch_idx))
+                parquet_file_path = convert_to_parquet(rows, fetch_idx)
+                if parquet_file_path:
+                    parquet_file_queue.put(parquet_file_path)
                 fetch_idx += 1
         else:
             raise ValueError("fetch size cannot be smaller than 0")

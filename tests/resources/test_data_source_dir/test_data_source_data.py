@@ -310,6 +310,32 @@ for row in oracledb_all_type_data:
     oracledb_all_type_data_result.append(tuple(new_row))
 sql_server_all_type_data = [
     (
+        0,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ),
+    (
         1,
         100,
         10,
@@ -612,6 +638,10 @@ def sql_server_create_connection_small_data():
     return FakeConnection(
         sql_server_all_type_small_data, sql_server_all_type_schema, "pyodbc"
     )
+
+
+def sql_server_create_connection_empty_data():
+    return FakeConnection([], sql_server_all_type_schema, "pyodbc")
 
 
 def sql_server_create_connection_with_exception():
