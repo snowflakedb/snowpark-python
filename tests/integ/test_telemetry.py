@@ -356,6 +356,17 @@ def test_drop_duplicates_api_calls(session):
         schema=["a", "b", "c", "d"],
     )
 
+    if session.conf.get("use_simplified_query_generation"):
+        distinct_api_calls = {"name": "DataFrame.distinct[select]"}
+    else:
+        distinct_api_calls = {
+            "name": "DataFrame.distinct[group_by]",
+            "subcalls": [
+                {"name": "DataFrame.group_by"},
+                {"name": "RelationalGroupedDataFrame.agg"},
+            ],
+        }
+
     dd_df = df.drop_duplicates()
     compare_api_calls(
         dd_df._plan.api_calls,
@@ -363,15 +374,7 @@ def test_drop_duplicates_api_calls(session):
             {"name": "Session.create_dataframe[values]"},
             {
                 "name": "DataFrame.drop_duplicates",
-                "subcalls": [
-                    {
-                        "name": "DataFrame.distinct",
-                        "subcalls": [
-                            {"name": "DataFrame.group_by"},
-                            {"name": "RelationalGroupedDataFrame.agg"},
-                        ],
-                    }
-                ],
+                "subcalls": [distinct_api_calls],
             },
         ],
     )
