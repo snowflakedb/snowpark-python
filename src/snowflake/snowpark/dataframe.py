@@ -121,6 +121,7 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     ResourceUsageCollector,
+    add_api_call,
     adjust_api_subcalls,
     df_api_usage,
     df_collect_api_telemetry,
@@ -2343,11 +2344,18 @@ class DataFrame:
                 ast = None
 
         if self._session.conf.get("use_simplified_query_generation"):
-            if self._select_statement:
-                df = self._with_plan(self._select_statement.distinct(), _ast_stmt=stmt)
-            else:
-                df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
-            add_api_call(df, "DataFrame.distinct[select]")
+            with ResourceUsageCollector() as resource_usage_collector:
+                if self._select_statement:
+                    df = self._with_plan(
+                        self._select_statement.distinct(), _ast_stmt=stmt
+                    )
+                else:
+                    df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
+            add_api_call(
+                df,
+                "DataFrame.distinct[select]",
+                resource_usage=resource_usage_collector.get_resource_usage(),
+            )
         else:
             df = self.group_by(
                 [

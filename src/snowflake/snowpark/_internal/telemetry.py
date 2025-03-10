@@ -152,44 +152,60 @@ class ResourceUsageCollector:
         pass
 
     def __enter__(self):
-        self._start_time = time.time()
-        self._start_cpu_time = time.process_time()
-        if PS_UTIL_AVAILABLE:
-            self._start_net_io_counters = psutil.net_io_counters()
-            self._start_rss = psutil.Process().memory_info().rss
+        try:
+            self._start_time = time.time()
+            self._start_cpu_time = time.process_time()
+            if PS_UTIL_AVAILABLE:
+                self._start_net_io_counters = psutil.net_io_counters()
+                self._start_rss = psutil.Process().memory_info().rss
+        except Exception:
+            pass
+
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._end_time = time.time()
-        self._end_cpu_time = time.process_time()
-        if PS_UTIL_AVAILABLE:
-            self._end_net_io_counters = psutil.net_io_counters()
-            self._end_rss = psutil.Process().memory_info().rss
+        try:
+            self._end_time = time.time()
+            self._end_cpu_time = time.process_time()
+            if PS_UTIL_AVAILABLE:
+                self._end_net_io_counters = psutil.net_io_counters()
+                self._end_rss = psutil.Process().memory_info().rss
+        except Exception:
+            pass
 
     def get_resource_usage(self) -> Dict[str, Any]:
-        wall_time = self._end_time - self._start_time
-        cpu_time = self._end_cpu_time - self._start_cpu_time
-        resource_usage = {
-            TelemetryField.KEY_WALL_TIME.value: wall_time,
-            TelemetryField.KEY_CPU_TIME.value: cpu_time,
-        }
-        if PS_UTIL_AVAILABLE:
-            network_sent = (
-                self._end_net_io_counters.bytes_sent
-                - self._start_net_io_counters.bytes_sent
-            ) / 1024
-            network_recv = (
-                self._end_net_io_counters.bytes_recv
-                - self._start_net_io_counters.bytes_recv
-            ) / 1024
-            memory_rss = (self._end_rss - self._start_rss) / 1024
-            resource_usage.update(
-                {
-                    TelemetryField.KEY_NETWORK_SENT.value: network_sent,
-                    TelemetryField.KEY_NETWORK_RECV.value: network_recv,
-                    TelemetryField.KEY_MEMORY_RSS.value: memory_rss,
-                }
-            )
+        """
+        Returns:
+            A dictionary containing the resource usage metrics.
+        """
+        try:
+            resource_usage = {}
+            wall_time = self._end_time - self._start_time
+            cpu_time = self._end_cpu_time - self._start_cpu_time
+            resource_usage = {
+                TelemetryField.KEY_WALL_TIME.value: wall_time,
+                TelemetryField.KEY_CPU_TIME.value: cpu_time,
+            }
+            if PS_UTIL_AVAILABLE:
+                network_sent = (
+                    self._end_net_io_counters.bytes_sent
+                    - self._start_net_io_counters.bytes_sent
+                ) / 1024
+                network_recv = (
+                    self._end_net_io_counters.bytes_recv
+                    - self._start_net_io_counters.bytes_recv
+                ) / 1024
+                memory_rss = (self._end_rss - self._start_rss) / 1024
+                resource_usage.update(
+                    {
+                        TelemetryField.KEY_NETWORK_SENT.value: network_sent,
+                        TelemetryField.KEY_NETWORK_RECV.value: network_recv,
+                        TelemetryField.KEY_MEMORY_RSS.value: memory_rss,
+                    }
+                )
+        except Exception:
+            pass
+
         return resource_usage
 
     @staticmethod
@@ -237,9 +253,10 @@ def adjust_api_subcalls(
     plan.api_calls[-1].update(resource_usage)
 
 
-def add_api_call(df, func_name: str) -> None:
+def add_api_call(df, func_name: str, resource_usage: Optional[Dict] = None) -> None:
     plan = df._select_statement or df._plan
-    plan.api_calls.append({TelemetryField.NAME.value: func_name})
+    resource_usage = resource_usage or {}
+    plan.api_calls.append({TelemetryField.NAME.value: func_name, **resource_usage})
 
 
 def set_api_call_source(df, func_name: str) -> None:
