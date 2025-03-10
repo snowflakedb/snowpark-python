@@ -356,6 +356,17 @@ def test_drop_duplicates_api_calls(session):
         schema=["a", "b", "c", "d"],
     )
 
+    if session.conf.get("use_simplified_query_generation"):
+        distinct_api_calls = {"name": "DataFrame.distinct[select]"}
+    else:
+        distinct_api_calls = {
+            "name": "DataFrame.distinct[group_by]",
+            "subcalls": [
+                {"name": "DataFrame.group_by"},
+                {"name": "RelationalGroupedDataFrame.agg"},
+            ],
+        }
+
     dd_df = df.drop_duplicates()
     compare_api_calls(
         dd_df._plan.api_calls,
@@ -363,15 +374,7 @@ def test_drop_duplicates_api_calls(session):
             {"name": "Session.create_dataframe[values]"},
             {
                 "name": "DataFrame.drop_duplicates",
-                "subcalls": [
-                    {
-                        "name": "DataFrame.distinct",
-                        "subcalls": [
-                            {"name": "DataFrame.group_by"},
-                            {"name": "RelationalGroupedDataFrame.agg"},
-                        ],
-                    }
-                ],
+                "subcalls": [distinct_api_calls],
             },
         ],
     )
@@ -537,86 +540,143 @@ def test_agg_api_calls(session):
     )
 
 
-def test_distinct_api_calls(session):
-    df = session.create_dataframe(
-        [
-            [1, 1],
-            [1, 1],
-            [2, 2],
-            [3, 3],
-            [4, 4],
-            [5, 5],
-            [None, 1],
-            [1, None],
-            [None, None],
-        ]
-    ).to_df("id", "v")
-    compare_api_calls(
-        df._plan.api_calls,
-        [
-            {"name": "Session.create_dataframe[values]"},
-            {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-        ],
-    )
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_distinct_api_calls(session, use_simplified_query_generation):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set(
+            "use_simplified_query_generation", use_simplified_query_generation
+        )
+        df = session.create_dataframe(
+            [
+                [1, 1],
+                [1, 1],
+                [2, 2],
+                [3, 3],
+                [4, 4],
+                [5, 5],
+                [None, 1],
+                [1, None],
+                [None, None],
+            ]
+        ).to_df("id", "v")
+        compare_api_calls(
+            df._plan.api_calls,
+            [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+            ],
+        )
 
-    res = df.distinct()
-    compare_api_calls(
-        res._plan.api_calls,
-        [
-            {"name": "Session.create_dataframe[values]"},
-            {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-            {
-                "name": "DataFrame.distinct",
+        res = df.distinct()
+        if use_simplified_query_generation:
+            distinct_api_call = {"name": "DataFrame.distinct[select]"}
+        else:
+            distinct_api_call = {
+                "name": "DataFrame.distinct[group_by]",
                 "subcalls": [
                     {"name": "DataFrame.group_by"},
                     {"name": "RelationalGroupedDataFrame.agg"},
                 ],
-            },
-        ],
-    )
-    # check to make sure that the original DF is unchanged
-    compare_api_calls(
-        df._plan.api_calls,
-        [
-            {"name": "Session.create_dataframe[values]"},
-            {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-        ],
-    )
+            }
+        compare_api_calls(
+            res._plan.api_calls,
+            [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+                distinct_api_call,
+            ],
+        )
+        # check to make sure that the original DF is unchanged
+        compare_api_calls(
+            df._plan.api_calls,
+            [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+            ],
+        )
 
-    res2 = df.select(col("id")).distinct()
-    res2_with_sort = res2.sort(["id"])
+        res2 = df.select(col("id")).distinct()
+        res2_with_sort = res2.sort(["id"])
+        compare_api_calls(
+            res2_with_sort._plan.api_calls,
+            [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+                {"name": "DataFrame.select"},
+                distinct_api_call,
+                {"name": "DataFrame.sort"},
+            ],
+        )
+        # check to make sure that the original DF is unchanged
+        compare_api_calls(
+            res2._plan.api_calls,
+            [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
+                {"name": "DataFrame.select"},
+                distinct_api_call,
+            ],
+        )
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
+
+
+@pytest.mark.parametrize("n", [None, 2, -1])
+def test_first_api_calls(session, n):
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    df = session.create_dataframe([[1, 2], [4, 5]]).to_df("a", "b")
+
+    first_partial = partial(df.sort("A").first, n)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, first_partial)
+    if n is not None and n < 0:
+        expected_first_api_call = {"name": "DataFrame.first"}
+    else:
+        expected_first_api_call = {
+            "name": "DataFrame.first",
+            "subcalls": [{"name": "DataFrame.limit"}],
+        }
+
     compare_api_calls(
-        res2_with_sort._plan.api_calls,
+        data["api_calls"],
         [
             {"name": "Session.create_dataframe[values]"},
             {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-            {"name": "DataFrame.select"},
-            {
-                "name": "DataFrame.distinct",
-                "subcalls": [
-                    {"name": "DataFrame.group_by"},
-                    {"name": "RelationalGroupedDataFrame.agg"},
-                ],
-            },
             {"name": "DataFrame.sort"},
+            expected_first_api_call,
+            {"name": "DataFrame._internal_collect_with_tag_no_telemetry"},
         ],
     )
-    # check to make sure that the original DF is unchanged
+    assert type_ == "snowpark_function_usage"
+
+
+def test_count_api_calls(session):
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    df = session.create_dataframe([[1, 2], [4, 5]], schema="a int, b int")
+    count_partial = partial(df.count)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, count_partial)
     compare_api_calls(
-        res2._plan.api_calls,
+        data["api_calls"],
         [
             {"name": "Session.create_dataframe[values]"},
-            {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-            {"name": "DataFrame.select"},
             {
-                "name": "DataFrame.distinct",
+                "name": "DataFrame.count",
                 "subcalls": [
-                    {"name": "DataFrame.group_by"},
-                    {"name": "RelationalGroupedDataFrame.agg"},
+                    {
+                        "name": "DataFrame.agg",
+                        "subcalls": [
+                            {"name": "DataFrame.group_by"},
+                            {"name": "RelationalGroupedDataFrame.agg"},
+                        ],
+                    }
                 ],
             },
+            {"name": "DataFrame._internal_collect_with_tag_no_telemetry"},
         ],
     )
+    assert type_ == "snowpark_function_usage"
 
 
 def test_with_column_variations_api_calls(session):
