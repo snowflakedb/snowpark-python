@@ -112,8 +112,10 @@ def compare_api_calls(actual_calls, expected_calls):
     ), f"{actual_calls} != {expected_calls}"
     for actual, expected in zip(actual_calls, expected_calls):
         assert actual["name"] == expected["name"]
-        if "subcalls" in actual:
+        if "subcalls" in actual and "subcalls" in expected:
             compare_api_calls(actual["subcalls"], expected["subcalls"])
+        elif "subcalls" in actual or "subcalls" in expected:
+            raise AssertionError(f"Subcalls mismatch: {actual} != {expected}")
 
 
 def test_basic_api_calls(session):
