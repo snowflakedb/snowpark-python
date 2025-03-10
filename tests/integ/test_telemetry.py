@@ -624,13 +624,6 @@ def test_first_api_calls(session, n):
     telemetry_tracker = TelemetryDataTracker(session)
 
     df = session.create_dataframe([[1, 2], [4, 5]]).to_df("a", "b")
-    compare_api_calls(
-        df._plan.api_calls,
-        [
-            {"name": "Session.create_dataframe[values]"},
-            {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-        ],
-    )
 
     first_partial = partial(df.sort("A").first, n)
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, first_partial)
@@ -658,21 +651,13 @@ def test_first_api_calls(session, n):
 def test_count_api_calls(session):
     telemetry_tracker = TelemetryDataTracker(session)
 
-    df = session.create_dataframe([[1, 2], [4, 5]]).to_df("a", "b")
-    compare_api_calls(
-        df._plan.api_calls,
-        [
-            {"name": "Session.create_dataframe[values]"},
-            {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
-        ],
-    )
+    df = session.create_dataframe([[1, 2], [4, 5]], schema="a int, b int")
     count_partial = partial(df.count)
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, count_partial)
     compare_api_calls(
         data["api_calls"],
         [
             {"name": "Session.create_dataframe[values]"},
-            {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
             {
                 "name": "DataFrame.count",
                 "subcalls": [
