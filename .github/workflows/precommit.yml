@@ -517,7 +517,7 @@ jobs:
             .tox/coverage.xml
 
   test-enable-join-fix-snowpark-pandas:
-    name: Test modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: Test with join fix modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
