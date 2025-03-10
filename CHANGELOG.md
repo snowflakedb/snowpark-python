@@ -4,6 +4,12 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug for the following functions that raised errors `.cast()` is applied to their output
+  - `from_json`
+  - `size`
+
 ### Snowpark Local Testing Updates
 
 #### New Features
@@ -74,7 +80,7 @@
 - Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 - Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
 - Improve error message for all pandas functions that use UDFs with Snowpark objects.
-- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it. 
+- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
 
 #### Bug Fixes
 

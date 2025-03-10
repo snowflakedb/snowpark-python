@@ -3837,7 +3837,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         ),
         separator=lit(sep, _emit_ast=False),
         _emit_ast=False,
-    ).alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False)
+    )._alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})")
 
 
 @publicapi
@@ -5969,7 +5969,7 @@ def window(
         window_start,
         lit("end", _emit_ast=False),
         dateadd(window_unit, window_duration, window_start, _emit_ast=False),
-    ).alias("window", _emit_ast=False)
+    )._alias("window")
 
 
 @publicapi
@@ -6744,7 +6744,7 @@ def from_json(
     return (
         parse_json(e, _emit_ast=False)
         .cast(schema, _emit_ast=False)
-        .alias(f"from_json({c.get_name()})", _emit_ast=False)
+        ._alias(f"from_json({c.get_name()})")
     )
 
 
@@ -7443,7 +7443,7 @@ def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
             _emit_ast=False,
         )
         .otherwise(lit(None), _emit_ast=False)
-        .alias(f"SIZE({c.get_name()})", _emit_ast=False)
+        ._alias(f"SIZE({c.get_name()})")
     )
     result._ast = ast
     return result
