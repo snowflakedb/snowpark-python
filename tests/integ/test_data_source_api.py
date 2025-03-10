@@ -6,28 +6,37 @@ import math
 import os
 import queue
 import tempfile
-import time
 import datetime
 from unittest import mock
 from unittest.mock import patch, MagicMock
 
 import pytest
 
+from snowflake.snowpark._internal.data_source.datasource_partitioner import (
+    DataSourcePartitioner,
+)
+from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
+from snowflake.snowpark._internal.data_source.dbms_dialects.sqlserver_dialect import (
+    SqlServerDialect,
+)
+from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
+    OracledbDriver,
+)
+from snowflake.snowpark._internal.data_source.drivers.pyodbc_driver import PyodbcDriver
+from snowflake.snowpark._internal.data_source.utils import (
+    _task_fetch_data_from_source_with_retry,
+    _upload_and_copy_into_table_with_retry,
+    _task_fetch_data_from_source,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    DATA_SOURCE_SQL_COMMENT,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    detect_dbms,
+    DBMS_TYPE,
+)
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
-from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME, DataFrameReader
-from snowflake.snowpark._internal.data_source_utils import (
-    DATA_SOURCE_DBAPI_SIGNATURE,
-    DATA_SOURCE_SQL_COMMENT,
-    STATEMENT_PARAMS_DATA_SOURCE,
-    DBMS_TYPE,
-    generate_sql_with_predicates,
-    infer_data_source_schema,
-    detect_dbms,
-    sql_server_to_snowpark_type,
-    oracledb_to_snowpark_type,
-)
+from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StructType,
@@ -73,16 +82,6 @@ pytestmark = pytest.mark.skipif(
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
-
-
-def upload_and_copy_into_table_with_retry(
-    self,
-    local_file,
-    snowflake_stage_name,
-    snowflake_table_name,
-    on_error,
-):
-    time.sleep(2)
 
 
 def test_dbapi_with_temp_table(session):
@@ -132,33 +131,33 @@ def test_dbapi_batch_fetch(
 
 def test_dbapi_retry(session):
     with mock.patch(
-        "snowflake.snowpark.dataframe_reader.DataFrameReader._task_fetch_from_data_source",
+        "snowflake.snowpark._internal.data_source.utils._task_fetch_data_from_source",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
         mock_task.__name__ = "_task_fetch_from_data_source"
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
-            DataFrameReader._task_fetch_from_data_source_with_retry(
+            _task_fetch_data_from_source_with_retry(
+                worker=DataSourceReader(PyodbcDriver, sql_server_create_connection),
                 parquet_file_queue=queue.Queue(),
-                create_connection=sql_server_create_connection,
-                query="SELECT * FROM test_table",
+                partition="SELECT * FROM test_table",
                 schema=StructType([StructField("col1", IntegerType(), False)]),
                 partition_idx=0,
                 tmp_dir="/tmp",
-                dbms_type=DBMS_TYPE.SQL_SERVER_DB,
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
 
     with mock.patch(
-        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
+        "snowflake.snowpark._internal.data_source.utils._upload_and_copy_into_table",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
         mock_task.__name__ = "_upload_and_copy_into_table"
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
-            session.read._upload_and_copy_into_table_with_retry(
+            _upload_and_copy_into_table_with_retry(
+                session=session,
                 local_file="fake_file",
                 snowflake_stage_name="fake_stage",
                 snowflake_table_name="fake_table",
@@ -179,8 +178,8 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
         table_name, _, _, assert_data = sqlite3_db(dbpath)
 
         with mock.patch(
-            "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
-            side_effect=session.read._upload_and_copy_into_table_with_retry,
+            "snowflake.snowpark.dataframe_reader._upload_and_copy_into_table_with_retry",
+            wraps=_upload_and_copy_into_table_with_retry,
         ) as mock_upload_and_copy:
             df = session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
@@ -196,143 +195,120 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
             assert df.order_by("ID").collect() == assert_data
 
 
-def test_partition_logic(session):
-    expected_queries1 = [
-        "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
-        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '10'",
-        "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '12'",
-        "SELECT * FROM fake_table WHERE ID >= '12'",
-    ]
-
-    queries = session.read._generate_partition(
-        select_query="SELECT * FROM fake_table",
-        column_type=IntegerType(),
-        column="ID",
-        lower_bound=5,
-        upper_bound=15,
-        num_partitions=4,
+@pytest.mark.parametrize(
+    "schema, column, lower_bound, upper_bound, num_partitions, expected_queries",
+    [
+        (
+            StructType([StructField("ID", IntegerType())]),
+            "ID",
+            5,
+            15,
+            4,
+            [
+                "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
+                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '10'",
+                "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '12'",
+                "SELECT * FROM fake_table WHERE ID >= '12'",
+            ],
+        ),
+        (
+            StructType([StructField("ID", IntegerType())]),
+            "ID",
+            -5,
+            5,
+            4,
+            [
+                "SELECT * FROM fake_table WHERE ID < '-2' OR ID is null",
+                "SELECT * FROM fake_table WHERE ID >= '-2' AND ID < '0'",
+                "SELECT * FROM fake_table WHERE ID >= '0' AND ID < '2'",
+                "SELECT * FROM fake_table WHERE ID >= '2'",
+            ],
+        ),
+        (
+            StructType([StructField("ID", IntegerType())]),
+            "ID",
+            5,
+            15,
+            10,
+            [
+                "SELECT * FROM fake_table WHERE ID < '6' OR ID is null",
+                "SELECT * FROM fake_table WHERE ID >= '6' AND ID < '7'",
+                "SELECT * FROM fake_table WHERE ID >= '7' AND ID < '8'",
+                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '9'",
+                "SELECT * FROM fake_table WHERE ID >= '9' AND ID < '10'",
+                "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '11'",
+                "SELECT * FROM fake_table WHERE ID >= '11' AND ID < '12'",
+                "SELECT * FROM fake_table WHERE ID >= '12' AND ID < '13'",
+                "SELECT * FROM fake_table WHERE ID >= '13' AND ID < '14'",
+                "SELECT * FROM fake_table WHERE ID >= '14'",
+            ],
+        ),
+        (
+            StructType([StructField("ID", IntegerType())]),
+            "ID",
+            5,
+            15,
+            3,
+            [
+                "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
+                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '11'",
+                "SELECT * FROM fake_table WHERE ID >= '11'",
+            ],
+        ),
+        (
+            StructType([StructField("DATE", DateType())]),
+            "DATE",
+            str(datetime.date(2020, 6, 15)),
+            str(datetime.date(2020, 12, 15)),
+            4,
+            [
+                "SELECT * FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
+            ],
+        ),
+        (
+            StructType([StructField("DATE", DateType())]),
+            "DATE",
+            str(datetime.datetime(2020, 6, 15, 12, 25, 30)),
+            str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
+            4,
+            [
+                "SELECT * FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
+            ],
+        ),
+    ],
+)
+def test_partition_logic(
+    session, schema, column, lower_bound, upper_bound, num_partitions, expected_queries
+):
+    partitioner = DataSourcePartitioner(
+        SqlServerDialect, PyodbcDriver, sql_server_create_connection
     )
-    for r, expected_r in zip(queries, expected_queries1):
-        assert r == expected_r
-
-    expected_queries2 = [
-        "SELECT * FROM fake_table WHERE ID < '-2' OR ID is null",
-        "SELECT * FROM fake_table WHERE ID >= '-2' AND ID < '0'",
-        "SELECT * FROM fake_table WHERE ID >= '0' AND ID < '2'",
-        "SELECT * FROM fake_table WHERE ID >= '2'",
-    ]
-
-    queries = session.read._generate_partition(
-        select_query="SELECT * FROM fake_table",
-        column_type=IntegerType(),
-        column="ID",
-        lower_bound=-5,
-        upper_bound=5,
-        num_partitions=4,
+    queries = partitioner.partitions(
+        "fake_table",
+        schema,
+        column=column,
+        lower_bound=lower_bound,
+        upper_bound=upper_bound,
+        num_partitions=num_partitions,
     )
-    for r, expected_r in zip(queries, expected_queries2):
-        assert r == expected_r
-
-    expected_queries3 = [
-        "SELECT * FROM fake_table",
-    ]
-
-    queries = session.read._generate_partition(
-        select_query="SELECT * FROM fake_table",
-        column_type=IntegerType(),
-        column="ID",
-        lower_bound=5,
-        upper_bound=15,
-        num_partitions=1,
-    )
-    for r, expected_r in zip(queries, expected_queries3):
-        assert r == expected_r
-
-    expected_queries4 = [
-        "SELECT * FROM fake_table WHERE ID < '6' OR ID is null",
-        "SELECT * FROM fake_table WHERE ID >= '6' AND ID < '7'",
-        "SELECT * FROM fake_table WHERE ID >= '7' AND ID < '8'",
-        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '9'",
-        "SELECT * FROM fake_table WHERE ID >= '9' AND ID < '10'",
-        "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '11'",
-        "SELECT * FROM fake_table WHERE ID >= '11' AND ID < '12'",
-        "SELECT * FROM fake_table WHERE ID >= '12' AND ID < '13'",
-        "SELECT * FROM fake_table WHERE ID >= '13' AND ID < '14'",
-        "SELECT * FROM fake_table WHERE ID >= '14'",
-    ]
-
-    queries = session.read._generate_partition(
-        select_query="SELECT * FROM fake_table",
-        column_type=IntegerType(),
-        column="ID",
-        lower_bound=5,
-        upper_bound=15,
-        num_partitions=10,
-    )
-    for r, expected_r in zip(queries, expected_queries4):
-        assert r == expected_r
-
-    expected_queries5 = [
-        "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
-        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '11'",
-        "SELECT * FROM fake_table WHERE ID >= '11'",
-    ]
-
-    queries = session.read._generate_partition(
-        select_query="SELECT * FROM fake_table",
-        column_type=IntegerType(),
-        column="ID",
-        lower_bound=5,
-        upper_bound=15,
-        num_partitions=3,
-    )
-    for r, expected_r in zip(queries, expected_queries5):
-        assert r == expected_r
-
-
-def test_partition_date_timestamp(session):
-    expected_queries1 = [
-        "SELECT * FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
-        "SELECT * FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
-        "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
-        "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
-    ]
-    queries = session.read._generate_partition(
-        select_query="SELECT * FROM fake_table",
-        column_type=DateType(),
-        column="DATE",
-        lower_bound=str(datetime.date(2020, 6, 15)),
-        upper_bound=str(datetime.date(2020, 12, 15)),
-        num_partitions=4,
-    )
-
-    for r, expected_r in zip(queries, expected_queries1):
-        assert r == expected_r
-
-    expected_queries2 = [
-        "SELECT * FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
-        "SELECT * FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
-        "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
-        "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
-    ]
-    queries = session.read._generate_partition(
-        select_query="SELECT * FROM fake_table",
-        column_type=DateType(),
-        column="DATE",
-        lower_bound=str(datetime.datetime(2020, 6, 15, 12, 25, 30)),
-        upper_bound=str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
-        num_partitions=4,
-    )
-
-    for r, expected_r in zip(queries, expected_queries2):
+    for r, expected_r in zip(queries, expected_queries):
         assert r == expected_r
 
 
 def test_partition_unsupported_type(session):
     with pytest.raises(ValueError, match="unsupported type"):
-        session.read._generate_partition(
-            select_query="SELECT * FROM fake_table",
-            column_type=MapType(),
+        partitioner = DataSourcePartitioner(
+            SqlServerDialect, PyodbcDriver, sql_server_create_connection
+        )
+        partitioner.partitions(
+            "fake_table",
+            schema=StructType([StructField("DATE", MapType(), False)]),
             column="DATE",
             lower_bound=0,
             upper_bound=1,
@@ -447,15 +423,20 @@ def test_custom_schema(session, custom_schema):
 
 
 def test_predicates():
-    select_query = "select * from fake_table"
-    predicates = ["id > 1 AND id <= 1000", "id > 1001 AND id <= 2000", "id > 2001"]
+    partitioner = DataSourcePartitioner(
+        SqlServerDialect, PyodbcDriver, sql_server_create_connection
+    )
+    queries = partitioner.partitions(
+        "fake_table",
+        schema=StructType([StructField("ID", IntegerType(), False)]),
+        predicates=["id > 1 AND id <= 1000", "id > 1001 AND id <= 2000", "id > 2001"],
+    )
     expected_result = [
-        "select * from fake_table WHERE id > 1 AND id <= 1000",
-        "select * from fake_table WHERE id > 1001 AND id <= 2000",
-        "select * from fake_table WHERE id > 2001",
+        "SELECT * FROM fake_table WHERE id > 1 AND id <= 1000",
+        "SELECT * FROM fake_table WHERE id > 1001 AND id <= 2000",
+        "SELECT * FROM fake_table WHERE id > 2001",
     ]
-    res = generate_sql_with_predicates(select_query, predicates)
-    assert res == expected_result
+    assert queries == expected_result
 
 
 @pytest.mark.skipif(
@@ -497,7 +478,7 @@ def test_negative_case(session):
 
     # error happening during ingestion
     with mock.patch(
-        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
+        "snowflake.snowpark._internal.data_source.utils._upload_and_copy_into_table",
         side_effect=ValueError("Ingestion exception"),
     ) as mock_task:
         mock_task.__name__ = "_upload_and_copy_into_table"
@@ -516,13 +497,11 @@ def test_negative_case(session):
 def test_task_fetch_from_data_source_with_fetch_size(
     fetch_size, partition_idx, expected_error
 ):
-    parquet_file_queue = queue.Queue()
-    schema = infer_data_source_schema(
-        sql_server_create_connection_small_data(),
-        SQL_SERVER_TABLE_NAME,
-        DBMS_TYPE.SQL_SERVER_DB,
-        "pyodbc",
+    partitioner = DataSourcePartitioner(
+        SqlServerDialect, PyodbcDriver, sql_server_create_connection_small_data
     )
+    parquet_file_queue = queue.Queue()
+    schema = partitioner.schema("fake_table")
     file_count = (
         math.ceil(len(sql_server_all_type_small_data) / fetch_size)
         if fetch_size != 0
@@ -532,13 +511,14 @@ def test_task_fetch_from_data_source_with_fetch_size(
     with tempfile.TemporaryDirectory() as tmp_dir:
 
         params = {
+            "worker": DataSourceReader(
+                PyodbcDriver, sql_server_create_connection_small_data
+            ),
             "parquet_file_queue": parquet_file_queue,
-            "create_connection": sql_server_create_connection_small_data,
-            "query": "SELECT * FROM test_table",
+            "partition": "SELECT * FROM test_table",
             "schema": schema,
             "partition_idx": partition_idx,
             "tmp_dir": tmp_dir,
-            "dbms_type": DBMS_TYPE.SQL_SERVER_DB,
             "fetch_size": fetch_size,
         }
 
@@ -547,13 +527,14 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 ValueError,
                 match="fetch size cannot be smaller than 0",
             ):
-                DataFrameReader._task_fetch_from_data_source(**params)
+                _task_fetch_data_from_source(**params)
         else:
-            DataFrameReader._task_fetch_from_data_source(**params)
+            _task_fetch_data_from_source(**params)
 
             file_idx = 0
             while not parquet_file_queue.empty():
                 file_path = parquet_file_queue.get()
+                print(file_path)
                 assert (
                     f"data_partition{partition_idx}_fetch{file_idx}.parquet"
                     in file_path
@@ -578,12 +559,12 @@ def test_database_detector():
 def test_type_conversion():
     invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
     with pytest.raises(NotImplementedError, match="sql server type not supported"):
-        sql_server_to_snowpark_type(
+        PyodbcDriver(sql_server_create_connection).to_snow_type(
             [("test_col", invalid_type, None, None, 0, 0, True)]
         )
 
     with pytest.raises(NotImplementedError, match="oracledb type not supported"):
-        oracledb_to_snowpark_type([invalid_type])
+        OracledbDriver(oracledb_create_connection).to_snow_type([invalid_type])
 
 
 def test_custom_schema_false(session):
@@ -594,7 +575,7 @@ def test_custom_schema_false(session):
             max_workers=4,
             custom_schema="timestamp_tz",
         )
-    with pytest.raises(ValueError, match="Invalid schema type: <class 'int'>."):
+    with pytest.raises(TypeError, match="Invalid schema type: <class 'int'>."):
         session.read.dbapi(
             sql_server_create_connection,
             table=SQL_SERVER_TABLE_NAME,
@@ -642,21 +623,24 @@ def test_partition_wrong_input(session, caplog):
             num_partitions=2,
             custom_schema=StructType([StructField("ID", BooleanType(), False)]),
         )
+    partitioner = DataSourcePartitioner(
+        SqlServerDialect, PyodbcDriver, sql_server_create_connection
+    )
     with pytest.raises(
         ValueError, match="lower_bound cannot be greater than upper_bound"
     ):
-        session.read._generate_partition(
-            select_query="SELECT * FROM fake_table",
-            column_type=IntegerType(),
+        partitioner.partitions(
+            "fake_table",
+            schema=StructType([StructField("DATE", IntegerType(), False)]),
             column="DATE",
             lower_bound=10,
             upper_bound=1,
             num_partitions=4,
         )
 
-    session.read._generate_partition(
-        select_query="SELECT * FROM fake_table",
-        column_type=IntegerType(),
+    partitioner.partitions(
+        "fake_table",
+        schema=StructType([StructField("DATE", IntegerType(), False)]),
         column="DATE",
         lower_bound=0,
         upper_bound=10,
@@ -704,7 +688,7 @@ def test_query_parameter(session):
             )
 
         with mock.patch(
-            "snowflake.snowpark._internal.data_source_utils.sqlite_to_snowpark_type",
+            "snowflake.snowpark._internal.data_source.drivers.sqlite_driver.SqliteDriver.to_snow_type",
             side_effect=sqlite_to_snowpark_type,
         ):
             query = (

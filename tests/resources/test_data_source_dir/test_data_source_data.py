@@ -18,6 +18,7 @@ class FakeConnection:
         self.start_index = 0
         self.data = data
         self.schema = schema
+        self.outputtypehandler = None
 
     def cursor(self):
         return self
