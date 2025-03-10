@@ -73,9 +73,9 @@ class TelemetryField(Enum):
     KEY_MSG = "msg"
     KEY_WALL_TIME = "wall_time"
     KEY_CPU_TIME = "cpu_time"
-    KEY_NETWORK_SENT = "network_bytes_sent_kb"
-    KEY_NETWORK_RECV = "network_bytes_recv_kb"
-    KEY_MEMORY_RSS = "memory_rss_kb"
+    KEY_NETWORK_SENT_KIB = "network_bytes_sent_kib"
+    KEY_NETWORK_RECV_KIB = "network_bytes_recv_kib"
+    KEY_MEMORY_RSS_KIB = "memory_rss_kib"
     KEY_ERROR_MSG = "error_msg"
     KEY_VERSION = "version"
     KEY_PYTHON_VERSION = "python_version"
@@ -142,9 +142,9 @@ class ResourceUsageCollector:
         [
             TelemetryField.KEY_WALL_TIME.value,
             TelemetryField.KEY_CPU_TIME.value,
-            TelemetryField.KEY_NETWORK_SENT.value,
-            TelemetryField.KEY_NETWORK_RECV.value,
-            TelemetryField.KEY_MEMORY_RSS.value,
+            TelemetryField.KEY_NETWORK_SENT_KIB.value,
+            TelemetryField.KEY_NETWORK_RECV_KIB.value,
+            TelemetryField.KEY_MEMORY_RSS_KIB.value,
         ]
     )
 
@@ -190,17 +190,17 @@ class ResourceUsageCollector:
                 network_sent = (
                     self._end_net_io_counters.bytes_sent
                     - self._start_net_io_counters.bytes_sent
-                ) / 1024
+                ) / 1024.0
                 network_recv = (
                     self._end_net_io_counters.bytes_recv
                     - self._start_net_io_counters.bytes_recv
-                ) / 1024
-                memory_rss = (self._end_rss - self._start_rss) / 1024
+                ) / 1024.0
+                memory_rss = (self._end_rss - self._start_rss) / 1024.0
                 resource_usage.update(
                     {
-                        TelemetryField.KEY_NETWORK_SENT.value: network_sent,
-                        TelemetryField.KEY_NETWORK_RECV.value: network_recv,
-                        TelemetryField.KEY_MEMORY_RSS.value: memory_rss,
+                        TelemetryField.KEY_NETWORK_SENT_KIB.value: network_sent,
+                        TelemetryField.KEY_NETWORK_RECV_KIB.value: network_recv,
+                        TelemetryField.KEY_MEMORY_RSS_KIB.value: memory_rss,
                     }
                 )
         except Exception:
