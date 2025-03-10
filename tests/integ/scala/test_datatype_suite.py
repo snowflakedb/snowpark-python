@@ -26,6 +26,7 @@ from snowflake.snowpark.functions import (
     sum_distinct,
     udaf,
     udf,
+    to_file,
 )
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.session import Session
@@ -52,6 +53,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    FileType,
 )
 from tests.utils import (
     TempObjectType,
@@ -60,6 +62,7 @@ from tests.utils import (
     iceberg_supported,
     structured_types_enabled_session,
     structured_types_supported,
+    is_in_stored_procedure,
 )
 
 # Map of structured type enabled state to test params
@@ -174,7 +177,10 @@ def examples(structured_type_support):
 @pytest.fixture(scope="module")
 def structured_type_session(session, structured_type_support, local_testing_mode):
     # SNOW-1938099: Disable lob parameters until we can better support them
-    if not isinstance(session._conn, MockServerConnection):
+    if (
+        not isinstance(session._conn, MockServerConnection)
+        and not is_in_stored_procedure()
+    ):
         session.sql(
             "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
         ).collect()
@@ -400,6 +406,7 @@ def test_structured_dtypes(structured_type_session, examples, structured_type_su
     assert df.dtypes == expected_dtypes
 
 
+@pytest.mark.skip(reason="SNOW-1959569: Undo once structured types issue is fixed")
 @pytest.mark.skipif(
     "config.getoption('disable_sql_simplifier', default=False)",
     reason="without sql_simplifier returned types are all variants",
@@ -466,6 +473,7 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
         )
 
 
+@pytest.mark.skip(reason="SNOW-1959569: Undo once structured types issue is fixed")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
@@ -1609,3 +1617,24 @@ def test_non_nullable_schema(structured_type_session, structured_type_support):
         ' |   |-- "name": StringType() (nullable = True)\n'
         ' |   |-- "age": LongType() (nullable = True)'
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="File type is not supported in Local Testing",
+)
+def test_file_type(session, resources_path):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    _ = session.sql(f"create or replace temp stage {stage_name}").collect()
+    test_files = TestFiles(resources_path)
+    _ = session.file.put(
+        test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    df = session.range(1).select(to_file(f"@{stage_name}/testCSV.csv").alias("file"))
+    assert df.schema == StructType([StructField("file", FileType(), True)])
+    df = session.range(1).select(
+        lit(f"@{stage_name}/testCSV.csv", datatype=FileType()).alias("file")
+    )
+    assert df.schema == StructType([StructField("file", FileType(), True)])
+    df = session.range(1).select(lit(None, datatype=FileType()).alias("file"))
+    assert df.schema == StructType([StructField("file", FileType(), True)])

@@ -40,6 +40,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 from snowflake.snowpark.modin.plugin._internal.utils import (
     TempObjectType,
     generate_snowflake_quoted_identifiers_helper,
+    get_default_snowpark_pandas_statement_params,
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
@@ -71,6 +72,12 @@ from snowflake.snowpark.window import Window
 
 APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER = '"LABEL"'
 APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER = '"VALUE"'
+APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG = (
+    "Snowpark pandas only allows native pandas and not Snowpark objects in `apply()`. "
+    + "Instead, try calling `to_pandas()` on any DataFrame or Series objects passed to `apply()`. See Limitations"
+    + "(https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations) section of"
+    + "the Snowpark pandas documentation for more details."
+)
 
 # Default partition size to use when applying a UDTF. A higher value results in less parallelism, less contention and higher batching.
 DEFAULT_UDTF_PARTITION_SIZE = 1000
@@ -289,30 +296,36 @@ def create_udtf_for_apply_axis_1(
     ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
 
     packages = list(session.get_packages().values()) + udf_packages
-    func_udtf = sp_func.udtf(
-        ApplyFunc,
-        output_schema=PandasDataFrameType(
-            [LongType(), StringType(), VariantType()],
-            [
-                row_position_snowflake_quoted_identifier,
-                APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
-            ],
-        ),
-        input_types=[PandasDataFrameType([LongType()] + input_types)],
-        # We have to use the current pandas version to ensure the behavior consistency
-        packages=[native_pd] + packages,
-        session=session,
-    )
-
-    return func_udtf
+    try:
+        func_udtf = sp_func.udtf(
+            ApplyFunc,
+            output_schema=PandasDataFrameType(
+                [LongType(), StringType(), VariantType()],
+                [
+                    row_position_snowflake_quoted_identifier,
+                    APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
+                    APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
+                ],
+            ),
+            input_types=[PandasDataFrameType([LongType()] + input_types)],
+            # We have to use the current pandas version to ensure the behavior consistency
+            packages=[native_pd] + packages,
+            session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+        return func_udtf
+    except NotImplementedError:
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def convert_groupby_apply_dataframe_result_to_standard_schema(
-    func_input_df: native_pd.DataFrame,
     func_output_df: native_pd.DataFrame,
     input_row_positions: native_pd.Series,
     include_index_columns: bool,
+    is_transform: bool,
 ) -> native_pd.DataFrame:  # pragma: no cover: this function runs inside a UDTF, so coverage tools can't detect that we are testing it.
     """
     Take the result of applying the user-provided function to a dataframe, and convert it to a dataframe with known schema that we can output from a vUDTF.
@@ -325,6 +338,7 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
                              func_input_df came from.
         include_index_columns: Whether to include the result's index columns in
                                the output.
+        is_transform: Whether the function is a transform or not.
 
     Returns:
         A 5-column dataframe that represents the function result per the
@@ -333,7 +347,6 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
     """
     result_rows = []
     result_index_names = func_output_df.index.names
-    is_transform = func_output_df.index.equals(func_input_df.index)
     for row_number, (index_label, row) in enumerate(func_output_df.iterrows()):
         output_row_number = input_row_positions.iloc[row_number] if is_transform else -1
         if include_index_columns:
@@ -447,9 +460,7 @@ def apply_groupby_func_to_df(
     args: tuple,
     kwargs: dict,
     force_list_like_to_series: bool = False,
-) -> Tuple[
-    native_pd.Series, native_pd.DataFrame, native_pd.DataFrame
-]:  # pragma: no cover
+) -> Tuple[native_pd.Series, native_pd.DataFrame, bool, bool]:  # pragma: no cover
     """
     Restore input dataframe received in udtf to original schema.
     Args:
@@ -466,8 +477,9 @@ def apply_groupby_func_to_df(
     Returns:
         A Tuple of
          1. rows positions
-         2. restored input dataframe.
-         3. Result of applying the function to input dataframe.
+         2. Result of applying the function to input dataframe.
+         3. Whether final result should include index columns.
+         4. Whether the index of the result is the same as the index of the input.
     """
     # The first column is row position. Save it for later.
     col_offset = 0
@@ -521,7 +533,53 @@ def apply_groupby_func_to_df(
             func_result = native_pd.Series(func_result)
             if len(func_result) == len(df.index):
                 func_result.index = df.index
-    return row_positions, input_object, func_result
+    if isinstance(func_result, native_pd.Series):
+        if series_groupby:
+            func_result_as_frame = func_result.to_frame()
+            func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
+        else:
+            # If function returns series, we have to transpose the series
+            # and change its metadata a little bit, but after that we can
+            # continue largely as if the function has returned a dataframe.
+            #
+            # If the series has a 1-dimensional index, the series name
+            # becomes the name of the column index. For example, if
+            # `func` returned the series native_pd.Series([1], name='a'):
+            #
+            # 0    1
+            # Name: a, dtype: int64
+            #
+            # The result needs to use the dataframe
+            # pd.DataFrame([1], columns=pd.Index([0], name='a'):
+            #
+            # a  0
+            # 0  1
+            #
+            name = func_result.name
+            func_result.name = None
+            func_result_as_frame = func_result.to_frame().T
+            if func_result_as_frame.columns.nlevels == 1:
+                func_result_as_frame.columns.name = name
+        # For DataFrameGroupBy, we don't need to include any
+        # information about the index of `func_result_as_frame`.
+        # The series only has one index, and that index becomes the
+        # columns of `func_result_as_frame`. For SeriesGroupBy, we
+        # do include the result's index in the result.
+        include_index_columns = series_groupby
+        is_transform = input_object.index.equals(func_result_as_frame.index)
+    elif isinstance(func_result, native_pd.DataFrame):
+        include_index_columns = True
+        func_result_as_frame = func_result
+        is_transform = input_object.index.equals(func_result_as_frame.index)
+    else:
+        # At this point, we know the function result was not a DataFrame
+        # or Series
+        include_index_columns = False
+        func_result_as_frame = native_pd.DataFrame(
+            {MODIN_UNNAMED_SERIES_LABEL: [func_result]}
+        )
+        is_transform = False
+    return row_positions, func_result_as_frame, include_index_columns, is_transform
 
 
 def create_udtf_for_groupby_transform(
@@ -600,7 +658,7 @@ def create_udtf_for_groupby_transform(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            row_positions, input_object, func_result = apply_groupby_func_to_df(
+            row_positions, func_result, _, _ = apply_groupby_func_to_df(
                 df,
                 num_by,
                 index_column_names,
@@ -611,34 +669,6 @@ def create_udtf_for_groupby_transform(
                 kwargs,
                 force_list_like_to_series,
             )
-            if isinstance(func_result, native_pd.Series):
-                if series_groupby:
-                    func_result_as_frame = func_result.to_frame()
-                    func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
-                else:
-                    # If function returns series, we have to transpose the series
-                    # and change its metadata a little bit, but after that we can
-                    # continue largely as if the function has returned a dataframe.
-                    #
-                    # If the series has a 1-dimensional index, the series name
-                    # becomes the name of the column index. For example, if
-                    # `func` returned the series native_pd.Series([1], name='a'):
-                    #
-                    # 0    1
-                    # Name: a, dtype: int64
-                    #
-                    # The result needs to use the dataframe
-                    # pd.DataFrame([1], columns=pd.Index([0], name='a'):
-                    #
-                    # a  0
-                    # 0  1
-                    #
-                    name = func_result.name
-                    func_result.name = None
-                    func_result_as_frame = func_result.to_frame().T
-                    if func_result_as_frame.columns.nlevels == 1:
-                        func_result_as_frame.columns.name = name
-                func_result = func_result_as_frame
             func_result = func_result.applymap(
                 lambda x: handle_missing_value_in_variant(
                     convert_numpy_int_result_to_int(x)
@@ -675,15 +705,22 @@ def create_udtf_for_groupby_transform(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
-    return sp_func.udtf(
-        ApplyFunc,
-        output_schema=PandasDataFrameType(output_col_types, output_col_ids),
-        input_types=[PandasDataFrameType(col_types=input_types)],
-        # We have to specify the local pandas package so that the UDF's pandas
-        # behavior is consistent with client-side pandas behavior.
-        packages=[native_pd] + list(session.get_packages().values()),
-        session=session,
-    )
+    try:
+        return sp_func.udtf(
+            ApplyFunc,
+            output_schema=PandasDataFrameType(output_col_types, output_col_ids),
+            input_types=[PandasDataFrameType(col_types=input_types)],
+            # We have to specify the local pandas package so that the UDF's pandas
+            # behavior is consistent with client-side pandas behavior.
+            packages=[native_pd] + list(session.get_packages().values()),
+            session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+    except NotImplementedError:
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def create_udtf_for_groupby_apply(
@@ -841,7 +878,12 @@ def create_udtf_for_groupby_apply(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            row_positions, input_object, func_result = apply_groupby_func_to_df(
+            (
+                row_positions,
+                func_result,
+                include_index_columns,
+                is_transform_func,
+            ) = apply_groupby_func_to_df(
                 df,
                 num_by,
                 index_column_names,
@@ -852,62 +894,8 @@ def create_udtf_for_groupby_apply(
                 kwargs,
                 force_list_like_to_series,
             )
-            if isinstance(func_result, native_pd.Series):
-                if series_groupby:
-                    func_result_as_frame = func_result.to_frame()
-                    func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
-                else:
-                    # If function returns series, we have to transpose the series
-                    # and change its metadata a little bit, but after that we can
-                    # continue largely as if the function has returned a dataframe.
-                    #
-                    # If the series has a 1-dimensional index, the series name
-                    # becomes the name of the column index. For example, if
-                    # `func` returned the series native_pd.Series([1], name='a'):
-                    #
-                    # 0    1
-                    # Name: a, dtype: int64
-                    #
-                    # The result needs to use the dataframe
-                    # pd.DataFrame([1], columns=pd.Index([0], name='a'):
-                    #
-                    # a  0
-                    # 0  1
-                    #
-                    name = func_result.name
-                    func_result.name = None
-                    func_result_as_frame = func_result.to_frame().T
-                    if func_result_as_frame.columns.nlevels == 1:
-                        func_result_as_frame.columns.name = name
-                return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    input_object,
-                    func_result_as_frame,
-                    row_positions,
-                    # For DataFrameGroupBy, we don't need to include any
-                    # information about the index of `func_result_as_frame`.
-                    # The series only has one index, and that index becomes the
-                    # columns of `func_result_as_frame`. For SeriesGroupBy, we
-                    # do include the result's index in the result.
-                    include_index_columns=series_groupby,
-                )
-            if isinstance(func_result, native_pd.DataFrame):
-                return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    input_object, func_result, row_positions, include_index_columns=True
-                )
-            # At this point, we know the function result was not a DataFrame
-            # or Series
-            return native_pd.DataFrame(
-                {
-                    "label": [
-                        json.dumps({"0": MODIN_UNNAMED_SERIES_LABEL, "data_pos": 0})
-                    ],
-                    "row_position_within_group": [0],
-                    "value": [convert_numpy_int_result_to_int(func_result)],
-                    "original_row_number": [-1],
-                    "first_position_for_group": [row_positions.iloc[0]],
-                },
-                # use object dtype so result is JSON-serializable
-                dtype=object,
+            return convert_groupby_apply_dataframe_result_to_standard_schema(
+                func_result, row_positions, include_index_columns, is_transform_func
             )
 
     input_types = [
@@ -936,18 +924,31 @@ def create_udtf_for_groupby_apply(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
-    return sp_func.udtf(
-        ApplyFunc,
-        output_schema=PandasDataFrameType(
-            [StringType(), IntegerType(), VariantType(), IntegerType(), IntegerType()],
-            col_names,
-        ),
-        input_types=[PandasDataFrameType(col_types=input_types)],
-        # We have to specify the local pandas package so that the UDF's pandas
-        # behavior is consistent with client-side pandas behavior.
-        packages=[native_pd] + list(session.get_packages().values()),
-        session=session,
-    )
+    try:
+        return sp_func.udtf(
+            ApplyFunc,
+            output_schema=PandasDataFrameType(
+                [
+                    StringType(),
+                    IntegerType(),
+                    VariantType(),
+                    IntegerType(),
+                    IntegerType(),
+                ],
+                col_names,
+            ),
+            input_types=[PandasDataFrameType(col_types=input_types)],
+            # We have to specify the local pandas package so that the UDF's pandas
+            # behavior is consistent with client-side pandas behavior.
+            packages=[native_pd] + list(session.get_packages().values()),
+            session=session,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+    except NotImplementedError:
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def create_udf_for_series_apply(
@@ -1012,15 +1013,22 @@ def create_udf_for_series_apply(
             #  actual type.
             return x.apply(func, args=args, **kwargs)
 
-    func_udf = sp_func.udf(
-        apply_func,
-        return_type=PandasSeriesType(return_type),
-        input_types=[PandasSeriesType(input_type)],
-        strict=bool(na_action == "ignore"),
-        session=session,
-        packages=packages,
-    )
-    return func_udf
+    try:
+        func_udf = sp_func.udf(
+            apply_func,
+            return_type=PandasSeriesType(return_type),
+            input_types=[PandasSeriesType(input_type)],
+            strict=bool(na_action == "ignore"),
+            session=session,
+            packages=packages,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+        return func_udf
+    except NotImplementedError:
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def handle_missing_value_in_variant(value: Any) -> Any:

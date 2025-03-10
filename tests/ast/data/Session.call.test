@@ -17,11 +17,11 @@ my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(
 
 df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
 
-my_sproc_sp(1, "two", {"param1": 10, "param2": "twenty"}, True)
+df
 
 df2 = session.call("my_sproc", 2, "one", {}, False)
 
-my_sproc_sp(2, "one", {}, False)
+df2
 
 ## EXPECTED ENCODED AST
 
@@ -53,34 +53,32 @@ body {
           }
         }
         input_types {
-          list {
-            long_type: true
-          }
-          list {
-            string_type {
-              length {
-              }
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
             }
           }
-          list {
-            map_type {
-              key_ty {
-                string_type {
-                  length {
-                  }
-                }
-              }
-              value_ty {
-                string_type {
-                  length {
-                  }
+        }
+        input_types {
+          map_type {
+            key_ty {
+              string_type {
+                length {
                 }
               }
             }
+            value_ty {
+              string_type {
+                length {
+                }
+              }
+            }
           }
-          list {
-            boolean_type: true
-          }
+        }
+        input_types {
+          boolean_type: true
         }
         name {
           name {
@@ -251,137 +249,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          fn_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        pos_args {
-          int64_val {
-            src {
-              end_column: 89
-              end_line: 32
-              file: 2
-              start_column: 13
-              start_line: 32
-            }
-            v: 1
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              end_column: 89
-              end_line: 32
-              file: 2
-              start_column: 13
-              start_line: 32
-            }
-            v: "two"
-          }
-        }
-        pos_args {
-          seq_map_val {
-            kvs {
-              vs {
-                string_val {
-                  src {
-                    end_column: 89
-                    end_line: 32
-                    file: 2
-                    start_column: 13
-                    start_line: 32
-                  }
-                  v: "param1"
-                }
-              }
-              vs {
-                int64_val {
-                  src {
-                    end_column: 89
-                    end_line: 32
-                    file: 2
-                    start_column: 13
-                    start_line: 32
-                  }
-                  v: 10
-                }
-              }
-            }
-            kvs {
-              vs {
-                string_val {
-                  src {
-                    end_column: 89
-                    end_line: 32
-                    file: 2
-                    start_column: 13
-                    start_line: 32
-                  }
-                  v: "param2"
-                }
-              }
-              vs {
-                string_val {
-                  src {
-                    end_column: 89
-                    end_line: 32
-                    file: 2
-                    start_column: 13
-                    start_line: 32
-                  }
-                  v: "twenty"
-                }
-              }
-            }
-            src {
-              end_column: 89
-              end_line: 32
-              file: 2
-              start_column: 13
-              start_line: 32
-            }
-          }
-        }
-        pos_args {
-          bool_val {
-            src {
-              end_column: 89
-              end_line: 32
-              file: 2
-              start_column: 13
-              start_line: 32
-            }
-            v: true
-          }
-        }
-        src {
-          end_column: 89
-          end_line: 32
-          file: 2
-          start_column: 13
-          start_line: 32
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 3
     var_id {
-      bitfield1: 3
-    }
-  }
-}
-body {
-  eval {
-    uid: 4
-    var_id {
-      bitfield1: 3
+      bitfield1: 2
     }
   }
 }
@@ -460,91 +331,17 @@ body {
     symbol {
       value: "df2"
     }
-    uid: 5
+    uid: 4
     var_id {
-      bitfield1: 5
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          fn_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        pos_args {
-          int64_val {
-            src {
-              end_column: 63
-              end_line: 34
-              file: 2
-              start_column: 14
-              start_line: 34
-            }
-            v: 2
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              end_column: 63
-              end_line: 34
-              file: 2
-              start_column: 14
-              start_line: 34
-            }
-            v: "one"
-          }
-        }
-        pos_args {
-          seq_map_val {
-            src {
-              end_column: 63
-              end_line: 34
-              file: 2
-              start_column: 14
-              start_line: 34
-            }
-          }
-        }
-        pos_args {
-          bool_val {
-            src {
-              end_column: 63
-              end_line: 34
-              file: 2
-              start_column: 14
-              start_line: 34
-            }
-          }
-        }
-        src {
-          end_column: 63
-          end_line: 34
-          file: 2
-          start_column: 14
-          start_line: 34
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 6
-    var_id {
-      bitfield1: 6
+      bitfield1: 4
     }
   }
 }
 body {
   eval {
-    uid: 7
+    uid: 5
     var_id {
-      bitfield1: 6
+      bitfield1: 4
     }
   }
 }

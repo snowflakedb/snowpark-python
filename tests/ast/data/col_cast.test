@@ -65,6 +65,7 @@ df = df.select(col("A").cast("numeric"))
 
 df = df.select(col("A").cast("object"))
 
+df = df.select(col("A").cast("file"))
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -106,9 +107,9 @@ df = df.select(col("A").cast(VectorType(FloatType(), 42)))
 
 df = df.select(col("A").cast(StructType(structured=False)))
 
-df = df.select(col("A").cast(StructType([], structured=False)))
+df = df.select(col("A").cast(StructType(structured=False)))
 
-df = df.select(col("A").cast(StructType([StructField("B", IntegerType(), nullable=True)], structured=False)))
+df = df.select(col("A").cast(StructType(fields=[StructField("B", IntegerType(), nullable=True)], structured=False)))
 
 df = df.select(col("A").cast(VariantType()))
 
@@ -129,6 +130,8 @@ df = df.select(col("A").cast(DecimalType(38, 0)))
 df = df.select(col("A").cast(DecimalType(38, 0)))
 
 df = df.select(col("A").cast(MapType(StringType(), StringType(), structured=False)))
+
+df = df.select(col("A").cast(FileType()))
 
 ## EXPECTED ENCODED AST
 
@@ -176,7 +179,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -256,7 +259,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -336,7 +339,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -416,7 +419,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -496,7 +499,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -579,7 +582,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -659,7 +662,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -739,7 +742,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -819,7 +822,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -899,7 +902,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -979,7 +982,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1059,7 +1062,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1143,7 +1146,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1223,7 +1226,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1310,7 +1313,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1394,7 +1397,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1487,7 +1490,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1572,7 +1575,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1653,7 +1656,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1700,8 +1703,6 @@ body {
               }
               to {
                 struct_type {
-                  fields {
-                  }
                 }
               }
             }
@@ -1736,7 +1737,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1784,17 +1785,15 @@ body {
               to {
                 struct_type {
                   fields {
-                    list {
-                      column_identifier {
-                        column_name {
-                          name: "B"
-                        }
+                    column_identifier {
+                      column_name {
+                        name: "B"
                       }
-                      data_type {
-                        integer_type: true
-                      }
-                      nullable: true
                     }
+                    data_type {
+                      integer_type: true
+                    }
+                    nullable: true
                   }
                 }
               }
@@ -1830,7 +1829,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1910,7 +1909,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -1990,7 +1989,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2070,7 +2069,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2150,7 +2149,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2230,7 +2229,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2310,7 +2309,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2390,7 +2389,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2472,7 +2471,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2554,7 +2553,7 @@ body {
 body {
   assign {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_cast {
@@ -2641,6 +2640,86 @@ body {
     uid: 31
     var_id {
       bitfield1: 31
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 90
+                        file: 2
+                        start_column: 23
+                        start_line: 90
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 90
+                    file: 2
+                    start_column: 23
+                    start_line: 90
+                  }
+                }
+              }
+              src {
+                end_column: 44
+                end_line: 90
+                file: 2
+                start_column: 23
+                start_line: 90
+              }
+              to {
+                file_type: true
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 31
+            }
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 90
+          file: 2
+          start_column: 13
+          start_line: 90
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 32
+    var_id {
+      bitfield1: 32
     }
   }
 }

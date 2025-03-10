@@ -25,7 +25,7 @@ unique_df = df.drop_duplicates(["name", "age"])
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.create_dataframe([{"id": 1, "name": "Alice", "age": 30}, {"id": 2, "name": "Bob", "age": 25}, {"id": 3, "name": "Alice", "age": 30}, {"id": 4, "name": "Charlie", "age": 35}], schema=StructType([StructField("id", IntegerType(), nullable=False), StructField("name", StringType(), nullable=True), StructField("age", IntegerType(), nullable=True)], structured=False))
+df = session.create_dataframe([{"id": 1, "name": "Alice", "age": 30}, {"id": 2, "name": "Bob", "age": 25}, {"id": 3, "name": "Alice", "age": 30}, {"id": 4, "name": "Charlie", "age": 35}], schema=StructType(fields=[StructField("id", IntegerType(), nullable=False), StructField("name", StringType(), nullable=True), StructField("age", IntegerType(), nullable=True)], structured=False))
 
 unique_df = df.drop_duplicates(["name", "age"])
 
@@ -408,41 +408,39 @@ body {
           dataframe_schema__struct {
             v {
               fields {
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "id"
-                    }
-                  }
-                  data_type {
-                    integer_type: true
+                column_identifier {
+                  column_name {
+                    name: "id"
                   }
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "name"
-                    }
-                  }
-                  data_type {
-                    string_type {
-                      length {
-                      }
-                    }
-                  }
-                  nullable: true
+                data_type {
+                  integer_type: true
                 }
-                list {
-                  column_identifier {
-                    column_name {
-                      name: "age"
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "name"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
                     }
                   }
-                  data_type {
-                    integer_type: true
-                  }
-                  nullable: true
                 }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "age"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
               }
             }
           }

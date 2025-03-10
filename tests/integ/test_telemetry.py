@@ -297,6 +297,10 @@ def test_drop_duplicates_api_calls(session):
             "subcalls": [
                 {
                     "name": "DataFrame.distinct",
+                    "subcalls": [
+                        {"name": "DataFrame.group_by"},
+                        {"name": "RelationalGroupedDataFrame.agg"},
+                    ],
                 }
             ],
         },
@@ -444,6 +448,10 @@ def test_distinct_api_calls(session):
         {"name": "DataFrame.to_df", "subcalls": [{"name": "DataFrame.select"}]},
         {
             "name": "DataFrame.distinct",
+            "subcalls": [
+                {"name": "DataFrame.group_by"},
+                {"name": "RelationalGroupedDataFrame.agg"},
+            ],
         },
     ]
     # check to make sure that the original DF is unchanged
@@ -460,6 +468,10 @@ def test_distinct_api_calls(session):
         {"name": "DataFrame.select"},
         {
             "name": "DataFrame.distinct",
+            "subcalls": [
+                {"name": "DataFrame.group_by"},
+                {"name": "RelationalGroupedDataFrame.agg"},
+            ],
         },
         {"name": "DataFrame.sort"},
     ]
@@ -470,6 +482,10 @@ def test_distinct_api_calls(session):
         {"name": "DataFrame.select"},
         {
             "name": "DataFrame.distinct",
+            "subcalls": [
+                {"name": "DataFrame.group_by"},
+                {"name": "RelationalGroupedDataFrame.agg"},
+            ],
         },
     ]
 
