@@ -5,6 +5,10 @@
 
 import time
 import math
+import psutil
+from unittest.mock import patch
+
+import pytest
 from snowflake.snowpark._internal.telemetry import (
     safe_telemetry,
     ResourceUsageCollector,
@@ -50,3 +54,19 @@ def test_resource_usage_memory():
     # but the memory usage is not guaranteed to increase by exactly that amount
     # so we just check that it increased by some amount
     assert resource_usage["memory_rss_kb"] > 1000, resource_usage["memory_rss_kb"]
+
+
+@patch("psutil.net_io_counters")
+def test_resource_usage_error_safety(mock_net_io_counters):
+    mock_net_io_counters.side_effect = OSError("mock error")
+    with pytest.raises(OSError, match="mock error"):
+        psutil.net_io_counters()
+
+    # assert that the error due to psutil does not affect the rest of the code
+    with ResourceUsageCollector() as resource_usage_collector:
+        time.sleep(0.1)
+
+    # tamper with the resource usage collector to simulate error when
+    # get_resource_usage is called
+    resource_usage_collector._end_cpu_time = None
+    assert resource_usage_collector.get_resource_usage() == {}
