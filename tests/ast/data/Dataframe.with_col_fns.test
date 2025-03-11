@@ -56,10 +56,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -72,7 +72,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -88,7 +88,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           div {
             lhs {
@@ -99,7 +99,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -133,7 +133,7 @@ body {
                       builtin_fn {
                         name {
                           name {
-                            sp_name_flat {
+                            name_flat {
                               name: "col"
                             }
                           }
@@ -193,7 +193,7 @@ body {
         }
         col_name: "mean"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -220,10 +220,10 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_columns {
+      dataframe_with_columns {
         col_names: "sum"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -244,7 +244,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "col"
                         }
                       }
@@ -278,7 +278,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "col"
                         }
                       }
@@ -329,11 +329,11 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_columns {
+      dataframe_with_columns {
         col_names: "sum"
         col_names: "diff"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -354,7 +354,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "col"
                         }
                       }
@@ -388,7 +388,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "col"
                         }
                       }
@@ -433,7 +433,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "col"
                         }
                       }
@@ -467,7 +467,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "col"
                         }
                       }
@@ -518,14 +518,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rename {
+      dataframe_rename {
         col_or_mapper {
           apply_expr {
             fn {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -554,7 +554,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -584,7 +584,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rename {
+      dataframe_rename {
         col_or_mapper {
           seq_map_val {
             kvs {
@@ -594,7 +594,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -645,7 +645,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -672,7 +672,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rename {
+      dataframe_rename {
         col_or_mapper {
           seq_map_val {
             kvs {
@@ -682,7 +682,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -759,7 +759,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -786,7 +786,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column_renamed {
+      dataframe_with_column_renamed {
         col {
           string_val {
             src {
@@ -800,7 +800,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -828,14 +828,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column_renamed {
+      dataframe_with_column_renamed {
         col {
           apply_expr {
             fn {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -864,7 +864,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -892,14 +892,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column_renamed {
+      dataframe_with_column_renamed {
         col {
           apply_expr {
             fn {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -928,7 +928,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -966,5 +966,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

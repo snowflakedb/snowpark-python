@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import copy
 import math
 import sys
 from logging import getLogger
@@ -189,7 +188,7 @@ class DataFrameNaFunctions:
         stmt = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_na_drop__python, stmt)
+            ast = with_src_position(stmt.expr.dataframe_na_drop__python, stmt)
             ast.how = how
             if thresh is not None:
                 ast.thresh.value = thresh
@@ -214,10 +213,10 @@ class DataFrameNaFunctions:
         # if thresh is less than 1, or no column is specified
         # to be dropped, return the dataframe directly
         if thresh < 1 or len(subset) == 0:
-            new_df = copy.copy(self._dataframe)
+            new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.drop")
             if _emit_ast:
-                self._dataframe._ast_id = stmt.var_id.bitfield1
+                new_df._ast_id = stmt.var_id.bitfield1
             return self._dataframe
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
@@ -375,13 +374,13 @@ class DataFrameNaFunctions:
         stmt = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_na_fill, stmt)
+            ast = with_src_position(stmt.expr.dataframe_na_fill, stmt)
             self._dataframe._set_ast_ref(ast.df)
             if isinstance(value, dict):
                 for k, v in value.items():
                     # N.B. In Phase 1, error checking will be incorporated directly here.
                     if isinstance(k, str):
-                        entry = ast.value_map.list.add()
+                        entry = ast.value_map.add()
                         entry._1 = k
                         build_expr_from_python_val(entry._2, v)
             else:
@@ -405,7 +404,7 @@ class DataFrameNaFunctions:
         else:
             value_dict = {col_name: value for col_name in subset}
         if not value_dict:
-            new_df = copy.copy(self._dataframe)
+            new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.fill")
             if _emit_ast:
                 new_df._ast_id = stmt.var_id.bitfield1
@@ -578,29 +577,31 @@ class DataFrameNaFunctions:
         stmt = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_na_replace, stmt)
+            ast = with_src_position(stmt.expr.dataframe_na_replace, stmt)
             self._dataframe._set_ast_ref(ast.df)
 
             if isinstance(to_replace, dict):
                 for k, v in to_replace.items():
-                    entry = ast.replacement_map.list.add()
+                    entry = ast.replacement_map.add()
                     build_expr_from_python_val(entry._1, k)
                     build_expr_from_python_val(entry._2, v)
             elif isinstance(to_replace, Iterable):
                 for v in to_replace:
-                    entry = ast.to_replace_list.list.add()
+                    entry = ast.to_replace_list.add()
                     build_expr_from_python_val(entry, v)
             else:
                 build_expr_from_python_val(ast.to_replace_value, to_replace)
 
             if isinstance(value, Iterable):
                 for v in value:
-                    entry = ast.values.list.add()
+                    entry = ast.values.add()
                     build_expr_from_python_val(entry, v)
             else:
                 build_expr_from_python_val(ast.value, value)
 
-            if subset is not None:
+            if isinstance(subset, str):
+                ast.subset.list.append(subset)
+            elif isinstance(subset, Iterable):
                 ast.subset.list.extend(subset)
 
         # Modify subset.
@@ -610,7 +611,7 @@ class DataFrameNaFunctions:
             subset = [subset]
 
         if len(subset) == 0:
-            new_df = copy.copy(self._dataframe)
+            new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             if _emit_ast:
                 new_df._ast_id = stmt.var_id.bitfield1
@@ -632,7 +633,7 @@ class DataFrameNaFunctions:
         else:
             replacement = {to_replace: value}
         if not replacement:
-            new_df = copy.copy(self._dataframe)
+            new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             if _emit_ast:
                 new_df._ast_id = stmt.var_id.bitfield1

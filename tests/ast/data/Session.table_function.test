@@ -73,29 +73,27 @@ body {
           name: "my_sproc"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN1\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_long_type: true
-          }
-          list {
-            sp_string_type {
-              length {
-              }
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
             }
           }
-          list {
-            sp_boolean_type: true
-          }
+        }
+        input_types {
+          boolean_type: true
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "my_fn1"
             }
           }
@@ -103,7 +101,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_string_type {
+          string_type {
             length {
             }
           }
@@ -139,29 +137,27 @@ body {
           name: "my_sproc"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN2\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_long_type: true
-          }
-          list {
-            sp_string_type {
-              length {
-              }
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
             }
           }
-          list {
-            sp_boolean_type: true
-          }
+        }
+        input_types {
+          boolean_type: true
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "my_fn2"
             }
           }
@@ -169,7 +165,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_string_type {
+          string_type {
             length {
             }
           }
@@ -196,14 +192,14 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_name_ref {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "my_fn1"
                     }
                   }
@@ -216,7 +212,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "lit"
                         }
                       }
@@ -250,7 +246,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "lit"
                         }
                       }
@@ -284,7 +280,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "lit"
                         }
                       }
@@ -342,14 +338,14 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_name_ref {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "my_fn2"
                     }
                   }
@@ -362,7 +358,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "lit"
                         }
                       }
@@ -420,14 +416,14 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_name_ref {
                 name {
                   name {
-                    sp_name_structured {
+                    name_structured {
                       name: "my_fn1"
                       name: "my_fn2"
                     }
@@ -470,7 +466,7 @@ body {
           call_table_function_expr {
             name {
               name {
-                sp_name_flat {
+                name_flat {
                   name: "my_fn1"
                 }
               }
@@ -483,7 +479,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -517,7 +513,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -551,7 +547,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -599,7 +595,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -644,7 +640,7 @@ body {
           call_table_function_expr {
             name {
               name {
-                sp_name_flat {
+                name_flat {
                   name: "my_fn2"
                 }
               }
@@ -657,7 +653,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -705,7 +701,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -750,7 +746,7 @@ body {
           call_table_function_expr {
             name {
               name {
-                sp_name_flat {
+                name_flat {
                   name: "my_fn1"
                 }
               }
@@ -763,7 +759,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -797,7 +793,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -831,7 +827,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -878,7 +874,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -923,7 +919,7 @@ body {
           call_table_function_expr {
             name {
               name {
-                sp_name_flat {
+                name_flat {
                   name: "my_fn2"
                 }
               }
@@ -950,7 +946,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -1000,5 +996,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

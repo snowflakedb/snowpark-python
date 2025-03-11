@@ -110,6 +110,7 @@ from snowflake.snowpark.functions import (
     lit,
     ln,
     log,
+    month,
     months_between,
     negate,
     not_,
@@ -159,6 +160,7 @@ from snowflake.snowpark.functions import (
     vector_cosine_distance,
     vector_inner_product,
     vector_l2_distance,
+    year,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -177,6 +179,7 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import (
+    IS_IN_STORED_PROC,
     TestData,
     Utils,
     running_on_jenkins,
@@ -187,46 +190,54 @@ from tests.utils import (
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="querying json element is not supported in local testing",
+    reason="querying qualified name is not supported in local testing",
 )
-def test_col_json_element(session):
+def test_col_is_qualified_name(session):
     # 2-level deep
     df = session.sql(
         'select parse_json(\'{"firstname": "John", "lastname": "Doe"}\') as name'
     )
     Utils.check_answer(
         df.select(
-            col("name.firstname", json_element=True),
-            col("name.lastname", json_element=True),
+            col("name.firstname", _is_qualified_name=True),
+            col("name.lastname", _is_qualified_name=True),
         ),
         [Row('"John"', '"Doe"')],
     )
     Utils.check_answer(
         df.select(
-            col('name."firstname"', json_element=True),
-            col('NAME."lastname"', json_element=True),
+            col('name."firstname"', _is_qualified_name=True),
+            col('NAME."lastname"', _is_qualified_name=True),
         ),
         [Row('"John"', '"Doe"')],
     )
-    Utils.check_answer(df.select(col("name.FIRSTNAME", json_element=True)), [Row(None)])
+    Utils.check_answer(
+        df.select(col("name.FIRSTNAME", _is_qualified_name=True)), [Row(None)]
+    )
 
     # 3-level deep
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
-        df.select(col("name:firstname", json_element=True)).collect()
+        df.select(col("name:firstname", _is_qualified_name=True)).collect()
 
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col("name.firstname")).collect()
 
     df = session.sql('select parse_json(\'{"l1": {"l2": "xyz"}}\') as value')
-    Utils.check_answer(df.select(col("value.l1.l2", json_element=True)), Row('"xyz"'))
     Utils.check_answer(
-        df.select(col('value."l1"."l2"', json_element=True)), Row('"xyz"')
+        df.select(col("value.l1.l2", _is_qualified_name=True)), Row('"xyz"')
     )
-    Utils.check_answer(df.select(col("value.L1.l2", json_element=True)), Row(None))
-    Utils.check_answer(df.select(col("value.l1.L2", json_element=True)), Row(None))
+    Utils.check_answer(
+        df.select(col('value."l1"."l2"', _is_qualified_name=True)), Row('"xyz"')
+    )
+    Utils.check_answer(
+        df.select(col("value.L1.l2", _is_qualified_name=True)), Row(None)
+    )
+    Utils.check_answer(
+        df.select(col("value.l1.L2", _is_qualified_name=True)), Row(None)
+    )
 
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
-        df.select(col("value:l1.l2", json_element=True)).collect()
+        df.select(col("value:l1.l2", _is_qualified_name=True)).collect()
 
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col("value.l1.l2")).collect()
@@ -408,6 +419,33 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
                 Row("R : H : TD : 4 : 5"),
                 Row(""),
                 Row(""),
+            ],
+        )
+
+        df = session.create_dataframe(
+            [(datetime.date(2021, 12, 21),), (datetime.date(1969, 12, 31),)],
+            schema=["year_month"],
+        )
+
+        Utils.check_answer(
+            df.select(
+                _concat_ws_ignore_nulls("-", year("year_month"), month("year_month"))
+            ),
+            [
+                Row("2021-12"),
+                Row("1969-12"),
+            ],
+        )
+
+        Utils.check_answer(
+            df.select(
+                _concat_ws_ignore_nulls(
+                    "-", year("year_month"), month("year_month")
+                ).alias("year_month")
+            ),
+            [
+                Row(YEAR_MONTH="2021-12"),
+                Row(YEAR_MONTH="1969-12"),
             ],
         )
 
@@ -2382,6 +2420,9 @@ def test_ln(session):
 
 
 @pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Snowflake Cortex functions not supported in SP"
+)
+@pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
@@ -2424,6 +2465,9 @@ The next sections explain these steps in more detail.
     assert 0 < len(summary_from_str) < len(content)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Snowflake Cortex functions not supported in SP"
+)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",

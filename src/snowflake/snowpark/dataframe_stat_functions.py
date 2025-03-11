@@ -17,7 +17,7 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
-from snowflake.snowpark._internal.utils import publicapi
+from snowflake.snowpark._internal.utils import publicapi, warning
 from snowflake.snowpark.functions import (
     _to_col_if_str,
     approx_percentile_accumulate,
@@ -91,9 +91,9 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsApproxQuantile() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsApproxQuantile() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stat_approx_quantile, repr)
+            expr = with_src_position(repr.expr.dataframe_stat_approx_quantile, repr)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             if isinstance(col, Iterable) and not isinstance(col, str):
@@ -199,9 +199,9 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsCorr() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsCorr() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stat_corr, repr)
+            expr = with_src_position(repr.expr.dataframe_stat_corr, repr)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
@@ -256,9 +256,9 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsCov() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsCov() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stat_cov, repr)
+            expr = with_src_position(repr.expr.dataframe_stat_cov, repr)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
@@ -326,9 +326,9 @@ class DataFrameStatFunctions:
 
         stmt = None
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsCrossTab() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsCrossTab() to the input, followed by its Eval.
             stmt = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_stat_cross_tab, stmt)
+            expr = with_src_position(stmt.expr.dataframe_stat_cross_tab, stmt)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
@@ -374,6 +374,7 @@ class DataFrameStatFunctions:
         self,
         col: ColumnOrName,
         fractions: Dict[LiteralType, float],
+        seed: Optional[int] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """Returns a DataFrame containing a stratified sample without replacement, based on a ``dict`` that specifies the fraction for each stratum.
@@ -388,13 +389,16 @@ class DataFrameStatFunctions:
             col: The name of the column that defines the strata.
             fractions: A ``dict`` that specifies the fraction to use for the sample for each stratum.
                 If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
+            seed: Specifies a seed value to make the sampling deterministic. Can be any integer between 0 and 2147483647 inclusive.
+                Default value is ``None``. This parameter is only supported for :class:`Table`, and it will be ignored
+                if it is specified for :class`DataFrame`.
         """
 
         stmt = None
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsSampleBy() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsSampleBy() to the input, followed by its Eval.
             stmt = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_stat_sample_by, stmt)
+            expr = with_src_position(stmt.expr.dataframe_stat_sample_by, stmt)
             build_expr_from_snowpark_column_or_col_name(expr.col, col)
 
             if fractions is not None:
@@ -416,15 +420,42 @@ class DataFrameStatFunctions:
             return res_df
 
         col = _to_col_if_str(col, "sample_by")
-        res_df = reduce(
-            lambda x, y: x.union_all(y, _emit_ast=False),
-            [
-                self._dataframe.filter(col == k, _emit_ast=False).sample(
-                    v, _emit_ast=False
+        if seed is not None and isinstance(self._dataframe, snowflake.snowpark.Table):
+
+            def equal_condition_str(k: LiteralType) -> str:
+                return self._dataframe._session._analyzer.binary_operator_extractor(
+                    (col == k)._expression,
+                    df_aliased_col_name_to_real_col_name=self._dataframe._plan.df_aliased_col_name_to_real_col_name,
                 )
-                for k, v in fractions.items()
-            ],
-        )
+
+            # Similar to how `Table.sample` is implemented, because SAMPLE clause does not support subqueries,
+            # we just use session.sql to compile a flat query
+            res_df = reduce(
+                lambda x, y: x.union_all(y, _emit_ast=False),
+                [
+                    self._dataframe._session.sql(
+                        f"SELECT * FROM {self._dataframe.table_name} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
+                        _emit_ast=False,
+                    )
+                    for k, v in fractions.items()
+                ],
+            )
+        else:
+            if seed is not None:
+                warning(
+                    "stat.sample_by",
+                    "`seed` argument is ignored on `DataFrame` object. Save this DataFrame to a temporary table "
+                    "to get a `Table` object and specify a seed.",
+                )
+            res_df = reduce(
+                lambda x, y: x.union_all(y, _emit_ast=False),
+                [
+                    self._dataframe.filter(col == k, _emit_ast=False).sample(
+                        v, _emit_ast=False
+                    )
+                    for k, v in fractions.items()
+                ],
+            )
         adjust_api_subcalls(
             res_df,
             "DataFrameStatFunctions.sample_by",

@@ -28,7 +28,7 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "select 42"
         src {
           end_column: 37
@@ -51,7 +51,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         params {
           int64_val {
             src {
@@ -122,7 +122,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "select 42"
         src {
           end_column: 42
@@ -155,5 +155,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

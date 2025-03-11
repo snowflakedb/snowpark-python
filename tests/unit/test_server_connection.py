@@ -116,10 +116,12 @@ def test_run_query_exceptions(mock_server_connection, caplog):
 
 def test_get_result_set_exception(mock_server_connection):
     fake_session = mock.create_autospec(Session)
+    fake_session._collect_snowflake_plan_telemetry_at_critical_path = True
     fake_session._generate_new_action_id.return_value = 1
     fake_session._last_canceled_id = 100
     fake_session._conn = mock_server_connection
     fake_session._cte_optimization_enabled = False
+    fake_session._join_alias_fix = False
     fake_session._query_compilation_stage_enabled = False
     fake_plan = SnowflakePlan(
         queries=[Query("fake query 1"), Query("fake query 2")],

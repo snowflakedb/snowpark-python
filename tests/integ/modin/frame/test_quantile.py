@@ -137,7 +137,7 @@ def test_quantile_datetime_negative():
         snow_df.quantile(numeric_only=False)
 
 
-@sql_count_checker(query_count=6, union_count=15)
+@sql_count_checker(query_count=4, union_count=15)
 def test_quantile_large():
     native_df = native_pd.DataFrame({"a": range(1000), "b": range(1000)})
     snow_df = pd.DataFrame(native_df)

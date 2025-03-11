@@ -241,6 +241,16 @@ class Project(UnaryNode):
         )
 
 
+class Distinct(UnaryNode):
+    def __init__(self, child: LogicalPlan) -> None:
+        super().__init__(child)
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # SELECT DISTINCT * FROM child
+        return {PlanNodeCategory.DISTINCT: 1, PlanNodeCategory.COLUMN: 1}
+
+
 class ViewType:
     def __str__(self):
         return self.__class__.__name__[:-4]
@@ -260,12 +270,14 @@ class CreateViewCommand(UnaryNode):
         name: str,
         view_type: ViewType,
         comment: Optional[str],
+        replace: bool,
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
         self.name = name
         self.view_type = view_type
         self.comment = comment
+        self.replace = replace
 
 
 class CreateDynamicTableCommand(UnaryNode):

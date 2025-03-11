@@ -4,9 +4,11 @@
 #
 
 import datetime
+import pkg_resources
 import logging
 import os
 import re
+import sys
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
@@ -1927,3 +1929,90 @@ def test_register_sproc_after_switch_schema(session):
             Utils.drop_database(session, db)
         session.use_database(current_database)
         session.use_schema(current_schema)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_sproc_artifact_repository(session):
+    def artifact_repo_test(_):
+        import urllib3
+
+        return str(urllib3.exceptions.HTTPError("test"))
+
+    artifact_repo_sproc = sproc(
+        artifact_repo_test,
+        session=session,
+        return_type=StringType(),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+    assert artifact_repo_sproc(session=session) == "test"
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="packages unavailable in stored proc",
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Packaging processing is a NOOP in Local Testing",
+    run=False,
+)
+@pytest.mark.parametrize(
+    "version_override, expect_warning",
+    [
+        ("1.27.1", False),  # Bugfix version - no warning
+        ("999.999.999", True),  # Major version change - expect warning
+    ],
+)
+def test_snowpark_python_bugfix_version_warning(
+    session, caplog, version_override, expect_warning
+):
+    def mock_get_distribution(version_override):
+        """Returns a function that mocks pkg_resources.get_distribution."""
+        original_get_distribution = (
+            pkg_resources.get_distribution
+        )  # Store original function
+
+        def _mock(package_name):
+            if package_name == "snowflake-snowpark-python":
+
+                class FakeDistribution:
+                    version = version_override  # Override only this package
+
+                return FakeDistribution()
+            return original_get_distribution(package_name)
+
+        return _mock
+
+    def run_test_case(caplog, version_override, expect_warning):
+        """Runs a test case with a given package version override and expected warning presence."""
+
+        def plus1(session_, x):
+            return x + 1
+
+        with patch(
+            "pkg_resources.get_distribution",
+            side_effect=mock_get_distribution(version_override),
+        ), caplog.at_level(logging.WARNING):
+            plus1_sp = sproc(
+                plus1,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+                packages=["snowflake-snowpark-python==1.27.0"],
+            )
+            assert plus1_sp(lit(6)) == 7
+
+        assert (
+            "The version of package 'snowflake-snowpark-python' in the local"
+            in caplog.text
+        ) == expect_warning
+        caplog.clear()
+
+    run_test_case(caplog, version_override, expect_warning)

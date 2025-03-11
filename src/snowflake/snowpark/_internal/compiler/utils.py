@@ -100,8 +100,8 @@ def resolve_and_update_snowflake_plan(
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
     node._output_dict = new_snowflake_plan._output_dict
-    node.df_aliased_col_name_to_real_col_name.update(
-        new_snowflake_plan.df_aliased_col_name_to_real_col_name
+    node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+        new_snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
     )
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
@@ -283,8 +283,8 @@ def update_resolvable_node(
 
         if isinstance(node, SelectSnowflakePlan):
             node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
-            node.df_aliased_col_name_to_real_col_name.update(
-                node._snowflake_plan.df_aliased_col_name_to_real_col_name
+            node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+                node._snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
             )
             node._query_params = []
             for query in node._snowflake_plan.queries:
@@ -354,6 +354,34 @@ def get_snowflake_plan_queries(
 def is_active_transaction(session):
     """Check is the session has an active transaction."""
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
+
+
+def extract_child_from_with_query_block(child: LogicalPlan) -> TreeNode:
+    """Given a WithQueryBlock node, or a node that contains a WithQueryBlock node, this method
+    extracts the child node from the WithQueryBlock node and returns it."""
+    if isinstance(child, WithQueryBlock):
+        return child.children[0]
+    if isinstance(child, SnowflakePlan) and child.source_plan is not None:
+        return extract_child_from_with_query_block(child.source_plan)
+    if isinstance(child, SelectSnowflakePlan):
+        return extract_child_from_with_query_block(child.snowflake_plan)
+
+    raise ValueError(
+        f"Invalid node type {type(child)} for partitioning."
+    )  # pragma: no cover
+
+
+def is_with_query_block(node: LogicalPlan) -> bool:
+    """Given a node, this method checks if the node is a WithQueryBlock node or contains a
+    WithQueryBlock node."""
+    if isinstance(node, WithQueryBlock):
+        return True
+    if isinstance(node, SnowflakePlan) and node.source_plan is not None:
+        return is_with_query_block(node.source_plan)
+    if isinstance(node, SelectSnowflakePlan):
+        return is_with_query_block(node.snowflake_plan)
+
+    return False
 
 
 def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
@@ -455,16 +483,6 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         sql_preview = sql_text[:50]
 
         return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}"
-
-    def is_with_query_block(node: Optional[LogicalPlan]) -> bool:  # pragma: no cover
-        if isinstance(node, WithQueryBlock):
-            return True
-        if isinstance(node, SnowflakePlan):
-            return is_with_query_block(node.source_plan)
-        if isinstance(node, SelectSnowflakePlan):
-            return is_with_query_block(node.snowflake_plan)
-
-        return False
 
     g = graphviz.Graph(format="png")
 

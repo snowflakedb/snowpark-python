@@ -101,33 +101,33 @@ df.select("a", twoxsix_udtf("a").alias("double", "six_x"), "c").collect()
 
 ## EXPECTED UNPARSER OUTPUT
 
-prime_udtf = udtf("PrimeSieve", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+prime_udtf = udtf("PrimeSieve", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf("sum_udtf", output_schema=StructType([StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
+df.with_column("total", udtf("sum_udtf", output_schema=StructType(fields=[StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
 
-generator_udtf = udtf("GeneratorUDTF", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+generator_udtf = udtf("GeneratorUDTF", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(generator_udtf(lit(3))).collect()
 
-foo = udtf("Foo", output_schema=StructType([StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", copy_grants=False, force_inline_code=True, _registered_object_name="foo")
+foo = udtf("Foo", output_schema=StructType(fields=[StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", copy_grants=False, force_inline_code=True, _registered_object_name="foo")
 
 df = session.create_dataframe([(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)])
 
 df = df.to_df(["a", "b", "c"])
 
-twox_udtf = udtf("TwoXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twox_udtf = udtf("TwoXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select((twox_udtf("a"))).collect()
 
-twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select(df["a"], (twoxsix_udtf(df["a"]))).collect()
 
-df.select(col("a"), (twoxsix_udtf("a").alias("double", "six_x")), col("c")).collect()
+df.select("a", (twoxsix_udtf("a").alias("double", "six_x")), "c").collect()
 
 ## EXPECTED ENCODED AST
 
@@ -148,16 +148,14 @@ body {
           name: "PrimeSieve"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -176,17 +174,17 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
-                  list {
-                    column_identifier {
+                  column_identifier {
+                    column_name {
                       name: "number"
                     }
-                    data_type {
-                      sp_integer_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -216,7 +214,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 1
             }
@@ -228,7 +226,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -276,7 +274,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -315,7 +313,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -355,19 +353,17 @@ body {
           name: "sum_udtf"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
           }
         }
         input_types {
-          list {
-            sp_long_type: true
-          }
-          list {
-            sp_long_type: true
-          }
+          long_type: true
+        }
+        input_types {
+          long_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -386,17 +382,17 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
-                  list {
-                    column_identifier {
+                  column_identifier {
+                    column_name {
                       name: "number"
                     }
-                    data_type {
-                      sp_long_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    long_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -423,9 +419,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -499,7 +495,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -525,21 +521,21 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           apply_expr {
             fn {
-              sp_fn_ref {
+              fn_ref {
                 id {
                   bitfield1: 6
                 }
               }
             }
             pos_args {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 7
                     }
@@ -555,10 +551,10 @@ body {
               }
             }
             pos_args {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "b"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 7
                     }
@@ -584,7 +580,7 @@ body {
         }
         col_name: "total"
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 7
             }
@@ -610,29 +606,31 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
-          sp_dataframe_col {
-            col_name: "a"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 7
+          args {
+            dataframe_col {
+              col_name: "a"
+              df {
+                dataframe_ref {
+                  id {
+                    bitfield1: 7
+                  }
                 }
               }
-            }
-            src {
-              end_column: 63
-              end_line: 56
-              file: 2
-              start_column: 59
-              start_line: 56
+              src {
+                end_column: 63
+                end_line: 56
+                file: 2
+                start_column: 59
+                start_line: 56
+              }
             }
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 8
             }
@@ -658,10 +656,11 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_show {
+      dataframe_show {
         id {
           bitfield1: 9
         }
+        n: 10
       }
     }
     symbol {
@@ -689,16 +688,14 @@ body {
           name: "GeneratorUDTF"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -717,17 +714,17 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
-                  list {
-                    column_identifier {
+                  column_identifier {
+                    column_name {
                       name: "number"
                     }
-                    data_type {
-                      sp_integer_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -757,7 +754,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 12
             }
@@ -769,7 +766,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "lit"
                     }
                   }
@@ -817,7 +814,7 @@ body {
 body {
   assign {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
@@ -856,7 +853,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -900,7 +897,7 @@ body {
           name: "Foo"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "foo"
               }
             }
@@ -909,26 +906,24 @@ body {
         immutable: true
         imports {
           name {
-            sp_name_flat {
+            name_flat {
               name: "numpy"
             }
           }
         }
         imports {
           name {
-            sp_name_structured {
+            name_structured {
               name: "seaborn"
               name: "sns"
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
-          list {
-            sp_long_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          long_type: true
         }
         is_permanent: true
         kwargs {
@@ -962,7 +957,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "foo"
             }
           }
@@ -970,26 +965,28 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
-                  list {
-                    column_identifier {
+                  column_identifier {
+                    column_name {
                       name: "a"
                     }
-                    data_type {
-                      sp_long_type: true
-                    }
-                    nullable: true
                   }
-                  list {
-                    column_identifier {
+                  data_type {
+                    long_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
                       name: "b"
                     }
-                    data_type {
-                      sp_long_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    long_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -1030,9 +1027,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -1197,12 +1194,47 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_df {
-        col_names: "a"
-        col_names: "b"
-        col_names: "c"
+      dataframe_to_df {
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 38
+                end_line: 94
+                file: 2
+                start_column: 13
+                start_line: 94
+              }
+              v: "a"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 38
+                end_line: 94
+                file: 2
+                start_column: 13
+                start_line: 94
+              }
+              v: "b"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 38
+                end_line: 94
+                file: 2
+                start_column: 13
+                start_line: 94
+              }
+              v: "c"
+            }
+          }
+        }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 18
             }
@@ -1235,16 +1267,14 @@ body {
           name: "TwoXUDTF"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -1263,17 +1293,17 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
-                  list {
-                    column_identifier {
+                  column_identifier {
+                    column_name {
                       name: "two_x"
                     }
-                    data_type {
-                      sp_integer_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -1303,7 +1333,7 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 20
             }
@@ -1341,27 +1371,30 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 21
+          args {
+            apply_expr {
+              fn {
+                indirect_table_fn_id_ref {
+                  id {
+                    bitfield1: 21
+                  }
                 }
               }
-            }
-            src {
-              end_column: 33
-              end_line: 106
-              file: 2
-              start_column: 8
-              start_line: 106
+              src {
+                end_column: 33
+                end_line: 106
+                file: 2
+                start_column: 8
+                start_line: 106
+              }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1374,7 +1407,6 @@ body {
           start_column: 8
           start_line: 106
         }
-        variadic: true
       }
     }
     symbol {
@@ -1388,7 +1420,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -1428,16 +1460,14 @@ body {
           name: "TwoXSixXUDTF"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -1456,26 +1486,28 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
+              struct_type {
                 fields {
-                  list {
-                    column_identifier {
+                  column_identifier {
+                    column_name {
                       name: "two_x"
                     }
-                    data_type {
-                      sp_integer_type: true
-                    }
-                    nullable: true
                   }
-                  list {
-                    column_identifier {
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
                       name: "six_x"
                     }
-                    data_type {
-                      sp_integer_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -1505,17 +1537,17 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
               bitfield1: 25
             }
           }
         }
         pos_args {
-          sp_dataframe_col {
+          dataframe_col {
             col_name: "a"
             df {
-              sp_dataframe_ref {
+              dataframe_ref {
                 id {
                   bitfield1: 19
                 }
@@ -1550,46 +1582,49 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_dataframe_col {
-            col_name: "a"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 19
+          args {
+            dataframe_col {
+              col_name: "a"
+              df {
+                dataframe_ref {
+                  id {
+                    bitfield1: 19
+                  }
                 }
               }
-            }
-            src {
-              end_column: 22
-              end_line: 120
-              file: 2
-              start_column: 18
-              start_line: 120
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 26
-                }
+              src {
+                end_column: 22
+                end_line: 120
+                file: 2
+                start_column: 18
+                start_line: 120
               }
             }
-            src {
-              end_column: 43
-              end_line: 120
-              file: 2
-              start_column: 8
-              start_line: 120
+          }
+          args {
+            apply_expr {
+              fn {
+                indirect_table_fn_id_ref {
+                  id {
+                    bitfield1: 26
+                  }
+                }
+              }
+              src {
+                end_column: 43
+                end_line: 120
+                file: 2
+                start_column: 8
+                start_line: 120
+              }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1602,7 +1637,6 @@ body {
           start_column: 8
           start_line: 120
         }
-        variadic: true
       }
     }
     symbol {
@@ -1616,7 +1650,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -1650,7 +1684,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_fn_call_alias {
+      table_fn_call_alias {
         aliases {
           args {
             string_val {
@@ -1681,7 +1715,7 @@ body {
         lhs {
           apply_expr {
             fn {
-              sp_fn_ref {
+              fn_ref {
                 id {
                   bitfield1: 25
                 }
@@ -1728,95 +1762,54 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "col"
-                    }
+          args {
+            string_val {
+              src {
+                end_column: 71
+                end_line: 122
+                file: 2
+                start_column: 8
+                start_line: 122
+              }
+              v: "a"
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                indirect_table_fn_id_ref {
+                  id {
+                    bitfield1: 30
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 71
-                  end_line: 122
-                  file: 2
-                  start_column: 8
-                  start_line: 122
-                }
-                v: "a"
+              src {
+                end_column: 71
+                end_line: 122
+                file: 2
+                start_column: 8
+                start_line: 122
               }
-            }
-            src {
-              end_column: 71
-              end_line: 122
-              file: 2
-              start_column: 8
-              start_line: 122
             }
           }
-        }
-        cols {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 30
-                }
+          args {
+            string_val {
+              src {
+                end_column: 71
+                end_line: 122
+                file: 2
+                start_column: 8
+                start_line: 122
               }
-            }
-            src {
-              end_column: 71
-              end_line: 122
-              file: 2
-              start_column: 8
-              start_line: 122
+              v: "c"
             }
           }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "col"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 71
-                  end_line: 122
-                  file: 2
-                  start_column: 8
-                  start_line: 122
-                }
-                v: "c"
-              }
-            }
-            src {
-              end_column: 71
-              end_line: 122
-              file: 2
-              start_column: 8
-              start_line: 122
-            }
-          }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1829,7 +1822,6 @@ body {
           start_column: 8
           start_line: 122
         }
-        variadic: true
       }
     }
     symbol {
@@ -1843,7 +1835,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -1887,5 +1879,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

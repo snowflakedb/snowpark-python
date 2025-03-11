@@ -15,7 +15,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import (
-    SnowparkDataframeException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
@@ -52,16 +51,6 @@ def test_pivot(session):
         .sort(col("empid")),
         [Row(1, 10400, 8000, 11000, 18000), Row(2, 39500, 90700, 12000, 5300)],
         sort=False,
-    )
-
-    with pytest.raises(SnowparkDataframeException) as ex_info:
-        TestData.monthly_sales(session).pivot(
-            "month", ["JAN", "FEB", "MAR", "APR"]
-        ).agg([sum(col("amount")), avg(col("amount"))]).sort(col("empid"))
-
-    assert (
-        "You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot() method."
-        in str(ex_info)
     )
 
 
@@ -186,13 +175,6 @@ def test_group_by_pivot(session):
         ],
         sort=False,
     )
-    with pytest.raises(
-        SnowparkDataframeException,
-        match="You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot()",
-    ):
-        TestData.monthly_sales_with_team(session).group_by("empid").pivot(
-            "month", ["JAN", "FEB", "MAR", "APR"]
-        ).agg([sum(col("amount")), avg(col("amount"))])
 
 
 @multithreaded_run()
@@ -432,6 +414,48 @@ def test_pivot_default_on_none(session, caplog):
         )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Multiple aggregations are not supported in local testing mode",
+)
+def test_pivot_multiple_aggs(session):
+    # 1) SUM and AVG
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg([sum(col("amount")), avg(col("amount"))])
+        .sort(col("empid")),
+        [
+            Row(1, 10400, 8000, 11000, 18000),
+            Row(2, 39500, 90700, 12000, 5300),
+        ],
+    )
+
+    # 2) MIN and MAX
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg([min(col("amount")), max(col("amount"))])
+        .sort(col("empid")),
+        [
+            Row(1, 400, 3000, 5000, 8000),
+            Row(2, 4500, 200, 2500, 800),
+        ],
+    )
+
+    # 3) AVG and COUNT_DISTINCT
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg([avg(col("amount")), count_distinct(col("amount"))])
+        .sort(col("empid")),
+        [
+            Row(1, 5200, 4000, 5500, 9000),
+            Row(2, 19750, 45350, 6000, 2650),
+        ],
+    )
+
+
 def test_rel_grouped_dataframe_agg(session):
     df = (
         session.create_dataframe([[1, "One"], [2, "Two"], [3, "Three"]])
@@ -599,15 +623,19 @@ def test_rel_grouped_dataframe_max(session):
 
     # below 2 ways to call max() must return the same result.
     expected = [Row("a", 3, 33), Row("b", 4, 44)]
-    assert df1.group_by("key").max(col("value1"), col("value2")).collect() == expected
-    assert (
-        df1.group_by("key").agg([max(col("value1")), max(col("value2"))]).collect()
-        == expected
+    Utils.check_answer(
+        df1.group_by("key").max(col("value1"), col("value2")).collect(), expected
+    )
+    Utils.check_answer(
+        df1.group_by("key").agg([max(col("value1")), max(col("value2"))]).collect(),
+        expected,
     )
 
     # same as above, but pass str instead of Column
-    assert df1.group_by("key").max("value1", "value2").collect() == expected
-    assert df1.group_by("key").agg([max("value1"), max("value2")]).collect() == expected
+    Utils.check_answer(df1.group_by("key").max("value1", "value2").collect(), expected)
+    Utils.check_answer(
+        df1.group_by("key").agg([max("value1"), max("value2")]).collect(), expected
+    )
 
 
 def test_rel_grouped_dataframe_avg_mean(session):

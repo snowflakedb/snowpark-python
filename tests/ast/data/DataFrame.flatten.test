@@ -28,10 +28,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -44,7 +44,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -60,9 +60,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_flatten {
+      dataframe_flatten {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -81,7 +81,7 @@ body {
           }
         }
         mode {
-          sp_flatten_mode_both: true
+          flatten_mode_both: true
         }
         outer: true
         path {
@@ -108,9 +108,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_flatten {
+      dataframe_flatten {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -122,7 +122,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -151,7 +151,7 @@ body {
           }
         }
         mode {
-          sp_flatten_mode_array: true
+          flatten_mode_array: true
         }
         recursive: true
         src {
@@ -185,5 +185,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

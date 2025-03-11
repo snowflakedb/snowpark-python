@@ -23,7 +23,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils, iceberg_supported
+from tests.utils import TestFiles, Utils, iceberg_supported, is_in_stored_procedure
 
 
 @pytest.fixture(scope="function")
@@ -175,8 +175,15 @@ def test_write_with_target_table_autoincrement(
 
 
 def test_iceberg(session, local_testing_mode):
-    if not iceberg_supported(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
         pytest.skip("Test requires iceberg support.")
+
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
+    ).collect()
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
+    ).collect()
 
     table_name = Utils.random_table_name()
     df = session.create_dataframe(

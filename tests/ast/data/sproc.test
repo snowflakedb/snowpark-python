@@ -137,11 +137,9 @@ _ = session.sql("drop table if exists test_to")
 
 _.collect()
 
-res11 = session.call("my_copy_sp", "test_from", "test_to", 10)
+session.call("my_copy_sp", "test_from", "test_to", 10)
 
 session.table("test_from").limit(10, 0).write.save_as_table("test_to", mode="overwrite", table_type="temporary")
-
-my_copy_sp("test_from", "test_to", 10)
 
 session.table("test_to").count()
 
@@ -171,15 +169,15 @@ session.sql("call mul_sp(5, 6)").collect()
 
 sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
 
-res34 = sproc("select_sp", return_type=StructType([StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res33 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res38 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res37 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res42 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res41 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
@@ -206,32 +204,30 @@ body {
           name: "my_copy"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_string_type {
-              length {
-              }
+          string_type {
+            length {
             }
           }
-          list {
-            sp_string_type {
-              length {
-              }
+        }
+        input_types {
+          string_type {
+            length {
             }
           }
-          list {
-            sp_long_type: true
-          }
+        }
+        input_types {
+          long_type: true
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "my_copy_sp"
             }
           }
@@ -239,7 +235,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_string_type {
+          string_type {
             length {
             }
           }
@@ -266,7 +262,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))"
         src {
           end_column: 155
@@ -289,7 +285,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -323,9 +319,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
@@ -365,7 +361,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -390,9 +386,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
@@ -418,14 +414,14 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
           bitfield1: 6
         }
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 90
@@ -436,7 +432,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_from"
             }
           }
@@ -463,9 +459,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
@@ -493,7 +489,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -518,9 +514,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 9
             }
@@ -546,14 +542,14 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
           bitfield1: 10
         }
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 86
@@ -564,7 +560,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_to"
             }
           }
@@ -591,7 +587,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "call my_copy_sp(\'test_from\', \'test_to\', 10)"
         src {
           end_column: 66
@@ -613,7 +609,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -647,10 +643,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_to"
             }
           }
@@ -663,7 +659,7 @@ body {
           start_line: 51
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -678,7 +674,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         block: true
         id {
           bitfield1: 16
@@ -711,7 +707,7 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "drop table if exists test_to"
         src {
           end_column: 55
@@ -734,7 +730,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -775,7 +771,7 @@ body {
             }
             name {
               name {
-                sp_name_flat {
+                name_flat {
                   name: "my_copy_sp"
                 }
               }
@@ -836,76 +832,20 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          sp_fn_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              end_column: 62
-              end_line: 55
-              file: 2
-              start_column: 8
-              start_line: 55
-            }
-            v: "test_from"
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              end_column: 62
-              end_line: 55
-              file: 2
-              start_column: 8
-              start_line: 55
-            }
-            v: "test_to"
-          }
-        }
-        pos_args {
-          int64_val {
-            src {
-              end_column: 62
-              end_line: 55
-              file: 2
-              start_column: 8
-              start_line: 55
-            }
-            v: 10
-          }
-        }
-        src {
-          end_column: 62
-          end_line: 55
-          file: 2
-          start_column: 8
-          start_line: 55
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 23
     var_id {
-      bitfield1: 23
+      bitfield1: 22
     }
   }
 }
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_from"
             }
           }
@@ -918,7 +858,7 @@ body {
           start_line: 39
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -933,9 +873,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_limit {
+      dataframe_limit {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 24
             }
@@ -962,9 +902,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 25
             }
@@ -990,14 +930,14 @@ body {
 body {
   assign {
     expr {
-      sp_write_table {
+      write_table {
         block: true
         column_order: "index"
         id {
           bitfield1: 26
         }
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         src {
           end_column: 122
@@ -1008,7 +948,7 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_to"
             }
           }
@@ -1033,20 +973,12 @@ body {
   }
 }
 body {
-  eval {
-    uid: 29
-    var_id {
-      bitfield1: 23
-    }
-  }
-}
-body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_to"
             }
           }
@@ -1059,25 +991,25 @@ body {
           start_line: 56
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
     symbol {
     }
-    uid: 30
+    uid: 29
     var_id {
-      bitfield1: 30
+      bitfield1: 29
     }
   }
 }
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         block: true
         id {
-          bitfield1: 30
+          bitfield1: 29
         }
         src {
           end_column: 40
@@ -1090,17 +1022,17 @@ body {
     }
     symbol {
     }
-    uid: 31
+    uid: 30
     var_id {
-      bitfield1: 31
+      bitfield1: 30
     }
   }
 }
 body {
   eval {
-    uid: 32
+    uid: 31
     var_id {
-      bitfield1: 31
+      bitfield1: 30
     }
   }
 }
@@ -1114,20 +1046,18 @@ body {
           name: "<lambda [1]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
         }
         parallel: 2
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -1142,9 +1072,9 @@ body {
     symbol {
       value: "add_one_sp"
     }
-    uid: 33
+    uid: 32
     var_id {
-      bitfield1: 33
+      bitfield1: 32
     }
   }
 }
@@ -1153,9 +1083,9 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
-              bitfield1: 33
+              bitfield1: 32
             }
           }
         }
@@ -1182,6 +1112,28 @@ body {
     }
     symbol {
     }
+    uid: 33
+    var_id {
+      bitfield1: 33
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sql {
+        query: "select 1 + 1"
+        src {
+          end_column: 63
+          end_line: 60
+          file: 2
+          start_column: 32
+          start_line: 60
+        }
+      }
+    }
+    symbol {
+    }
     uid: 34
     var_id {
       bitfield1: 34
@@ -1191,10 +1143,14 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
-        query: "select 1 + 1"
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 34
+        }
         src {
-          end_column: 63
+          end_column: 73
           end_line: 60
           file: 2
           start_column: 32
@@ -1211,28 +1167,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
-          bitfield1: 35
-        }
-        src {
-          end_column: 73
-          end_line: 60
-          file: 2
-          start_column: 32
-          start_line: 60
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 36
     var_id {
-      bitfield1: 36
+      bitfield1: 35
     }
   }
 }
@@ -1240,25 +1178,43 @@ body {
   eval {
     uid: 37
     var_id {
-      bitfield1: 36
-    }
-  }
-}
-body {
-  eval {
-    uid: 38
-    var_id {
-      bitfield1: 34
+      bitfield1: 33
     }
   }
 }
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "select 1 + 2"
         src {
           end_column: 52
+          end_line: 70
+          file: 2
+          start_column: 19
+          start_line: 70
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 38
+    var_id {
+      bitfield1: 38
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 38
+        }
+        src {
+          end_column: 62
           end_line: 70
           file: 2
           start_column: 19
@@ -1275,43 +1231,17 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
-          bitfield1: 39
-        }
-        src {
-          end_column: 62
-          end_line: 70
-          file: 2
-          start_column: 19
-          start_line: 70
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 40
     var_id {
-      bitfield1: 40
-    }
-  }
-}
-body {
-  eval {
-    uid: 41
-    var_id {
-      bitfield1: 40
+      bitfield1: 39
     }
   }
 }
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "create or replace temp stage mystage"
         src {
           end_column: 63
@@ -1325,20 +1255,20 @@ body {
     symbol {
       value: "_"
     }
-    uid: 42
+    uid: 41
     var_id {
-      bitfield1: 42
+      bitfield1: 41
     }
   }
 }
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 42
+          bitfield1: 41
         }
         src {
           end_column: 73
@@ -1351,17 +1281,17 @@ body {
     }
     symbol {
     }
-    uid: 43
+    uid: 42
     var_id {
-      bitfield1: 43
+      bitfield1: 42
     }
   }
 }
 body {
   eval {
-    uid: 44
+    uid: 43
     var_id {
-      bitfield1: 43
+      bitfield1: 42
     }
   }
 }
@@ -1375,24 +1305,22 @@ body {
           name: "<lambda [2]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         is_permanent: true
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "mul_sp"
             }
           }
@@ -1400,7 +1328,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -1416,6 +1344,28 @@ body {
     symbol {
       value: "_"
     }
+    uid: 44
+    var_id {
+      bitfield1: 44
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sql {
+        query: "call mul_sp(5, 6)"
+        src {
+          end_column: 40
+          end_line: 84
+          file: 2
+          start_column: 8
+          start_line: 84
+        }
+      }
+    }
+    symbol {
+    }
     uid: 45
     var_id {
       bitfield1: 45
@@ -1425,10 +1375,14 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
-        query: "call mul_sp(5, 6)"
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 45
+        }
         src {
-          end_column: 40
+          end_column: 50
           end_line: 84
           file: 2
           start_column: 8
@@ -1445,36 +1399,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
-          bitfield1: 46
-        }
-        src {
-          end_column: 50
-          end_line: 84
-          file: 2
-          start_column: 8
-          start_line: 84
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 47
     var_id {
-      bitfield1: 47
-    }
-  }
-}
-body {
-  eval {
-    uid: 48
-    var_id {
-      bitfield1: 47
+      bitfield1: 46
     }
   }
 }
@@ -1488,7 +1416,7 @@ body {
           name: "<lambda [3]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
@@ -1496,24 +1424,22 @@ body {
         }
         if_not_exists: true
         input_types {
-          list {
-            sp_integer_type: true
-          }
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         is_permanent: true
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "mul_sp"
             }
           }
         }
         parallel: 4
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         source_code_display: true
         src {
@@ -1529,6 +1455,28 @@ body {
     symbol {
       value: "_"
     }
+    uid: 48
+    var_id {
+      bitfield1: 48
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sql {
+        query: "call mul_sp(5, 6)"
+        src {
+          end_column: 40
+          end_line: 96
+          file: 2
+          start_column: 8
+          start_line: 96
+        }
+      }
+    }
+    symbol {
+    }
     uid: 49
     var_id {
       bitfield1: 49
@@ -1538,10 +1486,14 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
-        query: "call mul_sp(5, 6)"
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 49
+        }
         src {
-          end_column: 40
+          end_column: 50
           end_line: 96
           file: 2
           start_column: 8
@@ -1558,36 +1510,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
-          bitfield1: 50
-        }
-        src {
-          end_column: 50
-          end_line: 96
-          file: 2
-          start_column: 8
-          start_line: 96
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 51
     var_id {
-      bitfield1: 51
-    }
-  }
-}
-body {
-  eval {
-    uid: 52
-    var_id {
-      bitfield1: 51
+      bitfield1: 50
     }
   }
 }
@@ -1602,24 +1528,22 @@ body {
           name: "<lambda [4]>"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         is_permanent: true
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "mul_sp"
             }
           }
@@ -1627,7 +1551,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         secrets {
           _1: "a"
@@ -1652,6 +1576,28 @@ body {
     symbol {
       value: "_"
     }
+    uid: 52
+    var_id {
+      bitfield1: 52
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sql {
+        query: "call mul_sp(5, 6)"
+        src {
+          end_column: 40
+          end_line: 111
+          file: 2
+          start_column: 8
+          start_line: 111
+        }
+      }
+    }
+    symbol {
+    }
     uid: 53
     var_id {
       bitfield1: 53
@@ -1661,10 +1607,14 @@ body {
 body {
   assign {
     expr {
-      sp_sql {
-        query: "call mul_sp(5, 6)"
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 53
+        }
         src {
-          end_column: 40
+          end_column: 50
           end_line: 111
           file: 2
           start_column: 8
@@ -1681,36 +1631,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
-          bitfield1: 54
-        }
-        src {
-          end_column: 50
-          end_line: 111
-          file: 2
-          start_column: 8
-          start_line: 111
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 55
     var_id {
-      bitfield1: 55
-    }
-  }
-}
-body {
-  eval {
-    uid: 56
-    var_id {
-      bitfield1: 55
+      bitfield1: 54
     }
   }
 }
@@ -1724,22 +1648,20 @@ body {
           name: "sin_sp"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_float_type: true
-          }
+          float_type: true
         }
         packages: "snowflake-snowpark-python"
         packages: "numpy"
         parallel: 4
         return_type {
-          sp_float_type: true
+          float_type: true
         }
         source_code_display: true
         src {
@@ -1757,9 +1679,9 @@ body {
     }
     symbol {
     }
-    uid: 57
+    uid: 56
     var_id {
-      bitfield1: 57
+      bitfield1: 56
     }
   }
 }
@@ -1768,9 +1690,9 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
-              bitfield1: 57
+              bitfield1: 56
             }
           }
         }
@@ -1797,17 +1719,17 @@ body {
     }
     symbol {
     }
-    uid: 58
+    uid: 57
     var_id {
-      bitfield1: 58
+      bitfield1: 57
     }
   }
 }
 body {
   eval {
-    uid: 59
+    uid: 58
     var_id {
-      bitfield1: 58
+      bitfield1: 57
     }
   }
 }
@@ -1821,42 +1743,42 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         parallel: 4
         return_type {
-          sp_struct_type {
+          struct_type {
             fields {
-              list {
-                column_identifier {
+              column_identifier {
+                column_name {
                   name: "A"
                 }
-                data_type {
-                  sp_integer_type: true
-                }
-                nullable: true
               }
-              list {
-                column_identifier {
+              data_type {
+                integer_type: true
+              }
+              nullable: true
+            }
+            fields {
+              column_identifier {
+                column_name {
                   name: "B"
                 }
-                data_type {
-                  sp_integer_type: true
-                }
-                nullable: true
               }
+              data_type {
+                integer_type: true
+              }
+              nullable: true
             }
           }
         }
@@ -1872,9 +1794,9 @@ body {
     }
     symbol {
     }
-    uid: 60
+    uid: 59
     var_id {
-      bitfield1: 60
+      bitfield1: 59
     }
   }
 }
@@ -1883,9 +1805,9 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
-              bitfield1: 60
+              bitfield1: 59
             }
           }
         }
@@ -1924,16 +1846,16 @@ body {
     }
     symbol {
     }
-    uid: 61
+    uid: 60
     var_id {
-      bitfield1: 61
+      bitfield1: 60
     }
   }
 }
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "SELECT 1 as A, 2 as B"
         src {
           end_column: 61
@@ -1946,6 +1868,24 @@ body {
     }
     symbol {
     }
+    uid: 61
+    var_id {
+      bitfield1: 61
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_show {
+        id {
+          bitfield1: 61
+        }
+        n: 10
+      }
+    }
+    symbol {
+    }
     uid: 62
     var_id {
       bitfield1: 62
@@ -1953,27 +1893,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_show {
-        id {
-          bitfield1: 62
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 63
     var_id {
-      bitfield1: 63
-    }
-  }
-}
-body {
-  eval {
-    uid: 64
-    var_id {
-      bitfield1: 63
+      bitfield1: 62
     }
   }
 }
@@ -1987,25 +1910,21 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          integer_type: true
         }
         parallel: 4
         return_type {
-          sp_struct_type {
-            fields {
-            }
+          struct_type {
           }
         }
         src {
@@ -2019,9 +1938,9 @@ body {
     }
     symbol {
     }
-    uid: 65
+    uid: 64
     var_id {
-      bitfield1: 65
+      bitfield1: 64
     }
   }
 }
@@ -2030,9 +1949,9 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
-              bitfield1: 65
+              bitfield1: 64
             }
           }
         }
@@ -2071,16 +1990,16 @@ body {
     }
     symbol {
     }
-    uid: 66
+    uid: 65
     var_id {
-      bitfield1: 66
+      bitfield1: 65
     }
   }
 }
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "SELECT 1 as A, 2 as B"
         src {
           end_column: 61
@@ -2093,6 +2012,24 @@ body {
     }
     symbol {
     }
+    uid: 66
+    var_id {
+      bitfield1: 66
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_show {
+        id {
+          bitfield1: 66
+        }
+        n: 10
+      }
+    }
+    symbol {
+    }
     uid: 67
     var_id {
       bitfield1: 67
@@ -2100,27 +2037,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_show {
-        id {
-          bitfield1: 67
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 68
     var_id {
-      bitfield1: 68
-    }
-  }
-}
-body {
-  eval {
-    uid: 69
-    var_id {
-      bitfield1: 68
+      bitfield1: 67
     }
   }
 }
@@ -2134,25 +2054,21 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
           }
         }
         input_types {
-          list {
-            sp_long_type: true
-          }
-          list {
-            sp_long_type: true
-          }
+          long_type: true
+        }
+        input_types {
+          long_type: true
         }
         parallel: 4
         return_type {
-          sp_struct_type {
-            fields {
-            }
+          struct_type {
           }
         }
         source_code_display: true
@@ -2167,9 +2083,9 @@ body {
     }
     symbol {
     }
-    uid: 70
+    uid: 69
     var_id {
-      bitfield1: 70
+      bitfield1: 69
     }
   }
 }
@@ -2178,9 +2094,9 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
+          fn_ref {
             id {
-              bitfield1: 70
+              bitfield1: 69
             }
           }
         }
@@ -2219,16 +2135,16 @@ body {
     }
     symbol {
     }
-    uid: 71
+    uid: 70
     var_id {
-      bitfield1: 71
+      bitfield1: 70
     }
   }
 }
 body {
   assign {
     expr {
-      sp_sql {
+      sql {
         query: "SELECT 1 as A, 2 as B"
         src {
           end_column: 61
@@ -2241,6 +2157,24 @@ body {
     }
     symbol {
     }
+    uid: 71
+    var_id {
+      bitfield1: 71
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_show {
+        id {
+          bitfield1: 71
+        }
+        n: 10
+      }
+    }
+    symbol {
+    }
     uid: 72
     var_id {
       bitfield1: 72
@@ -2248,27 +2182,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_show {
-        id {
-          bitfield1: 72
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 73
     var_id {
-      bitfield1: 73
-    }
-  }
-}
-body {
-  eval {
-    uid: 74
-    var_id {
-      bitfield1: 73
+      bitfield1: 72
     }
   }
 }
@@ -2285,5 +2202,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

@@ -47,7 +47,7 @@ df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 
 
 res10 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
-df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
+df.group_by("location").apply_in_pandas(convert, StructType(fields=[StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
 
 df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
 
@@ -69,9 +69,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -285,7 +285,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -311,7 +311,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -328,7 +328,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -354,7 +354,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "median"
         cols {
           args {
@@ -372,7 +372,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -398,7 +398,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -432,7 +432,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -449,7 +449,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -475,7 +475,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "avg"
         cols {
           args {
@@ -493,7 +493,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -519,7 +519,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -553,7 +553,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -570,7 +570,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -596,10 +596,10 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "count"
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 10
             }
@@ -625,9 +625,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -806,7 +806,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "location"
             vs: "temp_c"
           }
@@ -832,7 +832,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -849,7 +849,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 12
             }
@@ -880,22 +880,20 @@ body {
           name: "_ApplyInPandas"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
           }
         }
         input_types {
-          list {
-            sp_string_type {
-              length {
-              }
+          string_type {
+            length {
             }
           }
-          list {
-            sp_float_type: true
-          }
+        }
+        input_types {
+          float_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -914,21 +912,21 @@ body {
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_pandas_data_frame_type {
+              pandas_data_frame_type {
                 col_names: "LOCATION"
                 col_names: "TEMP_C"
                 col_names: "TEMP_F"
                 col_types {
-                  sp_string_type {
+                  string_type {
                     length {
                     }
                   }
                 }
                 col_types {
-                  sp_float_type: true
+                  float_type: true
                 }
                 col_types {
-                  sp_float_type: true
+                  float_type: true
                 }
               }
             }
@@ -955,13 +953,13 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_apply_in_pandas {
+      relational_grouped_dataframe_apply_in_pandas {
         func {
           id: 1
           name: "convert"
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 13
             }
@@ -979,9 +977,9 @@ body {
                 start_line: 43
               }
               vs {
-                sp_datatype_val {
+                datatype_val {
                   datatype {
-                    sp_string_type {
+                    string_type {
                       length {
                       }
                     }
@@ -996,9 +994,9 @@ body {
                 }
               }
               vs {
-                sp_datatype_val {
+                datatype_val {
                   datatype {
-                    sp_float_type: true
+                    float_type: true
                   }
                   src {
                     end_column: 75
@@ -1052,36 +1050,40 @@ body {
         }
         output_schema {
           fields {
-            list {
-              column_identifier {
+            column_identifier {
+              column_name {
                 name: "location"
               }
-              data_type {
-                sp_string_type {
-                  length {
-                  }
+            }
+            data_type {
+              string_type {
+                length {
                 }
               }
-              nullable: true
             }
-            list {
-              column_identifier {
+            nullable: true
+          }
+          fields {
+            column_identifier {
+              column_name {
                 name: "temp_c"
               }
-              data_type {
-                sp_float_type: true
-              }
-              nullable: true
             }
-            list {
-              column_identifier {
+            data_type {
+              float_type: true
+            }
+            nullable: true
+          }
+          fields {
+            column_identifier {
+              column_name {
                 name: "temp_f"
               }
-              data_type {
-                sp_float_type: true
-              }
-              nullable: true
             }
+            data_type {
+              float_type: true
+            }
+            nullable: true
           }
         }
         src {
@@ -1104,22 +1106,24 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 94
-              end_line: 46
-              file: 2
-              start_column: 76
-              start_line: 46
+          args {
+            string_val {
+              src {
+                end_column: 94
+                end_line: 46
+                file: 2
+                start_column: 76
+                start_line: 46
+              }
+              v: "temp_c"
             }
-            v: "temp_c"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 15
             }
@@ -1145,7 +1149,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -1179,9 +1183,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
@@ -1362,7 +1366,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "empid"
             vs: "team"
             vs: "amount"
@@ -1390,7 +1394,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -1407,7 +1411,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1433,9 +1437,9 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_pivot {
+      relational_grouped_dataframe_pivot {
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 20
             }
@@ -1461,7 +1465,7 @@ body {
           start_line: 54
         }
         values {
-          sp_pivot_value__expr {
+          pivot_value__expr {
             v {
               list_val {
                 src {
@@ -1512,7 +1516,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "sum"
         cols {
           args {
@@ -1530,7 +1534,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 21
             }
@@ -1556,10 +1560,11 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_show {
+      dataframe_show {
         id {
           bitfield1: 22
         }
+        n: 10
       }
     }
     symbol {
@@ -1581,7 +1586,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
@@ -1609,7 +1614,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 19
             }
@@ -1635,9 +1640,9 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_pivot {
+      relational_grouped_dataframe_pivot {
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 25
             }
@@ -1675,7 +1680,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_builtin {
+      relational_grouped_dataframe_builtin {
         agg_name: "sum"
         cols {
           args {
@@ -1693,7 +1698,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 26
             }
@@ -1719,34 +1724,36 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 89
-              end_line: 56
-              file: 2
-              start_column: 8
-              start_line: 56
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 56
+                file: 2
+                start_column: 8
+                start_line: 56
+              }
+              v: "empid"
             }
-            v: "empid"
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 89
-              end_line: 56
-              file: 2
-              start_column: 8
-              start_line: 56
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 56
+                file: 2
+                start_column: 8
+                start_line: 56
+              }
+              v: "team"
             }
-            v: "team"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 27
             }
@@ -1772,10 +1779,11 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_show {
+      dataframe_show {
         id {
           bitfield1: 28
         }
+        n: 10
       }
     }
     symbol {
@@ -1807,5 +1815,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

@@ -21,12 +21,13 @@ import string
 import sys
 import threading
 import traceback
+import uuid
 import zipfile
 from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache
 from itertools import count
 from json import JSONEncoder
-from random import choice
+from random import Random
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -42,6 +43,7 @@ from typing import (
     Tuple,
     Type,
     Union,
+    TypeVar,
 )
 
 import snowflake.snowpark
@@ -56,6 +58,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -65,9 +69,13 @@ _logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
+RELATIVE_PATH_PREFIX = "/"
 SNOWFLAKE_PATH_PREFIXES = [
     STAGE_PREFIX,
     SNOWURL_PREFIX,
+]
+SNOWFLAKE_PATH_PREFIXES_FOR_GET = SNOWFLAKE_PATH_PREFIXES + [
+    RELATIVE_PATH_PREFIX,
 ]
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
@@ -300,6 +308,19 @@ def validate_object_name(name: str):
         raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
 
+def validate_stage_location(stage_location: str) -> str:
+    stage_location = stage_location.strip()
+    if not stage_location:
+        raise ValueError(
+            "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
+        )
+    if stage_location[-1] == "/":
+        raise ValueError(
+            "stage_location should end with target filename like @mystage/prefix/stage/filename"
+        )
+    return stage_location
+
+
 @lru_cache
 def get_version() -> str:
     return ".".join([str(d) for d in snowpark_version if d is not None])
@@ -372,7 +393,7 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
-    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES
+    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES_FOR_GET
     if is_single_quoted(path):
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
@@ -408,7 +429,7 @@ def split_path(path: str) -> Tuple[str, str]:
 
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
+    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES_FOR_GET):
         return new_name
     return f"{STAGE_PREFIX}{new_name}"
 
@@ -629,9 +650,12 @@ def create_or_update_statement_params_with_query_tag(
     statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
+    collect_stacktrace: bool = False,
 ) -> Dict[str, str]:
-    if exists_session_query_tag or (
-        statement_params and QUERY_TAG_STRING in statement_params
+    if (
+        exists_session_query_tag
+        or (statement_params and QUERY_TAG_STRING in statement_params)
+        or not collect_stacktrace
     ):
         return statement_params
 
@@ -685,7 +709,7 @@ def random_name_for_temp_object(object_type: TempObjectType) -> str:
 
 
 def generate_random_alphanumeric(length: int = 10) -> str:
-    return "".join(choice(ALPHANUMERIC) for _ in range(length))
+    return "".join(Random().choice(ALPHANUMERIC) for _ in range(length))
 
 
 def column_to_bool(col_):
@@ -1000,14 +1024,28 @@ def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
     return _ast_state.set_state(source, enabled)
 
 
-def publicapi(func) -> Callable:
+# When the minimum supported Python version is at least 3.10, the type
+# annotations for publicapi should use typing.ParamSpec:
+# P = ParamSpec("P")
+# ReturnT = TypeVar("ReturnT")
+# def publicapi(func: Callable[P, ReturnT]) -> Callable[P, ReturnT]:
+#   ...
+#   @functools.wraps(func)
+#   def call_wrapper(*args: P.args, **kwargs: P.kwargs) -> ReturnT:
+#     ...
+#   ...
+#   return call_wrapper
+CallableT = TypeVar("CallableT", bound=Callable)
+
+
+def publicapi(func: CallableT) -> CallableT:
     """decorator to safeguard public APIs with global feature flags."""
 
     # Note that co_varnames also includes local variables. This can trigger false positives.
     has_emit_ast: bool = "_emit_ast" in func.__code__.co_varnames
 
     @functools.wraps(func)
-    def call_wrapper(*args, **kwargs):  # pragma: no cover
+    def call_wrapper(*args, **kwargs):
         # warning(func.__qualname__, warning_text)
 
         if not has_emit_ast:
@@ -1510,3 +1548,229 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+class ExprAliasUpdateDict(dict):
+    """
+    A specialized dictionary for mapping expressions (UUID keys) to alias names updates tracking.
+    This is used to resolve ambiguous column names in join operations.
+
+    This dictionary is designed to store aliases as string values while also tracking whether
+    each alias was inherited from child DataFrame plan.
+    The values are stored as tuples of the form `(alias: str, updated_from_inherited: bool)`, where:
+
+    - `alias` (str): The alias name for the expression.
+    - `updated_from_inheritance` (bool): A flag indicating whether the expr alias was updated
+     because it's inherited from child plan (True) or not (False).
+
+    Below is an example for resolving alias mapping:
+
+    data = [25, 30]
+    columns = ["age"]
+    df1 = session.createDataFrame(data, columns)
+    df2 = session.createDataFrame(data, columns)
+    df3 = df1.join(df2)
+    # in DF3:
+    #    df1.age expr_id -> (age_alias_left, False)  # comes from df1 due to being disambiguated in the join condition
+    #    df2.age expr_id -> (age_alias_right, False)  # comes from df2 due to being disambiguated in the join condition
+
+    df4 = df3.select(df1.age.alias("age"))
+
+    # in DF4:
+    #    df1.age.expr_id -> (age, False)  # comes from df3 explict alias
+    #    df2.age.expr_id -> (age_alias_right, False)  # unchanged, inherited from df3
+    df5 = df1.join(df4, df1["age"] == df4["age"])
+
+    # in the middle of df1.join(df2) operation, we have the following expr_to_alias mapping:
+    #  DF4 intermediate expr_to_alias:
+    #    df4.age.expr_id -> (age_alias_right2, False)  # comes from df4 due to being disambiguated in the join condition, note here df4.age is not the same as df1.age, it's a new attribute
+    #    df1.age.expr_id -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #  DF1 intermediate expr_to_alias:
+    #    df1.age.expr_id -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+
+    # when executing merge_multiple_snowflake_plan_expr_to_alias, we drop df1.age.expr_id -> (age_alias_right2, True)
+
+    # in DF5:
+    #    df4.age.expr_id -> (age_alias_right2, False)
+    #    df1.age.expr_id -> (age_alias_left2, False)
+    """
+
+    def __setitem__(
+        self, key: Union[uuid.UUID, str], value: Union[Tuple[str, bool], str]
+    ):
+        """If a string value is provided, it is automatically stored as `(value, False)`.
+        If a tuple `(str, bool)` is provided, it must conform to the expected format.
+        """
+        if isinstance(value, str):
+            # if value is a string, we set inherit to False
+            value = (value, False)
+        if not (
+            isinstance(value, tuple)
+            and len(value) == 2
+            and isinstance(value[0], str)
+            and isinstance(value[1], bool)
+        ):
+            raise ValueError("Value must be a tuple of (str, bool)")
+        super().__setitem__(key, value)
+
+    def __getitem__(self, item) -> str:
+        """Returns only the alias string (`str`), omitting the inheritance flag."""
+        value = super().__getitem__(item)
+        return value[0]
+
+    def get(self, key, default=None) -> str:
+        value = super().get(key, None)
+        if value is not None:
+            return value[0]
+        return default
+
+    def was_updated_due_to_inheritance(self, key):
+        """Returns whether a key was inherited (`True` or `False`)."""
+        value = super().get(key, None)
+        if value is not None:
+            return value[1]
+        return False
+
+    def items(self):
+        """Return (key, str) pairs instead of (key, (str, bool)) pairs."""
+        return ((key, value[0]) for key, value in super().items())
+
+    def values(self) -> Iterable[str]:
+        """Return only the string parts of the tuple in the dictionary values."""
+        return (value[0] for value in super().values())
+
+    def update(self, other):
+        assert isinstance(other, ExprAliasUpdateDict)
+        for k in other:
+            self[k] = (other[k], other.was_updated_due_to_inheritance(k))
+
+    def copy(self) -> "ExprAliasUpdateDict":
+        """Return a shallow copy of the dictionary, preserving the (str, bool) tuple structure."""
+        return self.__copy__()
+
+    def __copy__(self) -> "ExprAliasUpdateDict":
+        """Shallow copy implementation for copy.copy()"""
+        new_copy = ExprAliasUpdateDict()
+        new_copy.update(self)
+        return new_copy
+
+    def __deepcopy__(self, memo) -> "ExprAliasUpdateDict":
+        """Deep copy implementation for copy.deepcopy()"""
+        return self.__copy__()
+
+
+def merge_multiple_snowflake_plan_expr_to_alias(
+    snowflake_plans: List["SnowflakePlan"],
+) -> ExprAliasUpdateDict:
+    """
+    Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
+    The conflict resolution strategy is as follows:
+
+    1) If they map to the same alias:
+        * Retain the expression in the final expr_to_alias map.
+    2) If they map to different aliases:
+        a) If one appears in the output attributes of the plan and the other does not:
+            * Retain the one present in the output attributes and discard the other. This is because
+            I. The one that shows up in the output attribute can be referenced by users to perform dataframe column operations.
+            II. The one that does not show up in the output is an intermediate alias mapping and can not be referenced directly by users.
+        b) If both appear in the output attributes:
+            * Discard both expressions as this constitutes a valid ambiguous case that cannot be resolved.
+    3) If neither appears in the output attributes:
+        * Discard both expressions since they will no longer be referenced.
+
+    taking our example from the class docstring, the conflicting df1.age in df5:
+    #    df1.age -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #    df1.age -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+
+    we are going to:
+    DROP: df1.age -> (age_alias_right2, True) because it's not directly in the output and can not be referenced
+    KEEP: df1.age -> (age_alias_left2, False) is going to be kept because it's directly in the output and can be referenced
+
+    Args:
+        snowflake_plans (List[SnowflakePlan]): List of SnowflakePlan objects.
+
+    Returns:
+        Dict[Any, str]: Merged expression-to-alias mapping.
+    """
+
+    # Gather all expression-to-alias mappings
+    all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
+
+    # Initialize the merged dictionary
+    merged_dict = ExprAliasUpdateDict()
+
+    # Collect all unique keys from all dictionaries
+    all_expr_ids = set().union(*all_expr_to_alias_dicts)
+
+    conflicted_expr_ids = {}
+
+    for expr_id in all_expr_ids:
+        values = list(
+            {
+                (d[expr_id], d.was_updated_due_to_inheritance(expr_id))
+                for d in all_expr_to_alias_dicts
+                if expr_id in d
+            }
+        )
+        # Check if all aliases are identical
+        if len(values) == 1:
+            merged_dict[expr_id] = values[0]
+        else:
+            conflicted_expr_ids[expr_id] = values
+
+    if not conflicted_expr_ids:
+        return merged_dict
+
+    for expr_id in conflicted_expr_ids:
+        expr_id_alias_candidates = set()
+        for plan in snowflake_plans:
+            output_columns = []
+            if plan.schema_query is not None:
+                output_columns = [attr.name for attr in plan.output]
+            tmp_alias_name, tmp_updated_due_to_inheritance = plan.expr_to_alias[
+                expr_id
+            ], plan.expr_to_alias.was_updated_due_to_inheritance(expr_id)
+            if tmp_alias_name not in output_columns or tmp_updated_due_to_inheritance:
+                # alias updated due to inheritance are not considered as they are not used in the output
+                # check Analyzer.unary_expression_extractor functions
+                continue
+            if len(expr_id_alias_candidates) == 1:
+                # Only one candidate so far
+                candidate_name, candidate_updated_due_to_inheritance = next(
+                    iter(expr_id_alias_candidates)
+                )
+                if candidate_name == tmp_alias_name:
+                    # The candidate is the same as the current alias
+                    # we keep the non-inherited bool information as our strategy is to keep alias
+                    # that shows directly in the output column rather than updates because of inheritance
+                    tmp_updated_due_to_inheritance = (
+                        candidate_updated_due_to_inheritance
+                        and tmp_updated_due_to_inheritance
+                    )
+                    expr_id_alias_candidates.pop()
+            expr_id_alias_candidates.add(
+                (tmp_alias_name, tmp_updated_due_to_inheritance)
+            )
+        # Add the candidate to the merged dictionary if resolved
+        if len(expr_id_alias_candidates) == 1:
+            merged_dict[expr_id] = expr_id_alias_candidates.pop()
+        else:
+            # No valid candidate found
+            _logger.debug(
+                f"Expression '{expr_id}' is associated with multiple aliases across different plans. "
+                f"Unable to determine which alias to use. Conflicting values: {conflicted_expr_ids[expr_id]}"
+            )
+
+    return merged_dict
+
+
+def str_contains_alphabet(ver):
+    """Return True if ver contains alphabet, e.g., 1a1; otherwise, return False, e.g., 112"""
+    return bool(re.search("[a-zA-Z]", ver))
+
+
+def get_sorted_key_for_version(version_str):
+    """Generate a key to sort versions. Note if a version component is not a number, e.g., "1a1", we will treat it as -1. E.g., 1.11.1a1 will be treated as 1.11.-1"""
+    return tuple(
+        -1 if str_contains_alphabet(num) else int(num) for num in version_str.split(".")
+    )

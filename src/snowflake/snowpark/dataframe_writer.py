@@ -19,11 +19,15 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_python_val,
     debug_check_missing_ast,
-    fill_sp_save_mode,
-    fill_sp_write_file,
+    fill_save_mode,
+    fill_write_file,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
-    build_sp_table_name,
+    build_table_name,
+)
+from snowflake.snowpark._internal.data_source_utils import (
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    STATEMENT_PARAMS_DATA_SOURCE,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -95,6 +99,24 @@ class DataFrameWriter:
         self.__format: Optional[str] = None
         self._ast_stmt = _ast_stmt
 
+    @staticmethod
+    def _track_data_source_statement_params(
+        dataframe, statement_params: Optional[Dict] = None
+    ) -> Optional[Dict]:
+        """
+        Helper method to initialize and update data source tracking statement_params based on dataframe attributes.
+        """
+        statement_params = statement_params or {}
+        if (
+            dataframe._plan
+            and dataframe._plan.api_calls
+            and dataframe._plan.api_calls[0].get("name") == DATA_SOURCE_DBAPI_SIGNATURE
+        ):
+            # Track data source ingestion
+            statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
+
+        return statement_params if statement_params else None
+
     @publicapi
     def mode(self, save_mode: str, _emit_ast: bool = True) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
@@ -127,8 +149,8 @@ class DataFrameWriter:
         # Update AST if it exists.
         if _emit_ast:
             if self._ast_stmt is not None:
-                fill_sp_save_mode(
-                    self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
+                fill_save_mode(
+                    self._ast_stmt.expr.dataframe_write.save_mode, self._save_mode
                 )
 
         return self
@@ -145,7 +167,7 @@ class DataFrameWriter:
         if _emit_ast:
             if self._ast_stmt is not None:
                 build_expr_from_snowpark_column_or_sql_str(
-                    self._ast_stmt.expr.sp_dataframe_write.partition_by, expr
+                    self._ast_stmt.expr.dataframe_write.partition_by, expr
                 )
 
         return self
@@ -160,7 +182,7 @@ class DataFrameWriter:
         # Update AST if it exists.
         if _emit_ast:
             if self._ast_stmt is not None:
-                t = self._ast_stmt.expr.sp_dataframe_write.options.add()
+                t = self._ast_stmt.expr.dataframe_write.options.add()
                 t._1 = aliased_key
                 build_expr_from_snowpark_column_or_python_val(t._2, value)
 
@@ -316,10 +338,10 @@ class DataFrameWriter:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies SpWriteTable() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_write_table)
-            debug_check_missing_ast(self._ast_stmt, self)
+            expr = with_src_position(repr.expr.write_table)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
             # Function signature:
@@ -340,10 +362,10 @@ class DataFrameWriter:
             # copy_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
 
-            build_sp_table_name(expr.table_name, table_name)
+            build_table_name(expr.table_name, table_name)
 
             if mode is not None:
-                fill_sp_save_mode(expr.mode, mode)
+                fill_save_mode(expr.mode, mode)
 
             if column_order is not None:
                 expr.column_order = column_order
@@ -353,7 +375,7 @@ class DataFrameWriter:
             if clustering_keys is not None:
                 for col_or_name in clustering_keys:
                     build_expr_from_snowpark_column_or_col_name(
-                        expr.clustering_keys.list.add(), col_or_name
+                        expr.clustering_keys.add(), col_or_name
                     )
 
             if statement_params is not None:
@@ -444,6 +466,9 @@ class DataFrameWriter:
             else:
                 table_exists = None
 
+            statement_params = self._track_data_source_statement_params(
+                self._dataframe, statement_params or self._dataframe._statement_params
+            )
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
                 column_names,
@@ -464,7 +489,7 @@ class DataFrameWriter:
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(
                 snowflake_plan,
-                _statement_params=statement_params or self._dataframe._statement_params,
+                _statement_params=statement_params,
                 block=block,
                 data_type=_AsyncResultType.NO_RESULT,
                 **kwargs,
@@ -566,13 +591,13 @@ class DataFrameWriter:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies SpWriteCopyIntoLocation() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_write_copy_into_location)
-            debug_check_missing_ast(self._ast_stmt, self)
+            expr = with_src_position(repr.expr.write_copy_into_location)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
-            fill_sp_write_file(
+            fill_write_file(
                 expr,
                 location,
                 partition_by=partition_by,
@@ -624,6 +649,10 @@ class DataFrameWriter:
 
             cur_format_type_options.update(format_type_aliased_options)
 
+        statement_params = self._track_data_source_statement_params(
+            self._dataframe, statement_params or self._dataframe._statement_params
+        )
+
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
@@ -638,7 +667,7 @@ class DataFrameWriter:
         )
         add_api_call(df, "DataFrameWriter.copy_into_location")
         return df._internal_collect_with_tag(
-            statement_params=statement_params or self._dataframe._statement_params,
+            statement_params=statement_params,
             block=block,
             **kwargs,
         )
@@ -758,13 +787,13 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast:
-            # Add an Assign node that applies SpWriteCsv() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteCsv() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_write_csv)
-            debug_check_missing_ast(self._ast_stmt, self)
+            expr = with_src_position(repr.expr.write_csv)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
-            fill_sp_write_file(
+            fill_write_file(
                 expr,
                 location,
                 partition_by=partition_by,
@@ -830,13 +859,13 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast:
-            # Add an Assign node that applies SpWriteJson() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteJson() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_write_json)
-            debug_check_missing_ast(self._ast_stmt, self)
+            expr = with_src_position(repr.expr.write_json)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
-            fill_sp_write_file(
+            fill_write_file(
                 expr,
                 location,
                 partition_by=partition_by,
@@ -902,13 +931,13 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast:
-            # Add an Assign node that applies SpWriteParquet() to the input, followed by its Eval.
+            # Add an Assign node that applies WriteParquet() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_write_parquet)
-            debug_check_missing_ast(self._ast_stmt, self)
+            expr = with_src_position(repr.expr.write_parquet)
+            debug_check_missing_ast(self._ast_stmt, self._dataframe._session, self)
             expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
 
-            fill_sp_write_file(
+            fill_write_file(
                 expr,
                 location,
                 partition_by=partition_by,

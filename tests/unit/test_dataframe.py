@@ -75,6 +75,7 @@ def test_dataframe_method_alias():
     # assert aliases for user code migration
     assert DataFrame.createOrReplaceTempView == DataFrame.create_or_replace_temp_view
     assert DataFrame.createOrReplaceView == DataFrame.create_or_replace_view
+    assert DataFrame.createTempView == DataFrame.create_temp_view
     assert DataFrame.crossJoin == DataFrame.cross_join
     assert DataFrame.dropDuplicates == DataFrame.drop_duplicates
     assert DataFrame.groupBy == DataFrame.group_by
@@ -120,6 +121,7 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
     fake_session._cte_optimization_enabled = False
     fake_session._query_compilation_stage_enabled = False
+    fake_session._join_alias_fix = False
     fake_session._conn = mock.create_autospec(ServerConnection)
     fake_session._conn._thread_safe_session_enabled = True
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)

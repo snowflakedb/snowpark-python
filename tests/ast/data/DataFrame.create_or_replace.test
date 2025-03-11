@@ -70,10 +70,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -86,7 +86,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -102,12 +102,12 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         comment {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -115,7 +115,7 @@ body {
         }
         name {
           name {
-            sp_name_structured {
+            name_structured {
               name: "test_db"
               name: "test_schema"
               name: "test_view"
@@ -142,9 +142,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -152,7 +152,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_view"
             }
           }
@@ -181,12 +181,12 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         comment {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -195,7 +195,7 @@ body {
         is_temp: true
         name {
           name {
-            sp_name_structured {
+            name_structured {
               name: "test_db"
               name: "test_schema"
               name: "test_view"
@@ -222,9 +222,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -233,7 +233,7 @@ body {
         is_temp: true
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_view"
             }
           }
@@ -262,7 +262,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_copy_into_table {
+      dataframe_copy_into_table {
         copy_options {
           _1: "force"
           _2 {
@@ -279,7 +279,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -333,7 +333,7 @@ body {
         }
         table_name {
           name {
-            sp_name_structured {
+            name_structured {
               name: "test_db"
               name: "test_schema"
               name: "table2"
@@ -350,7 +350,7 @@ body {
                   builtin_fn {
                     name {
                       name {
-                        sp_name_flat {
+                        name_flat {
                           name: "col"
                         }
                       }
@@ -405,7 +405,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -457,9 +457,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_cache_result {
+      dataframe_cache_result {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -486,9 +486,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -515,9 +515,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_cache_result {
+      dataframe_cache_result {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -548,9 +548,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_write {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -577,12 +577,12 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_dynamic_table {
+      dataframe_create_or_replace_dynamic_table {
         comment {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -590,11 +590,11 @@ body {
         }
         lag: "1 hour"
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "test_dyn_table"
             }
           }
@@ -630,5 +630,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

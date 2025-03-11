@@ -49,10 +49,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -65,7 +65,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -81,7 +81,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         block: true
         case_sensitive: true
         id {
@@ -115,7 +115,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         case_sensitive: true
         id {
           bitfield1: 1
@@ -148,21 +148,24 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_sql_expr {
-            sql: "*"
-            src {
-              end_column: 45
-              end_line: 31
-              file: 2
-              start_column: 31
-              start_line: 31
+          args {
+            sql_expr {
+              sql: "*"
+              src {
+                end_column: 45
+                end_line: 31
+                file: 2
+                start_column: 31
+                start_line: 31
+              }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -175,7 +178,6 @@ body {
           start_column: 31
           start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
@@ -190,7 +192,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         block: true
         case_sensitive: true
         id {
@@ -224,7 +226,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         block: true
         case_sensitive: true
         id {
@@ -262,14 +264,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_filter {
+      dataframe_filter {
         condition {
           gt {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -306,7 +308,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -333,7 +335,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         case_sensitive: true
         id {
           bitfield1: 11
@@ -366,7 +368,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         block: true
         id {
           bitfield1: 1
@@ -413,5 +415,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
 }

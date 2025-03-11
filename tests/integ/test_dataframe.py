@@ -234,9 +234,11 @@ def test_show_using_with_select_statement(session):
     )
 
 
-def test_distinct(session):
+@pytest.mark.parametrize("use_simplification", [True, False])
+def test_distinct(session, use_simplification, local_testing_mode):
     """Tests df.distinct()."""
 
+    session.conf.set("use_simplified_query_generation", use_simplification)
     df = session.create_dataframe(
         [
             [1, 1],
@@ -268,6 +270,13 @@ def test_distinct(session):
 
     res = df.select(col("v")).distinct().sort(["v"]).collect()
     assert res == [Row(None), Row(1), Row(2), Row(3), Row(4), Row(5)]
+
+    if not local_testing_mode:
+        queries = df.distinct().queries["queries"]
+        if use_simplification:
+            assert "SELECT  DISTINCT" in queries[0]
+        else:
+            assert "GROUP BY" in queries[0]
 
 
 def test_first(session):
@@ -1281,6 +1290,25 @@ def test_join_left_outer(session):
         Row(7, 7, 7),
     ]
     assert sorted(res, key=lambda r: r[0]) == expected
+
+
+def test_join_on_order(session):
+    """
+    Test that an 'on' clause in a different order from the data frame re-orders the columns correctly.
+    """
+    df1 = session.create_dataframe([(1, "A", 3)], schema=["A", "B", "C"])
+    df2 = session.create_dataframe([(1, "A", 4)], schema=["A", "B", "D"])
+
+    df3 = df1.join(df2, on=["B", "A"])
+    assert df3.schema == StructType(
+        [
+            StructField("B", StringType(), nullable=False),
+            StructField("A", LongType(), nullable=False),
+            StructField("C", LongType(), nullable=False),
+            StructField("D", LongType(), nullable=False),
+        ]
+    )
+    Utils.check_answer(df3, [Row(B="A", A=1, C=3, D=4)])
 
 
 @pytest.mark.xfail(
