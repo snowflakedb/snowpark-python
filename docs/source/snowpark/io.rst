@@ -22,6 +22,7 @@ Input/Output
 
     DataFrameReader.avro
     DataFrameReader.csv
+    DataFrameReader.dbapi
     DataFrameReader.format
     DataFrameReader.json
     DataFrameReader.load
