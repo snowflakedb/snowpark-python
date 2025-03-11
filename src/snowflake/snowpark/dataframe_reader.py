@@ -1464,9 +1464,12 @@ class DataFrameReader:
         statements_params: Optional[Dict[str, str]] = None,
     ):
         file_name = os.path.basename(local_file)
-        put_query = (
-            f"PUT {normalize_local_file(local_file)} "
-            f"@{snowflake_stage_name} OVERWRITE=TRUE {DATA_SOURCE_SQL_COMMENT}"
+        # SNOW-1975354: session.sql("PUT ...").collect() is not supported in stored procedure
+        self._session.file.put(
+            normalize_local_file(local_file),
+            f"{snowflake_stage_name}",
+            overwrite=True,
+            statement_params=statements_params,
         )
         copy_into_table_query = f"""
         COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
@@ -1476,7 +1479,6 @@ class DataFrameReader:
         ON_ERROR={on_error}
         {DATA_SOURCE_SQL_COMMENT}
         """
-        self._session.sql(put_query).collect(statement_params=statements_params)
         self._session.sql(copy_into_table_query).collect(
             statement_params=statements_params
         )

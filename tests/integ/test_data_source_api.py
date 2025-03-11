@@ -15,6 +15,7 @@ import pytest
 
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    random_name_for_temp_object,
 )
 from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME, DataFrameReader
 from snowflake.snowpark._internal.data_source_utils import (
@@ -29,6 +30,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     oracledb_to_snowpark_type,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -350,7 +352,7 @@ def test_telemetry_tracking(caplog, session):
         statement_parameters = kwargs.get("_statement_params")
         query = args[0]
         assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
-        if "select" not in query.lower():
+        if "select" not in query.lower() and "put" not in query.lower():
             assert DATA_SOURCE_SQL_COMMENT in query
             comment_showed += 1
         nonlocal called
@@ -368,8 +370,8 @@ def test_telemetry_tracking(caplog, session):
         )
     assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
     assert (
-        called == 4 and comment_showed == 4
-    )  # 4 queries: create table, create stage, put file, copy into
+        called == 4 and comment_showed == 3
+    )  # 4 queries: create table, create stage, put file, copy into, but we use session.read.put not supporting comment
     assert mock_telemetry.called
     assert df.collect() == sql_server_all_type_data
 
@@ -753,3 +755,39 @@ def test_empty_table(session):
         sql_server_create_connection_empty_data, table=SQL_SERVER_TABLE_NAME
     )
     assert df.collect() == []
+
+
+@pytest.mark.udf
+def test_put_file_and_copy_into_in_sproc(session):
+    # The tests session.file.put API as well as the COPY INTO sql executed inside stored proc
+    def upload_and_copy_into(session_):
+        from snowflake.snowpark._internal.utils import normalize_local_file
+
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+        session_.sql(f"CREATE TEMPORARY TABLE {table_name} (col INT)").collect()
+        session_.sql(f"CREATE TEMPORARY STAGE {stage_name}").collect()
+
+        file_name = "data.csv"
+        csv_filename = f"/tmp/{file_name}"
+        with open(csv_filename, "w") as file:
+            file.write("42\n")  # Sample data
+
+        session_.file.put(
+            normalize_local_file(csv_filename),
+            f"@{stage_name}",
+            overwrite=True,
+        )
+        session_.sql(
+            f"COPY INTO {table_name} FROM @{stage_name}/{file_name} FILE_FORMAT = (TYPE = CSV)"
+        ).collect()
+        if session_.table(table_name).collect() == [(42,)]:
+            return "success"
+        else:
+            return "failure"
+
+    # local execution
+    assert upload_and_copy_into(session) == "success"
+    # sproc execution
+    ingestion = sproc(upload_and_copy_into, return_type=StringType())
+    assert ingestion() == "success"
