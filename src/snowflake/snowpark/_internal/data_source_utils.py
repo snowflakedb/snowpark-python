@@ -373,10 +373,12 @@ def output_type_handler(cursor, metadata):
 
 
 def add_unseen_files_to_process_queue(
-    work_dir: str, process_file_set: Set[str], queue: queue.Queue
+    work_dir: str, set_of_files_already_added_in_queue: Set[str], queue: queue.Queue
 ):
-    files = set(os.listdir(work_dir))
-    unseen = files - process_file_set
+    """Add unseen files in the work_dir to the queue for processing."""
+    # all files in the work_dir are parquet files, no subdirectory
+    all_files = set(os.listdir(work_dir))
+    unseen = all_files - set_of_files_already_added_in_queue
     for file in unseen:
         queue.put(os.path.join(work_dir, file))
-        process_file_set.add(file)
+        set_of_files_already_added_in_queue.add(file)
