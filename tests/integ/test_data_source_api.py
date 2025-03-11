@@ -13,9 +13,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from snowflake.snowpark._internal.utils import (
-    TempObjectType,
-)
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME, DataFrameReader
 from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
@@ -364,7 +362,7 @@ def test_telemetry_tracking(caplog, session):
         statement_parameters = kwargs.get("_statement_params")
         query = args[0]
         assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
-        if "select" not in query.lower():
+        if "select" not in query.lower() and "put" not in query.lower():
             assert DATA_SOURCE_SQL_COMMENT in query
             comment_showed += 1
         nonlocal called
@@ -382,8 +380,8 @@ def test_telemetry_tracking(caplog, session):
         )
     assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
     assert (
-        called == 4 and comment_showed == 4
-    )  # 4 queries: create table, create stage, put file, copy into
+        called == 4 and comment_showed == 3
+    )  # 4 queries: create table, create stage, put file, copy into, but we use session.read.put not supporting comment
     assert mock_telemetry.called
     assert df.collect() == sql_server_all_type_data
 
