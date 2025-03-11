@@ -1619,7 +1619,7 @@ def test_non_nullable_schema(structured_type_session, structured_type_support):
     )
 
 
-@pytest.mark.xfail("file type is in PrPr. Not stable yet to test.")
+@pytest.mark.xfail(reason="file type is in PrPr. Not stable yet to test.")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="File type is not supported in Local Testing",
