@@ -53,7 +53,7 @@ def test_resource_usage_memory():
     # ideally we would assert that the memory usage increased by 8* 10**6 bytes
     # but the memory usage is not guaranteed to increase by exactly that amount
     # so we just check that it increased by some amount
-    assert resource_usage["memory_rss_kb"] > 1000, resource_usage["memory_rss_kb"]
+    assert resource_usage["memory_rss_kib"] > 1000, resource_usage["memory_rss_kib"]
 
 
 @patch("psutil.net_io_counters")
