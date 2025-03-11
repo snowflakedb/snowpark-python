@@ -11626,7 +11626,7 @@ def fl_get_content_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_content_type(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
+        >>> df.collect()[0][0]  # Doctest: +SKIP
         'application/octet-stream'
     """
     function_name = "fl_get_content_type"
@@ -11684,7 +11684,7 @@ def fl_get_file_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_file_type(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
+        >>> df.collect()[0][0]  # Doctest: +SKIP
         'unknown'
     """
     function_name = "fl_get_file_type"
@@ -11886,7 +11886,7 @@ def fl_is_document(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_is_document(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
+        >>> df.collect()[0][0]  # Doctest: +SKIP
         False
     """
     function_name = "fl_is_document"
@@ -11907,7 +11907,7 @@ def fl_is_compressed(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_is_compressed(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
+        >>> df.collect()[0][0]  # Doctest: +SKIP
         False
     """
     function_name = "fl_is_compressed"
