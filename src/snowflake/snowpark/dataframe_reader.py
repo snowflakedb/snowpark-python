@@ -1173,11 +1173,13 @@ class DataFrameReader:
                         # clean the local temp file after ingestion to avoid consuming too much temp disk space
                         shutil.rmtree(parquet_file_path, ignore_errors=True)
 
+                    # whether each partition should have its own reader is still under discussion
+                    reader = partitioner.reader()
                     logger.debug("Starting to fetch data from the data source.")
                     for partition_idx, query in enumerate(partitioned_queries):
                         process_future = process_executor.submit(
                             _task_fetch_data_from_source_with_retry,
-                            partitioner.reader(),
+                            reader,
                             parquet_file_queue,
                             query,
                             struct_schema,
