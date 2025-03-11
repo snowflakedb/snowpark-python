@@ -49,7 +49,7 @@ class DataSourceReader:
     @staticmethod
     def data_source_data_to_pandas_df(
         data: List[Any], schema: StructType
-    ) -> pd.DataFrame:
+    ) -> "pd.DataFrame":
         columns = [col.name for col in schema.fields]
         # this way handles both list of object and list of tuples and avoid implict pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
