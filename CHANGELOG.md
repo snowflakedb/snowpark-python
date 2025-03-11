@@ -10,6 +10,10 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
+
 #### Improvements
 
 - Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
@@ -78,6 +82,15 @@
 - Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 - Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
 - Improve error message for all pandas functions that use UDFs with Snowpark objects.
+- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it. 
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
+- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
+- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
+- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
+- Update `pd.get_dummies` to return bool values instead of int.
 
 ## 1.28.0 (2025-02-20)
 

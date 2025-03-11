@@ -83,7 +83,7 @@ def read_snowflake(
           Some order-sensitive operations (such as `df.items`, `df.iterrows`, or `df.itertuples`) may not behave as expected.
 
           With this mode, it is still possible to switch to strict ordering guarantees by explicitly calling `df.sort_values()` and providing a custom sort key. This will
-          ensure that future oprerations will consistently experience the same sort order, but the consistency guarantees will remain relaxed.
+          ensure that future operations will consistently experience the same sort order, but the consistency guarantees will remain relaxed.
 
         * When `relaxed_ordering` is set to False, Snowpark pandas provides the same consistency and ordering guarantees for `read_snowflake` as if local files were read.
           For example, calling `df.head(5)` two consecutive times is guaranteed to result in the exact same set of 5 rows each time and with the same ordering.

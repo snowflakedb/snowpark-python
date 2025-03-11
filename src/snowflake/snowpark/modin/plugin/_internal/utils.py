@@ -327,8 +327,8 @@ def create_initial_ordered_dataframe(
     Args:
         table_name_or_query: A string or list of strings that specify the table name or
             fully-qualified object identifier (database name, schema name, and table name) or SQL query.
-        relaxed_ordering: If False, create a read only temp table on top of the existing table or Snowflake query, and.
-            and create the OrderedDataFrame using the read only temp table creatd.
+        relaxed_ordering: If False, create a read only temp table on top of the existing table or Snowflake query,
+            and create the OrderedDataFrame using the read only temp table created.
             Otherwise, directly using the existing table.
 
     Returns:
