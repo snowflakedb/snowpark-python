@@ -14,6 +14,10 @@
 
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
 
+#### Improvements
+
+- Improved how a missing `index_label` in `DataFrame.to_snowflake` and `Series.to_snowflake` is handled when `index=True`. Instead of raising a `ValueError`, system-defined labels are used for the index columns.
+
 ## 1.29.0 (2025-03-05)
 
 ### Snowpark Python API Updates

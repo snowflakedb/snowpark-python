@@ -181,21 +181,17 @@ def test_to_snowflake_column_with_quotes(session, test_table_name):
 
 
 # one extra query to convert index to native pandas when creating the snowpark pandas dataframe
-@sql_count_checker(query_count=1)
-def test_to_snowflake_index_label_none_raises(test_table_name):
+@sql_count_checker(query_count=5)
+def test_to_snowflake_index_label_none(test_table_name):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-
-    message = re.escape(
-        "Label None is found in the index columns [None], which is invalid in Snowflake."
-    )
-    with pytest.raises(ValueError, match=message):
-        df.to_snowflake(test_table_name, if_exists="replace")
+    df.to_snowflake(test_table_name, if_exists="replace")
+    verify_columns(test_table_name, ["index", "a", "b"])
 
     df = pd.DataFrame(
         {"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4], name="index")
     )
-    with pytest.raises(ValueError, match=message):
-        df.to_snowflake(test_table_name, if_exists="replace", index_label=[None])
+    df.to_snowflake(test_table_name, if_exists="replace", index_label=[None])
+    verify_columns(test_table_name, ["index", "a", "b"])
 
 
 # one extra query to convert index to native pandas when creating the snowpark pandas dataframe

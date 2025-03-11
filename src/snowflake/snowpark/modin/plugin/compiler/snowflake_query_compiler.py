@@ -1428,6 +1428,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ValueError if index/data column label is None, because snowflake column requires a column identifier.
         """
 
+        frame = self._modin_frame
         index_column_labels = []
         if index:
             # Include index columns
@@ -1440,11 +1441,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         f"Length of 'index_label' should match number of levels, which is {self._modin_frame.num_index_columns}"
                     )
             else:
-                index_column_labels = self._modin_frame.index_column_pandas_labels
+                index_column_labels = frame.index_column_pandas_labels
+
+            if any(
+                is_all_label_components_none(label) for label in index_column_labels
+            ):
+                frame = self.reset_index()._modin_frame
+                index = False
+                index_column_labels = []
 
         if data_column_labels is None:
-            data_column_labels = self._modin_frame.data_column_pandas_labels
-        if self._modin_frame.is_unnamed_series():
+            data_column_labels = frame.data_column_pandas_labels
+        if frame.is_unnamed_series():
             # this is an unnamed Snowpark pandas series, there is no customer visible pandas
             # label for the data column, set the label to be None
             data_column_labels = [None]
@@ -1455,11 +1463,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Label None is found in the data columns {data_column_labels}, which is invalid in Snowflake. "
                 "Please give it a name by set the dataframe columns like df.columns=['A', 'B'],"
                 " or set the series name if it is a series like series.name='A'."
-            )
-        if any(is_all_label_components_none(label) for label in index_column_labels):
-            raise ValueError(
-                f"Label None is found in the index columns {index_column_labels}, which is invalid in Snowflake. "
-                "Please give it a name by passing index_label arguments."
             )
 
         # perform a column name duplication check
@@ -1480,12 +1483,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # the data column identifiers
         if index:
             identifiers_to_retain.extend(
-                self._modin_frame.index_column_snowflake_quoted_identifiers
+                frame.index_column_snowflake_quoted_identifiers
             )
         identifiers_to_retain.extend(
             [
                 t[0]
-                for t in self._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                for t in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                     data_column_labels, include_index=False
                 )
             ]
@@ -1500,9 +1503,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             rename_mapper[snowflake_identifier] = snowflake_quoted_identifier_to_save
 
         # first do a select to project out all unnecessary columns, then rename to avoid conflict
-        ordered_dataframe = self._modin_frame.ordered_dataframe.select(
-            identifiers_to_retain
-        )
+        ordered_dataframe = frame.ordered_dataframe.select(identifiers_to_retain)
         return ordered_dataframe.to_projected_snowpark_dataframe(
             col_mapper=rename_mapper
         )
