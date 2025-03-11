@@ -4,9 +4,8 @@
 import datetime
 import decimal
 import functools
-import multiprocessing as mp
+import queue
 import os
-import shutil
 import tempfile
 import time
 import traceback
@@ -22,7 +21,6 @@ import pytz
 from dateutil import parser
 import sys
 from logging import getLogger
-import queue
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
 import snowflake.snowpark
@@ -62,6 +60,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_SQL_COMMENT,
     generate_sql_with_predicates,
     output_type_handler,
+    add_unseen_files_to_process_queue,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -1236,23 +1235,21 @@ class DataFrameReader:
             )
 
             try:
-                with mp.Manager() as process_manager, ProcessPoolExecutor(
+                with ProcessPoolExecutor(
                     max_workers=max_workers
                 ) as process_executor, ThreadPoolExecutor(
                     max_workers=max_workers
                 ) as thread_executor:
                     thread_pool_futures, process_pool_futures = [], []
-                    parquet_file_queue = process_manager.Queue()
 
                     def ingestion_thread_cleanup_callback(parquet_file_path, _):
                         # clean the local temp file after ingestion to avoid consuming too much temp disk space
-                        shutil.rmtree(parquet_file_path, ignore_errors=True)
+                        os.remove(parquet_file_path)
 
                     logger.debug("Starting to fetch data from the data source.")
                     for partition_idx, query in enumerate(partitioned_queries):
                         process_future = process_executor.submit(
                             DataFrameReader._task_fetch_from_data_source_with_retry,
-                            parquet_file_queue,
                             create_connection,
                             query,
                             struct_schema,
@@ -1265,8 +1262,14 @@ class DataFrameReader:
                         )
                         process_pool_futures.append(process_future)
                     # Monitor queue while tasks are running
+
+                    parquet_file_queue = queue.Queue()
+                    process_file_set = set()
                     while True:
                         try:
+                            add_unseen_files_to_process_queue(
+                                tmp_dir, process_file_set, parquet_file_queue
+                            )
                             file = parquet_file_queue.get_nowait()
                             logger.debug(f"Retrieved file from parquet queue: {file}")
                             thread_future = thread_executor.submit(
@@ -1301,7 +1304,11 @@ class DataFrameReader:
                                 else:
                                     unfinished_process_pool_futures.append(future)
                                     all_job_done = False
-                            if all_job_done and parquet_file_queue.empty():
+                            if (
+                                all_job_done
+                                and parquet_file_queue.empty()
+                                and len(os.listdir(tmp_dir)) == 0
+                            ):
                                 # all jod is done and parquet file queue is empty, we finished all the fetch work
                                 # now we just need to wait for all ingestion threads to complete
                                 logger.debug(
@@ -1500,7 +1507,6 @@ class DataFrameReader:
 
     @staticmethod
     def _task_fetch_from_data_source(
-        parquet_file_queue: queue.Queue,
         create_connection: Callable[[], "Connection"],
         query: str,
         schema: StructType,
@@ -1517,12 +1523,11 @@ class DataFrameReader:
                 logger.debug(
                     f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."
                 )
-                return None
+                return
             path = os.path.join(
                 tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
             )
             df.to_parquet(path)
-            return path
 
         conn = create_connection()
         # this is specified to pyodbc, need other way to manage timeout on other drivers
@@ -1536,9 +1541,7 @@ class DataFrameReader:
         if fetch_size == 0:
             cursor.execute(query)
             result = cursor.fetchall()
-            parquet_file_path = convert_to_parquet(result, 0)
-            if parquet_file_path:
-                parquet_file_queue.put(parquet_file_path)
+            convert_to_parquet(result, 0)
         elif fetch_size > 0:
             cursor = cursor.execute(query)
             fetch_idx = 0
@@ -1546,16 +1549,13 @@ class DataFrameReader:
                 rows = cursor.fetchmany(fetch_size)
                 if not rows:
                     break
-                parquet_file_path = convert_to_parquet(rows, fetch_idx)
-                if parquet_file_path:
-                    parquet_file_queue.put(parquet_file_path)
+                convert_to_parquet(rows, fetch_idx)
                 fetch_idx += 1
         else:
             raise ValueError("fetch size cannot be smaller than 0")
 
     @staticmethod
     def _task_fetch_from_data_source_with_retry(
-        parquet_file_queue: queue.Queue,
         create_connection: Callable[[], "Connection"],
         query: str,
         schema: StructType,
@@ -1568,7 +1568,6 @@ class DataFrameReader:
     ):
         DataFrameReader._retry_run(
             DataFrameReader._task_fetch_from_data_source,
-            parquet_file_queue,
             create_connection,
             query,
             schema,
