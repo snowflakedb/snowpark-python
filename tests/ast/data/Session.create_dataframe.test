@@ -24,11 +24,9 @@ df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
 
-df10 = session.create_dataframe(2**100)
+df10 = session.create_dataframe([2**100, 2**100])
 
-df11 = session.create_dataframe([2**100, 2**100])
-
-df12 = session.create_dataframe([[2**100, 2**100], [2**100, 2**100]])
+df11 = session.create_dataframe([[2**100, 2**100], [2**100, 2**100]])
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -49,6 +47,10 @@ df7 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
+
+df10 = session.create_dataframe([1267650600228229401496703205376, 1267650600228229401496703205376])
+
+df11 = session.create_dataframe([[1267650600228229401496703205376, 1267650600228229401496703205376], [1267650600228229401496703205376, 1267650600228229401496703205376]])
 
 ## EXPECTED ENCODED AST
 
@@ -1030,6 +1032,152 @@ body {
     uid: 9
     var_id {
       bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              big_int_val {
+                src {
+                  end_column: 57
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 57
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+              }
+            }
+          }
+        }
+        src {
+          end_column: 57
+          end_line: 49
+          file: 2
+          start_column: 15
+          start_line: 49
+        }
+      }
+    }
+    symbol {
+      value: "df10"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 77
+                  end_line: 51
+                  file: 2
+                  start_column: 15
+                  start_line: 51
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 77
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 77
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 77
+                  end_line: 51
+                  file: 2
+                  start_column: 15
+                  start_line: 51
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 77
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 77
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+              }
+            }
+          }
+        }
+        src {
+          end_column: 77
+          end_line: 51
+          file: 2
+          start_column: 15
+          start_line: 51
+        }
+      }
+    }
+    symbol {
+      value: "df11"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
     }
   }
 }
