@@ -24,7 +24,7 @@ df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
 
-df10 = session.create_dataframe([2**100, 2**100])
+df10 = session.create_dataframe([2**100, 2**100, 2**64 - 1, 2**64, 1, 2**64 - 2])
 
 df11 = session.create_dataframe([[2**100, 2**100], [2**100, 2**100]])
 
@@ -48,7 +48,7 @@ df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
 
-df10 = session.create_dataframe([1267650600228229401496703205376, 1267650600228229401496703205376])
+df10 = session.create_dataframe([1267650600228229401496703205376, 1267650600228229401496703205376, 18446744073709551615, 18446744073709551616, 1, 18446744073709551614])
 
 df11 = session.create_dataframe([[1267650600228229401496703205376, 1267650600228229401496703205376], [1267650600228229401496703205376, 1267650600228229401496703205376]])
 
@@ -1044,7 +1044,7 @@ body {
             vs {
               big_int_val {
                 src {
-                  end_column: 57
+                  end_column: 89
                   end_line: 49
                   file: 2
                   start_column: 15
@@ -1056,7 +1056,7 @@ body {
             vs {
               big_int_val {
                 src {
-                  end_column: 57
+                  end_column: 89
                   end_line: 49
                   file: 2
                   start_column: 15
@@ -1065,10 +1065,58 @@ body {
                 v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
               }
             }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 89
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\377"
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 89
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\001\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 89
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: 1
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 89
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\376"
+              }
+            }
           }
         }
         src {
-          end_column: 57
+          end_column: 89
           end_line: 49
           file: 2
           start_column: 15
