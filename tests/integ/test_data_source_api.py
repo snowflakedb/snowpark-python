@@ -4,7 +4,6 @@
 import functools
 import math
 import os
-import queue
 import tempfile
 import time
 import datetime
@@ -152,7 +151,6 @@ def test_dbapi_retry(session):
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
             DataFrameReader._task_fetch_from_data_source_with_retry(
-                parquet_file_queue=queue.Queue(),
                 create_connection=sql_server_create_connection,
                 query="SELECT * FROM test_table",
                 schema=StructType([StructField("col1", IntegerType(), False)]),
@@ -528,7 +526,6 @@ def test_negative_case(session):
 def test_task_fetch_from_data_source_with_fetch_size(
     fetch_size, partition_idx, expected_error
 ):
-    parquet_file_queue = queue.Queue()
     schema = infer_data_source_schema(
         sql_server_create_connection_small_data(),
         SQL_SERVER_TABLE_NAME,
@@ -544,7 +541,6 @@ def test_task_fetch_from_data_source_with_fetch_size(
     with tempfile.TemporaryDirectory() as tmp_dir:
 
         params = {
-            "parquet_file_queue": parquet_file_queue,
             "create_connection": sql_server_create_connection_small_data,
             "query": "SELECT * FROM test_table",
             "schema": schema,
@@ -562,16 +558,12 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 DataFrameReader._task_fetch_from_data_source(**params)
         else:
             DataFrameReader._task_fetch_from_data_source(**params)
-
-            file_idx = 0
-            while not parquet_file_queue.empty():
-                file_path = parquet_file_queue.get()
+            files = sorted(os.listdir(tmp_dir))
+            for idx, file in enumerate(files):
                 assert (
-                    f"data_partition{partition_idx}_fetch{file_idx}.parquet"
-                    in file_path
-                )
-                file_idx += 1
-            assert file_idx == file_count
+                    f"data_partition{partition_idx}_fetch{idx}.parquet" in file
+                ), f"file: {file} does not match"
+            assert len(files) == file_count
 
 
 def test_database_detector():
