@@ -458,7 +458,7 @@ class DataFrameReader:
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
 
-        table = self._session.table(name)
+        table = self._session.table(name, _emit_ast=False)
 
         if _emit_ast:
             table._ast_id = stmt.var_id.bitfield1
@@ -1087,6 +1087,7 @@ class DataFrameReader:
         return df
 
     @private_preview(version="1.29.0")
+    @publicapi
     def dbapi(
         self,
         create_connection: Callable[[], "Connection"],
@@ -1103,6 +1104,7 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[str] = None,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         """
         Reads data from a database table using a DBAPI connection with optional partitioning,
@@ -1258,8 +1260,8 @@ class DataFrameReader:
             )
             params = (snowflake_table_name,)
             logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-            self._session.sql(create_table_sql, params=params).collect(
-                statement_params=statements_params_for_telemetry
+            self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
+                statement_params=statements_params_for_telemetry, _emit_ast=False
             )
             # create temp stage
             snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
@@ -1267,8 +1269,8 @@ class DataFrameReader:
                 f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
                 f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
             )
-            self._session.sql(sql_create_temp_stage).collect(
-                statement_params=statements_params_for_telemetry
+            self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                statement_params=statements_params_for_telemetry, _emit_ast=False
             )
 
             try:
@@ -1363,7 +1365,11 @@ class DataFrameReader:
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
                 DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
             )
-            res_df = self.table(snowflake_table_name)
+            # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
+            # with the new name for the temporary table into which the external db data was ingressed.
+            # Leaving this functionality as client-side only means capturing an AST specifically for
+            # this API in a new entity is not valuable from a server-side execution or AST perspective.
+            res_df = self.table(snowflake_table_name, _emit_ast=_emit_ast)
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df
 
@@ -1512,9 +1518,11 @@ class DataFrameReader:
         ON_ERROR={on_error}
         {DATA_SOURCE_SQL_COMMENT}
         """
-        self._session.sql(put_query).collect(statement_params=statements_params)
-        self._session.sql(copy_into_table_query).collect(
-            statement_params=statements_params
+        self._session.sql(put_query, _emit_ast=False).collect(
+            statement_params=statements_params, _emit_ast=False
+        )
+        self._session.sql(copy_into_table_query, _emit_ast=False).collect(
+            statement_params=statements_params, _emit_ast=False
         )
 
     def _upload_and_copy_into_table_with_retry(

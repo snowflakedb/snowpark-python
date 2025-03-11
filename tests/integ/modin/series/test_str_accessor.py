@@ -251,6 +251,47 @@ def test_str___getitem___string_key():
 
 
 @pytest.mark.parametrize(
+    "key",
+    [
+        None,
+        [1, 2],
+        (1, 2),
+        {1: "a", 2: "b"},
+        -100,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        100,
+        slice(None, None, None),
+        slice(0, -1, 1),
+        slice(-100, 100, 1),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_str___getitem___list(key):
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str[key],
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_str___getitem___list_neg():
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="does not yet support 'step!=1' for list values",
+    ):
+        snow_ser.str[slice(None, None, 2)]
+
+
+@pytest.mark.parametrize(
     "pat",
     [
         "",
