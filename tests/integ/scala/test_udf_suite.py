@@ -600,6 +600,7 @@ def test_geometry_type(session):
     )
 
 
+@pytest.mark.xfail("file type is in PrPr. Not stable yet to test.")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="to_file is not yet supported in local testing mode.",
