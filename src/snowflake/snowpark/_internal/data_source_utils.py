@@ -5,8 +5,10 @@
 import datetime
 import decimal
 import logging
+import os
+import queue
 from enum import Enum
-from typing import List, Any, Tuple, Protocol, Optional
+from typing import List, Any, Tuple, Protocol, Optional, Set
 from snowflake.connector.options import pandas as pd
 
 from snowflake.snowpark._internal.utils import get_sorted_key_for_version
@@ -368,3 +370,13 @@ def output_type_handler(cursor, metadata):
         return cursor.var(oracledb.DB_TYPE_LONG, arraysize=cursor.arraysize)
     elif metadata.type_code == oracledb.DB_TYPE_BLOB:
         return cursor.var(oracledb.DB_TYPE_RAW, arraysize=cursor.arraysize)
+
+
+def add_unseen_files_to_process_queue(
+    work_dir: str, process_file_set: Set[str], queue: queue.Queue
+):
+    files = set(os.listdir(work_dir))
+    unseen = files - process_file_set
+    for file in unseen:
+        queue.put(os.path.join(work_dir, file))
+        process_file_set.add(file)
