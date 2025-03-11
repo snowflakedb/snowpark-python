@@ -1107,12 +1107,11 @@ class DataFrameReader:
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
-        Reads data from a database table using a DBAPI connection with optional partitioning,
-        parallel processing, and query customization. By default, the function reads the entire table at
-        a time without a query timeout.
+        Reads data from a database table or query into a DataFrame using a DBAPI connection,
+        with support for optional partitioning, parallel processing, and query customization.
 
-        There are several ways to break data into small pieces and speed up ingestion,
-        you can also combine them to acquire optimal performance:
+        There are multiple methods to partition data and accelerate ingestion.
+        These methods can be combined to achieve optimal performance:
 
         1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
         These must all be specified together, otherwise error will be raised.
@@ -1141,7 +1140,7 @@ class DataFrameReader:
             num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
                 It must be provided when `column` is specified.
             max_workers: number of processes and threads used for parallelism.
-            query_timeout: The timeout (in seconds) for each query execution.  A default value of `0` means
+            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
                 the query will never time out. The timeout behavior can also be configured within
                 the `create_connection` method when establishing the database connection, depending on the capabilities
                 of the DBMS and its driver.
