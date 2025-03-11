@@ -1263,12 +1263,20 @@ class DataFrameReader:
                         process_pool_futures.append(process_future)
                     # Monitor queue while tasks are running
 
-                    parquet_file_queue = queue.Queue()
-                    process_file_set = set()
+                    parquet_file_queue = (
+                        queue.Queue()
+                    )  # maintain the queue of parquet files to process
+                    set_of_files_already_added_in_queue = (
+                        set()
+                    )  # maintain file names we have already put into queue
                     while True:
                         try:
+                            # each process and per fetch will create a parquet with a unique file name
+                            # we add unseen files to process queue
                             add_unseen_files_to_process_queue(
-                                tmp_dir, process_file_set, parquet_file_queue
+                                tmp_dir,
+                                set_of_files_already_added_in_queue,
+                                parquet_file_queue,
                             )
                             file = parquet_file_queue.get_nowait()
                             logger.debug(f"Retrieved file from parquet queue: {file}")
@@ -1309,7 +1317,10 @@ class DataFrameReader:
                                 and parquet_file_queue.empty()
                                 and len(os.listdir(tmp_dir)) == 0
                             ):
-                                # all jod is done and parquet file queue is empty, we finished all the fetch work
+                                # we finished all the fetch work based on the following 3 conditions:
+                                # 1. all jod is done
+                                # 2. parquet file queue is empty
+                                # 3. no files in the temp work dir as they are all removed in thread future callback
                                 # now we just need to wait for all ingestion threads to complete
                                 logger.debug(
                                     "All jobs are done, and the parquet file queue is empty. Fetching work is complete."
