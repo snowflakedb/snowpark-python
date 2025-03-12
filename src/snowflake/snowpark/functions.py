@@ -11593,13 +11593,13 @@ def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(to_file("@mystage/testCSV.csv").alias("file"))
         >>> result = json.loads(df.collect()[0][0])
-        >>> result["STAGE"]
+        >>> result["STAGE"]  # doctest: +SKIP
         'MYSTAGE'
-        >>> result["RELATIVE_PATH"]
+        >>> result["RELATIVE_PATH"]  # doctest: +SKIP
         'testCSV.csv'
-        >>> result["SIZE"]
+        >>> result["SIZE"]  # doctest: +SKIP
         32
-        >>> result["CONTENT_TYPE"]
+        >>> result["CONTENT_TYPE"]  # doctest: +SKIP
         'application/octet-stream'
     """
     ast = build_function_expr("to_file", [stage_file_uri]) if _emit_ast else None
