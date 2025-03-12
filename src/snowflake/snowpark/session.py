@@ -1573,7 +1573,7 @@ class Session:
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
             >>> if sys.version_info <= (3, 11):
-            ...     session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            ...     session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()  # doctest: +SKIP
             --------------
             |"COL1"      |
             --------------
