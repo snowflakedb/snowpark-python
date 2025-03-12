@@ -4,9 +4,8 @@
 import datetime
 import decimal
 import functools
-import multiprocessing as mp
+import queue
 import os
-import shutil
 import tempfile
 import time
 import traceback
@@ -22,7 +21,6 @@ import pytz
 from dateutil import parser
 import sys
 from logging import getLogger
-import queue
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
 import snowflake.snowpark
@@ -62,6 +60,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_SQL_COMMENT,
     generate_sql_with_predicates,
     output_type_handler,
+    add_unseen_files_to_process_queue,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -1104,31 +1103,66 @@ class DataFrameReader:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[str] = None,
     ) -> DataFrame:
-        """Reads data from a database table using a DBAPI connection with optional partitioning, parallel processing, and query customization.
-        By default, the function reads the entire table at a time without a query timeout.
-        There are several ways to break data into small pieces and speed up ingestion, you can also combine them to acquire optimal performance:
-            1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing. These must all be specified together, otherwise error will be raised.
-            2.Set max_workers to a proper positive integer. This defines the maximum number of processes and threads used for parallel execution.
-            3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
-            4.Use predicates to defining WHERE conditions for partitions, predicates will be ignored if column is specified to generate partition.
-            5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched column name with table in external data source.
-        You can also use session_init_statement to perform any SQL that you want to execute on external data source before fetching data.
+        """
+        Reads data from a database table or query into a DataFrame using a DBAPI connection,
+        with support for optional partitioning, parallel processing, and query customization.
+
+        There are multiple methods to partition data and accelerate ingestion.
+        These methods can be combined to achieve optimal performance:
+
+        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
+        These must all be specified together, otherwise error will be raised.
+        2.Set max_workers to a proper positive integer.
+        This defines the maximum number of processes and threads used for parallel execution.
+        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+        4.Use predicates to defining WHERE conditions for partitions,
+        predicates will be ignored if column is specified to generate partition.
+        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
+        column name with table in external data source.
+
         Args:
-            create_connection: a function that return a dbapi connection
-            table: Specifies the name of the table in the external data source. This parameter cannot be set simultaneously with the query parameter.
-            query: A valid SQL query to be used in the FROM clause. This parameter cannot be set simultaneously with the table parameter.
-            column: column name used to create partition, the column type must be numeric like int type or float type, or Date type.
-            lower_bound: lower bound of partition, decide the stride of partition along with upper_bound, this parameter does not filter out data.
-            upper_bound: upper bound of partition, decide the stride of partition along with lower_bound, this parameter does not filter out data.
+            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
+                The callable must be picklable, as it will be passed to and executed in child processes.
+            table: The name of the table in the external data source.
+                This parameter cannot be used together with the `query` parameter.
+            query: A valid SQL query to be used as the data source in the FROM clause.
+                This parameter cannot be used together with the `table` parameter.
+            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
+                The column must be of a numeric type (e.g., int or float) or a date type.
+                When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
+            lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
             num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+                It must be provided when `column` is specified.
             max_workers: number of processes and threads used for parallelism.
-            query_timeout: timeout(seconds) for each query, default value is 0, which means never timeout.
-            fetch_size: batch size when fetching from external data source, which determine how many rows fetched per round trip. This improve performace for drivers that have a low default fetch size.
+            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
+                the query will never time out. The timeout behavior can also be configured within
+                the `create_connection` method when establishing the database connection, depending on the capabilities
+                of the DBMS and its driver.
+            fetch_size: The number of rows to fetch per batch from the external data source.
+                This determines how many rows are retrieved in each round trip,
+                which can improve performance for drivers with a low default fetch size.
             custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source. This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING", or StructType, for example: StructType([StructField("ID", IntegerType(), False)])
-            predicates: a list of expressions suitable for inclusion in WHERE clauses, each defines a partition
-            session_init_statement: session initiation statements for external data source, this statement will be executed before fetch data from external data source, for example: "insert into test_table values (1, 'sample_data')" will insert data into test_table before fetch data from it.
-        Note:
-            column, lower_bound, upper_bound and num_partitions must be specified if any one of them is specified.
+            predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
+                Partitions will be retrieved in parallel.
+                If both `column` and `predicates` are specified, `column` takes precedence.
+            session_init_statement: A SQL statement executed before fetching data from the external data source.
+                This can be used for session initialization tasks such as setting configurations.
+                For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
+                to avoid row locks and improve read performance.
+                The `session_init_statement` is executed only once at the beginning of each partition read.
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                df = session.read.dbapi(create_oracledb_connection, table=...)
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
@@ -1236,23 +1270,21 @@ class DataFrameReader:
             )
 
             try:
-                with mp.Manager() as process_manager, ProcessPoolExecutor(
+                with ProcessPoolExecutor(
                     max_workers=max_workers
                 ) as process_executor, ThreadPoolExecutor(
                     max_workers=max_workers
                 ) as thread_executor:
                     thread_pool_futures, process_pool_futures = [], []
-                    parquet_file_queue = process_manager.Queue()
 
                     def ingestion_thread_cleanup_callback(parquet_file_path, _):
                         # clean the local temp file after ingestion to avoid consuming too much temp disk space
-                        shutil.rmtree(parquet_file_path, ignore_errors=True)
+                        os.remove(parquet_file_path)
 
                     logger.debug("Starting to fetch data from the data source.")
                     for partition_idx, query in enumerate(partitioned_queries):
                         process_future = process_executor.submit(
                             DataFrameReader._task_fetch_from_data_source_with_retry,
-                            parquet_file_queue,
                             create_connection,
                             query,
                             struct_schema,
@@ -1265,8 +1297,22 @@ class DataFrameReader:
                         )
                         process_pool_futures.append(process_future)
                     # Monitor queue while tasks are running
+
+                    parquet_file_queue = (
+                        queue.Queue()
+                    )  # maintain the queue of parquet files to process
+                    set_of_files_already_added_in_queue = (
+                        set()
+                    )  # maintain file names we have already put into queue
                     while True:
                         try:
+                            # each process and per fetch will create a parquet with a unique file name
+                            # we add unseen files to process queue
+                            add_unseen_files_to_process_queue(
+                                tmp_dir,
+                                set_of_files_already_added_in_queue,
+                                parquet_file_queue,
+                            )
                             file = parquet_file_queue.get_nowait()
                             logger.debug(f"Retrieved file from parquet queue: {file}")
                             thread_future = thread_executor.submit(
@@ -1301,8 +1347,15 @@ class DataFrameReader:
                                 else:
                                     unfinished_process_pool_futures.append(future)
                                     all_job_done = False
-                            if all_job_done and parquet_file_queue.empty():
-                                # all jod is done and parquet file queue is empty, we finished all the fetch work
+                            if (
+                                all_job_done
+                                and parquet_file_queue.empty()
+                                and len(os.listdir(tmp_dir)) == 0
+                            ):
+                                # we finished all the fetch work based on the following 3 conditions:
+                                # 1. all jod is done
+                                # 2. parquet file queue is empty
+                                # 3. no files in the temp work dir as they are all removed in thread future callback
                                 # now we just need to wait for all ingestion threads to complete
                                 logger.debug(
                                     "All jobs are done, and the parquet file queue is empty. Fetching work is complete."
@@ -1464,9 +1517,12 @@ class DataFrameReader:
         statements_params: Optional[Dict[str, str]] = None,
     ):
         file_name = os.path.basename(local_file)
-        put_query = (
-            f"PUT {normalize_local_file(local_file)} "
-            f"@{snowflake_stage_name} OVERWRITE=TRUE {DATA_SOURCE_SQL_COMMENT}"
+        # SNOW-1975354: session.sql("PUT ...").collect() is not supported in stored procedure
+        self._session.file.put(
+            normalize_local_file(local_file),
+            f"{snowflake_stage_name}",
+            overwrite=True,
+            statement_params=statements_params,
         )
         copy_into_table_query = f"""
         COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
@@ -1476,7 +1532,6 @@ class DataFrameReader:
         ON_ERROR={on_error}
         {DATA_SOURCE_SQL_COMMENT}
         """
-        self._session.sql(put_query).collect(statement_params=statements_params)
         self._session.sql(copy_into_table_query).collect(
             statement_params=statements_params
         )
@@ -1500,7 +1555,6 @@ class DataFrameReader:
 
     @staticmethod
     def _task_fetch_from_data_source(
-        parquet_file_queue: queue.Queue,
         create_connection: Callable[[], "Connection"],
         query: str,
         schema: StructType,
@@ -1517,12 +1571,11 @@ class DataFrameReader:
                 logger.debug(
                     f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."
                 )
-                return None
+                return
             path = os.path.join(
                 tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
             )
             df.to_parquet(path)
-            return path
 
         conn = create_connection()
         # this is specified to pyodbc, need other way to manage timeout on other drivers
@@ -1536,9 +1589,7 @@ class DataFrameReader:
         if fetch_size == 0:
             cursor.execute(query)
             result = cursor.fetchall()
-            parquet_file_path = convert_to_parquet(result, 0)
-            if parquet_file_path:
-                parquet_file_queue.put(parquet_file_path)
+            convert_to_parquet(result, 0)
         elif fetch_size > 0:
             cursor = cursor.execute(query)
             fetch_idx = 0
@@ -1546,16 +1597,13 @@ class DataFrameReader:
                 rows = cursor.fetchmany(fetch_size)
                 if not rows:
                     break
-                parquet_file_path = convert_to_parquet(rows, fetch_idx)
-                if parquet_file_path:
-                    parquet_file_queue.put(parquet_file_path)
+                convert_to_parquet(rows, fetch_idx)
                 fetch_idx += 1
         else:
             raise ValueError("fetch size cannot be smaller than 0")
 
     @staticmethod
     def _task_fetch_from_data_source_with_retry(
-        parquet_file_queue: queue.Queue,
         create_connection: Callable[[], "Connection"],
         query: str,
         schema: StructType,
@@ -1568,7 +1616,6 @@ class DataFrameReader:
     ):
         DataFrameReader._retry_run(
             DataFrameReader._task_fetch_from_data_source,
-            parquet_file_queue,
             create_connection,
             query,
             schema,
