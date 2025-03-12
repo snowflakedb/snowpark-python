@@ -11601,7 +11601,7 @@ def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
         >>> result["SIZE"]  # doctest: +SKIP
         32
         >>> result["CONTENT_TYPE"]  # doctest: +SKIP
-        'application/octet-stream'
+        'text/csv'
     """
     ast = build_function_expr("to_file", [stage_file_uri]) if _emit_ast else None
     # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI
@@ -11628,7 +11628,7 @@ def fl_get_content_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_content_type(to_file("@mystage/testCSV.csv")).alias("file"))
         >>> df.collect()[0][0]  # doctest: +SKIP
-        'application/octet-stream'
+        'text/csv'
     """
     function_name = "fl_get_content_type"
     ast = build_function_expr(function_name, [e]) if _emit_ast else None
@@ -11651,7 +11651,6 @@ def fl_get_etag(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_etag(to_file("@mystage/testCSV.csv")).alias("file"))
         >>> len(df.collect()[0][0])  # doctest: +SKIP
-        32
     """
     function_name = "fl_get_etag"
     ast = build_function_expr(function_name, [e]) if _emit_ast else None
@@ -11686,7 +11685,7 @@ def fl_get_file_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_file_type(to_file("@mystage/testCSV.csv")).alias("file"))
         >>> df.collect()[0][0]  # doctest: +SKIP
-        'unknown'
+        'document'
     """
     function_name = "fl_get_file_type"
     ast = build_function_expr(function_name, [e]) if _emit_ast else None
@@ -11888,7 +11887,7 @@ def fl_is_document(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_is_document(to_file("@mystage/testCSV.csv")).alias("file"))
         >>> df.collect()[0][0]  # doctest: +SKIP
-        False
+        True
     """
     function_name = "fl_is_document"
     ast = build_function_expr(function_name, [e]) if _emit_ast else None

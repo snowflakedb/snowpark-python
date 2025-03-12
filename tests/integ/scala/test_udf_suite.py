@@ -636,7 +636,7 @@ def test_file_type(session, resources_path):
     func_udfs.append(udf(func2))
 
     expected_dict = {
-        "CONTENT_TYPE": "application/octet-stream",
+        "CONTENT_TYPE": "text/csv",
         "ETAG": "",
         "LAST_MODIFIED": "",
         "RELATIVE_PATH": "testCSV.csv",
