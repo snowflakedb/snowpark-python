@@ -1784,13 +1784,13 @@ def grouping(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> from snowflake.snowpark import GroupingSets
         >>> df = session.create_dataframe([[1, 2, 3], [4, 5, 6]],schema=["a", "b", "c"])
         >>> grouping_sets = GroupingSets([col("a")], [col("b")], [col("a"), col("b")])
-        >>> df.group_by_grouping_sets(grouping_sets).agg([count("c"), grouping("a"), grouping("b"), grouping("a", "b")]).collect()
-        [Row(A=1, B=2, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
-Row(A=4, B=5, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
-Row(A=1, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
-Row(A=4, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
-Row(A=None, B=2, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2), \
-Row(A=None, B=5, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2)]
+        >>> df.group_by_grouping_sets(grouping_sets).agg([count("c").alias("count_c"), grouping("a").alias("ga"), grouping("b").alias("gb"), grouping("a", "b").alias("gab")]).sort("a", "b").collect()
+        [Row(A=None, B=2, COUNT_C=1, GA=1, GB=0, GAB=2), \
+Row(A=None, B=5, COUNT_C=1, GA=1, GB=0, GAB=2), \
+Row(A=1, B=None, COUNT_C=1, GA=0, GB=1, GAB=1), \
+Row(A=1, B=2, COUNT_C=1, GA=0, GB=0, GAB=0), \
+Row(A=4, B=None, COUNT_C=1, GA=0, GB=1, GAB=1), \
+Row(A=4, B=5, COUNT_C=1, GA=0, GB=0, GAB=0)]
     """
     columns = [_to_col_if_str(c, "grouping") for c in cols]
     return builtin("grouping", _emit_ast=_emit_ast)(*columns)
@@ -5899,6 +5899,7 @@ def window(
         |}                                     |
         ----------------------------------------
         <BLANKLINE>
+
         >>> df.select(window(df.time, "5 minutes", start_time="2 minutes")).show()
         ----------------------------------------
         |"WINDOW"                              |
@@ -5922,7 +5923,7 @@ def window(
         ...         (datetime.datetime(2024, 10, 31, 5, 0, 0), 1),
         ...     ], schema=["time", "value"]
         ... )
-        >>> df.group_by(window(df.time, "2 hours")).agg(sum(df.value)).show()
+        >>> df.group_by(window(df.time, "2 hours")).agg(sum(df.value)).sort("window").show()
         -------------------------------------------------------
         |"WINDOW"                              |"SUM(VALUE)"  |
         -------------------------------------------------------
@@ -6804,7 +6805,7 @@ def array_agg(
 
     Example::
         >>> df = session.create_dataframe([[1], [2], [3], [1]], schema=["a"])
-        >>> df.select(array_agg("a", True).alias("result")).show()
+        >>> df.select(array_agg("a", True).within_group("a").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -7294,7 +7295,7 @@ def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "array_unique_agg")
-    return _call_function("array_unique_agg", True, c, _emit_ast=_emit_ast)
+    return _call_function("array_unique_agg", False, c, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -8349,7 +8350,7 @@ def to_variant(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     Example::
 
         >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
-        >>> df_conv = df.select(to_variant(col("a")).as_("ans"))
+        >>> df_conv = df.select(to_variant(col("a")).as_("ans")).sort("ans")
         >>> df_conv.collect()
         [Row(ANS='1'), Row(ANS='2'), Row(ANS='3'), Row(ANS='4')]
 
@@ -8359,8 +8360,8 @@ def to_variant(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> from snowflake.snowpark import Row
         >>> schema = StructType([StructField("a", VariantType())])
         >>> df_other = session.create_dataframe([Row(a=10), Row(a='test'), Row(a={'a': 10, 'b': 20}), Row(a=[1, 2, 3])], schema=schema)
-        >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).collect()
-        [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='VARCHAR'), Row(ANS='OBJECT'), Row(ANS='ARRAY')]
+        >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).sort("ans").collect()
+        [Row(ANS='ARRAY'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='OBJECT'), Row(ANS='VARCHAR')]
     """
     c = _to_col_if_str(e, "to_variant")
     return builtin("to_variant", _emit_ast=_emit_ast)(c)
