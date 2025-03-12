@@ -1,13 +1,12 @@
 # Release History
 
-## 1.29.1 (2025-03-11)
+## 1.29.1 (2025-03-12)
 
 ### Snowpark Python API Updates
 
 #### Bug Fixes
 
-- Fixed a bug in the experimental feature `DataFrameReader.dbapi` that prevented putting files inside a stored procedure.
-- Fixed a bug in the experimental feature `DataFrameReader.dbapi` that caused issues with inter-process communication within a stored procedure.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that prevents usage in stored procedure and snowbooks.
 
 ## 1.29.0 (2025-03-05)
 

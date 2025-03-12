@@ -337,9 +337,6 @@ class DataFrameWriter:
         """
 
         kwargs = {}
-        statement_params = self._track_data_source_statement_params(
-            self._dataframe, statement_params or self._dataframe._statement_params
-        )
         if _emit_ast:
             # Add an Assign node that applies WriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
@@ -469,6 +466,9 @@ class DataFrameWriter:
             else:
                 table_exists = None
 
+            statement_params = self._track_data_source_statement_params(
+                self._dataframe, statement_params or self._dataframe._statement_params
+            )
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
                 column_names,
@@ -590,9 +590,6 @@ class DataFrameWriter:
         """
 
         kwargs = {}
-        statement_params = self._track_data_source_statement_params(
-            self._dataframe, statement_params or self._dataframe._statement_params
-        )
         if _emit_ast:
             # Add an Assign node that applies WriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
@@ -651,6 +648,10 @@ class DataFrameWriter:
                 format_type_aliased_options[aliased_key] = value
 
             cur_format_type_options.update(format_type_aliased_options)
+
+        statement_params = self._track_data_source_statement_params(
+            self._dataframe, statement_params or self._dataframe._statement_params
+        )
 
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
