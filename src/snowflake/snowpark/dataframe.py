@@ -179,6 +179,7 @@ from snowflake.snowpark.functions import (
     max as max_,
     mean,
     min as min_,
+    random as random_,
     row_number,
     sql_expr,
     stddev,
@@ -5917,16 +5918,23 @@ class DataFrame:
                     raise ValueError("weights must be positive numbers")
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
-            if seed:
-                local_random = random.Random(seed)
-                python_seed = local_random.random()
+            if self._session.conf.get("use_simplified_query_generation"):
+                if seed:
+                    local_random = random.Random(seed)
+                    python_seed = local_random.random()
+                else:
+                    python_seed = random.random()
+                intermediate_df = self.with_column(
+                    temp_column_name,
+                    abs_(hash_("*", lit(python_seed))) % _ONE_MILLION,
+                    _emit_ast=False,
+                )
             else:
-                python_seed = random.random()
-            cached_df = self.with_column(
-                temp_column_name,
-                abs_(hash_("*", lit(python_seed))) % _ONE_MILLION,
-                _emit_ast=False,
-            )
+                intermediate_df = self.with_column(
+                    temp_column_name,
+                    abs_(random_(seed)) % _ONE_MILLION,
+                    _emit_ast=False,
+                ).cache_result(statement_params=statement_params, _emit_ast=False)
             sum_weights = sum(weights)
             normalized_cum_weights = [0] + [
                 int(w * _ONE_MILLION)
@@ -5936,7 +5944,7 @@ class DataFrame:
                 normalized_cum_weights[:-1], normalized_cum_weights[1:]
             )
             res_dfs = [
-                cached_df.where(
+                intermediate_df.where(
                     (col(temp_column_name) >= lower_bound)
                     & (col(temp_column_name) < upper_bound),
                     _emit_ast=False,
