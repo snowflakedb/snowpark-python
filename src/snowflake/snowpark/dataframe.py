@@ -486,7 +486,7 @@ class DataFrame:
         >>> df_total_price_per_category = df_prices.group_by(col("product_id")).sum(col("amount"))
         >>> # Have multiple aggregation values with the group by
         >>> import snowflake.snowpark.functions as f
-        >>> df_summary = df_prices.group_by(col("product_id")).agg(f.sum(col("amount")).alias("total_amount"), f.avg("amount"))
+        >>> df_summary = df_prices.group_by(col("product_id")).agg(f.sum(col("amount")).alias("total_amount"), f.avg("amount")).sort(col("product_id"))
         >>> df_summary.show()
         -------------------------------------------------
         |"PRODUCT_ID"  |"TOTAL_AMOUNT"  |"AVG(AMOUNT)"  |
@@ -2184,17 +2184,17 @@ class DataFrame:
             >>> df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
             >>> df.group_by().agg(sum_("b")).collect()
             [Row(SUM(B)=9)]
-            >>> df.group_by("a").agg(sum_("b")).collect()
+            >>> df.group_by("a").agg(sum_("b")).sort("a").collect()
             [Row(A=1, SUM(B)=3), Row(A=2, SUM(B)=3), Row(A=3, SUM(B)=3)]
-            >>> df.group_by("a").agg(sum_("b").alias("sum_b"), max_("b").alias("max_b")).collect()
+            >>> df.group_by("a").agg(sum_("b").alias("sum_b"), max_("b").alias("max_b")).sort("a").collect()
             [Row(A=1, SUM_B=3, MAX_B=2), Row(A=2, SUM_B=3, MAX_B=2), Row(A=3, SUM_B=3, MAX_B=2)]
-            >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).collect()
+            >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).sort("a").collect()
             [Row(A=1, LITERAL()='snow', SUM(B)=3), Row(A=2, LITERAL()='snow', SUM(B)=3), Row(A=3, LITERAL()='snow', SUM(B)=3)]
-            >>> df.group_by("a").agg((col("*"), "count"), max_("b")).collect()
+            >>> df.group_by("a").agg((col("*"), "count"), max_("b")).sort("a").collect()
             [Row(A=1, COUNT(LITERAL())=2, MAX(B)=2), Row(A=2, COUNT(LITERAL())=2, MAX(B)=2), Row(A=3, COUNT(LITERAL())=2, MAX(B)=2)]
-            >>> df.group_by("a").median("b").collect()
-            [Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500')), Row(A=1, MEDIAN(B)=Decimal('1.500'))]
-            >>> df.group_by("a").function("avg")("b").collect()
+            >>> df.group_by("a").median("b").sort("a").collect()
+            [Row(A=1, MEDIAN(B)=Decimal('1.500')), Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500'))]
+            >>> df.group_by("a").function("avg")("b").sort("a").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
         # This code performs additional type checks, run first.
@@ -2254,14 +2254,14 @@ class DataFrame:
 
             >>> from snowflake.snowpark import GroupingSets
             >>> df = session.create_dataframe([[1, 2, 10], [3, 4, 20], [1, 4, 30]], schema=["A", "B", "C"])
-            >>> df.group_by_grouping_sets(GroupingSets([col("a")])).count().collect()
+            >>> df.group_by_grouping_sets(GroupingSets([col("a")])).count().sort("a").collect()
             [Row(A=1, COUNT=2), Row(A=3, COUNT=1)]
-            >>> df.group_by_grouping_sets(GroupingSets(col("a"))).count().collect()
+            >>> df.group_by_grouping_sets(GroupingSets(col("a"))).count().sort("a").collect()
             [Row(A=1, COUNT=2), Row(A=3, COUNT=1)]
-            >>> df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().collect()
-            [Row(A=1, B=None, COUNT=2), Row(A=3, B=None, COUNT=1), Row(A=None, B=2, COUNT=1), Row(A=None, B=4, COUNT=2)]
-            >>> df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()
-            [Row(A=None, B=None, C=10, COUNT=1), Row(A=None, B=None, C=20, COUNT=1), Row(A=None, B=None, C=30, COUNT=1), Row(A=1, B=2, C=None, COUNT=1), Row(A=3, B=4, C=None, COUNT=1), Row(A=1, B=4, C=None, COUNT=1)]
+            >>> df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().sort("a", "b").collect()
+            [Row(A=None, B=2, COUNT=1), Row(A=None, B=4, COUNT=2), Row(A=1, B=None, COUNT=2), Row(A=3, B=None, COUNT=1)]
+            >>> df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().sort("a", "b", "c").collect()
+            [Row(A=None, B=None, C=10, COUNT=1), Row(A=None, B=None, C=20, COUNT=1), Row(A=None, B=None, C=30, COUNT=1), Row(A=1, B=2, C=None, COUNT=1), Row(A=1, B=4, C=None, COUNT=1), Row(A=3, B=4, C=None, COUNT=1)]
 
 
         Args:
@@ -2666,13 +2666,13 @@ class DataFrame:
         Example::
             >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[0, 1], [3, 4]], schema=["c", "d"])
-            >>> df1.union(df2).show()
+            >>> df1.union(df2).sort("a").show()
             -------------
             |"A"  |"B"  |
             -------------
+            |0    |1    |
             |1    |2    |
             |3    |4    |
-            |0    |1    |
             -------------
             <BLANKLINE>
 
@@ -2794,7 +2794,7 @@ class DataFrame:
 
             >>> df1 = session.create_dataframe([[1, 2]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[2, 1, 3]], schema=["b", "a", "c"])
-            >>> df1.union_by_name(df2, allow_missing_columns=True).show()
+            >>> df1.union_by_name(df2, allow_missing_columns=True).sort("c").show()
             --------------------
             |"A"  |"B"  |"C"   |
             --------------------
