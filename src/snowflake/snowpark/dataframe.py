@@ -2321,7 +2321,6 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
-    @df_api_usage
     @publicapi
     def distinct(
         self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
@@ -2348,6 +2347,7 @@ class DataFrame:
                 df = self._with_plan(self._select_statement.distinct(), _ast_stmt=stmt)
             else:
                 df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
+            add_api_call(df, "DataFrame.distinct[select]")
         else:
             df = self.group_by(
                 [
@@ -2356,6 +2356,7 @@ class DataFrame:
                 ],
                 _emit_ast=False,
             ).agg(_emit_ast=False)
+            adjust_api_subcalls(df, "DataFrame.distinct[group_by]", len_subcalls=2)
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -4154,7 +4155,7 @@ class DataFrame:
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
-            add_api_call(df, "DataFrame.count")
+            adjust_api_subcalls(df, "DataFrame.count", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params,
                 block=block,
@@ -5339,7 +5340,7 @@ class DataFrame:
 
         if n is None:
             df = self.limit(1, _emit_ast=False)
-            add_api_call(df, "DataFrame.first")
+            adjust_api_subcalls(df, "DataFrame.first", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
@@ -5347,12 +5348,13 @@ class DataFrame:
                 return result
             return result[0] if result else None
         elif n < 0:
+            add_api_call(self, "DataFrame.first")
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
         else:
             df = self.limit(n, _emit_ast=False)
-            add_api_call(df, "DataFrame.first")
+            adjust_api_subcalls(df, "DataFrame.first", len_subcalls=1)
             return df._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
