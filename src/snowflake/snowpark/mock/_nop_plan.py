@@ -152,9 +152,15 @@ def resolve_attributes(
 
     elif isinstance(plan, TableFunctionJoin):
         left_attributes = resolve_attributes(plan.children[0], session)
-        output_schema = session.udtf.get_udtf(
-            plan.table_function.func_name
-        )._output_schema
+        try:
+            output_schema = session.udtf.get_udtf(
+                plan.table_function.func_name
+            )._output_schema
+        except KeyError:
+            if session is not None and session._conn._suppress_not_implemented_error:
+                return []
+            else:
+                raise
         if isinstance(output_schema, PandasDataFrameType):
             right_attributes = [
                 Attribute(col_name, col_type, True)

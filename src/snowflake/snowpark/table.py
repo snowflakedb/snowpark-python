@@ -321,6 +321,14 @@ class Table(DataFrame):
         # created from Session object
         set_api_call_source(self, "Table.__init__")
 
+    def _copy_without_ast(self):
+        return Table(
+            self.table_name,
+            session=self._session,
+            is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
+            _emit_ast=False,
+        )
+
     def __copy__(self) -> "Table":
         return Table(
             self.table_name,
@@ -519,7 +527,7 @@ class Table(DataFrame):
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.table_update, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             if assignments is not None:
                 for k, v in assignments.items():
@@ -651,7 +659,7 @@ class Table(DataFrame):
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.table_delete, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             if condition is not None:
                 build_expr_from_snowpark_column(ast.condition, condition)
@@ -782,7 +790,7 @@ class Table(DataFrame):
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.table_merge, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             source._set_ast_ref(ast.source)
             build_expr_from_snowpark_column_or_python_val(ast.join_expr, join_expr)
@@ -797,7 +805,7 @@ class Table(DataFrame):
                             if assignments is not None:
                                 for k, v in assignments.items():
                                     t = (
-                                        matched_clause.merge_update_when_matched_clause.update_assignments.list.add()
+                                        matched_clause.merge_update_when_matched_clause.update_assignments.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(
                                         t._1, k
@@ -824,13 +832,13 @@ class Table(DataFrame):
                             if value._clause._keys is not None:
                                 for k in value._clause._keys:
                                     t = (
-                                        matched_clause.merge_insert_when_not_matched_clause.insert_keys.list.add()
+                                        matched_clause.merge_insert_when_not_matched_clause.insert_keys.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(t, k)
                             if value._clause._values is not None:
                                 for v in value._clause._values:
                                     t = (
-                                        matched_clause.merge_insert_when_not_matched_clause.insert_values.list.add()
+                                        matched_clause.merge_insert_when_not_matched_clause.insert_values.add()
                                     )
                                     build_expr_from_snowpark_column_or_python_val(t, v)
                             if value._condition is not None:
@@ -902,7 +910,7 @@ class Table(DataFrame):
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.table_drop_table, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(stmt)
 

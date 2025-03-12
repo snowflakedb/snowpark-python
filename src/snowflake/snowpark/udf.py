@@ -257,6 +257,7 @@ class UDFRegistration:
     ``dict``                                       :class:`~snowflake.snowpark.types.MapType`              OBJECT
     Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`          VARIANT
     ``dict``                                       :class:`~snowflake.snowpark.types.GeographyType`        GEOGRAPHY
+    ``dict``                                       :class:`~snowflake.snowpark.types.FileType`             FILE
     ``pandas.Series``                              :class:`~snowflake.snowpark.types.PandasSeriesType`     No SQL type
     ``pandas.DataFrame``                           :class:`~snowflake.snowpark.types.PandasDataFrameType`  No SQL type
     =============================================  ======================================================= ============
@@ -286,6 +287,10 @@ class UDFRegistration:
         TIMESTAMP_TZ), use :class:`~snowflake.snowpark.types.Timestamp` with
         :class:`~snowflake.snowpark.types.NTZ`, :class:`~snowflake.snowpark.types.LTZ`,
         :class:`~snowflake.snowpark.types.TZ` (e.g., ``Timestamp[NTZ]``).
+
+        5. Data with the FILE SQL type will be converted to a Python ``dict`` inside a UDF, with the
+        the `metadata <https://docs.snowflake.com/LIMITEDACCESS/sql-reference/data-types-unstructured#file-data-type>`_
+        related to the file.
 
     Example 1
         Create a temporary UDF from a lambda and apply it to a dataframe::

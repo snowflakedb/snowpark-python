@@ -66,12 +66,12 @@ _logger = getLogger(__name__)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def debug_check_missing_ast(ast, container) -> None:  # type: ignore[no-untyped-def] # pragma: no cover
+def debug_check_missing_ast(ast, session, container) -> None:  # type: ignore[no-untyped-def] # pragma: no cover
     """
     Debug check for missing AST. This is invoked with various arguments that are expected to be non-NULL if the AST
     is emitted correctly.
     """
-    if ast is None and FAIL_ON_MISSING_AST:
+    if session.ast_enabled and FAIL_ON_MISSING_AST and ast is None:
         _logger.debug(container._explain_string())
         raise NotImplementedError(
             f"DataFrame with API usage {container._plan.api_calls} is missing complete AST logging."
@@ -209,7 +209,7 @@ def build_expr_from_python_val(
         ast = with_src_position(expr_builder.row)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Row"; expected "Expr"
         if hasattr(obj, "_named_values") and obj._named_values is not None:
             for field in obj._fields:
-                ast.names.list.append(field)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "names"
+                ast.names.append(field)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "names"
                 build_expr_from_python_val(ast.vs.add(), obj._named_values[field])  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "vs"
         else:
             for field in obj:
@@ -339,7 +339,7 @@ def build_proto_from_struct_type(
 
     expr.structured = schema.structured
     for field in schema.fields:
-        ast_field = expr.fields.list.add()
+        ast_field = expr.fields.add()
         if isinstance(field.original_column_identifier, str):
             ast_field.column_identifier.column_name.name = (
                 field.original_column_identifier
@@ -1166,7 +1166,7 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         return_type._fill_ast(ast.return_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
-            input_type._fill_ast(ast.input_types.list.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
+            input_type._fill_ast(ast.input_types.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     ast.is_permanent = is_permanent
     if stage_location is not None:
         ast.stage_location = stage_location
@@ -1255,7 +1255,7 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         return_type._fill_ast(ast.return_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
-            input_type._fill_ast(ast.input_types.list.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
+            input_type._fill_ast(ast.input_types.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     ast.is_permanent = is_permanent
     if stage_location is not None:
         ast.stage_location.value = stage_location
@@ -1352,7 +1352,7 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
 
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
-            input_type._fill_ast(ast.input_types.list.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
+            input_type._fill_ast(ast.input_types.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     ast.is_permanent = is_permanent
     if stage_location is not None:
         ast.stage_location = stage_location
@@ -1464,7 +1464,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
         return_type._fill_ast(ast.return_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
-            input_type._fill_ast(ast.input_types.list.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
+            input_type._fill_ast(ast.input_types.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     ast.is_permanent = is_permanent
     if stage_location is not None:
         ast.stage_location = stage_location

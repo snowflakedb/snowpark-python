@@ -47,7 +47,7 @@ df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 
 
 res10 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
-df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
+df.group_by("location").apply_in_pandas(convert, StructType(fields=[StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
 
 df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
 
@@ -887,15 +887,13 @@ body {
           }
         }
         input_types {
-          list {
-            string_type {
-              length {
-              }
+          string_type {
+            length {
             }
           }
-          list {
-            float_type: true
-          }
+        }
+        input_types {
+          float_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -1052,42 +1050,40 @@ body {
         }
         output_schema {
           fields {
-            list {
-              column_identifier {
-                column_name {
-                  name: "location"
-                }
+            column_identifier {
+              column_name {
+                name: "location"
               }
-              data_type {
-                string_type {
-                  length {
-                  }
-                }
-              }
-              nullable: true
             }
-            list {
-              column_identifier {
-                column_name {
-                  name: "temp_c"
+            data_type {
+              string_type {
+                length {
                 }
               }
-              data_type {
-                float_type: true
-              }
-              nullable: true
             }
-            list {
-              column_identifier {
-                column_name {
-                  name: "temp_f"
-                }
+            nullable: true
+          }
+          fields {
+            column_identifier {
+              column_name {
+                name: "temp_c"
               }
-              data_type {
-                float_type: true
-              }
-              nullable: true
             }
+            data_type {
+              float_type: true
+            }
+            nullable: true
+          }
+          fields {
+            column_identifier {
+              column_name {
+                name: "temp_f"
+              }
+            }
+            data_type {
+              float_type: true
+            }
+            nullable: true
           }
         }
         src {

@@ -631,7 +631,7 @@ class DataFrame:
         Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
-        debug_check_missing_ast(self._ast_id, self)
+        debug_check_missing_ast(self._ast_id, self._session, self)
         dataframe_expr_builder.dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
@@ -699,7 +699,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_collect)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -749,7 +749,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_collect)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -887,7 +887,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(stmt.expr.dataframe_to_local_iterator)
 
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
 
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
@@ -917,22 +917,36 @@ class DataFrame:
             **kwargs,
         )
 
-    def __copy__(self) -> "DataFrame":
-        """Implements shallow copy protocol for copy.copy(...)."""
+    def _copy_plan(self) -> LogicalPlan:
+        """Returns a shallow copy of the plan of the DataFrame."""
         if self._select_statement:
             new_plan = copy.copy(self._select_statement)
             new_plan.column_states = self._select_statement.column_states
             new_plan._projection_in_str = self._select_statement.projection_in_str
             new_plan._schema_query = self._select_statement.schema_query
             new_plan._query_params = self._select_statement.query_params
+            return new_plan
         else:
-            new_plan = copy.copy(self._plan)
+            return copy.copy(self._plan)
 
-        # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
-        # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
-        df = DataFrame(self._session, new_plan)
-        df._ast_id = self._ast_id
-        return df
+    def _copy_without_ast(self) -> "DataFrame":
+        """Returns a shallow copy of the DataFrame without AST generation."""
+        return DataFrame(self._session, self._copy_plan(), _emit_ast=False)
+
+    def __copy__(self) -> "DataFrame":
+        """Implements shallow copy protocol for copy.copy(...)."""
+        stmt = None
+        if self._session.ast_enabled:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.dataframe_ref, stmt)
+            debug_check_missing_ast(self._ast_id, self._session, self)
+            ast.id.bitfield1 = self._ast_id
+        return DataFrame(
+            self._session,
+            self._copy_plan(),
+            _ast_stmt=stmt,
+            _emit_ast=self._session.ast_enabled,
+        )
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -998,7 +1012,7 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_to_pandas, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
@@ -1102,7 +1116,7 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_to_pandas_batches, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
@@ -1356,15 +1370,13 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.to_snowpark_pandas, stmt)
             self._set_ast_ref(ast.df)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             if index_col is not None:
-                ast.index_col.list.extend(
+                ast.index_col.extend(
                     index_col if isinstance(index_col, list) else [index_col]
                 )
             if columns is not None:
-                ast.columns.list.extend(
-                    columns if isinstance(columns, list) else [columns]
-                )
+                ast.columns.extend(columns if isinstance(columns, list) else [columns])
 
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
@@ -1598,9 +1610,10 @@ class DataFrame:
         # AST IDs created preceed the AST ID of the select statement so they are deserialized in dependent order.
         if _emit_ast and _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_select__columns, stmt)
+            ast = with_src_position(stmt.expr.dataframe_select, stmt)
             self._set_ast_ref(ast.df)
             ast.cols.variadic = is_variadic
+            ast.expr_variant = False
 
             # Add columns after the statement to ensure any dependent columns have lower ast id.
             for ast_col in ast_cols:
@@ -1664,11 +1677,12 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.dataframe_select__exprs, stmt)
+                ast = with_src_position(stmt.expr.dataframe_select, stmt)
                 self._set_ast_ref(ast.df)
-                ast.exprs.variadic = is_variadic
+                ast.cols.variadic = is_variadic
+                ast.expr_variant = True
                 for expr in exprs:
-                    build_expr_from_python_val(ast.exprs.args.add(), expr)
+                    build_expr_from_python_val(ast.cols.args.add(), expr)
             else:
                 stmt = _ast_stmt
 
@@ -2009,17 +2023,7 @@ class DataFrame:
             ast.name = name
             self._set_ast_ref(ast.df)
 
-        # TODO: Support alias in MockServerConnection.
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
-        if (
-            isinstance(self._session._conn, MockServerConnection)
-            and self._session._conn._suppress_not_implemented_error
-        ):
-            # Allow AST tests to pass.
-            return None
-
-        _copy = copy.copy(self)
+        _copy = self._copy_without_ast()
         _copy._alias = name
         for attr in self._plan.attributes:
             if _copy._select_statement:
@@ -2679,6 +2683,9 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = False
+            ast.by_name = False
+            ast.allow_missing_columns = False
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -2730,7 +2737,10 @@ class DataFrame:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_all, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = True
+            ast.by_name = False
+            ast.allow_missing_columns = False
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -2801,7 +2811,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_by_name, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = False
+            ast.by_name = True
+            ast.allow_missing_columns = allow_missing_columns
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
@@ -2862,7 +2875,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.dataframe_union_all_by_name, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = True
+            ast.by_name = True
+            ast.allow_missing_columns = allow_missing_columns
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
@@ -4126,7 +4142,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCount() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_count)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -4598,7 +4614,7 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node that applies DataframeShow() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             if self._ast_id is not None:
                 repr.expr.dataframe_show.id.bitfield1 = self._ast_id
             repr.expr.dataframe_show.n = n
@@ -5014,7 +5030,7 @@ class DataFrame:
             if clustering_keys is not None:
                 for col_or_name in clustering_keys:
                     build_expr_from_snowpark_column_or_col_name(
-                        expr.clustering_keys.list.add(), col_or_name
+                        expr.clustering_keys.add(), col_or_name
                     )
             expr.is_transient = is_transient
             if data_retention_time is not None:

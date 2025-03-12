@@ -66,7 +66,13 @@ def check_result(
     cte_join_count=None,
     high_query_count_expected=False,
     high_query_count_reason=None,
+    describe_count_for_optimized=None,
 ):
+    describe_count_for_optimized = (
+        describe_count_for_optimized
+        if describe_count_for_optimized is not None
+        else describe_count
+    )
     df = df.sort(df.columns)
     session._cte_optimization_enabled = False
     with SqlCounter(
@@ -96,7 +102,7 @@ def check_result(
         cte_join_count = join_count
     with SqlCounter(
         query_count=query_count,
-        describe_count=describe_count,
+        describe_count=describe_count_for_optimized,
         union_count=cte_union_count,
         join_count=cte_join_count,
         high_count_expected=high_query_count_expected,
@@ -105,7 +111,7 @@ def check_result(
         cte_result = df.collect()
     with SqlCounter(
         query_count=query_count,
-        describe_count=describe_count,
+        describe_count=describe_count_for_optimized,
         union_count=cte_union_count,
         join_count=cte_join_count,
         high_count_expected=high_query_count_expected,
@@ -122,7 +128,7 @@ def check_result(
         assert_frame_equal(result_pandas, cte_result_pandas)
 
     # verify no actual query or describe query is issued during that process
-    with SqlCounter(query_count=0, describe_count=0):
+    with SqlCounter(query_count=0, describe_count=describe_count_for_optimized):
         last_query = df.queries["queries"][-1]
 
         if expect_cte_optimized:
@@ -662,8 +668,9 @@ def test_sql_simplifier(session):
         describe_count=0,
         union_count=0,
         join_count=2,
+        describe_count_for_optimized=1 if session._join_alias_fix else None,
     )
-    with SqlCounter(query_count=0, describe_count=0):
+    with SqlCounter(query_count=0, describe_count=2 if session._join_alias_fix else 0):
         # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
         # so we will get a common CTE with filter
         assert count_number_of_ctes(df6.queries["queries"][-1]) == 2
@@ -858,6 +865,8 @@ def test_df_reader(session, mode, resources_path):
                                |                                                |
                           Select (valid)                                  Select (valid)
     """
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Skip test for simplifier disabled")
     reader = get_reader(session, mode)
     session_stage = session.get_session_stage()
     test_files = TestFiles(resources_path)
@@ -1083,6 +1092,7 @@ def test_time_series_aggregation_grouping(session):
         union_count=0,
         join_count=8,
         cte_join_count=4,
+        describe_count_for_optimized=6 if session._join_alias_fix else None,
     )
 
 

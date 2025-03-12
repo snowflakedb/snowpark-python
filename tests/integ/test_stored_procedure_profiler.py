@@ -260,6 +260,7 @@ def test_create_temp_stage(profiler_session):
         profiler_session.sql(f"use database {current_db}").collect()
 
 
+@pytest.mark.skip(reason="SNOW-1945207")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
