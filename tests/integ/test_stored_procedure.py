@@ -2016,3 +2016,44 @@ def test_snowpark_python_bugfix_version_warning(
         caplog.clear()
 
     run_test_case(caplog, version_override, expect_warning)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="data source is not supported in local testing",
+    run=False,
+)
+def test_datasource_put_file_and_copy_into_in_sproc(session):
+    # The tests session.file.put API as well as the COPY INTO sql executed inside stored proc
+    def upload_and_copy_into(session_):
+        from snowflake.snowpark._internal.utils import (
+            random_name_for_temp_object,
+            TempObjectType,
+        )
+
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+        session_.sql(f"CREATE TEMPORARY TABLE {table_name} (col INT)").collect()
+        session_.sql(f"CREATE TEMPORARY STAGE {stage_name}").collect()
+
+        file_name = "data.csv"
+        csv_filename = f"/tmp/{file_name}"
+        with open(csv_filename, "w") as file:
+            file.write("42\n")  # Sample data
+
+        session_.file.put(
+            csv_filename,
+            f"@{stage_name}",
+            overwrite=True,
+        )
+        session_.sql(
+            f"COPY INTO {table_name} FROM @{stage_name}/{file_name} FILE_FORMAT = (TYPE = CSV)"
+        ).collect()
+        if session_.table(table_name).collect() == [(42,)]:
+            return "success"
+        else:
+            return "failure"
+
+    # sproc execution
+    ingestion = sproc(upload_and_copy_into, return_type=StringType())
+    assert ingestion() == "success"

@@ -5,8 +5,10 @@
 import datetime
 import decimal
 import logging
+import os
+import queue
 from enum import Enum
-from typing import List, Any, Tuple, Protocol, Optional
+from typing import List, Any, Tuple, Protocol, Optional, Set
 from snowflake.connector.options import pandas as pd
 
 from snowflake.snowpark._internal.utils import get_sorted_key_for_version
@@ -294,7 +296,7 @@ def infer_data_source_schema(
     except Exception as exc:
         cursor.close()
         raise SnowparkDataframeReaderException(
-            f"Failed to infer Snowpark DataFrame schema from '{table_or_query}'."
+            f"Failed to infer Snowpark DataFrame schema from '{table_or_query}' due to {exc!r}."
             f" To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
             f" Please check the stack trace for more details."
         ) from exc
@@ -368,3 +370,15 @@ def output_type_handler(cursor, metadata):
         return cursor.var(oracledb.DB_TYPE_LONG, arraysize=cursor.arraysize)
     elif metadata.type_code == oracledb.DB_TYPE_BLOB:
         return cursor.var(oracledb.DB_TYPE_RAW, arraysize=cursor.arraysize)
+
+
+def add_unseen_files_to_process_queue(
+    work_dir: str, set_of_files_already_added_in_queue: Set[str], queue: queue.Queue
+):
+    """Add unseen files in the work_dir to the queue for processing."""
+    # all files in the work_dir are parquet files, no subdirectory
+    all_files = set(os.listdir(work_dir))
+    unseen = all_files - set_of_files_already_added_in_queue
+    for file in unseen:
+        queue.put(os.path.join(work_dir, file))
+        set_of_files_already_added_in_queue.add(file)
