@@ -20,6 +20,8 @@ user_schema = StructType([StructField("a", IntegerType()), StructField("b", Stri
 
 df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(user_schema).csv("@testCSVheader.csv")
 
+df10 = session.read.table(tables.table1)
+
 ## EXPECTED UNPARSER OUTPUT
 
 df1 = session.read.csv("@resources/iris.csv")
@@ -39,6 +41,8 @@ df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv
 df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("@testCSVheader.csv")
 
 df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(StructType(fields=[StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True), StructField("c", FloatType(), nullable=True)], structured=False)).csv("@testCSVheader.csv")
+
+df10 = session.read.table("table1")
 
 ## EXPECTED ENCODED AST
 
@@ -552,6 +556,46 @@ body {
     uid: 9
     var_id {
       bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader_init {
+            src {
+              end_column: 27
+              end_line: 45
+              file: 2
+              start_column: 15
+              start_line: 45
+            }
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 45
+          file: 2
+          start_column: 15
+          start_line: 45
+        }
+      }
+    }
+    symbol {
+      value: "df10"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
     }
   }
 }
