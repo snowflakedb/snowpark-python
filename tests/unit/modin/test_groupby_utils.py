@@ -132,7 +132,7 @@ def test_is_groupby_value_label_like(val, expected_result):
         ),
     ],
 )
-def test_invalid_grouper_parameters(val, invalid_params):
+def test_grouper_parameters(val, invalid_params):
     if len(invalid_params) == 0:
         validate_grouper(val)
     else:
