@@ -306,7 +306,7 @@ message PivotValue_Dataframe {
   DataframeRef v = 1;
 }
 
-// const.ir:81
+// const.ir:84
 message PythonTimeZone {
   google.protobuf.StringValue name = 1;
   int64 offset_seconds = 2;
@@ -440,7 +440,7 @@ message Assign {
   VarId var_id = 4;
 }
 
-// const.ir:28
+// const.ir:31
 message BigDecimalVal {
   int64 scale = 1;
   google.protobuf.StringValue special = 2;
@@ -450,8 +450,9 @@ message BigDecimalVal {
 
 // const.ir:24
 message BigIntVal {
-  SrcPosition src = 1;
-  bytes v = 2;
+  bool is_negative = 1;
+  SrcPosition src = 2;
+  bytes v = 3;
 }
 
 message BinOp {
@@ -476,7 +477,7 @@ message BinOp {
   }
 }
 
-// const.ir:42
+// const.ir:45
 message BinaryVal {
   SrcPosition src = 1;
   bytes v = 2;
@@ -1017,7 +1018,7 @@ message DataframeNaDrop_Python {
   Expr df = 1;
   string how = 2;
   SrcPosition src = 3;
-  List_String subset = 4;
+  ExprArgList subset = 4;
   google.protobuf.Int64Value thresh = 5;
 }
 
@@ -1033,7 +1034,7 @@ message DataframeNaDrop_Scala {
 message DataframeNaFill {
   Expr df = 1;
   SrcPosition src = 2;
-  List_String subset = 3;
+  ExprArgList subset = 3;
   Expr value = 4;
   repeated Tuple_String_Expr value_map = 5;
 }
@@ -1043,7 +1044,7 @@ message DataframeNaReplace {
   Expr df = 1;
   repeated Tuple_Expr_Expr replacement_map = 2;
   SrcPosition src = 3;
-  List_String subset = 4;
+  ExprArgList subset = 4;
   repeated Expr to_replace_list = 5;
   Expr to_replace_value = 6;
   Expr value = 7;
@@ -1165,7 +1166,7 @@ message DataframeSort {
 
 // dataframe-stat.ir:1
 message DataframeStatApproxQuantile {
-  repeated Expr cols = 1;
+  ExprArgList cols = 1;
   VarId id = 2;
   repeated double percentile = 3;
   SrcPosition src = 4;
@@ -1292,7 +1293,7 @@ message DataframeWrite {
   SrcPosition src = 5;
 }
 
-// const.ir:46
+// const.ir:49
 message DatatypeVal {
   DataType datatype = 1;
   SrcPosition src = 2;
@@ -1582,7 +1583,7 @@ message Flatten {
   SrcPosition src = 6;
 }
 
-// const.ir:34
+// const.ir:37
 message Float64Val {
   SrcPosition src = 1;
   double v = 2;
@@ -1960,7 +1961,7 @@ message Pow {
   SrcPosition src = 3;
 }
 
-// const.ir:65
+// const.ir:68
 message PythonDateVal {
   int64 day = 1;
   int64 month = 2;
@@ -1968,7 +1969,7 @@ message PythonDateVal {
   int64 year = 4;
 }
 
-// const.ir:71
+// const.ir:74
 message PythonTimeVal {
   int64 hour = 1;
   int64 microsecond = 2;
@@ -1978,7 +1979,7 @@ message PythonTimeVal {
   PythonTimeZone tz = 6;
 }
 
-// const.ir:54
+// const.ir:57
 message PythonTimestampVal {
   int64 day = 1;
   int64 hour = 2;
@@ -2198,7 +2199,7 @@ message StoredProcedure {
   bool strict = 21;
 }
 
-// const.ir:38
+// const.ir:41
 message StringVal {
   SrcPosition src = 1;
   string v = 2;
