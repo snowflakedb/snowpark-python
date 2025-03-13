@@ -1456,6 +1456,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if data_column_labels is None:
             data_column_labels = frame.data_column_pandas_labels
+
         if frame.is_unnamed_series():
             # this is an unnamed Snowpark pandas series, there is no customer visible pandas
             # label for the data column, set the label to be None
@@ -1508,6 +1509,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # first do a select to project out all unnecessary columns, then rename to avoid conflict
         ordered_dataframe = frame.ordered_dataframe.select(identifiers_to_retain)
+
         return ordered_dataframe.to_projected_snowpark_dataframe(
             col_mapper=rename_mapper
         )
