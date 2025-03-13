@@ -16,6 +16,7 @@
 
 #### Improvements
 
+- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
 - Improved how a missing `index_label` in `DataFrame.to_snowflake` and `Series.to_snowflake` is handled when `index=True`. Instead of raising a `ValueError`, system-defined labels are used for the index columns.
 
 ## 1.29.0 (2025-03-05)
