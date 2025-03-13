@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug where `df.show` would still show rows after a `df.limit(0)` call was applied to it.
+
 ### Snowpark Local Testing Updates
 
 #### New Features

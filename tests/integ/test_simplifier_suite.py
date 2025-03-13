@@ -825,15 +825,25 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
 def test_limit(setup_reduce_cast, session, simplifier_table):
     df = session.table(simplifier_table)
     df = df.limit(10)
-    assert df.queries["queries"][-1] == f"SELECT  *  FROM {simplifier_table} LIMIT 10"
+    assert (
+        df.queries["queries"][-1].lower()
+        == f"select  *  from {simplifier_table.lower()} limit 10"
+    )
 
     df = session.sql(f"select * from {simplifier_table}")
     df = df.limit(10)
     # we don't know if the original sql already has top/limit clause using a subquery is necessary.
     #  or else there will be SQL compile error.
     assert (
-        df.queries["queries"][-1]
-        == f"SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10"
+        df.queries["queries"][-1].lower()
+        == f"select  *  from (select * from {simplifier_table.lower()}) limit 10"
+    )
+
+    df = session.sql(f"select * from {simplifier_table}")
+    df = df.limit(0)
+    assert (
+        df.queries["queries"][-1].lower()
+        == f"select  *  from (select * from {simplifier_table.lower()}) limit 0"
     )
 
     # test for non-select sql statement
