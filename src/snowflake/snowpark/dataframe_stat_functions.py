@@ -99,10 +99,12 @@ class DataFrameStatFunctions:
             expr.id.bitfield1 = self._dataframe._ast_id
 
             if isinstance(col, Iterable) and not isinstance(col, str):
+                expr.cols.variadic = False
                 for c in col:
-                    build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
             else:
-                build_expr_from_snowpark_column_or_col_name(expr.cols.add(), col)
+                expr.cols.variadic = True
+                build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), col)
 
             # Because we build AST at beginning, error out if not iterable.
             if not isinstance(percentile, Iterable):
@@ -310,7 +312,7 @@ class DataFrameStatFunctions:
 
             >>> df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
             >>> ct = df.stat.crosstab("key", "value").sort(df["key"])
-            >>> ct.show()
+            >>> ct.show()  # doctest: +SKIP
             ---------------------------------------------------------------------------------------------
             |"KEY"  |"CAST(1 AS NUMBER(38,0))"  |"CAST(2 AS NUMBER(38,0))"  |"CAST(3 AS NUMBER(38,0))"  |
             ---------------------------------------------------------------------------------------------

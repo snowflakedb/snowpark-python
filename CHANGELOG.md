@@ -14,6 +14,22 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
+
+#### Improvements
+
+- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
+
+## 1.29.1 (2025-03-12)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that prevents usage in stored procedure and snowbooks.
+
 ## 1.29.0 (2025-03-05)
 
 ### Snowpark Python API Updates

@@ -120,6 +120,7 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
+    ResourceUsageCollector,
     add_api_call,
     adjust_api_subcalls,
     df_api_usage,
@@ -486,7 +487,7 @@ class DataFrame:
         >>> df_total_price_per_category = df_prices.group_by(col("product_id")).sum(col("amount"))
         >>> # Have multiple aggregation values with the group by
         >>> import snowflake.snowpark.functions as f
-        >>> df_summary = df_prices.group_by(col("product_id")).agg(f.sum(col("amount")).alias("total_amount"), f.avg("amount"))
+        >>> df_summary = df_prices.group_by(col("product_id")).agg(f.sum(col("amount")).alias("total_amount"), f.avg("amount")).sort(col("product_id"))
         >>> df_summary.show()
         -------------------------------------------------
         |"PRODUCT_ID"  |"TOTAL_AMOUNT"  |"AVG(AMOUNT)"  |
@@ -1405,7 +1406,7 @@ class DataFrame:
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
 
-        _emit_ast = self._ast_id is not None
+        _emit_ast = self._ast_id is not None and self._session.ast_enabled
 
         if isinstance(item, str):
             return self.col(item, _emit_ast=_emit_ast)
@@ -2184,17 +2185,17 @@ class DataFrame:
             >>> df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
             >>> df.group_by().agg(sum_("b")).collect()
             [Row(SUM(B)=9)]
-            >>> df.group_by("a").agg(sum_("b")).collect()
+            >>> df.group_by("a").agg(sum_("b")).sort("a").collect()
             [Row(A=1, SUM(B)=3), Row(A=2, SUM(B)=3), Row(A=3, SUM(B)=3)]
-            >>> df.group_by("a").agg(sum_("b").alias("sum_b"), max_("b").alias("max_b")).collect()
+            >>> df.group_by("a").agg(sum_("b").alias("sum_b"), max_("b").alias("max_b")).sort("a").collect()
             [Row(A=1, SUM_B=3, MAX_B=2), Row(A=2, SUM_B=3, MAX_B=2), Row(A=3, SUM_B=3, MAX_B=2)]
-            >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).collect()
+            >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).sort("a").collect()
             [Row(A=1, LITERAL()='snow', SUM(B)=3), Row(A=2, LITERAL()='snow', SUM(B)=3), Row(A=3, LITERAL()='snow', SUM(B)=3)]
-            >>> df.group_by("a").agg((col("*"), "count"), max_("b")).collect()
+            >>> df.group_by("a").agg((col("*"), "count"), max_("b")).sort("a").collect()
             [Row(A=1, COUNT(LITERAL())=2, MAX(B)=2), Row(A=2, COUNT(LITERAL())=2, MAX(B)=2), Row(A=3, COUNT(LITERAL())=2, MAX(B)=2)]
-            >>> df.group_by("a").median("b").collect()
-            [Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500')), Row(A=1, MEDIAN(B)=Decimal('1.500'))]
-            >>> df.group_by("a").function("avg")("b").collect()
+            >>> df.group_by("a").median("b").sort("a").collect()
+            [Row(A=1, MEDIAN(B)=Decimal('1.500')), Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500'))]
+            >>> df.group_by("a").function("avg")("b").sort("a").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
         # This code performs additional type checks, run first.
@@ -2254,14 +2255,14 @@ class DataFrame:
 
             >>> from snowflake.snowpark import GroupingSets
             >>> df = session.create_dataframe([[1, 2, 10], [3, 4, 20], [1, 4, 30]], schema=["A", "B", "C"])
-            >>> df.group_by_grouping_sets(GroupingSets([col("a")])).count().collect()
+            >>> df.group_by_grouping_sets(GroupingSets([col("a")])).count().sort("a").collect()
             [Row(A=1, COUNT=2), Row(A=3, COUNT=1)]
-            >>> df.group_by_grouping_sets(GroupingSets(col("a"))).count().collect()
+            >>> df.group_by_grouping_sets(GroupingSets(col("a"))).count().sort("a").collect()
             [Row(A=1, COUNT=2), Row(A=3, COUNT=1)]
-            >>> df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().collect()
-            [Row(A=1, B=None, COUNT=2), Row(A=3, B=None, COUNT=1), Row(A=None, B=2, COUNT=1), Row(A=None, B=4, COUNT=2)]
-            >>> df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()
-            [Row(A=None, B=None, C=10, COUNT=1), Row(A=None, B=None, C=20, COUNT=1), Row(A=None, B=None, C=30, COUNT=1), Row(A=1, B=2, C=None, COUNT=1), Row(A=3, B=4, C=None, COUNT=1), Row(A=1, B=4, C=None, COUNT=1)]
+            >>> df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().sort("a", "b").collect()
+            [Row(A=None, B=2, COUNT=1), Row(A=None, B=4, COUNT=2), Row(A=1, B=None, COUNT=2), Row(A=3, B=None, COUNT=1)]
+            >>> df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().sort("a", "b", "c").collect()
+            [Row(A=None, B=None, C=10, COUNT=1), Row(A=None, B=None, C=20, COUNT=1), Row(A=None, B=None, C=30, COUNT=1), Row(A=1, B=2, C=None, COUNT=1), Row(A=1, B=4, C=None, COUNT=1), Row(A=3, B=4, C=None, COUNT=1)]
 
 
         Args:
@@ -2321,7 +2322,6 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
-    @df_api_usage
     @publicapi
     def distinct(
         self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
@@ -2344,10 +2344,18 @@ class DataFrame:
                 ast = None
 
         if self._session.conf.get("use_simplified_query_generation"):
-            if self._select_statement:
-                df = self._with_plan(self._select_statement.distinct(), _ast_stmt=stmt)
-            else:
-                df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
+            with ResourceUsageCollector() as resource_usage_collector:
+                if self._select_statement:
+                    df = self._with_plan(
+                        self._select_statement.distinct(), _ast_stmt=stmt
+                    )
+                else:
+                    df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
+            add_api_call(
+                df,
+                "DataFrame.distinct[select]",
+                resource_usage=resource_usage_collector.get_resource_usage(),
+            )
         else:
             df = self.group_by(
                 [
@@ -2356,6 +2364,7 @@ class DataFrame:
                 ],
                 _emit_ast=False,
             ).agg(_emit_ast=False)
+            adjust_api_subcalls(df, "DataFrame.distinct[group_by]", len_subcalls=2)
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -2408,19 +2417,27 @@ class DataFrame:
                 df._ast_id = stmt.var_id.bitfield1
             return df
 
-        filter_cols = [self.col(x) for x in subset]
-        output_cols = [self.col(col_name) for col_name in self.columns]
-        rownum = row_number().over(
-            snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
-        )
-        rownum_name = generate_random_alphanumeric()
-        df = (
-            self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
-            .where(col(rownum_name) == 1, _emit_ast=False)
-            .select(output_cols, _emit_ast=False)
-        )
+        with ResourceUsageCollector() as resource_usage_collector:
+            filter_cols = [self.col(x) for x in subset]
+            output_cols = [self.col(col_name) for col_name in self.columns]
+            rownum = row_number().over(
+                snowflake.snowpark.Window.partition_by(*filter_cols).order_by(
+                    *filter_cols
+                )
+            )
+            rownum_name = generate_random_alphanumeric()
+            df = (
+                self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
+                .where(col(rownum_name) == 1, _emit_ast=False)
+                .select(output_cols, _emit_ast=False)
+            )
         # Reformat the extra API calls
-        adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
+        adjust_api_subcalls(
+            df,
+            "DataFrame.drop_duplicates",
+            len_subcalls=3,
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -2665,13 +2682,13 @@ class DataFrame:
         Example::
             >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[0, 1], [3, 4]], schema=["c", "d"])
-            >>> df1.union(df2).show()
+            >>> df1.union(df2).sort("a").show()
             -------------
             |"A"  |"B"  |
             -------------
+            |0    |1    |
             |1    |2    |
             |3    |4    |
-            |0    |1    |
             -------------
             <BLANKLINE>
 
@@ -2793,7 +2810,7 @@ class DataFrame:
 
             >>> df1 = session.create_dataframe([[1, 2]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[2, 1, 3]], schema=["b", "a", "c"])
-            >>> df1.union_by_name(df2, allow_missing_columns=True).show()
+            >>> df1.union_by_name(df2, allow_missing_columns=True).sort("c").show()
             --------------------
             |"A"  |"B"  |"C"   |
             --------------------
@@ -4154,7 +4171,7 @@ class DataFrame:
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
-            add_api_call(df, "DataFrame.count")
+            adjust_api_subcalls(df, "DataFrame.count", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params,
                 block=block,
@@ -5339,7 +5356,7 @@ class DataFrame:
 
         if n is None:
             df = self.limit(1, _emit_ast=False)
-            add_api_call(df, "DataFrame.first")
+            adjust_api_subcalls(df, "DataFrame.first", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
@@ -5347,12 +5364,13 @@ class DataFrame:
                 return result
             return result[0] if result else None
         elif n < 0:
+            add_api_call(self, "DataFrame.first")
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
         else:
             df = self.limit(n, _emit_ast=False)
-            add_api_call(df, "DataFrame.first")
+            adjust_api_subcalls(df, "DataFrame.first", len_subcalls=1)
             return df._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
@@ -5507,37 +5525,41 @@ class DataFrame:
             return df
 
         # otherwise, calculate stats
-        res_df = None
-        for name, func in stat_func_dict.items():
-            agg_cols = []
-            for c, t in numerical_string_col_type_dict.items():
-                # for string columns, we need to convert all stats to string
-                # such that they can be fitted into one column
-                if isinstance(t, StringType):
-                    if name in ["mean", "stddev"]:
-                        agg_cols.append(to_char(func(lit(None))).as_(c))
+        with ResourceUsageCollector() as resource_usage_collector:
+            res_df = None
+            for name, func in stat_func_dict.items():
+                agg_cols = []
+                for c, t in numerical_string_col_type_dict.items():
+                    # for string columns, we need to convert all stats to string
+                    # such that they can be fitted into one column
+                    if isinstance(t, StringType):
+                        if name in ["mean", "stddev"]:
+                            agg_cols.append(to_char(func(lit(None))).as_(c))
+                        else:
+                            agg_cols.append(to_char(func(c)))
                     else:
-                        agg_cols.append(to_char(func(c)))
-                else:
-                    agg_cols.append(func(c))
-            agg_stat_df = (
-                self.agg(agg_cols, _emit_ast=False)
-                .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
-                .select(
-                    lit(name).as_("summary"),
-                    *numerical_string_col_type_dict.keys(),
-                    _emit_ast=False,
+                        agg_cols.append(func(c))
+                agg_stat_df = (
+                    self.agg(agg_cols, _emit_ast=False)
+                    .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
+                    .select(
+                        lit(name).as_("summary"),
+                        *numerical_string_col_type_dict.keys(),
+                        _emit_ast=False,
+                    )
                 )
-            )
-            res_df = (
-                res_df.union(agg_stat_df, _emit_ast=False) if res_df else agg_stat_df
-            )
+                res_df = (
+                    res_df.union(agg_stat_df, _emit_ast=False)
+                    if res_df
+                    else agg_stat_df
+                )
 
         adjust_api_subcalls(
             res_df,
             "DataFrame.describe",
             precalls=self._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
+            resource_usage=resource_usage_collector.get_resource_usage(),
         )
 
         if _emit_ast:
@@ -5810,9 +5832,12 @@ class DataFrame:
         # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
 
         if isinstance(self._session._conn, MockServerConnection):
+            ast_id = self._ast_id
+            self._ast_id = None  # set the AST ID to None to prevent AST emission.
             self.write.save_as_table(
                 temp_table_name, create_temp_table=True, _emit_ast=False
             )
+            self._ast_id = ast_id  # restore the original AST ID.
         else:
             df = self._with_plan(
                 SnowflakeCreateTable(
