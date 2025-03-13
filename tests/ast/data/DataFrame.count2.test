@@ -13,7 +13,7 @@ df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType(fields=[StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
+df = session.create_dataframe(pandas.DataFrame(<not shown>), schema=StructType(fields=[StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
 
 df.count()
 

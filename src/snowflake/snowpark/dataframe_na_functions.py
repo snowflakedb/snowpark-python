@@ -193,9 +193,12 @@ class DataFrameNaFunctions:
             if thresh is not None:
                 ast.thresh.value = thresh
             if isinstance(subset, str):
-                ast.subset.list.append(subset)
+                ast.subset.variadic = True
+                build_expr_from_python_val(ast.subset.args.add(), subset)
             elif isinstance(subset, Iterable):
-                ast.subset.list.extend(subset)
+                ast.subset.variadic = False
+                for col in subset:
+                    build_expr_from_python_val(ast.subset.args.add(), col)
             self._dataframe._set_ast_ref(ast.df)
 
         # if subset is not provided, drop will be applied to all columns
@@ -386,9 +389,12 @@ class DataFrameNaFunctions:
             else:
                 build_expr_from_python_val(ast.value, value)
             if isinstance(subset, str):
-                ast.subset.list.append(subset)
+                ast.subset.variadic = True
+                build_expr_from_python_val(ast.subset.args.add(), subset)
             elif isinstance(subset, Iterable):
-                ast.subset.list.extend(subset)
+                ast.subset.variadic = False
+                for col in subset:
+                    build_expr_from_python_val(ast.subset.args.add(), col)
 
         if subset is None:
             subset = self._dataframe.columns
@@ -600,9 +606,12 @@ class DataFrameNaFunctions:
                 build_expr_from_python_val(ast.value, value)
 
             if isinstance(subset, str):
-                ast.subset.list.append(subset)
+                ast.subset.variadic = True
+                build_expr_from_python_val(ast.subset.args.add(), subset)
             elif isinstance(subset, Iterable):
-                ast.subset.list.extend(subset)
+                ast.subset.variadic = False
+                for col in subset:
+                    build_expr_from_python_val(ast.subset.args.add(), col)
 
         # Modify subset.
         if subset is None:

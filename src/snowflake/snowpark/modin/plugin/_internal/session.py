@@ -47,9 +47,10 @@ class SnowpandasSessionHolder(ModuleType):
         try:
             quoted_identifiers_ignore_case = (
                 session.sql(
-                    "SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION"
+                    "SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION",
+                    _emit_ast=False,
                 )
-                .collect()[0]
+                .collect(_emit_ast=False)[0]
                 .value
             )
             if quoted_identifiers_ignore_case.lower() == "true":
