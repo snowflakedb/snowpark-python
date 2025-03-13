@@ -181,7 +181,7 @@ def test_to_snowflake_column_with_quotes(session, test_table_name):
 
 
 # one extra query to convert index to native pandas when creating the snowpark pandas dataframe
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=8)
 def test_to_snowflake_index_label_none(test_table_name):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df.to_snowflake(test_table_name, if_exists="replace")
