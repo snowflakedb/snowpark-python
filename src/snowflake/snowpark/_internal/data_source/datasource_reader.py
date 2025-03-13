@@ -4,7 +4,7 @@
 
 import datetime
 
-from typing import List, Any, Iterator, Type, Callable
+from typing import List, Any, Iterator, Type, Callable, Optional
 
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
@@ -26,20 +26,22 @@ class DataSourceReader:
         self,
         driver_class: Type[BaseDriver],
         create_connection: Callable[[], "Connection"],
+        schema: StructType,
+        fetch_size: Optional[int] = 0,
     ) -> None:
         self.driver = driver_class(create_connection)
+        self.schema = schema
+        self.fetch_size = fetch_size
 
-    def read(
-        self, partition: str, cursor: "Cursor", fetch_size: int = 0
-    ) -> Iterator[List[Any]]:
-        if fetch_size == 0:
+    def read(self, partition: str, cursor: "Cursor") -> Iterator[List[Any]]:
+        if self.fetch_size == 0:
             cursor.execute(partition)
             result = cursor.fetchall()
             yield result
-        elif fetch_size > 0:
+        elif self.fetch_size > 0:
             cursor = cursor.execute(partition)
             while True:
-                rows = cursor.fetchmany(fetch_size)
+                rows = cursor.fetchmany(self.fetch_size)
                 if not rows:
                     break
                 yield rows

@@ -12,10 +12,6 @@ from snowflake.snowpark._internal.data_source.dbms_dialects.sqlite3_dialect impo
 )
 from snowflake.snowpark._internal.data_source.drivers.sqlite_driver import SqliteDriver
 import snowflake
-from snowflake.snowpark._internal.data_source.datasource_typing import Connection
-from snowflake.snowpark._internal.data_source.datasource_partitioner import (
-    DataSourcePartitioner,
-)
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
 from snowflake.snowpark._internal.data_source.dbms_dialects.oracledb_dialect import (
     OracledbDialect,
@@ -29,7 +25,6 @@ from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
 from snowflake.snowpark._internal.data_source.drivers.pyodbc_driver import PyodbcDriver
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-from snowflake.snowpark.types import StructType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -100,25 +95,13 @@ def detect_dbms_pyodbc(dbapi2_conn):
     return DBMS_TYPE.UNKNOWN
 
 
-def create_partitioner(
-    create_connection: Callable[[], "Connection"]
-) -> DataSourcePartitioner:
-    conn = create_connection()
-    dbms_type, driver = detect_dbms(conn)
-    return DataSourcePartitioner(
-        DBMS_MAP[dbms_type], DRIVER_MAP[driver], create_connection
-    )
-
-
 def _task_fetch_data_from_source(
     worker: DataSourceReader,
     parquet_file_queue: queue.Queue,
     partition: str,
-    schema: StructType,
     partition_idx: int,
     tmp_dir: str,
     query_timeout: int = 0,
-    fetch_size: int = 0,
     session_init_statement: Optional[str] = None,
 ):
 
@@ -128,7 +111,7 @@ def _task_fetch_data_from_source(
     cursor = conn.cursor()
 
     def convert_to_parquet(fetched_data, fetch_idx):
-        df = DataSourceReader.data_source_data_to_pandas_df(fetched_data, schema)
+        df = DataSourceReader.data_source_data_to_pandas_df(fetched_data, worker.schema)
         if df.empty:
             logger.debug(
                 f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."
@@ -142,7 +125,7 @@ def _task_fetch_data_from_source(
 
     if session_init_statement:
         cursor.execute(session_init_statement)
-    for i, result in enumerate(worker.read(partition, cursor, fetch_size)):
+    for i, result in enumerate(worker.read(partition, cursor)):
         parquet_file_location = convert_to_parquet(result, i)
         if parquet_file_location:
             parquet_file_queue.put(parquet_file_location)
@@ -152,11 +135,9 @@ def _task_fetch_data_from_source_with_retry(
     worker: DataSourceReader,
     parquet_file_queue: queue.Queue,
     partition: str,
-    schema: StructType,
     partition_idx: int,
     tmp_dir: str,
     query_timeout: int = 0,
-    fetch_size: int = 0,
     session_init_statement: Optional[str] = None,
 ):
     _retry_run(
@@ -164,11 +145,9 @@ def _task_fetch_data_from_source_with_retry(
         worker,
         parquet_file_queue,
         partition,
-        schema,
         partition_idx,
         tmp_dir,
         query_timeout,
-        fetch_size,
         session_init_statement,
     )
 
