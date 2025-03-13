@@ -493,7 +493,7 @@ def sample_statement(
 
 
 def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> str:
-    PERCENT_RANK_COL = "__SNOWPARK_SEQ_RND"
+    PERCENT_RANK_COL = random_name_for_temp_object(TempObjectType.COLUMN)
     LEFT_ALIAS = "SNOWPARK_LEFT"
     RIGHT_ALIAS = "SNOWPARK_RIGHT"
     child_with_percentage_rank_stmt = f"SELECT *, PERCENT_RANK() OVER (PARTITION BY {col} ORDER BY RANDOM()) AS {PERCENT_RANK_COL} FROM ({child})"
