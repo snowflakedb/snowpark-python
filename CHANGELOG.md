@@ -14,6 +14,10 @@
 
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
 
+#### Improvements
+
+- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
+
 ## 1.29.0 (2025-03-05)
 
 ### Snowpark Python API Updates
