@@ -26,6 +26,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import iff, lit, when
 from snowflake.snowpark.types import (
     DataType,
+    DecimalType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -55,7 +56,9 @@ def _is_value_type_matching_for_na_function(
             isinstance(value, int)
             # bool is a subclass of int, but we don't want to consider it numeric
             and not isinstance(value, bool)
-            and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
+            and isinstance(
+                datatype, (IntegerType, LongType, FloatType, DoubleType, DecimalType)
+            )
         )
         or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
         or isinstance(datatype, type(python_type_to_snow_type(type(value))[0]))
