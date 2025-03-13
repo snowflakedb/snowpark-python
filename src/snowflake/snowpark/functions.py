@@ -860,7 +860,6 @@ def convert_timezone(
         build_function_expr(
             "convert_timezone",
             [target_timezone, source_time, source_timezone],
-            ignore_null_args=True,
         )
         if _emit_ast
         else None
@@ -1099,19 +1098,18 @@ def create_map(
         -----------------------
         <BLANKLINE>
     """
-
-    check_create_map_parameter(*cols)
+    variadic = check_create_map_parameter(*cols)
+    ast = proto.Expr()
+    build_builtin_fn_apply(
+        ast, "create_map", *cols if variadic else cols
+    ) if _emit_ast else None
 
     # TODO SNOW-1790918: Remove as part of refactoring with alias.
     if len(cols) == 1 and isinstance(cols[0], (list, tuple)):
         cols = cols[0]
 
-    col = object_construct_keep_null(*cols, _emit_ast=_emit_ast)
-
-    if _emit_ast:
-        # Alias to create_map.
-        set_builtin_fn_alias(col._ast, "create_map")
-
+    col = object_construct_keep_null(*cols, _emit_ast=False)
+    col._ast = ast
     return col
 
 
@@ -1967,18 +1965,21 @@ def uniform(
         >>> df.select(uniform(1, 100, col("a")).alias("UNIFORM")).collect()
         [Row(UNIFORM=62)]
     """
+    ast = build_function_expr("uniform", [min_, max_, gen]) if _emit_ast else None
 
     def convert_limit_to_col(limit):
         if isinstance(limit, int):
-            return lit(limit)
+            return lit(limit, _emit_ast=False)
         elif isinstance(limit, float):
-            return lit(limit).cast(FloatType())
+            return lit(limit, _emit_ast=False).cast(FloatType(), _emit_ast=False)
         return _to_col_if_str(limit, "uniform")
 
     min_col = convert_limit_to_col(min_)
     max_col = convert_limit_to_col(max_)
     gen_col = (
-        lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
+        lit(gen, _emit_ast=False)
+        if isinstance(gen, (int, float))
+        else _to_col_if_str(gen, "uniform")
     )
     return _call_function(
         "uniform",
@@ -1987,6 +1988,7 @@ def uniform(
         max_col,
         gen_col,
         is_data_generator=True,
+        _ast=ast,
         _emit_ast=_emit_ast,
     )
 
@@ -3346,11 +3348,7 @@ def substring(
     """
     s = _to_col_if_str(str, "substring")
     # Build AST here to prevent `pos` and `len` from being recorded as a literal instead of int/None.
-    ast = (
-        build_function_expr("substring", [s, pos, len], ignore_null_args=True)
-        if _emit_ast
-        else None
-    )
+    ast = build_function_expr("substring", [s, pos, len]) if _emit_ast else None
     p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=False)
     if len is None:
         return builtin("substring", _emit_ast=False)(s, p)
@@ -3651,11 +3649,7 @@ def charindex(
     t = _to_col_if_str(target_expr, "charindex")
     s = _to_col_if_str(source_expr, "charindex")
     # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
-    ast = (
-        build_function_expr("charindex", [t, s, position], ignore_null_args=True)
-        if _emit_ast
-        else None
-    )
+    ast = build_function_expr("charindex", [t, s, position]) if _emit_ast else None
     return (
         builtin("charindex", _ast=ast, _emit_ast=False)(
             t,
@@ -3665,7 +3659,7 @@ def charindex(
             else lit(position, _emit_ast=False),
         )
         if position is not None
-        else builtin("charindex", _emit_ast=False)(t, s)
+        else builtin("charindex", _ast=ast, _emit_ast=False)(t, s)
     )
 
 
@@ -4059,7 +4053,7 @@ def to_char(
             c, format if isinstance(format, Column) else lit(format, _emit_ast=False)
         )
         if format is not None
-        else builtin("to_char", _emit_ast=False)(c)
+        else builtin("to_char", _ast=ast, _emit_ast=False)(c)
     )
 
 
@@ -6817,8 +6811,9 @@ def array_agg(
         ------------
         <BLANKLINE>
     """
+    ast = build_function_expr("array_agg", [col, is_distinct]) if _emit_ast else None
     c = _to_col_if_str(col, "array_agg")
-    return _call_function("array_agg", is_distinct, c, _emit_ast=_emit_ast)
+    return _call_function("array_agg", is_distinct, c, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi

@@ -1405,7 +1405,7 @@ class DataFrame:
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
 
-        _emit_ast = self._ast_id is not None
+        _emit_ast = self._ast_id is not None and self._session.ast_enabled
 
         if isinstance(item, str):
             return self.col(item, _emit_ast=_emit_ast)
@@ -5812,9 +5812,12 @@ class DataFrame:
         # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
 
         if isinstance(self._session._conn, MockServerConnection):
+            ast_id = self._ast_id
+            self._ast_id = None  # set the AST ID to None to prevent AST emission.
             self.write.save_as_table(
                 temp_table_name, create_temp_table=True, _emit_ast=False
             )
+            self._ast_id = ast_id  # restore the original AST ID.
         else:
             df = self._with_plan(
                 SnowflakeCreateTable(
