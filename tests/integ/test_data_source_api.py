@@ -8,7 +8,7 @@ import queue
 import tempfile
 import datetime
 from unittest import mock
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, PropertyMock
 
 import pytest
 
@@ -16,9 +16,6 @@ from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.data_source.dbms_dialects.sqlserver_dialect import (
-    SqlServerDialect,
-)
 from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
     OracledbDriver,
 )
@@ -139,10 +136,13 @@ def test_dbapi_retry(session):
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
             _task_fetch_data_from_source_with_retry(
-                worker=DataSourceReader(PyodbcDriver, sql_server_create_connection),
+                worker=DataSourceReader(
+                    PyodbcDriver,
+                    sql_server_create_connection,
+                    StructType([StructField("col1", IntegerType(), False)]),
+                ),
                 parquet_file_queue=queue.Queue(),
                 partition="SELECT * FROM test_table",
-                schema=StructType([StructField("col1", IntegerType(), False)]),
                 partition_idx=0,
                 tmp_dir="/tmp",
             )
@@ -286,34 +286,40 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
 def test_partition_logic(
     session, schema, column, lower_bound, upper_bound, num_partitions, expected_queries
 ):
-    partitioner = DataSourcePartitioner(
-        SqlServerDialect, PyodbcDriver, sql_server_create_connection
-    )
-    queries = partitioner.partitions(
-        "fake_table",
-        schema,
-        column=column,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
-        num_partitions=num_partitions,
-    )
-    for r, expected_r in zip(queries, expected_queries):
-        assert r == expected_r
+    with patch.object(
+        DataSourcePartitioner, "schema", new_callable=PropertyMock
+    ) as mock_schema:
+        partitioner = DataSourcePartitioner(
+            sql_server_create_connection,
+            table_or_query="fake_table",
+            column=column,
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+            num_partitions=num_partitions,
+        )
+        mock_schema.return_value = schema
+        queries = partitioner.partitions
+        for r, expected_r in zip(queries, expected_queries):
+            assert r == expected_r
 
 
 def test_partition_unsupported_type(session):
     with pytest.raises(ValueError, match="unsupported type"):
-        partitioner = DataSourcePartitioner(
-            SqlServerDialect, PyodbcDriver, sql_server_create_connection
-        )
-        partitioner.partitions(
-            "fake_table",
-            schema=StructType([StructField("DATE", MapType(), False)]),
-            column="DATE",
-            lower_bound=0,
-            upper_bound=1,
-            num_partitions=4,
-        )
+        with patch.object(
+            DataSourcePartitioner, "schema", new_callable=PropertyMock
+        ) as mock_schema:
+            partitioner = DataSourcePartitioner(
+                sql_server_create_connection,
+                table_or_query="fake_table",
+                column="DATE",
+                lower_bound=0,
+                upper_bound=1,
+                num_partitions=4,
+            )
+            mock_schema.return_value = StructType(
+                [StructField("DATE", MapType(), False)]
+            )
+            partitioner.partitions
 
 
 def test_telemetry_tracking(caplog, session):
@@ -423,20 +429,26 @@ def test_custom_schema(session, custom_schema):
 
 
 def test_predicates():
-    partitioner = DataSourcePartitioner(
-        SqlServerDialect, PyodbcDriver, sql_server_create_connection
-    )
-    queries = partitioner.partitions(
-        "fake_table",
-        schema=StructType([StructField("ID", IntegerType(), False)]),
-        predicates=["id > 1 AND id <= 1000", "id > 1001 AND id <= 2000", "id > 2001"],
-    )
-    expected_result = [
-        "SELECT * FROM fake_table WHERE id > 1 AND id <= 1000",
-        "SELECT * FROM fake_table WHERE id > 1001 AND id <= 2000",
-        "SELECT * FROM fake_table WHERE id > 2001",
-    ]
-    assert queries == expected_result
+    with patch.object(
+        DataSourcePartitioner, "schema", new_callable=PropertyMock
+    ) as mock_schema:
+        partitioner = DataSourcePartitioner(
+            sql_server_create_connection,
+            table_or_query="fake_table",
+            predicates=[
+                "id > 1 AND id <= 1000",
+                "id > 1001 AND id <= 2000",
+                "id > 2001",
+            ],
+        )
+        mock_schema.return_value = StructType([StructField("ID", IntegerType(), False)])
+        queries = partitioner.partitions
+        expected_result = [
+            "SELECT * FROM fake_table WHERE id > 1 AND id <= 1000",
+            "SELECT * FROM fake_table WHERE id > 1001 AND id <= 2000",
+            "SELECT * FROM fake_table WHERE id > 2001",
+        ]
+        assert queries == expected_result
 
 
 @pytest.mark.skipif(
@@ -498,10 +510,12 @@ def test_task_fetch_from_data_source_with_fetch_size(
     fetch_size, partition_idx, expected_error
 ):
     partitioner = DataSourcePartitioner(
-        SqlServerDialect, PyodbcDriver, sql_server_create_connection_small_data
+        sql_server_create_connection_small_data,
+        table_or_query="fake",
+        fetch_size=fetch_size,
     )
     parquet_file_queue = queue.Queue()
-    schema = partitioner.schema("fake_table")
+    schema = partitioner.schema
     file_count = (
         math.ceil(len(sql_server_all_type_small_data) / fetch_size)
         if fetch_size != 0
@@ -512,14 +526,15 @@ def test_task_fetch_from_data_source_with_fetch_size(
 
         params = {
             "worker": DataSourceReader(
-                PyodbcDriver, sql_server_create_connection_small_data
+                PyodbcDriver,
+                sql_server_create_connection_small_data,
+                schema=schema,
+                fetch_size=fetch_size,
             ),
             "parquet_file_queue": parquet_file_queue,
             "partition": "SELECT * FROM test_table",
-            "schema": schema,
             "partition_idx": partition_idx,
             "tmp_dir": tmp_dir,
-            "fetch_size": fetch_size,
         }
 
         if expected_error:
@@ -575,7 +590,7 @@ def test_custom_schema_false(session):
             max_workers=4,
             custom_schema="timestamp_tz",
         )
-    with pytest.raises(TypeError, match="Invalid schema type: <class 'int'>."):
+    with pytest.raises(ValueError, match="Invalid schema type: <class 'int'>."):
         session.read.dbapi(
             sql_server_create_connection,
             table=SQL_SERVER_TABLE_NAME,
@@ -623,30 +638,38 @@ def test_partition_wrong_input(session, caplog):
             num_partitions=2,
             custom_schema=StructType([StructField("ID", BooleanType(), False)]),
         )
-    partitioner = DataSourcePartitioner(
-        SqlServerDialect, PyodbcDriver, sql_server_create_connection
-    )
-    with pytest.raises(
-        ValueError, match="lower_bound cannot be greater than upper_bound"
-    ):
-        partitioner.partitions(
-            "fake_table",
-            schema=StructType([StructField("DATE", IntegerType(), False)]),
-            column="DATE",
-            lower_bound=10,
-            upper_bound=1,
-            num_partitions=4,
-        )
+    with patch.object(
+        DataSourcePartitioner, "schema", new_callable=PropertyMock
+    ) as mock_schema:
+        with pytest.raises(
+            ValueError, match="lower_bound cannot be greater than upper_bound"
+        ):
+            partitioner = DataSourcePartitioner(
+                sql_server_create_connection,
+                table_or_query="fake_table",
+                column="DATE",
+                lower_bound=10,
+                upper_bound=1,
+                num_partitions=4,
+            )
+            mock_schema.return_value = StructType(
+                [StructField("DATE", IntegerType(), False)]
+            )
+            partitioner.partitions
 
-    partitioner.partitions(
-        "fake_table",
-        schema=StructType([StructField("DATE", IntegerType(), False)]),
-        column="DATE",
-        lower_bound=0,
-        upper_bound=10,
-        num_partitions=20,
-    )
-    assert "The number of partitions is reduced" in caplog.text
+        partitioner = DataSourcePartitioner(
+            sql_server_create_connection,
+            table_or_query="fake_table",
+            column="DATE",
+            lower_bound=0,
+            upper_bound=10,
+            num_partitions=20,
+        )
+        mock_schema.return_value = StructType(
+            [StructField("DATE", IntegerType(), False)]
+        )
+        partitioner.partitions
+        assert "The number of partitions is reduced" in caplog.text
 
 
 @pytest.mark.skipif(

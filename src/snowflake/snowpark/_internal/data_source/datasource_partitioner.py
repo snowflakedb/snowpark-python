@@ -5,17 +5,17 @@
 import datetime
 import decimal
 from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
-from typing import Optional, Union, List, Any, Type, Callable
+from typing import Optional, Union, List, Callable
 
 import pytz
 from dateutil import parser
+from snowflake.snowpark._internal.data_source.utils import (
+    detect_dbms,
+    DBMS_MAP,
+    DRIVER_MAP,
+)
 
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.data_source.dbms_dialects.base_dialect import (
-    BaseDialect,
-)
-from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
-
 import logging
 
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
@@ -34,95 +34,112 @@ logger = logging.getLogger(__name__)
 class DataSourcePartitioner:
     def __init__(
         self,
-        dialect_class: Type[BaseDialect],
-        driver_class: Type[BaseDriver],
         create_connection: Callable[[], "Connection"],
-    ) -> None:
-        self.dialect = dialect_class()
-        self.driver = driver_class(create_connection)
-        self.driver_class = driver_class
-        self.dialect_class = dialect_class
-        self.create_connection = create_connection
-
-    def reader(self) -> DataSourceReader:
-        return DataSourceReader(self.driver_class, self.create_connection)
-
-    def schema(
-        self,
         table_or_query: str,
-        custom_schema: Optional[Union[str, StructType]] = None,
-    ) -> StructType:
-        if custom_schema is None:
-            return self.driver.infer_schema_from_description(table_or_query)
-        else:
-            if isinstance(custom_schema, str):
-                schema = type_string_to_type_object(custom_schema)
-                if not isinstance(schema, StructType):
-                    logger.error(f"Invalid schema string: {custom_schema}")
-                    raise ValueError(
-                        f"Invalid schema string: {custom_schema}. "
-                        f"You should provide a valid schema string representing a struct type."
-                    )
-                return schema
-            elif isinstance(custom_schema, StructType):
-                return custom_schema
-            else:
-                logger.error(f"Invalid schema type: {type(custom_schema)}")
-                raise TypeError(f"Invalid schema type: {type(custom_schema)}.")
-
-    def partitions(
-        self,
-        table_or_query: str,
-        schema: StructType,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 0,
+        custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
-    ) -> List[Any]:
-        select_query = self.dialect.generate_select_query(table_or_query, schema)
+    ) -> None:
+        self.create_connection = create_connection
+        self.table_or_query = table_or_query
+        self.column = column
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.num_partitions = num_partitions
+        self.query_timeout = query_timeout
+        self.fetch_size = fetch_size
+        self.custom_schema = custom_schema
+        self.predicates = predicates
+        conn = create_connection()
+        dbms_type, driver = detect_dbms(conn)
+        self.dialect = DBMS_MAP[dbms_type]()
+        self.driver = DRIVER_MAP[driver](create_connection)
+        self.dialect_class = DBMS_MAP[dbms_type]
+        self.driver_class = DRIVER_MAP[driver]
+
+    def reader(self) -> DataSourceReader:
+        return DataSourceReader(
+            self.driver_class, self.create_connection, self.schema, self.fetch_size
+        )
+
+    @property
+    def schema(self) -> StructType:
+        if self.custom_schema is None:
+            return self.driver.infer_schema_from_description(self.table_or_query)
+        else:
+            if isinstance(self.custom_schema, str):
+                schema = type_string_to_type_object(self.custom_schema)
+                if not isinstance(schema, StructType):
+                    raise ValueError(
+                        f"Invalid schema string: {self.custom_schema}. "
+                        f"You should provide a valid schema string representing a struct type."
+                        'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
+                    )
+                return schema
+            elif isinstance(self.custom_schema, StructType):
+                return self.custom_schema
+            else:
+                raise ValueError(
+                    f"Invalid schema type: {type(self.custom_schema)}."
+                    'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
+                    'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
+                )
+
+    @property
+    def partitions(self) -> List[str]:
+        select_query = self.dialect.generate_select_query(
+            self.table_or_query, self.schema
+        )
         logger.debug(f"Generated select query: {select_query}")
-        if column is None:
+        if self.column is None:
             if (
-                lower_bound is not None
-                or upper_bound is not None
-                or num_partitions is not None
+                self.lower_bound is not None
+                or self.upper_bound is not None
+                or self.num_partitions is not None
             ):
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
-            if predicates is None:
+            if self.predicates is None:
                 partitioned_queries = [select_query]
             else:
                 partitioned_queries = self.generate_partition_with_predicates(
-                    select_query, predicates
+                    select_query, self.predicates
                 )
         else:
-            if lower_bound is None or upper_bound is None or num_partitions is None:
+            if (
+                self.lower_bound is None
+                or self.upper_bound is None
+                or self.num_partitions is None
+            ):
                 raise ValueError(
                     "when column is specified, lower_bound, upper_bound, num_partitions must be specified"
                 )
 
             column_type = None
-            for field in schema.fields:
-                if field.name.lower() == column.lower():
+            for field in self.schema.fields:
+                if field.name.lower() == self.column.lower():
                     column_type = field.datatype
+                    break
             if column_type is None:
-                raise ValueError(f"Specified column {column} does not exist")
+                raise ValueError(f"Specified column {self.column} does not exist")
 
-            if not isinstance(column_type, _NumericType) and not isinstance(
-                column_type, DateType
-            ):
+            if not isinstance(column_type, (_NumericType, DateType)):
                 raise ValueError(
                     f"unsupported type {column_type}, column must be a numeric type like int and float, or date type"
                 )
             partitioned_queries = self.generate_partition(
                 select_query,
                 column_type,
-                column,
-                lower_bound,
-                upper_bound,
-                num_partitions,
+                self.column,
+                self.lower_bound,
+                self.upper_bound,
+                self.num_partitions,
             )
         return partitioned_queries
 

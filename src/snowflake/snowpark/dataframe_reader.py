@@ -18,6 +18,10 @@ from logging import getLogger
 import queue
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
+from snowflake.snowpark._internal.data_source.datasource_partitioner import (
+    DataSourcePartitioner,
+)
+
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import ReadFileNode
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -37,7 +41,6 @@ from snowflake.snowpark._internal.ast.utils import (
 )
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.utils import (
-    create_partitioner,
     _upload_and_copy_into_table_with_retry,
     _task_fetch_data_from_source_with_retry,
     STATEMENT_PARAMS_DATA_SOURCE,
@@ -1123,17 +1126,20 @@ class DataFrameReader:
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
 
-        partitioner = create_partitioner(create_connection)
-        struct_schema = partitioner.schema(table_or_query, custom_schema)
-        partitioned_queries = partitioner.partitions(
+        partitioner = DataSourcePartitioner(
+            create_connection,
             table_or_query,
-            struct_schema,
             column,
             lower_bound,
             upper_bound,
             num_partitions,
+            query_timeout,
+            fetch_size,
+            custom_schema,
             predicates,
         )
+        struct_schema = partitioner.schema
+        partitioned_queries = partitioner.partitions
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
@@ -1184,11 +1190,9 @@ class DataFrameReader:
                             reader,
                             parquet_file_queue,
                             query,
-                            struct_schema,
                             partition_idx,
                             tmp_dir,
                             query_timeout,
-                            fetch_size,
                             session_init_statement,
                         )
                         process_pool_futures.append(process_future)
@@ -1263,4 +1267,3 @@ class DataFrameReader:
             res_df = self.table(snowflake_table_name, _emit_ast=_emit_ast)
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df
-

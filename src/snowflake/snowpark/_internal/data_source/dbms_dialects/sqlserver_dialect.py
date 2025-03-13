@@ -5,8 +5,9 @@
 from snowflake.snowpark._internal.data_source.dbms_dialects.base_dialect import (
     BaseDialect,
 )
-from snowflake.snowpark.types import StructType
 import logging
+
+from snowflake.snowpark.types import StructType
 
 logger = logging.getLogger(__name__)
 
