@@ -43,7 +43,7 @@ class BaseDriver(ABC):
         except Exception as exc:
             cursor.close()
             raise SnowparkDataframeReaderException(
-                f"Failed to infer Snowpark DataFrame schema from '{table_or_query}'."
+                f"Failed to infer Snowpark DataFrame schema from '{table_or_query}' due to {exc!r}."
                 f" To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
                 f" Please check the stack trace for more details."
             ) from exc

@@ -6,7 +6,7 @@ import os
 import queue
 import traceback
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict
+from typing import Any, Tuple, Optional, Callable, Dict, Set
 
 from snowflake.snowpark._internal.data_source.dbms_dialects.sqlite3_dialect import (
     Sqlite3Dialect,
@@ -98,7 +98,6 @@ def detect_dbms_pyodbc(dbapi2_conn):
 
 def _task_fetch_data_from_source(
     worker: DataSourceReader,
-    parquet_file_queue: queue.Queue,
     partition: str,
     partition_idx: int,
     tmp_dir: str,
@@ -117,24 +116,20 @@ def _task_fetch_data_from_source(
             logger.debug(
                 f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."
             )
-            return None
+            return
         path = os.path.join(
             tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
         )
         df.to_parquet(path)
-        return path
 
     if session_init_statement:
         cursor.execute(session_init_statement)
     for i, result in enumerate(worker.read(partition, cursor)):
-        parquet_file_location = convert_to_parquet(result, i)
-        if parquet_file_location:
-            parquet_file_queue.put(parquet_file_location)
+        convert_to_parquet(result, i)
 
 
 def _task_fetch_data_from_source_with_retry(
     worker: DataSourceReader,
-    parquet_file_queue: queue.Queue,
     partition: str,
     partition_idx: int,
     tmp_dir: str,
@@ -144,7 +139,6 @@ def _task_fetch_data_from_source_with_retry(
     _retry_run(
         _task_fetch_data_from_source,
         worker,
-        parquet_file_queue,
         partition,
         partition_idx,
         tmp_dir,
@@ -162,9 +156,11 @@ def _upload_and_copy_into_table(
     statements_params: Optional[Dict[str, str]] = None,
 ):
     file_name = os.path.basename(local_file)
-    put_query = (
-        f"PUT {normalize_local_file(local_file)} "
-        f"@{snowflake_stage_name} OVERWRITE=TRUE {DATA_SOURCE_SQL_COMMENT}"
+    session.file.put(
+        normalize_local_file(local_file),
+        f"{snowflake_stage_name}",
+        overwrite=True,
+        statement_params=statements_params,
     )
     copy_into_table_query = f"""
     COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
@@ -174,7 +170,6 @@ def _upload_and_copy_into_table(
     ON_ERROR={on_error}
     {DATA_SOURCE_SQL_COMMENT}
     """
-    session.sql(put_query).collect(statement_params=statements_params)
     session.sql(copy_into_table_query).collect(statement_params=statements_params)
 
 
@@ -219,3 +214,15 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
     )
     final_error = SnowparkDataframeReaderException(message=error_message)
     raise final_error
+
+
+def add_unseen_files_to_process_queue(
+    work_dir: str, set_of_files_already_added_in_queue: Set[str], queue: queue.Queue
+):
+    """Add unseen files in the work_dir to the queue for processing."""
+    # all files in the work_dir are parquet files, no subdirectory
+    all_files = set(os.listdir(work_dir))
+    unseen = all_files - set_of_files_already_added_in_queue
+    for file in unseen:
+        queue.put(os.path.join(work_dir, file))
+        set_of_files_already_added_in_queue.add(file)
