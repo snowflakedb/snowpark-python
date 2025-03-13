@@ -1018,7 +1018,7 @@ message DataframeNaDrop_Python {
   Expr df = 1;
   string how = 2;
   SrcPosition src = 3;
-  List_String subset = 4;
+  ExprArgList subset = 4;
   google.protobuf.Int64Value thresh = 5;
 }
 
@@ -1034,7 +1034,7 @@ message DataframeNaDrop_Scala {
 message DataframeNaFill {
   Expr df = 1;
   SrcPosition src = 2;
-  List_String subset = 3;
+  ExprArgList subset = 3;
   Expr value = 4;
   repeated Tuple_String_Expr value_map = 5;
 }
@@ -1044,7 +1044,7 @@ message DataframeNaReplace {
   Expr df = 1;
   repeated Tuple_Expr_Expr replacement_map = 2;
   SrcPosition src = 3;
-  List_String subset = 4;
+  ExprArgList subset = 4;
   repeated Expr to_replace_list = 5;
   Expr to_replace_value = 6;
   Expr value = 7;
@@ -1166,7 +1166,7 @@ message DataframeSort {
 
 // dataframe-stat.ir:1
 message DataframeStatApproxQuantile {
-  repeated Expr cols = 1;
+  ExprArgList cols = 1;
   VarId id = 2;
   repeated double percentile = 3;
   SrcPosition src = 4;
