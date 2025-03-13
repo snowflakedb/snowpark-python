@@ -17,7 +17,11 @@ from snowflake.snowpark._internal.ast.utils import (
     DATAFRAME_AST_PARAMETER,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import add_api_call, adjust_api_subcalls
+from snowflake.snowpark._internal.telemetry import (
+    ResourceUsageCollector,
+    add_api_call,
+    adjust_api_subcalls,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import publicapi, warning
 from snowflake.snowpark.functions import (
@@ -379,15 +383,17 @@ class DataFrameStatFunctions:
         fractions: Dict[LiteralType, float],
         df_generator: Callable,
     ) -> "snowflake.snowpark.DataFrame":
-        res_df = reduce(
-            lambda x, y: x.union_all(y, _emit_ast=False),
-            [df_generator(self, k, v) for k, v in fractions.items()],
-        )
+        with ResourceUsageCollector() as resource_usage_collector:
+            res_df = reduce(
+                lambda x, y: x.union_all(y, _emit_ast=False),
+                [df_generator(self, k, v) for k, v in fractions.items()],
+            )
         adjust_api_subcalls(
             res_df,
             "DataFrameStatFunctions.sample_by[union_all]",
             precalls=self._dataframe._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
+            resource_usage=resource_usage_collector.get_resource_usage(),
         )
         return res_df
 
@@ -397,21 +403,25 @@ class DataFrameStatFunctions:
         fractions: Dict[LiteralType, float],
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
-
         sample_by_plan = SampleBy(self._dataframe._plan, col._expression, fractions)
-        if self._dataframe._select_statement:
-            session = self._dataframe.session
-            select_stmt = session._analyzer.create_select_statement(
-                from_=session._analyzer.create_select_snowflake_plan(
-                    sample_by_plan, analyzer=session._analyzer
-                ),
-                analyzer=session._analyzer,
-            )
-            res_df = self._dataframe._with_plan(select_stmt)
-        else:
-            res_df = self._dataframe._with_plan(sample_by_plan)
+        with ResourceUsageCollector() as resource_usage_collector:
+            if self._dataframe._select_statement:
+                session = self._dataframe.session
+                select_stmt = session._analyzer.create_select_statement(
+                    from_=session._analyzer.create_select_snowflake_plan(
+                        sample_by_plan, analyzer=session._analyzer
+                    ),
+                    analyzer=session._analyzer,
+                )
+                res_df = self._dataframe._with_plan(select_stmt)
+            else:
+                res_df = self._dataframe._with_plan(sample_by_plan)
 
-        add_api_call(res_df, "DataFrameStatFunctions.sample_by[percent_rank]")
+        add_api_call(
+            res_df,
+            "DataFrameStatFunctions.sample_by[percent_rank]",
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
         return res_df
 
     @publicapi
