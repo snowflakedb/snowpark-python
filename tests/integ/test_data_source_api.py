@@ -4,7 +4,6 @@
 import functools
 import math
 import os
-import queue
 import tempfile
 import time
 import datetime
@@ -13,9 +12,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from snowflake.snowpark._internal.utils import (
-    TempObjectType,
-)
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME, DataFrameReader
 from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
@@ -66,10 +63,24 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
 )
 from tests.utils import Utils, IS_WINDOWS
 
-pytestmark = pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
+try:
+    import pandas  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
+
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="feature not available in local testing",
+    ),
+    pytest.mark.skipif(
+        not is_pandas_available,
+        reason="pandas is not available",
+    ),
+]
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
@@ -140,7 +151,6 @@ def test_dbapi_retry(session):
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
             DataFrameReader._task_fetch_from_data_source_with_retry(
-                parquet_file_queue=queue.Queue(),
                 create_connection=sql_server_create_connection,
                 query="SELECT * FROM test_table",
                 schema=StructType([StructField("col1", IntegerType(), False)]),
@@ -350,7 +360,7 @@ def test_telemetry_tracking(caplog, session):
         statement_parameters = kwargs.get("_statement_params")
         query = args[0]
         assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
-        if "select" not in query.lower():
+        if "select" not in query.lower() and "put" not in query.lower():
             assert DATA_SOURCE_SQL_COMMENT in query
             comment_showed += 1
         nonlocal called
@@ -368,8 +378,8 @@ def test_telemetry_tracking(caplog, session):
         )
     assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
     assert (
-        called == 4 and comment_showed == 4
-    )  # 4 queries: create table, create stage, put file, copy into
+        called == 4 and comment_showed == 3
+    )  # 4 queries: create table, create stage, put file, copy into, but we use session.read.put not supporting comment
     assert mock_telemetry.called
     assert df.collect() == sql_server_all_type_data
 
@@ -516,7 +526,6 @@ def test_negative_case(session):
 def test_task_fetch_from_data_source_with_fetch_size(
     fetch_size, partition_idx, expected_error
 ):
-    parquet_file_queue = queue.Queue()
     schema = infer_data_source_schema(
         sql_server_create_connection_small_data(),
         SQL_SERVER_TABLE_NAME,
@@ -532,7 +541,6 @@ def test_task_fetch_from_data_source_with_fetch_size(
     with tempfile.TemporaryDirectory() as tmp_dir:
 
         params = {
-            "parquet_file_queue": parquet_file_queue,
             "create_connection": sql_server_create_connection_small_data,
             "query": "SELECT * FROM test_table",
             "schema": schema,
@@ -550,16 +558,12 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 DataFrameReader._task_fetch_from_data_source(**params)
         else:
             DataFrameReader._task_fetch_from_data_source(**params)
-
-            file_idx = 0
-            while not parquet_file_queue.empty():
-                file_path = parquet_file_queue.get()
+            files = sorted(os.listdir(tmp_dir))
+            for idx, file in enumerate(files):
                 assert (
-                    f"data_partition{partition_idx}_fetch{file_idx}.parquet"
-                    in file_path
-                )
-                file_idx += 1
-            assert file_idx == file_count
+                    f"data_partition{partition_idx}_fetch{idx}.parquet" in file
+                ), f"file: {file} does not match"
+            assert len(files) == file_count
 
 
 def test_database_detector():
