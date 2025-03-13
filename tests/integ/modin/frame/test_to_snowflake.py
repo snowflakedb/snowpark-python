@@ -193,6 +193,37 @@ def test_to_snowflake_index_label_none(test_table_name):
     df.to_snowflake(test_table_name, if_exists="replace", index_label=[None])
     verify_columns(test_table_name, ["index", "a", "b"])
 
+    # nameless index
+    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4]))
+    df.to_snowflake(test_table_name, if_exists="replace", index_label=[None])
+    verify_columns(test_table_name, ["index", "a", "b"])
+
+
+# one extra query to convert index to native pandas when creating the snowpark pandas dataframe
+@sql_count_checker(query_count=6)
+def test_to_snowflake_index_label_none_data_column_conflict(test_table_name):
+    df = pd.DataFrame({"index": [1, 2, 3], "a": [4, 5, 6]})
+    df.to_snowflake(test_table_name, if_exists="replace")
+    # If the column name "index" is taken by one of the data columns,
+    # then "level_0" is used instead for naming the index column.
+    # This is based on the behavior of reset_index.
+    verify_columns(test_table_name, ["level_0", "index", "a"])
+
+    df = pd.DataFrame(
+        {"index": [1, 2, 3], "a": [4, 5, 6]}, index=pd.Index([2, 3, 4], name="index")
+    )
+    # If the index already has a name, "index", then "level_0" is not used,
+    # and a ValueError is raised instead.
+    # This is based on the behavior of reset_index.
+    with pytest.raises(ValueError):
+        df.to_snowflake(test_table_name, if_exists="replace", index_label=[None])
+    # verify_columns(test_table_name, ["level_0", "index", "a"])
+
+    # nameless index
+    df = pd.DataFrame({"index": [1, 2, 3], "a": [4, 5, 6]}, index=pd.Index([2, 3, 4]))
+    df.to_snowflake(test_table_name, if_exists="replace", index_label=[None])
+    verify_columns(test_table_name, ["level_0", "index", "a"])
+
 
 # one extra query to convert index to native pandas when creating the snowpark pandas dataframe
 @sql_count_checker(query_count=1)
