@@ -526,7 +526,7 @@ df226 = df.select(parse_xml("A"))
 
 df227 = df.select(strip_null_value("A"))
 
-df228 = df.select(array_agg("A"), array_agg(col("A")))
+df228 = df.select(array_agg("A", False), array_agg(col("A"), True))
 
 df229 = df.select(array_append("A", lit(1)), array_append("A", "B"), array_append(col("A"), col("B")))
 
@@ -10660,6 +10660,17 @@ body {
                   v: "A"
                 }
               }
+              pos_args {
+                bool_val {
+                  src {
+                    end_column: 47
+                    end_line: 171
+                    file: 2
+                    start_column: 26
+                    start_line: 171
+                  }
+                }
+              }
               src {
                 end_column: 47
                 end_line: 171
@@ -10714,6 +10725,18 @@ body {
                     start_column: 59
                     start_line: 171
                   }
+                }
+              }
+              pos_args {
+                bool_val {
+                  src {
+                    end_column: 74
+                    end_line: 171
+                    file: 2
+                    start_column: 49
+                    start_line: 171
+                  }
+                  v: true
                 }
               }
               src {

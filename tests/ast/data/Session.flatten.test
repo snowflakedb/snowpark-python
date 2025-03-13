@@ -6,7 +6,7 @@ df2 = session.flatten(col("NUM"), recursive=True, mode="ARRAY")
 
 ## EXPECTED UNPARSER OUTPUT
 
-df1 = session.flatten(parse_json(lit("{\"a\": [1,2]}")), Some("a"), False, False, "BOTH")
+df1 = session.flatten(parse_json(lit("{\"a\": [1,2]}")), "a", False, False, "BOTH")
 
 df2 = session.flatten(col("NUM"), None, False, True, "ARRAY")
 

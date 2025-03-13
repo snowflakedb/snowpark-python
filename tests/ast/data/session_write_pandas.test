@@ -10,9 +10,9 @@ ans2 = session.write_pandas(df, "test", schema="a", database="b", chunk_size=7, 
 
 ## EXPECTED UNPARSER OUTPUT
 
-ans = session.write_pandas(pandas.DataFrame(<not shown>)), "table1")
+ans = session.write_pandas(pandas.DataFrame(<not shown>), "table1")
 
-ans2 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
+ans2 = session.write_pandas(pandas.DataFrame(<not shown>), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
 
 ## EXPECTED ENCODED AST
 
