@@ -15,7 +15,7 @@ gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/para
 python -m pip install tox
 
 # Run snowpandas tests
-if [[ -z "$MODIN_PANDAS_VERSION" ]]
+if [[ -z "$MODIN_PANDAS_VERSION" ]]; then
     TOX_ENV="snowparkpandasjenkins-modin"
 else
     # If $MODIN_PANDAS_VERSION env variable is set, tell tox to install it
