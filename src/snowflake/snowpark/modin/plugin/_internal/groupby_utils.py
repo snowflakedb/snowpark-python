@@ -671,7 +671,7 @@ def get_frame_with_groupby_columns_as_index(
     Upsampling will fill other columns with NULL values, under the assumption that they will be
     coalesced away by the resulting groupby operation:
 
-    >>> get_frame_with_groupby_columns_as_index(ts._query_compiler, pd.Grouper(freq="2min"), None, True)
+    get_frame_with_groupby_columns_as_index(ts._query_compiler, pd.Grouper(freq="2min"), None, True)
     +----------------------+-------------+
     |       __index__      | __reduced__ |
     +----------------------+-------------+
@@ -690,7 +690,7 @@ def get_frame_with_groupby_columns_as_index(
     that they belong to the same bin. Note that in this example, the bins are shifted because the
     Grouper defaults to origin="start_date".
 
-    >>> get_frame_with_groupby_columns_as_index(ts._query_compiler, pd.Grouper(freq="8min"), None, True)
+    get_frame_with_groupby_columns_as_index(ts._query_compiler, pd.Grouper(freq="8min"), None, True)
     +----------------------+-------------+
     |       __index__      | __reduced__ |
     +----------------------+-------------+
