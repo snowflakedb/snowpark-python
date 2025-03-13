@@ -235,7 +235,6 @@ def build_expr_from_python_val(
         ast.v = obj  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
 
     elif isinstance(obj, int):
-        ast = with_src_position(expr_builder.int64_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Int64Val"; expected "Expr"
         # If the integer is too large to fit in 64 bits, we need to convert it to bytes.
         # The absolute value of the integer needs to be encoded in big-endian mode.
         if obj.bit_length() >= 64:
@@ -243,6 +242,7 @@ def build_expr_from_python_val(
             ast.v = abs(obj).to_bytes(1 + (obj.bit_length() // 8), "big", signed=True)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
             ast.is_negative = obj < 0  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "is_negative"
         else:
+            ast = with_src_position(expr_builder.int64_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Int64Val"; expected "Expr"
             ast.v = obj  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
 
     elif isinstance(obj, float):
