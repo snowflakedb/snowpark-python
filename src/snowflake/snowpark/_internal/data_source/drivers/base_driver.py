@@ -4,14 +4,14 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Callable, Any, Optional
-
+import logging
 
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
-import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,20 +41,24 @@ class BaseDriver(ABC):
             return self.to_snow_type(raw_schema)
 
         except Exception as exc:
-            cursor.close()
             raise SnowparkDataframeReaderException(
                 f"Failed to infer Snowpark DataFrame schema from '{table_or_query}' due to {exc!r}."
                 f" To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
                 f" Please check the stack trace for more details."
             ) from exc
+        finally:
+            cursor.close()
+            conn.close()
 
-
-def validate(precision: Optional[int], scale: Optional[int]) -> bool:
-    if precision is not None:
-        if not (0 <= precision <= 38):
+    @staticmethod
+    def validate_numeric_precision_scale(
+        precision: Optional[int], scale: Optional[int]
+    ) -> bool:
+        if precision is not None:
+            if not (0 <= precision <= 38):
+                return False
+            if scale is not None and not (0 <= scale <= precision):
+                return False
+        elif scale is not None:
             return False
-        if scale is not None and not (0 <= scale <= precision):
-            return False
-    elif scale is not None:
-        return False
-    return True
+        return True

@@ -6,10 +6,7 @@ import datetime
 
 from typing import List, Any, Iterator, Type, Callable, Optional
 
-from snowflake.snowpark._internal.data_source.datasource_typing import (
-    Connection,
-    Cursor,
-)
+from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.utils import (
     get_sorted_key_for_version,
@@ -28,32 +25,46 @@ class DataSourceReader:
         create_connection: Callable[[], "Connection"],
         schema: StructType,
         fetch_size: Optional[int] = 0,
+        query_timeout: Optional[int] = 0,
+        session_init_statement: Optional[str] = None,
     ) -> None:
         self.driver = driver_class(create_connection)
         self.schema = schema
         self.fetch_size = fetch_size
+        self.query_timeout = query_timeout
+        self.session_init_statement = session_init_statement
 
-    def read(self, partition: str, cursor: "Cursor") -> Iterator[List[Any]]:
-        if self.fetch_size == 0:
-            cursor.execute(partition)
-            result = cursor.fetchall()
-            yield result
-        elif self.fetch_size > 0:
-            cursor = cursor.execute(partition)
-            while True:
-                rows = cursor.fetchmany(self.fetch_size)
-                if not rows:
-                    break
-                yield rows
-        else:
-            raise ValueError("fetch size cannot be smaller than 0")
+    def read(self, partition: str) -> Iterator[List[Any]]:
+        conn = self.driver.prepare_connection(
+            self.driver.create_connection(), self.query_timeout
+        )
+        cursor = conn.cursor()
+        try:
+            if self.session_init_statement:
+                cursor.execute(self.session_init_statement)
+            if self.fetch_size == 0:
+                cursor.execute(partition)
+                result = cursor.fetchall()
+                yield result
+            elif self.fetch_size > 0:
+                cursor = cursor.execute(partition)
+                while True:
+                    rows = cursor.fetchmany(self.fetch_size)
+                    if not rows:
+                        break
+                    yield rows
+            else:
+                raise ValueError("fetch size cannot be smaller than 0")
+        finally:
+            cursor.close()
+            conn.close()
 
     @staticmethod
     def data_source_data_to_pandas_df(
         data: List[Any], schema: StructType
     ) -> "pd.DataFrame":
         columns = [col.name for col in schema.fields]
-        # this way handles both list of object and list of tuples and avoid implict pandas type conversion
+        # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
 
         # convert timestamp and date to string to work around SNOW-1911989

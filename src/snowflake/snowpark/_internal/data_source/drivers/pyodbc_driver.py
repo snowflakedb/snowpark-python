@@ -5,11 +5,8 @@
 import datetime
 import decimal
 from typing import List, Callable, Any
-
-from snowflake.snowpark._internal.data_source.drivers.base_driver import (
-    BaseDriver,
-    validate,
-)
+import logging
+from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark.types import (
     StructType,
@@ -23,7 +20,7 @@ from snowflake.snowpark.types import (
     StructField,
     TimeType,
 )
-import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +66,7 @@ class PyodbcDriver(BaseDriver):
             if snow_type is None:
                 raise NotImplementedError(f"sql server type not supported: {type_code}")
             if type_code in (int, decimal.Decimal):
-                if not validate(precision, scale):
+                if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"
                         f" {name} of type {type_code} with precision {precision} and scale {scale}. "

@@ -4,9 +4,9 @@
 
 import datetime
 import decimal
-from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
+from functools import cached_property
 from typing import Optional, Union, List, Callable
-
+import logging
 import pytz
 from dateutil import parser
 from snowflake.snowpark._internal.data_source.utils import (
@@ -16,8 +16,6 @@ from snowflake.snowpark._internal.data_source.utils import (
 )
 
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-import logging
-
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark.types import (
@@ -25,7 +23,6 @@ from snowflake.snowpark.types import (
     _NumericType,
     DateType,
     DataType,
-    TimestampType,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +41,7 @@ class DataSourcePartitioner:
         fetch_size: Optional[int] = 0,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
+        session_init_statement: Optional[str] = None,
     ) -> None:
         self.create_connection = create_connection
         self.table_or_query = table_or_query
@@ -55,19 +53,25 @@ class DataSourcePartitioner:
         self.fetch_size = fetch_size
         self.custom_schema = custom_schema
         self.predicates = predicates
+        self.session_init_statement = session_init_statement
         conn = create_connection()
         dbms_type, driver = detect_dbms(conn)
-        self.dialect = DBMS_MAP[dbms_type]()
-        self.driver = DRIVER_MAP[driver](create_connection)
         self.dialect_class = DBMS_MAP[dbms_type]
         self.driver_class = DRIVER_MAP[driver]
+        self.dialect = self.dialect_class()
+        self.driver = self.driver_class(create_connection)
 
     def reader(self) -> DataSourceReader:
         return DataSourceReader(
-            self.driver_class, self.create_connection, self.schema, self.fetch_size
+            self.driver_class,
+            self.create_connection,
+            self.schema,
+            self.fetch_size,
+            self.query_timeout,
+            self.session_init_statement,
         )
 
-    @property
+    @cached_property
     def schema(self) -> StructType:
         if self.custom_schema is None:
             return self.driver.infer_schema_from_description(self.table_or_query)
@@ -90,7 +94,7 @@ class DataSourcePartitioner:
                     'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
                 )
 
-    @property
+    @cached_property
     def partitions(self) -> List[str]:
         select_query = self.dialect.generate_select_query(
             self.table_or_query, self.schema
@@ -123,7 +127,7 @@ class DataSourcePartitioner:
 
             column_type = None
             for field in self.schema.fields:
-                if field.name.lower() == self.column.lower():
+                if field.name == self.column:
                     column_type = field.datatype
                     break
             if column_type is None:
@@ -173,10 +177,10 @@ class DataSourcePartitioner:
         # decide stride length
         upper_stride = (
             processed_upper_bound / decimal.Decimal(actual_num_partitions)
-        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        ).quantize(decimal.Decimal("1e-18"), rounding=decimal.ROUND_HALF_EVEN)
         lower_stride = (
             processed_lower_bound / decimal.Decimal(actual_num_partitions)
-        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        ).quantize(decimal.Decimal("1e-18"), rounding=decimal.ROUND_HALF_EVEN)
         precise_stride = upper_stride - lower_stride
         stride = int(precise_stride)
 
@@ -187,7 +191,7 @@ class DataSourcePartitioner:
         )
         lower_bound_with_stride_alignment = processed_lower_bound + int(
             (lost_num_of_strides / 2 * decimal.Decimal(stride)).quantize(
-                decimal.Decimal("1"), rounding=ROUND_HALF_UP
+                decimal.Decimal("1"), rounding=decimal.ROUND_HALF_UP
             )
         )
 
@@ -228,19 +232,15 @@ class DataSourcePartitioner:
 def to_internal_value(value: Union[int, str, float], column_type: DataType):
     if isinstance(column_type, _NumericType):
         return int(value)
-    elif isinstance(column_type, (TimestampType, DateType)):
+    else:
         # TODO: SNOW-1909315: support timezone
         dt = parser.parse(value)
         return int(dt.replace(tzinfo=pytz.UTC).timestamp())
-    else:
-        raise TypeError(f"unsupported column type for partition: {column_type}")
 
 
 def to_external_value(value: Union[int, str, float], column_type: DataType):
     if isinstance(column_type, _NumericType):
         return value
-    elif isinstance(column_type, (TimestampType, DateType)):
+    else:
         # TODO: SNOW-1909315: support timezone
         return datetime.datetime.fromtimestamp(value, tz=pytz.UTC)
-    else:
-        raise TypeError(f"unsupported column type for partition: {column_type}")

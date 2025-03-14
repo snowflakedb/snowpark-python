@@ -7,26 +7,22 @@ import queue
 import traceback
 from enum import Enum
 from typing import Any, Tuple, Optional, Callable, Dict, Set
-
-from snowflake.snowpark._internal.data_source.dbms_dialects.sqlite3_dialect import (
+import logging
+from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
-)
-from snowflake.snowpark._internal.data_source.drivers.sqlite_driver import SqliteDriver
-import snowflake
-from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.data_source.dbms_dialects.oracledb_dialect import (
     OracledbDialect,
-)
-from snowflake.snowpark._internal.data_source.dbms_dialects.sqlserver_dialect import (
     SqlServerDialect,
 )
-from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
+from snowflake.snowpark._internal.data_source.drivers import (
+    SqliteDriver,
     OracledbDriver,
+    PyodbcDriver,
 )
-from snowflake.snowpark._internal.data_source.drivers.pyodbc_driver import PyodbcDriver
+import snowflake
+from snowflake.snowpark._internal.data_source import DataSourceReader
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -101,15 +97,7 @@ def _task_fetch_data_from_source(
     partition: str,
     partition_idx: int,
     tmp_dir: str,
-    query_timeout: int = 0,
-    session_init_statement: Optional[str] = None,
 ):
-
-    conn = worker.driver.prepare_connection(
-        worker.driver.create_connection(), query_timeout
-    )
-    cursor = conn.cursor()
-
     def convert_to_parquet(fetched_data, fetch_idx):
         df = DataSourceReader.data_source_data_to_pandas_df(fetched_data, worker.schema)
         if df.empty:
@@ -122,9 +110,7 @@ def _task_fetch_data_from_source(
         )
         df.to_parquet(path)
 
-    if session_init_statement:
-        cursor.execute(session_init_statement)
-    for i, result in enumerate(worker.read(partition, cursor)):
+    for i, result in enumerate(worker.read(partition)):
         convert_to_parquet(result, i)
 
 
@@ -133,8 +119,6 @@ def _task_fetch_data_from_source_with_retry(
     partition: str,
     partition_idx: int,
     tmp_dir: str,
-    query_timeout: int = 0,
-    session_init_statement: Optional[str] = None,
 ):
     _retry_run(
         _task_fetch_data_from_source,
@@ -142,8 +126,6 @@ def _task_fetch_data_from_source_with_retry(
         partition,
         partition_idx,
         tmp_dir,
-        query_timeout,
-        session_init_statement,
     )
 
 

@@ -4,7 +4,7 @@
 
 from typing import Callable, List, Any
 
-from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
+from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark.types import StructType
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 

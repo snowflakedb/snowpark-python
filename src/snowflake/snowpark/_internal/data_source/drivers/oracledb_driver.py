@@ -3,11 +3,8 @@
 #
 
 from typing import List, Callable, Any
-
-from snowflake.snowpark._internal.data_source.drivers.base_driver import (
-    BaseDriver,
-    validate,
-)
+import logging
+from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark.types import (
     StructType,
@@ -24,7 +21,6 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     StructField,
 )
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +90,7 @@ class OracledbDriver(BaseDriver):
             elif type_code == oracledb.DB_TYPE_TIMESTAMP_LTZ:
                 data_type = snow_type(TimestampTimeZone.LTZ)
             elif snow_type == DecimalType:
-                if not validate(precision, scale):
+                if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"
                         f" {name} of type {type_code} with precision {precision} and scale {scale}. "

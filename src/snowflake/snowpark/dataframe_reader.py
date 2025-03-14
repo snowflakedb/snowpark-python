@@ -1113,7 +1113,7 @@ class DataFrameReader:
                 This parameter cannot be used together with the `query` parameter.
             query: A valid SQL query to be used as the data source in the FROM clause.
                 This parameter cannot be used together with the `table` parameter.
-            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
+            column: The case-sensitive column name used for partitioning the table. Partitions will be retrieved in parallel.
                 The column must be of a numeric type (e.g., int or float) or a date type.
                 When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
             lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
@@ -1129,7 +1129,8 @@ class DataFrameReader:
                 of the DBMS and its driver.
             fetch_size: The number of rows to fetch per batch from the external data source.
                 This determines how many rows are retrieved in each round trip,
-                which can improve performance for drivers with a low default fetch size.            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source. This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING", or StructType, for example: StructType([StructField("ID", IntegerType(), False)])
+                which can improve performance for drivers with a low default fetch size.
+            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source. This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING", or StructType, for example: StructType([StructField("ID", IntegerType(), False)])
             predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
                 Partitions will be retrieved in parallel.
                 If both `column` and `predicates` are specified, `column` takes precedence.
@@ -1209,17 +1210,14 @@ class DataFrameReader:
                         os.remove(parquet_file_path)
 
                     # whether each partition should have its own reader is still under discussion
-                    reader = partitioner.reader()
                     logger.debug("Starting to fetch data from the data source.")
                     for partition_idx, query in enumerate(partitioned_queries):
                         process_future = process_executor.submit(
                             _task_fetch_data_from_source_with_retry,
-                            reader,
+                            partitioner.reader(),
                             query,
                             partition_idx,
                             tmp_dir,
-                            query_timeout,
-                            session_init_statement,
                         )
                         process_pool_futures.append(process_future)
                     # Monitor queue while tasks are running
