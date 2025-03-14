@@ -1095,8 +1095,10 @@ class DataFrameReader:
         """
         Reads data from a database table or query into a DataFrame using a DBAPI connection,
         with support for optional partitioning, parallel processing, and query customization.
+
         There are multiple methods to partition data and accelerate ingestion.
         These methods can be combined to achieve optimal performance:
+
         1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
         These must all be specified together, otherwise error will be raised.
         2.Set max_workers to a proper positive integer.
@@ -1106,6 +1108,7 @@ class DataFrameReader:
         predicates will be ignored if column is specified to generate partition.
         5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
         column name with table in external data source.
+
         Args:
             create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
                 The callable must be picklable, as it will be passed to and executed in child processes.
@@ -1113,7 +1116,7 @@ class DataFrameReader:
                 This parameter cannot be used together with the `query` parameter.
             query: A valid SQL query to be used as the data source in the FROM clause.
                 This parameter cannot be used together with the `table` parameter.
-            column: The case-sensitive column name used for partitioning the table. Partitions will be retrieved in parallel.
+            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
                 The column must be of a numeric type (e.g., int or float) or a date type.
                 When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
             lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
@@ -1139,12 +1142,15 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+
         Example::
             .. code-block:: python
+
                 import oracledb
                 def create_oracledb_connection():
                     connection = oracledb.connect(...)
                     return connection
+
                 df = session.read.dbapi(create_oracledb_connection, table=...)
         """
         if (not table and not query) or (table and query):
