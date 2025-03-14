@@ -24,6 +24,10 @@ df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
 
+df10 = session.create_dataframe([2**100, 2**100, 2**64 - 1, 2**64, 1, 2**64 - 2, -(2**64 - 1), -(2**64), -1, -(2**64 - 2)])
+
+df11 = session.create_dataframe([[-2**100, 2**100], [2**100, 2**100]])
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
@@ -43,6 +47,10 @@ df7 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
+
+df10 = session.create_dataframe([1267650600228229401496703205376, 1267650600228229401496703205376, 18446744073709551615, 18446744073709551616, 1, 18446744073709551614, -18446744073709551615, -18446744073709551616, -1, -18446744073709551614])
+
+df11 = session.create_dataframe([[-1267650600228229401496703205376, 1267650600228229401496703205376], [1267650600228229401496703205376, 1267650600228229401496703205376]])
 
 ## EXPECTED ENCODED AST
 
@@ -1024,6 +1032,252 @@ body {
     uid: 9
     var_id {
       bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\377"
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\001\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: 1
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\376"
+              }
+            }
+            vs {
+              big_int_val {
+                is_negative: true
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\377"
+              }
+            }
+            vs {
+              big_int_val {
+                is_negative: true
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\001\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: -1
+              }
+            }
+            vs {
+              big_int_val {
+                is_negative: true
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\376"
+              }
+            }
+          }
+        }
+        src {
+          end_column: 131
+          end_line: 49
+          file: 2
+          start_column: 15
+          start_line: 49
+        }
+      }
+    }
+    symbol {
+      value: "df10"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 78
+                  end_line: 51
+                  file: 2
+                  start_column: 15
+                  start_line: 51
+                }
+                vs {
+                  big_int_val {
+                    is_negative: true
+                    src {
+                      end_column: 78
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 78
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 78
+                  end_line: 51
+                  file: 2
+                  start_column: 15
+                  start_line: 51
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 78
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 78
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+              }
+            }
+          }
+        }
+        src {
+          end_column: 78
+          end_line: 51
+          file: 2
+          start_column: 15
+          start_line: 51
+        }
+      }
+    }
+    symbol {
+      value: "df11"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
     }
   }
 }
