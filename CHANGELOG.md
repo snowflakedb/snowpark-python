@@ -1,30 +1,74 @@
 # Release History
 
-## 1.29.0 (TBD)
+## 1.30.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Improved query generation for `Dataframe.stat.sample_by` to generate a single flat query that scales well with large `fractions` dictionary compared to older method of creating a UNION ALL subquery for each key in `fractions`. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
+
+#### Improvements
+
+- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
+
+## 1.29.1 (2025-03-12)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that prevents usage in stored procedure and snowbooks.
+
+## 1.29.0 (2025-03-05)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
-- Added support for the following AI-powered functions in `functions.py` (private preview):
+- Added support for the following AI-powered functions in `functions.py` (Private Preview):
   - `ai_filter`
   - `ai_agg`
   - `summarize_agg`
-- Added support for the new FILE SQL type support, with the following related functions in `functions.py` (private preview):
-  - fl_get_content_type
-  - fl_get_etag
-  - fl_get_file_type
-  - fl_get_last_modified
-  - fl_get_relative_path
-  - fl_get_scoped_file_url
-  - fl_get_size
-  - fl_get_stage
-  - fl_get_stage_file_url
-  - fl_is_audio
-  - fl_is_compressed
-  - fl_is_document
-  - fl_is_image
-  - fl_is_video
+- Added support for the new FILE SQL type support, with the following related functions in `functions.py` (Private Preview):
+  - `fl_get_content_type`
+  - `fl_get_etag`
+  - `fl_get_file_type`
+  - `fl_get_last_modified`
+  - `fl_get_relative_path`
+  - `fl_get_scoped_file_url`
+  - `fl_get_size`
+  - `fl_get_stage`
+  - `fl_get_stage_file_url`
+  - `fl_is_audio`
+  - `fl_is_compressed`
+  - `fl_is_document`
+  - `fl_is_image`
+  - `fl_is_video`
+- Added support for importing third-party packages from PyPi using Artifact Repository (Private Preview):
+  - Use keyword arguments `artifact_repository` and `artifact_repository_packages` to specify your artifact repository and packages respectively when registering stored procedures or user defined functions.
+  - Supported APIs are:
+    - `Session.sproc.register`
+    - `Session.udf.register`
+    - `Session.udaf.register`
+    - `Session.udtf.register`
+    - `functions.sproc`
+    - `functions.udf`
+    - `functions.udaf`
+    - `functions.udtf`
+    - `functions.pandas_udf`
+    - `functions.pandas_udtf`
 
 #### Bug Fixes
 
@@ -36,15 +80,7 @@
 #### Improvements
 
 - Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
-- Bumped cloudpickle dependency to work with `cloudpickle==3.0.0`
-
-### Snowpark pandas API Updates
-
-#### Bug Fixes
-- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
-- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
-- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
-- Update `pd.get_dummies` to return bool values instead of int.
+- Bumped cloudpickle dependency to also support `cloudpickle==3.0.0` in addition to previous versions.
 
 ### Snowpark Local Testing Updates
 
@@ -52,15 +88,22 @@
 
 - Added support for literal values to `range_between` window function.
 
-#### Bug Fixes
-
-- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
+### Snowpark pandas API Updates
 
 #### Improvements
 
 - Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 - Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
 - Improve error message for all pandas functions that use UDFs with Snowpark objects.
+- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.rename_axis` where an `AttributeError` was being raised.
+- Fixed a bug where `pd.get_dummies` didn't ignore NULL/NaN values by default.
+- Fixed a bug where repeated calls to `pd.get_dummies` results in 'Duplicated column name error'.
+- Fixed a bug in `pd.get_dummies` where passing list of columns generated incorrect column labels in output DataFrame.
+- Update `pd.get_dummies` to return bool values instead of int.
 
 ## 1.28.0 (2025-02-20)
 

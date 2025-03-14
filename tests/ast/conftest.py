@@ -16,7 +16,7 @@ def default_unparser_path():
     explicit = os.getenv("MONOREPO_DIR")
     default_default = os.path.join(os.getenv("HOME"), "Snowflake/trunk")
     base_dir = explicit or default_default
-    unparser_dir = os.path.join(base_dir, "bazel-bin/Snowpark/unparser")
+    unparser_dir = os.path.join(base_dir, "bazel-bin/Snowpark/frontend/unparser")
 
     # Grab all *.jar files from the subtree.
     jars = []

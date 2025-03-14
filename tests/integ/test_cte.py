@@ -865,6 +865,8 @@ def test_df_reader(session, mode, resources_path):
                                |                                                |
                           Select (valid)                                  Select (valid)
     """
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Skip test for simplifier disabled")
     reader = get_reader(session, mode)
     session_stage = session.get_session_stage()
     test_files = TestFiles(resources_path)

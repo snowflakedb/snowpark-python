@@ -392,3 +392,22 @@ def test_read_snowflake_query_connect_by(session):
         pd.read_snowflake(SQL_QUERY).sort_values("EMPLOYEE_ID").reset_index(drop=True)
     )
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1)
+def test_read_snowflake_query_with_relaxed_ordering_neg(session):
+    # create table
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[1, 2], [3, 4], [6, 7]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    with pytest.raises(
+        NotImplementedError,
+        match="does not currently support 'relaxed_ordering=True'",
+    ):
+        # create snowpark pandas dataframe
+        pd.read_snowflake(
+            f"SELECT A, B, SQUARE(A) + SQUARE(B) as C FROM {table_name}",
+            relaxed_ordering=True,
+        )
