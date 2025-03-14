@@ -1166,6 +1166,7 @@ class DataFrameReader:
             fetch_size,
             custom_schema,
             predicates,
+            session_init_statement,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions

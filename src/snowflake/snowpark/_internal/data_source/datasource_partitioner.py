@@ -127,7 +127,12 @@ class DataSourcePartitioner:
 
             column_type = None
             for field in self.schema.fields:
-                if field.name == self.column:
+                col = (
+                    self.column
+                    if self.column[0] == '"' and self.column[-1] == '"'
+                    else self.column.upper()
+                )
+                if field.name == col:
                     column_type = field.datatype
                     break
             if column_type is None:
