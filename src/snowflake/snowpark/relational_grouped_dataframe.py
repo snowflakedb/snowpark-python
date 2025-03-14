@@ -3,9 +3,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+import inspect
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import pandas
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -326,6 +328,7 @@ class RelationalGroupedDataFrame:
         func: Callable,
         output_schema: StructType,
         _emit_ast: bool = True,
+        _is_called_from_snowpark_connect=False,
         **kwargs,
     ) -> DataFrame:
         """Maps each grouped dataframe in to a pandas.DataFrame, applies the given function on
@@ -402,8 +405,33 @@ class RelationalGroupedDataFrame:
             - :func:`~snowflake.snowpark.functions.pandas_udtf`
         """
 
+        # this is the case where this is being called from spark
+        # this is not handleing nested column access, it is assuming that the access in the function is not nested
+        original_columns: List[str] | None = None
+        if _is_called_from_snowpark_connect and self._dataframe._column_map is not None:
+            original_columns = [
+                column.spark_name for column in self._dataframe._column_map.columns
+            ]
+
+        partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
+        signature = inspect.signature(func)
+        key_columns: List[str] | None = None
+        parameters = signature.parameters
+        if len(parameters) == 2:
+            key_columns = [unquote_if_quoted(col.get_name()) for col in partition_by]
+
         class _ApplyInPandas:
             def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
+                import numpy as np
+
+                if key_columns is not None:
+                    key_list = [pdf[key].iloc[0] for key in key_columns]
+                    numpy_array = np.array(key_list)
+                    keys = tuple(numpy_array)
+                if original_columns is not None:
+                    pdf.columns = original_columns
+                if key_columns is not None:
+                    return func(keys, pdf)
                 return func(pdf)
 
         # for vectorized UDTF
@@ -425,7 +453,6 @@ class RelationalGroupedDataFrame:
             _emit_ast=_emit_ast,
             **kwargs,
         )
-        partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
 
         df = self._dataframe.select(
             _apply_in_pandas_udtf(*self._dataframe.columns).over(
