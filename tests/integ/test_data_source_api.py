@@ -101,7 +101,10 @@ def test_dbapi_with_temp_table(session):
 
 def test_dbapi_oracledb(session):
     df = session.read.dbapi(
-        oracledb_create_connection, table=ORACLEDB_TABLE_NAME, max_workers=4
+        oracledb_create_connection,
+        table=ORACLEDB_TABLE_NAME,
+        max_workers=4,
+        query_timeout=5,
     )
     assert df.collect() == oracledb_all_type_data_result
 

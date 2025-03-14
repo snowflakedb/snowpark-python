@@ -9,11 +9,13 @@ from typing import Optional, Union, List, Callable
 import logging
 import pytz
 from dateutil import parser
+
+from snowflake.snowpark._internal.data_source.dbms_dialects import BaseDialect
+from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import (
     detect_dbms,
     DBMS_MAP,
     DRIVER_MAP,
-    DBMS_TYPE,
 )
 
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
@@ -57,10 +59,8 @@ class DataSourcePartitioner:
         self.session_init_statement = session_init_statement
         conn = create_connection()
         dbms_type, driver = detect_dbms(conn)
-        if dbms_type == DBMS_TYPE.UNKNOWN:
-            raise ValueError(f"Unsupported database driver: {driver}")
-        self.dialect_class = DBMS_MAP[dbms_type]
-        self.driver_class = DRIVER_MAP[driver]
+        self.dialect_class = DBMS_MAP.get(dbms_type, BaseDialect)
+        self.driver_class = DRIVER_MAP.get(driver, BaseDriver)
         self.dialect = self.dialect_class()
         self.driver = self.driver_class(create_connection)
 

@@ -27,9 +27,7 @@ class BaseDriver(ABC):
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
-        raise NotImplementedError(
-            f"{self.__class__.__name__} has not implemented prepare_connection function"
-        )
+        return conn
 
     def infer_schema_from_description(self, table_or_query: str) -> StructType:
         conn = self.create_connection()
