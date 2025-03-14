@@ -5,6 +5,8 @@
 #
 # this script is called in daily jenkins job SnowparkPythonSnowPandasDailyRegressRunner, it runs all snowpandas
 # tests under tests/integ/modin and tests/unit/modin
+# it is also called in SnowparkPandasPandasVersionsRunner, which runs the tests with the specified version
+# of native pandas installed
 
 set -euxo pipefail
 
