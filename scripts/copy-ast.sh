@@ -15,7 +15,7 @@ SNOWPARK_ROOT=$(git rev-parse --show-toplevel)
 # Build the targets.
 pushd $MONOREPO_DIR
 bazel build //Snowpark/ast:ast_proto
-bazel build //Snowpark/unparser
+bazel build //Snowpark/frontend/unparser
 popd
 
 # Copy the AST.
