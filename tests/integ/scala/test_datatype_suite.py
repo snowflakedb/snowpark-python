@@ -482,7 +482,7 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
     else:
         assert (
             pdf.to_json()
-            == '{"MAP":{"0":"{\\n  \\"k1\\": 1\\n}"},"OBJ":{"0":"{\\n  \\"A\\": \\"foo\\",\\n  \\"B\\": 5.000000000000000e-02\\n}"},"ARR":{"0":"[\\n  1.000000000000000e+00,\\n  3.100000000000000e+00,\\n  4.500000000000000e+00\\n]"}}'
+            == '{"MAP":{"0":"{\\n  \\"k1\\": 1\\n}"},"OBJ":{"0":"{\\n  \\"A\\": \\"foo\\",\\n  \\"B\\": 0.05\\n}"},"ARR":{"0":"[\\n  1,\\n  3.1,\\n  4.5\\n]"}}'
         )
 
 
