@@ -4,10 +4,12 @@
 
 import sys
 from functools import reduce
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
+
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
+from snowflake.snowpark._internal.analyzer.unary_plan_node import SampleBy
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
@@ -15,7 +17,11 @@ from snowflake.snowpark._internal.ast.utils import (
     DATAFRAME_AST_PARAMETER,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
+from snowflake.snowpark._internal.telemetry import (
+    ResourceUsageCollector,
+    add_api_call,
+    adjust_api_subcalls,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import publicapi, warning
 from snowflake.snowpark.functions import (
@@ -371,6 +377,53 @@ class DataFrameStatFunctions:
 
         return df
 
+    def _sample_by_with_union_all(
+        self,
+        col: ColumnOrName,
+        fractions: Dict[LiteralType, float],
+        df_generator: Callable,
+    ) -> "snowflake.snowpark.DataFrame":
+        with ResourceUsageCollector() as resource_usage_collector:
+            res_df = reduce(
+                lambda x, y: x.union_all(y, _emit_ast=False),
+                [df_generator(self, k, v) for k, v in fractions.items()],
+            )
+        adjust_api_subcalls(
+            res_df,
+            "DataFrameStatFunctions.sample_by[union_all]",
+            precalls=self._dataframe._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
+        return res_df
+
+    def _sample_by_with_percent_rank(
+        self,
+        col: Column,
+        fractions: Dict[LiteralType, float],
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        sample_by_plan = SampleBy(self._dataframe._plan, col._expression, fractions)
+        with ResourceUsageCollector() as resource_usage_collector:
+            if self._dataframe._select_statement:
+                session = self._dataframe.session
+                select_stmt = session._analyzer.create_select_statement(
+                    from_=session._analyzer.create_select_snowflake_plan(
+                        sample_by_plan, analyzer=session._analyzer
+                    ),
+                    analyzer=session._analyzer,
+                )
+                res_df = self._dataframe._with_plan(select_stmt)
+            else:
+                res_df = self._dataframe._with_plan(sample_by_plan)
+
+        add_api_call(
+            res_df,
+            "DataFrameStatFunctions.sample_by[percent_rank]",
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
+        return res_df
+
     @publicapi
     def sample_by(
         self,
@@ -414,7 +467,7 @@ class DataFrameStatFunctions:
         if not fractions:
             res_df = self._dataframe.limit(0, _emit_ast=False)
             adjust_api_subcalls(
-                res_df, "DataFrameStatFunctions.sample_by", len_subcalls=1
+                res_df, "DataFrameStatFunctions.sample_by[empty]", len_subcalls=1
             )
 
             if _emit_ast:
@@ -432,15 +485,14 @@ class DataFrameStatFunctions:
 
             # Similar to how `Table.sample` is implemented, because SAMPLE clause does not support subqueries,
             # we just use session.sql to compile a flat query
-            res_df = reduce(
-                lambda x, y: x.union_all(y, _emit_ast=False),
-                [
-                    self._dataframe._session.sql(
-                        f"SELECT * FROM {self._dataframe.table_name} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
-                        _emit_ast=False,
-                    )
-                    for k, v in fractions.items()
-                ],
+            def df_generator(self, k, v):
+                return self._dataframe._session.sql(
+                    f"SELECT * FROM {self._dataframe.table_name} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
+                    _emit_ast=False,
+                )
+
+            res_df = self._sample_by_with_union_all(
+                col=col, fractions=fractions, df_generator=df_generator
             )
         else:
             if seed is not None:
@@ -449,21 +501,19 @@ class DataFrameStatFunctions:
                     "`seed` argument is ignored on `DataFrame` object. Save this DataFrame to a temporary table "
                     "to get a `Table` object and specify a seed.",
                 )
-            res_df = reduce(
-                lambda x, y: x.union_all(y, _emit_ast=False),
-                [
-                    self._dataframe.filter(col == k, _emit_ast=False).sample(
+
+            if self._dataframe._session.conf.get("use_simplified_query_generation"):
+                res_df = self._sample_by_with_percent_rank(col=col, fractions=fractions)
+            else:
+
+                def df_generator(self, k, v):
+                    return self._dataframe.filter(col == k, _emit_ast=False).sample(
                         v, _emit_ast=False
                     )
-                    for k, v in fractions.items()
-                ],
-            )
-        adjust_api_subcalls(
-            res_df,
-            "DataFrameStatFunctions.sample_by",
-            precalls=self._dataframe._plan.api_calls,
-            subcalls=res_df._plan.api_calls.copy(),
-        )
+
+                res_df = self._sample_by_with_union_all(
+                    col=col, fractions=fractions, df_generator=df_generator
+                )
 
         if _emit_ast:
             res_df._ast_id = stmt.var_id.bitfield1
