@@ -4,16 +4,11 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Callable, Any, Optional
-import logging
-
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
-
-
-logger = logging.getLogger(__name__)
 
 
 class BaseDriver(ABC):
@@ -22,7 +17,9 @@ class BaseDriver(ABC):
 
     @abstractmethod
     def to_snow_type(self, schema: List[Any]) -> StructType:
-        pass
+        raise NotImplementedError(
+            f"{self.__class__.__name__} has not implemented to_snow_type function"
+        )
 
     @abstractmethod
     def prepare_connection(
@@ -30,7 +27,9 @@ class BaseDriver(ABC):
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
-        pass
+        raise NotImplementedError(
+            f"{self.__class__.__name__} has not implemented prepare_connection function"
+        )
 
     def infer_schema_from_description(self, table_or_query: str) -> StructType:
         conn = self.create_connection()

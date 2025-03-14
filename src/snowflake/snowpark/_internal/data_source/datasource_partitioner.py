@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.data_source.utils import (
     detect_dbms,
     DBMS_MAP,
     DRIVER_MAP,
+    DBMS_TYPE,
 )
 
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
@@ -56,6 +57,8 @@ class DataSourcePartitioner:
         self.session_init_statement = session_init_statement
         conn = create_connection()
         dbms_type, driver = detect_dbms(conn)
+        if dbms_type == DBMS_TYPE.UNKNOWN:
+            raise ValueError(f"Unsupported database driver: {driver}")
         self.dialect_class = DBMS_MAP[dbms_type]
         self.driver_class = DRIVER_MAP[driver]
         self.dialect = self.dialect_class()
