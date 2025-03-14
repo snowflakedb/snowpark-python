@@ -13,6 +13,7 @@
 #### New Features
 
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
 
 #### Improvements
 
