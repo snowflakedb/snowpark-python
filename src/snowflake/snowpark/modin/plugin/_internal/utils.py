@@ -350,7 +350,7 @@ def create_initial_ordered_dataframe(
         table_name_or_query
     )
     is_query = not _is_table_name(table_name_or_query)
-    if not is_query:
+    if not is_query or relaxed_ordering:
         if not relaxed_ordering:
             try:
                 readonly_table_name = _create_read_only_table(
@@ -391,9 +391,24 @@ def create_initial_ordered_dataframe(
                         error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
                     ) from ex
 
+        if is_query:
+            # If the string passed in to `pd.read_snowflake` is a SQL query, we can simply create
+            # a Snowpark DataFrame, and convert that to a Snowpark pandas DataFrame, and extract
+            # the OrderedDataFrame and row_position_snowflake_quoted_identifier from there.
+            # If there is an ORDER BY in the query, we should log it.
+            contains_order_by = _check_if_sql_query_contains_order_by_and_warn_user(
+                table_name_or_query
+            )
+            statement_params = get_default_snowpark_pandas_statement_params()
+            statement_params[STATEMENT_PARAMS.CONTAINS_ORDER_BY] = str(
+                contains_order_by
+            ).upper()
+
         initial_ordered_dataframe = OrderedDataFrame(
             DataFrameReference(session.table(readonly_table_name, _emit_ast=False))
             if not relaxed_ordering
+            else DataFrameReference(session.sql(table_name_or_query, _emit_ast=False))
+            if is_query
             else DataFrameReference(session.table(table_name_or_query, _emit_ast=False))
         )
         # generate a snowflake quoted identifier for row position column that can be used for aliasing
@@ -439,11 +454,7 @@ def create_initial_ordered_dataframe(
             row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
         )
     else:
-        if relaxed_ordering:
-            raise NotImplementedError(
-                "The 'pd.read_snowflake' method does not currently support 'relaxed_ordering=True'"
-                " when 'name_or_query' is a query"
-            )
+        assert is_query and not relaxed_ordering
 
         # If the string passed in to `pd.read_snowflake` is a SQL query, we can simply create
         # a Snowpark DataFrame, and convert that to a Snowpark pandas DataFrame, and extract
