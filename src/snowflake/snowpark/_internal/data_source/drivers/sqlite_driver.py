@@ -18,10 +18,3 @@ class SqliteDriver(BaseDriver):
             "SQLite is not supported yet. To avoid auto inference, you can manually "
             "specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
         )
-
-    def prepare_connection(
-        self,
-        conn: "Connection",
-        query_timeout: int = 0,
-    ) -> "Connection":
-        return conn

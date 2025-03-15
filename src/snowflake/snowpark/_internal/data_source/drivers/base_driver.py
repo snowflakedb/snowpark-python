@@ -21,7 +21,6 @@ class BaseDriver(ABC):
             f"{self.__class__.__name__} has not implemented to_snow_type function"
         )
 
-    @abstractmethod
     def prepare_connection(
         self,
         conn: "Connection",
