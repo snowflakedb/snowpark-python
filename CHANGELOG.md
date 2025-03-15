@@ -17,6 +17,7 @@
 #### Improvements
 
 - Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
+- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for query data sources.
 
 ## 1.29.0 (2025-03-05)
 
