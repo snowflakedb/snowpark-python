@@ -423,9 +423,9 @@ class RelationalGroupedDataFrame:
 
         class _ApplyInPandas:
             def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
-                import numpy as np
-
                 if key_columns is not None:
+                    import numpy as np
+
                     key_list = [pdf[key].iloc[0] for key in key_columns]
                     numpy_array = np.array(key_list)
                     keys = tuple(numpy_array)
