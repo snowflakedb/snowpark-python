@@ -9,6 +9,7 @@ import datetime
 from unittest import mock
 from unittest.mock import patch, MagicMock, PropertyMock
 
+import oracledb
 import pytest
 
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
@@ -17,6 +18,7 @@ from snowflake.snowpark._internal.data_source.datasource_partitioner import (
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
 from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
     OracledbDriver,
+    output_type_handler,
 )
 from snowflake.snowpark._internal.data_source.drivers.pyodbc_driver import PyodbcDriver
 from snowflake.snowpark._internal.data_source.utils import (
@@ -767,3 +769,14 @@ def test_empty_table(session):
         sql_server_create_connection_empty_data, table=SQL_SERVER_TABLE_NAME
     )
     assert df.collect() == []
+
+
+def test_oracledb_driver_coverage(caplog):
+    oracledb_driver = OracledbDriver(oracledb_create_connection_small_data)
+    conn = oracledb_driver.prepare_connection(oracledb_driver.create_connection(), 0)
+    assert conn.outputtypehandler == output_type_handler
+
+    oracledb_driver.to_snow_type(
+        [OracleDBType("NUMBER_COL", oracledb.DB_TYPE_NUMBER, 40, 2, True)]
+    )
+    assert "Snowpark does not support column" in caplog.text
