@@ -26,6 +26,9 @@ _should_continue_registration: Optional[Callable[..., bool]] = None
 _use_structured_type_semantics = False
 _use_structured_type_semantics_lock = threading.RLock()
 
+# This is an internal-only global flag, used to determine whether the api is called from snowflake.snowpark_connect
+_is_called_from_snowpark_connect = False
+
 
 def _should_use_structured_type_semantics():
     global _use_structured_type_semantics

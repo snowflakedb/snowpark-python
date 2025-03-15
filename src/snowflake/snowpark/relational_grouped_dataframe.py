@@ -6,6 +6,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import inspect
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+import snowflake.snowpark.context as context
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark import functions
@@ -329,7 +330,6 @@ class RelationalGroupedDataFrame:
         func: Callable,
         output_schema: StructType,
         _emit_ast: bool = True,
-        _is_called_from_snowpark_connect=False,
         **kwargs,
     ) -> DataFrame:
         """Maps each grouped dataframe in to a pandas.DataFrame, applies the given function on
@@ -409,7 +409,10 @@ class RelationalGroupedDataFrame:
         # this is the case where this is being called from spark
         # this is not handleing nested column access, it is assuming that the access in the function is not nested
         original_columns: List[str] | None = None
-        if _is_called_from_snowpark_connect and self._dataframe._column_map is not None:
+        if (
+            context._is_called_from_snowpark_connect
+            and self._dataframe._column_map is not None
+        ):
             original_columns = [
                 column.spark_name for column in self._dataframe._column_map.columns
             ]
