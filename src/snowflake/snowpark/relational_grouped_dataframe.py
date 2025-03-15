@@ -406,23 +406,23 @@ class RelationalGroupedDataFrame:
             - :func:`~snowflake.snowpark.functions.pandas_udtf`
         """
 
+        partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
+
         # this is the case where this is being called from spark
         # this is not handleing nested column access, it is assuming that the access in the function is not nested
         original_columns: List[str] | None = None
-        if (
-            context._is_called_from_snowpark_connect
-            and self._dataframe._column_map is not None
-        ):
-            original_columns = [
-                column.spark_name for column in self._dataframe._column_map.columns
-            ]
-
-        partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
-        signature = inspect.signature(func)
         key_columns: List[str] | None = None
-        parameters = signature.parameters
-        if len(parameters) == 2:
-            key_columns = [unquote_if_quoted(col.get_name()) for col in partition_by]
+        if context._is_called_from_snowpark_connect:
+            if self._dataframe._column_map is not None:
+                original_columns = [
+                    column.spark_name for column in self._dataframe._column_map.columns
+                ]
+            signature = inspect.signature(func)
+            parameters = signature.parameters
+            if len(parameters) == 2:
+                key_columns = [
+                    unquote_if_quoted(col.get_name()) for col in partition_by
+                ]
 
         class _ApplyInPandas:
             def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
