@@ -2600,7 +2600,7 @@ def test_fillna(session, local_testing_mode):
     )
 
 
-def test_replace_with_coercion(session):
+def test_replace_with_coercion(session, local_testing_mode):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
     )
@@ -2671,6 +2671,9 @@ def test_replace_with_coercion(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
+    if local_testing_mode:
+        # SNOW-1989698: local test gap
+        return
     # Replace Decimal value with int
     Utils.check_answer(
         TestData.null_data4(session).replace(
