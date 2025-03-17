@@ -302,6 +302,8 @@ class DataFrameNaFunctions:
                     * If ``subset`` is not provided or ``None``, all columns will be included.
 
                     * If ``subset`` is empty, the method returns the original DataFrame.
+            include_decimal: Whether to allow ``Decimal`` values to fill in ``IntegerType``
+                and ``FloatType`` columns.
 
         Examples::
 
@@ -526,7 +528,8 @@ class DataFrameNaFunctions:
                 replaced. If ``cols`` is not provided or ``None``, the replacement
                 will be applied to all columns. If ``cols`` is empty, the method
                 returns the original DataFrame.
-
+            include_decimal: Whether to allow ``Decimal`` values to replace ``IntegerType``
+                and ``FloatType`` values.
         Examples::
 
             >>> df = session.create_dataframe([[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"])
