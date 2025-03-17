@@ -1393,7 +1393,7 @@ class Column:
 
             >>> df = session.create_dataframe([(3, "v1"), (1, "v3"), (2, "v2")], schema=["a", "b"])
             >>> # create a DataFrame containing the values in "a" sorted by "b"
-            >>> df.select(array_agg("a").within_group("b").alias("new_column")).show()
+            >>> df.select(array_agg("a").within_group(col("b").asc()).alias("new_column")).show()
             ----------------
             |"NEW_COLUMN"  |
             ----------------

@@ -1459,7 +1459,7 @@ def check_flatten_mode(mode: str) -> None:
         raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
 
-def check_create_map_parameter(*cols: Any) -> None:
+def check_create_map_parameter(*cols: Any) -> bool:
     """Helper function to check parameter cols for create_map function."""
 
     error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
@@ -1472,6 +1472,8 @@ def check_create_map_parameter(*cols: Any) -> None:
 
     if not len(cols) % 2 == 0:
         raise ValueError(error_message.format(len(cols)))
+
+    return len(cols) == 1 and isinstance(cols, (tuple, list))
 
 
 def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:

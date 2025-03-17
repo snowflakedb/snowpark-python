@@ -61,6 +61,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "tox",  # used for setting up testing environments
     "snowflake.core>=1.0.0, <2",  # Catalog
     "oracledb",  # used in data source
+    "psutil",  # testing for telemetry
 ]
 
 # read the version
@@ -169,6 +170,9 @@ setup(
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.ast",
         "snowflake.snowpark._internal.compiler",
+        "snowflake.snowpark._internal.data_source",
+        "snowflake.snowpark._internal.data_source.dbms_dialects",
+        "snowflake.snowpark._internal.data_source.drivers",
         "snowflake.snowpark._internal.proto.generated",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",

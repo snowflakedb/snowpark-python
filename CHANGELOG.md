@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Improvements
+
+- Improved query generation for `Dataframe.stat.sample_by` to generate a single flat query that scales well with large `fractions` dictionary compared to older method of creating a UNION ALL subquery for each key in `fractions`. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
+
 #### Bug Fixes
 
 - Fixed a bug for the following functions that raised errors `.cast()` is applied to their output
@@ -15,6 +19,23 @@
 #### New Features
 
 ### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
+
+#### Improvements
+
+- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
+
+## 1.29.1 (2025-03-12)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that prevents usage in stored procedure and snowbooks.
 
 ## 1.29.0 (2025-03-05)
 
