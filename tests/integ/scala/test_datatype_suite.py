@@ -28,7 +28,6 @@ from snowflake.snowpark.functions import (
     udf,
     to_file,
 )
-from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
@@ -62,7 +61,6 @@ from tests.utils import (
     iceberg_supported,
     structured_types_enabled_session,
     structured_types_supported,
-    is_in_stored_procedure,
 )
 
 # Map of structured type enabled state to test params
@@ -108,28 +106,31 @@ ICEBERG_CONFIG = {
     "base_location": "python_connector_merge_gate",
 }
 
+# When creating tables the max string size remain 16mb regardless of lob setting
+MAX_TABLE_STRING_SIZE = 2**24
 
-def _create_example(structured_types_enabled):
+
+def _create_example(structured_types_enabled, max_string):
     if structured_types_enabled:
         return (
             _STRUCTURED_DATAFRAME_QUERY,
             [
-                ("MAP", "map<string(16777216),bigint>"),
-                ("OBJ", "struct<string(16777216),double>"),
+                ("MAP", f"map<string({max_string}),bigint>"),
+                ("OBJ", f"struct<string({max_string}),double>"),
                 ("ARR", "array<double>"),
             ],
             StructType(
                 [
                     StructField(
                         "MAP",
-                        MapType(StringType(16777216), LongType(), structured=True),
+                        MapType(StringType(max_string), LongType(), structured=True),
                         nullable=True,
                     ),
                     StructField(
                         "OBJ",
                         StructType(
                             [
-                                StructField("A", StringType(16777216), nullable=True),
+                                StructField("A", StringType(max_string), nullable=True),
                                 StructField("b", DoubleType(), nullable=True),
                             ],
                             structured=True,
@@ -170,29 +171,25 @@ def structured_type_support(session, local_testing_mode):
 
 
 @pytest.fixture(scope="module")
-def examples(structured_type_support):
-    yield _create_example(structured_type_support)
+def examples(structured_type_session, structured_type_support, max_string):
+    yield _create_example(structured_type_support, max_string)
 
 
 @pytest.fixture(scope="module")
 def structured_type_session(session, structured_type_support, local_testing_mode):
-    # SNOW-1938099: Disable lob parameters until we can better support them
-    if (
-        not isinstance(session._conn, MockServerConnection)
-        and not is_in_stored_procedure()
-    ):
-        session.sql(
-            "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
-        ).collect()
-        session.sql(
-            "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
-        ).collect()
-
     if structured_type_support:
         with structured_types_enabled_session(session) as sess:
             yield sess
     else:
         yield session
+
+
+@pytest.fixture(scope="module")
+def max_string(structured_type_session):
+    # SNOW-1938099: When creating tables the default string size is 16mb regardless of
+    # what the lob parameters are set to. Iceberg requires max sized strings however so
+    # manually set the max size here.
+    return structured_type_session._conn.max_string_size
 
 
 @pytest.mark.skipif(
@@ -479,14 +476,14 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg(
-    structured_type_session, local_testing_mode, structured_type_support
+    structured_type_session, local_testing_mode, structured_type_support, max_string
 ):
     if not (
         structured_type_support
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
-    query, expected_dtypes, expected_schema = _create_example(True)
+    query, expected_dtypes, expected_schema = _create_example(True, max_string)
 
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}".upper()
     dynamic_table_name = f"snowpark_dynamic_iceberg_{uuid.uuid4().hex[:5]}".upper()
@@ -653,7 +650,7 @@ def test_structured_type_infer(structured_type_session, structured_type_support)
     reason="local testing does not fully support structured types yet.",
 )
 def test_iceberg_nested_fields(
-    structured_type_session, local_testing_mode, structured_type_support
+    structured_type_session, local_testing_mode, structured_type_support, max_string
 ):
     if not (
         structured_type_support
@@ -715,15 +712,15 @@ def test_iceberg_nested_fields(
             f"""
         CREATE OR REPLACE ICEBERG TABLE {table_name} (
             "NESTED_DATA" OBJECT(
-                camelCase STRING,
-                snake_case STRING,
-                PascalCase STRING,
+                camelCase STRING({max_string}),
+                snake_case STRING({max_string}),
+                PascalCase STRING({max_string}),
                 nested_map MAP(
-                    STRING,
+                    STRING({max_string}),
                     OBJECT(
-                        inner_camelCase STRING,
-                        inner_snake_case STRING,
-                        inner_PascalCase STRING
+                        inner_camelCase STRING({max_string}),
+                        inner_snake_case STRING({max_string}),
+                        inner_PascalCase STRING({max_string})
                     )
                 )
             )
@@ -753,7 +750,11 @@ def test_iceberg_nested_fields(
 )
 @pytest.mark.parametrize("cte_enabled", [True, False])
 def test_struct_dtype_iceberg_lqb(
-    structured_type_session, local_testing_mode, structured_type_support, cte_enabled
+    structured_type_session,
+    local_testing_mode,
+    structured_type_support,
+    cte_enabled,
+    max_string,
 ):
     if not (
         structured_type_support
@@ -771,7 +772,7 @@ def test_struct_dtype_iceberg_lqb(
     """
     expected_dtypes = [
         ("ARR", "array<bigint>"),
-        ("MAP", "map<string(16777216),bigint>"),
+        ("MAP", f"map<string({max_string}),bigint>"),
         ("A", "bigint"),
         ("B", "bigint"),
     ]
@@ -876,7 +877,7 @@ def test_struct_dtype_iceberg_lqb(
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg_create_from_values(
-    structured_type_session, local_testing_mode, structured_type_support
+    structured_type_session, local_testing_mode, structured_type_support, max_string
 ):
     if not (
         structured_type_support
@@ -884,7 +885,7 @@ def test_structured_dtypes_iceberg_create_from_values(
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
 
-    _, __, expected_schema = _create_example(True)
+    _, __, expected_schema = _create_example(True, max_string)
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     data = [
         ({"x": 1}, Row(A="a", b=1), [1, 1, 1]),
@@ -907,14 +908,14 @@ def test_structured_dtypes_iceberg_create_from_values(
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg_udf(
-    structured_type_session, local_testing_mode, structured_type_support
+    structured_type_session, local_testing_mode, structured_type_support, max_string
 ):
     if not (
         structured_type_support
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
-    query, expected_dtypes, expected_schema = _create_example(True)
+    query, expected_dtypes, expected_schema = _create_example(True, max_string)
 
     table_name = f"snowpark_structured_dtypes_udf_test{uuid.uuid4().hex[:5]}"
 
@@ -1204,7 +1205,7 @@ def test_structured_array_contains_null(
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_map_value_contains_null(
-    structured_type_session, structured_type_support
+    structured_type_session, structured_type_support, max_string
 ):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
@@ -1259,7 +1260,7 @@ def test_structured_map_value_contains_null(
         )
         # Not null dropped because dataframe created from select cannot maintain nullability
         assert save_ddl[0][0] == (
-            f"create or replace TABLE {table_name.upper()} (\n\tA MAP(VARCHAR(16777216), VARCHAR(16777216))\n);"
+            f"create or replace TABLE {table_name.upper()} (\n\tA MAP(VARCHAR({max_string}), VARCHAR({max_string}))\n);"
         )
     finally:
         Utils.drop_table(structured_type_session, table_name)
@@ -1270,7 +1271,7 @@ def test_structured_map_value_contains_null(
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_type_schema_expression(
-    structured_type_session, local_testing_mode, structured_type_support
+    structured_type_session, local_testing_mode, structured_type_support, max_string
 ):
     # Test does not require iceberg support, but does require FDN table structured type support
     # which is enabled in the same accounts as iceberg.
@@ -1354,16 +1355,16 @@ def test_structured_type_schema_expression(
         # SNOW-1819428: Nullability doesn't seem to be respected when creating
         # a structured type dataframe so use a table instead.
         structured_type_session.sql(
-            f"create table {table_name} (MAP MAP(VARCHAR, DOUBLE), ARR ARRAY(DOUBLE), "
-            "OBJ OBJECT(FIELD1 VARCHAR, FIELD2 DOUBLE))"
+            f"create table {table_name} (MAP MAP(STRING({max_string}), DOUBLE), ARR ARRAY(DOUBLE), "
+            f"OBJ OBJECT(FIELD1 STRING({max_string}), FIELD2 DOUBLE))"
         ).collect()
         structured_type_session.sql(
-            f"create table {non_null_table_name} (MAP MAP(VARCHAR, DOUBLE) NOT NULL, "
-            "ARR ARRAY(DOUBLE) NOT NULL, OBJ OBJECT(FIELD1 VARCHAR NOT NULL, FIELD2 "
+            f"create table {non_null_table_name} (MAP MAP(STRING({max_string}), DOUBLE) NOT NULL, "
+            f"ARR ARRAY(DOUBLE) NOT NULL, OBJ OBJECT(FIELD1 STRING({max_string}) NOT NULL, FIELD2 "
             "DOUBLE NOT NULL) NOT NULL)"
         ).collect()
         structured_type_session.sql(
-            f"create table {nested_table_name} (MAP MAP(VARCHAR, OBJECT(ARR ARRAY(DOUBLE))))"
+            f"create table {nested_table_name} (MAP MAP(STRING({max_string}), OBJECT(ARR ARRAY(DOUBLE))))"
         ).collect()
 
         table = structured_type_session.table(table_name)
@@ -1379,14 +1380,14 @@ def test_structured_type_schema_expression(
         # Functions used in schema generation don't respect nested nullability so compare query string instead
         non_null_union = non_null_table.union(non_null_table)
         assert non_null_union._plan.schema_query == (
-            "( SELECT object_construct_keep_null('a' ::  STRING (16777216), NULL :: DOUBLE) :: "
-            'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
-            " object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
-            'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ") UNION ( SELECT '
-            "object_construct_keep_null('a' ::  STRING (16777216), NULL :: DOUBLE) :: "
-            'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
-            "object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
-            'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ")'
+            f"( SELECT object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: "
+            f'MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
+            f" object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', 0 :: "
+            f'DOUBLE) :: OBJECT(FIELD1 STRING({max_string}), FIELD2 DOUBLE) AS "OBJ") UNION ( SELECT '
+            f"object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: "
+            f'MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
+            f"object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', 0 :: "
+            f'DOUBLE) :: OBJECT(FIELD1 STRING({max_string}), FIELD2 DOUBLE) AS "OBJ")'
         )
 
         assert nested_table.union(nested_table).schema == expected_nested_schema
@@ -1401,7 +1402,11 @@ def test_structured_type_schema_expression(
     reason="Structured types are not supported in Local Testing",
 )
 def test_stored_procedure_with_structured_returns(
-    structured_type_session, structured_type_support, local_testing_mode, resources_path
+    structured_type_session,
+    structured_type_support,
+    local_testing_mode,
+    resources_path,
+    max_string,
 ):
     if not structured_type_support:
         pytest.skip("Structured types not enabled in this account.")
@@ -1420,8 +1425,8 @@ def test_stored_procedure_with_structured_returns(
 
     expected_dtypes = [
         ("VEC", "vector<int,5>"),
-        ("MAP", "map<string(16777216),bigint>"),
-        ("OBJ", "struct<string(16777216),double>"),
+        ("MAP", f"map<string({max_string}),bigint>"),
+        ("OBJ", f"struct<string({max_string}),double>"),
         ("ARR", "array<double>"),
     ]
     expected_schema = StructType(
@@ -1429,14 +1434,14 @@ def test_stored_procedure_with_structured_returns(
             StructField("VEC", VectorType(int, 5), nullable=True),
             StructField(
                 "MAP",
-                MapType(StringType(16777216), LongType(), structured=True),
+                MapType(StringType(max_string), LongType(), structured=True),
                 nullable=True,
             ),
             StructField(
                 "OBJ",
                 StructType(
                     [
-                        StructField("a", StringType(16777216), nullable=True),
+                        StructField("a", StringType(max_string), nullable=True),
                         StructField("b", DoubleType(), nullable=True),
                     ],
                     structured=True,
