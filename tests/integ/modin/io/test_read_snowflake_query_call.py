@@ -8,10 +8,11 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
-from tests.integ.utils.sql_counter import SqlCounter
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
@@ -60,6 +61,39 @@ def filter_by_role(session, table_name, role):
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, native_df)
         finally:
             session.sql("DROP PROCEDURE filter_by_role(VARCHAR, VARCHAR)").collect()
+
+
+@sql_count_checker(query_count=3)
+def test_read_snowflake_call_sproc_relaxed_ordering_neg(session):
+    session.sql(
+        """
+        CREATE OR REPLACE PROCEDURE filter_by_role(tableName VARCHAR, role VARCHAR)
+        RETURNS TABLE(id NUMBER, name VARCHAR, role VARCHAR)
+        LANGUAGE PYTHON
+        RUNTIME_VERSION = '3.8'
+        PACKAGES = ('snowflake-snowpark-python')
+        HANDLER = 'filter_by_role'
+        AS $$from snowflake.snowpark.functions import col
+def filter_by_role(session, table_name, role):
+    df = session.table(table_name)
+    return df.filter(col('role') == role)
+                $$"""
+    ).collect()
+    try:
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        session.sql(
+            f"""CREATE OR REPLACE TEMPORARY TABLE {table_name}(id NUMBER, name VARCHAR, role VARCHAR) AS SELECT * FROM VALUES(1, 'Alice', 'op'), (2, 'Bob', 'dev')"""
+        ).collect()
+        with pytest.raises(
+            SnowparkSQLException,
+            match="unexpected 'CALL'",
+        ):
+            pd.read_snowflake(
+                f"CALL filter_by_role('{table_name}', 'op')",
+                relaxed_ordering=True,
+            ).head()
+    finally:
+        session.sql("DROP PROCEDURE filter_by_role(VARCHAR, VARCHAR)").collect()
 
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
