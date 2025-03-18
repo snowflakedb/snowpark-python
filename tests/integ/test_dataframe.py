@@ -660,6 +660,10 @@ def test_random_split(session):
         Utils.check_answer(df1, dfa)
         Utils.check_answer(df2, dfb)
         Utils.check_answer(df3, dfc)
+
+        # assert that there in no overlap between the splits
+        df1, df2 = df.random_split([0.5, 0.5])
+        assert df1.intersect(df2).count() == 0
     finally:
         session.conf.set("use_simplified_query_generation", original_enabled)
 
