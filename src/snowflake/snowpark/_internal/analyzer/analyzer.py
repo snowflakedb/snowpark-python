@@ -1180,6 +1180,8 @@ class Analyzer:
                     else None,
                     child,
                     logical_plan,
+                    len(logical_plan.aggregates)
+                    > 1,  # we need to alias the names with agg function when we have more than one agg functions on the pivot
                 )
 
                 # If this is a dynamic pivot, then we can't use child.schema_query which is used in the schema_query

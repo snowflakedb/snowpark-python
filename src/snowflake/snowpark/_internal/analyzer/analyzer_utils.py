@@ -1249,6 +1249,7 @@ def pivot_statement(
     aggregate: str,
     default_on_null: Optional[str],
     child: str,
+    should_alias_column_with_agg: bool,
 ) -> str:
     select_str = STAR
     if isinstance(pivot_values, str):
@@ -1260,7 +1261,7 @@ def pivot_statement(
             + (ANY if pivot_values is None else COMMA.join(pivot_values))
             + RIGHT_PARENTHESIS
         )
-        if pivot_values is not None:
+        if pivot_values is not None and should_alias_column_with_agg:
             quoted_names = [quote_name(value) for value in pivot_values]
             aliased_names = [
                 quote_name(f"{unwrap_single_quote(value)}_{aggregate}")

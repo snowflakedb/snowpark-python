@@ -5,6 +5,7 @@
 
 from decimal import Decimal
 from math import sqrt
+import re
 from typing import NamedTuple
 
 import pytest
@@ -422,8 +423,9 @@ def test_pivot_default_on_none(session, caplog):
 def test_pivot_multiple_aggs(session):
     with pytest.raises(
         SnowparkDataframeException,
-        match="You can apply only one aggregate expression to a "
-        "RelationalGroupedDataFrame returned by the pivot() method unless the pivot is applied with a groupby clause.",
+        match=re.escape(
+            "You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot() method unless the pivot is applied with a groupby clause."
+        ),
     ):
         TestData.monthly_sales(session).pivot(
             "month", ["JAN", "FEB", "MAR", "APR"]
