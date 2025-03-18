@@ -990,6 +990,7 @@ class StoredProcedureRegistration:
                     artifact_repository_packages=kwargs.get(
                         "artifact_repository_packages"
                     ),
+                    resource_constraint=kwargs.get("resource_constraint"),
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

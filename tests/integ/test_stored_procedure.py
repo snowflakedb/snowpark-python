@@ -1954,6 +1954,19 @@ def test_sproc_artifact_repository(session):
     )
     assert artifact_repo_sproc(session=session) == "test"
 
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse.",
+    ):
+        artifact_repo_sproc = sproc(
+            artifact_repo_test,
+            session=session,
+            return_type=StringType(),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,

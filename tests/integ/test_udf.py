@@ -2873,3 +2873,35 @@ def test_register_artifact_repository_negative(session):
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
             artifact_repository_packages=["urllib3==2.1.0", "requests"],
         )
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse.",
+    ):
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+
+    with pytest.raises(Exception, match="Unknown resource constraint key"):
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"cpu": "x86"},
+        )
+
+    with pytest.raises(
+        Exception, match="Unknown value 'risc-v' for key 'architecture'"
+    ):
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "risc-v"},
+        )
