@@ -5919,7 +5919,7 @@ class DataFrame:
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
             if self._session.conf.get("use_simplified_query_generation"):
-                if seed:
+                if seed is not None:
                     local_random = random.Random(seed)
                     python_seed = local_random.random()
                 else:
