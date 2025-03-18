@@ -420,7 +420,11 @@ def test_pivot_default_on_none(session, caplog):
     reason="Multiple aggregations are not supported in local testing mode",
 )
 def test_pivot_multiple_aggs(session):
-    with pytest.raises(SnowparkDataframeException, match="You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot() method unless the pivot is applied with a groupby clause."):
+    with pytest.raises(
+        SnowparkDataframeException,
+        match="You can apply only one aggregate expression to a "
+        "RelationalGroupedDataFrame returned by the pivot() method unless the pivot is applied with a groupby clause.",
+    ):
         TestData.monthly_sales(session).pivot(
             "month", ["JAN", "FEB", "MAR", "APR"]
         ).agg([sum(col("amount")), avg(col("amount"))]).sort(col("empid"))
