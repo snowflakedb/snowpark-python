@@ -137,6 +137,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Pivot,
     Sample,
     Project,
+    SampleBy,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import (
@@ -1532,6 +1533,21 @@ def execute_mock_plan(
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
+
+    if isinstance(source_plan, SampleBy):
+        res_df = execute_mock_plan(source_plan.child, expr_to_alias)
+        col = plan.session._analyzer.analyze(source_plan.col)
+        df = reduce(
+            lambda x, y: pd.concat([x, y], ignore_index=True),
+            [
+                res_df[res_df[col] == k].sample(frac=v)
+                for k, v in source_plan.fractions.items()
+            ],
+        )
+
+        df.sf_types = res_df.sf_types
+        return df
+
     if isinstance(source_plan, CreateViewCommand):
         from_df = execute_mock_plan(source_plan.child, expr_to_alias)
         view_name = source_plan.name

@@ -116,7 +116,22 @@ def extract_assign_targets(
     # in this function we only care about extracting <left>.
     # For this reason, when '=' is found, replace <right> with w.l.o.g. None.
     if "=" in source_line:
-        source_line = source_line[: source_line.find("=")] + " = None"
+        equal_loc = source_line.find("=")
+        expr = source_line[equal_loc + 1 :]
+        source_line = source_line[:equal_loc] + " = None"
+
+    # When list or dict comprehension is used on the right side of the assignment, we don't want to extract the
+    # symbols from the assignment. The target is the symbol inside the dict or list comprehension, which needs
+    # to be extracted properly.
+    try:
+        expr_tree = ast.parse(expr.strip())
+        if isinstance(expr_tree.body[0], ast.Expr) and isinstance(
+            expr_tree.body[0].value,
+            (ast.ListComp, ast.DictComp, ast.GeneratorExp),
+        ):
+            return None
+    except Exception:
+        pass
 
     try:
         tree = ast.parse(source_line.strip())
@@ -220,8 +235,15 @@ def build_expr_from_python_val(
         ast.v = obj  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
 
     elif isinstance(obj, int):
-        ast = with_src_position(expr_builder.int64_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Int64Val"; expected "Expr"
-        ast.v = obj  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
+        # If the integer is too large to fit in 64 bits, we need to convert it to bytes.
+        # The absolute value of the integer needs to be encoded in big-endian mode.
+        if obj.bit_length() >= 64:
+            ast = with_src_position(expr_builder.big_int_val)
+            ast.v = abs(obj).to_bytes(1 + (obj.bit_length() // 8), "big", signed=True)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
+            ast.is_negative = obj < 0  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "is_negative"
+        else:
+            ast = with_src_position(expr_builder.int64_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Int64Val"; expected "Expr"
+            ast.v = obj  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
 
     elif isinstance(obj, float):
         ast = with_src_position(expr_builder.float64_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Float64Val"; expected "Expr"
@@ -400,25 +422,22 @@ def build_view_name(expr: proto.NameRef, name: Union[str, Iterable[str]]) -> Non
 def build_function_expr(
     builtin_name: str,
     args: List[Any],
-    ignore_null_args: bool = False,
 ) -> proto.Expr:
     """
     Creates AST encoding for the methods in function.py.
     Args:
         builtin_name: Name of the builtin function to call.
         args: Positional arguments to pass to function, in the form of a list.
-        ignore_null_args: If True, null arguments will be ignored.
     Returns:
         The AST encoding of the function.
     """
     ast = proto.Expr()
-    args_list = [arg for arg in args if arg is not None] if ignore_null_args else args
     build_builtin_fn_apply(
         ast,
         builtin_name,
         *tuple(
             snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-            for arg in args_list
+            for arg in args
         ),
     )
     return ast
