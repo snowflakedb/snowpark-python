@@ -1152,7 +1152,8 @@ class Analyzer:
                         logical_plan.pivot_column,
                     ]
                     join_columns = [
-                        column.name for column in logical_plan.grouping_columns
+                        self.analyze(expression, df_aliased_col_name_to_real_col_name)
+                        for expression in logical_plan.grouping_columns
                     ]
                     child = self.plan_builder.project(
                         [
@@ -1200,14 +1201,10 @@ class Analyzer:
                         plan,
                         pivot_plan,
                         UsingJoin(FullOuter(), join_columns),
-                        None,
-                        None,
+                        "",
+                        "",
                         logical_plan,
                         self.session.conf.get("use_constant_subquery_alias", False),
-                    )
-                else:
-                    return (
-                        SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
                     )
 
             assert plan is not None
