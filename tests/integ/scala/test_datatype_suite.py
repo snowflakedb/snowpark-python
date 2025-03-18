@@ -187,9 +187,28 @@ def structured_type_session(session, structured_type_support, local_testing_mode
 @pytest.fixture(scope="module")
 def max_string(structured_type_session):
     # SNOW-1938099: When creating tables the default string size is 16mb regardless of
-    # what the lob parameters are set to. Iceberg requires max sized strings however so
-    # manually set the max size here.
+    # what the lob parameters are set to. Iceberg and select statements use max sized strings.
     return structured_type_session._conn.max_string_size
+
+
+@pytest.fixture(scope="module")
+def server_side_max_string(structured_type_session):
+    # SNOW-1938099: SFCTEST0 seems to have an unstable value returned when creating session so for now
+    # derive the max string size from account parameters rather than session parameters.
+
+    non_default_value = None
+    try:
+        enabled = structured_type_session.sql(
+            "show parameters like 'ENABLE_LARGE_VARCHAR_AND_BINARY_IN_RESULT'"
+        ).collect()
+        if enabled[0].value == "true":
+            value = structured_type_session.sql(
+                "show parameters like 'MAX_LOB_SIZE_IN_MEMORY'"
+            ).collect()
+            non_default_value = int(value[0].value)
+    except Exception:
+        pass
+    return non_default_value or structured_type_session._conn.max_string_size
 
 
 @pytest.mark.skipif(
@@ -478,6 +497,7 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
 def test_structured_dtypes_iceberg(
     structured_type_session, local_testing_mode, structured_type_support, max_string
 ):
+
     if not (
         structured_type_support
         and iceberg_supported(structured_type_session, local_testing_mode)
@@ -650,7 +670,10 @@ def test_structured_type_infer(structured_type_session, structured_type_support)
     reason="local testing does not fully support structured types yet.",
 )
 def test_iceberg_nested_fields(
-    structured_type_session, local_testing_mode, structured_type_support, max_string
+    structured_type_session,
+    local_testing_mode,
+    structured_type_support,
+    server_side_max_string,
 ):
     if not (
         structured_type_support
@@ -667,28 +690,40 @@ def test_iceberg_nested_fields(
                 "NESTED_DATA",
                 StructType(
                     [
-                        StructField("camelCase", StringType(), nullable=True),
-                        StructField("snake_case", StringType(), nullable=True),
-                        StructField("PascalCase", StringType(), nullable=True),
+                        StructField(
+                            "camelCase",
+                            StringType(server_side_max_string),
+                            nullable=True,
+                        ),
+                        StructField(
+                            "snake_case",
+                            StringType(server_side_max_string),
+                            nullable=True,
+                        ),
+                        StructField(
+                            "PascalCase",
+                            StringType(server_side_max_string),
+                            nullable=True,
+                        ),
                         StructField(
                             "nested_map",
                             MapType(
-                                StringType(),
+                                StringType(server_side_max_string),
                                 StructType(
                                     [
                                         StructField(
                                             "inner_camelCase",
-                                            StringType(),
+                                            StringType(server_side_max_string),
                                             nullable=True,
                                         ),
                                         StructField(
                                             "inner_snake_case",
-                                            StringType(),
+                                            StringType(server_side_max_string),
                                             nullable=True,
                                         ),
                                         StructField(
                                             "inner_PascalCase",
-                                            StringType(),
+                                            StringType(server_side_max_string),
                                             nullable=True,
                                         ),
                                     ],
@@ -712,15 +747,15 @@ def test_iceberg_nested_fields(
             f"""
         CREATE OR REPLACE ICEBERG TABLE {table_name} (
             "NESTED_DATA" OBJECT(
-                camelCase STRING({max_string}),
-                snake_case STRING({max_string}),
-                PascalCase STRING({max_string}),
+                camelCase STRING({server_side_max_string}),
+                snake_case STRING({server_side_max_string}),
+                PascalCase STRING({server_side_max_string}),
                 nested_map MAP(
-                    STRING({max_string}),
+                    STRING({server_side_max_string}),
                     OBJECT(
-                        inner_camelCase STRING({max_string}),
-                        inner_snake_case STRING({max_string}),
-                        inner_PascalCase STRING({max_string})
+                        inner_camelCase STRING({server_side_max_string}),
+                        inner_snake_case STRING({server_side_max_string}),
+                        inner_PascalCase STRING({server_side_max_string})
                     )
                 )
             )
@@ -754,7 +789,7 @@ def test_struct_dtype_iceberg_lqb(
     local_testing_mode,
     structured_type_support,
     cte_enabled,
-    max_string,
+    server_side_max_string,
 ):
     if not (
         structured_type_support
@@ -772,7 +807,7 @@ def test_struct_dtype_iceberg_lqb(
     """
     expected_dtypes = [
         ("ARR", "array<bigint>"),
-        ("MAP", f"map<string({max_string}),bigint>"),
+        ("MAP", f"map<string({server_side_max_string}),bigint>"),
         ("A", "bigint"),
         ("B", "bigint"),
     ]
@@ -781,7 +816,9 @@ def test_struct_dtype_iceberg_lqb(
             StructField("ARR", ArrayType(LongType(), structured=True), nullable=True),
             StructField(
                 "MAP",
-                MapType(StringType(), LongType(), structured=True),
+                MapType(
+                    StringType(server_side_max_string), LongType(), structured=True
+                ),
                 nullable=True,
             ),
             StructField("A", LongType(), nullable=True),
@@ -877,7 +914,10 @@ def test_struct_dtype_iceberg_lqb(
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg_create_from_values(
-    structured_type_session, local_testing_mode, structured_type_support, max_string
+    structured_type_session,
+    local_testing_mode,
+    structured_type_support,
+    server_side_max_string,
 ):
     if not (
         structured_type_support
@@ -885,7 +925,7 @@ def test_structured_dtypes_iceberg_create_from_values(
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
 
-    _, __, expected_schema = _create_example(True, max_string)
+    _, __, expected_schema = _create_example(True, server_side_max_string)
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     data = [
         ({"x": 1}, Row(A="a", b=1), [1, 1, 1]),
@@ -908,14 +948,19 @@ def test_structured_dtypes_iceberg_create_from_values(
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg_udf(
-    structured_type_session, local_testing_mode, structured_type_support, max_string
+    structured_type_session,
+    local_testing_mode,
+    structured_type_support,
+    server_side_max_string,
 ):
     if not (
         structured_type_support
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
-    query, expected_dtypes, expected_schema = _create_example(True, max_string)
+    query, expected_dtypes, expected_schema = _create_example(
+        True, server_side_max_string
+    )
 
     table_name = f"snowpark_structured_dtypes_udf_test{uuid.uuid4().hex[:5]}"
 
