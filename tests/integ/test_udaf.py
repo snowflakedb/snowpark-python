@@ -630,3 +630,16 @@ def test_udaf_artifact_repository(session):
     )
     df = session.create_dataframe([(1,)], schema=["a"])
     Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse.",
+    ):
+        ar_udaf = udaf(
+            ArtifactRepositoryHandler,
+            return_type=StringType(),
+            input_types=[IntegerType()],
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )

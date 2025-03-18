@@ -1311,7 +1311,7 @@ def test_udtf_external_access_integration(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
 )
-@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+# @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 @pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
@@ -1337,3 +1337,15 @@ def test_udtf_artifact_repository(session, resources_path):
             )
         ],
     )
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse.",
+    ):
+        ar_udtf = session.udtf.register(
+            ArtifactRepositoryUDTF,
+            output_schema=StructType([StructField("a", StringType())]),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
