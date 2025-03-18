@@ -5878,7 +5878,6 @@ class DataFrame:
             cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
 
-    @df_collect_api_telemetry
     @publicapi
     def random_split(
         self,
@@ -5943,39 +5942,61 @@ class DataFrame:
                     raise ValueError("weights must be positive numbers")
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
-            if self._session.conf.get("use_simplified_query_generation"):
-                if seed is not None:
-                    local_random = random.Random(seed)
-                    python_seed = local_random.random()
+            with ResourceUsageCollector() as resource_usage_collector:
+                if self._session.conf.get("use_simplified_query_generation"):
+                    api_name = "DataFrame.random_split[hash]"
+                    if seed is not None:
+                        local_random = random.Random(seed)
+                        python_seed = local_random.random()
+                    else:
+                        python_seed = random.random()
+                    intermediate_df = self.with_column(
+                        temp_column_name,
+                        abs_(
+                            hash_(
+                                "*", lit(python_seed, _emit_ast=False), _emit_ast=False
+                            ),
+                            _emit_ast=False,
+                        )
+                        % _ONE_MILLION,
+                        _emit_ast=False,
+                    )
                 else:
-                    python_seed = random.random()
-                intermediate_df = self.with_column(
-                    temp_column_name,
-                    abs_(hash_("*", lit(python_seed))) % _ONE_MILLION,
-                    _emit_ast=False,
+                    api_name = "DataFrame.random_split[cache_result]"
+                    intermediate_df = self.with_column(
+                        temp_column_name,
+                        abs_(random_(seed, _emit_ast=False), _emit_ast=False)
+                        % _ONE_MILLION,
+                        _emit_ast=False,
+                    ).cache_result(statement_params=statement_params, _emit_ast=False)
+                sum_weights = sum(weights)
+                normalized_cum_weights = [0] + [
+                    int(w * _ONE_MILLION)
+                    for w in list(
+                        itertools.accumulate([w / sum_weights for w in weights])
+                    )
+                ]
+                normalized_boundaries = zip(
+                    normalized_cum_weights[:-1], normalized_cum_weights[1:]
                 )
-            else:
-                intermediate_df = self.with_column(
-                    temp_column_name,
-                    abs_(random_(seed)) % _ONE_MILLION,
-                    _emit_ast=False,
-                ).cache_result(statement_params=statement_params, _emit_ast=False)
-            sum_weights = sum(weights)
-            normalized_cum_weights = [0] + [
-                int(w * _ONE_MILLION)
-                for w in list(itertools.accumulate([w / sum_weights for w in weights]))
-            ]
-            normalized_boundaries = zip(
-                normalized_cum_weights[:-1], normalized_cum_weights[1:]
-            )
-            res_dfs = [
-                intermediate_df.where(
-                    (col(temp_column_name) >= lower_bound)
-                    & (col(temp_column_name) < upper_bound),
-                    _emit_ast=False,
-                ).drop(temp_column_name, _emit_ast=False)
-                for lower_bound, upper_bound in normalized_boundaries
-            ]
+                res_dfs = [
+                    intermediate_df.where(
+                        (col(temp_column_name) >= lower_bound)
+                        & (col(temp_column_name) < upper_bound),
+                        _emit_ast=False,
+                    ).drop(temp_column_name, _emit_ast=False)
+                    for lower_bound, upper_bound in normalized_boundaries
+                ]
+
+            for df in res_dfs:
+                # adjust for .where and .drop
+                adjust_api_subcalls(
+                    df,
+                    api_name,
+                    precalls=self._plan.api_calls,
+                    subcalls=df._plan.api_calls[-3:],
+                    resource_usage=resource_usage_collector.get_resource_usage(),
+                )
 
             if _emit_ast:
                 # Assign each Dataframe in res_dfs a __getitem__ from random_split.
