@@ -417,7 +417,12 @@ class Utils:
             Utils.assert_rows(actual_rows, expected_rows, float_equality_threshold)
 
     @staticmethod
-    def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
+    def verify_schema(
+        sql: str,
+        expected_schema: StructType,
+        session: Session,
+        max_string_size: int = None,
+    ) -> None:
         session._run_query(sql)
         result_meta = session._conn._cursor.description
 
@@ -428,16 +433,17 @@ class Utils:
                 == field.column_identifier.quoted_name
             )
             assert meta.is_nullable == field.nullable
-            assert (
-                convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[meta.type_code],
-                    meta.precision,
-                    meta.scale,
-                    meta.internal_size,
-                    session._conn.max_string_size,
-                )
-                == field.datatype
+
+            sp_type = convert_sf_to_sp_type(
+                FIELD_ID_TO_NAME[meta.type_code],
+                meta.precision,
+                meta.scale,
+                meta.internal_size,
+                max_string_size or session._conn.max_string_size,
             )
+            assert (
+                sp_type == field.datatype
+            ), f"{sp_type=} is not equal to {field.datatype=}"
 
     @staticmethod
     def is_active_transaction(session: Session) -> bool:
