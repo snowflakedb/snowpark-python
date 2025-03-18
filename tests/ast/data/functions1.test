@@ -358,9 +358,9 @@ df27 = df.select(bitshiftright("A", col("B")), bitshiftright("A", -10), bitshift
 
 df28 = df.select(bround("A", 10), bround("A", 2), bround(col("A"), col("B")))
 
-df29 = df.select(convert_timezone("A", col("B")), convert_timezone(col("A"), "B"), convert_timezone("A", "B"), convert_timezone(col("A"), col("B")), convert_timezone("A", "B"), convert_timezone("A", "B", "A"))
+df29 = df.select(convert_timezone("A", col("B"), None), convert_timezone(col("A"), "B", None), convert_timezone("A", "B", None), convert_timezone(col("A"), col("B"), None), convert_timezone("A", "B", None), convert_timezone("A", "B", "A"))
 
-df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
+df30 = df.select(convert_timezone(lit("UTC"), col("a"), None), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
 
 df31 = df.select(approx_count_distinct("A"), approx_count_distinct(col("A")))
 
@@ -376,9 +376,9 @@ df36 = df.select(covar_pop("A", col("B")))
 
 df37 = df.select(covar_samp("A", "B"))
 
-df38 = df.select(create_map("A", "B"))
+df38 = df.select(create_map(["A", "B"]))
 
-df39 = df.select(create_map("A", "B", "A", "B"))
+df39 = df.select(create_map(("A", "B", "A", "B")))
 
 df40 = df.select(create_map("A", "B"))
 
@@ -436,7 +436,7 @@ df66 = df.select(not_("A"))
 
 df67 = df.select(random(), random(), random(10))
 
-df68 = df.select(uniform("A", "B", "A"), uniform(lit(10), lit(13.0).cast(FloatType()), col("A")), uniform(lit(0.2).cast(FloatType()), lit(2), lit(0.2)))
+df68 = df.select(uniform("A", "B", "A"), uniform(10, 13.0, col("A")), uniform(0.2, 2, 0.2))
 
 df69 = df.select(seq1(0), seq1(10), seq1(-10))
 
@@ -550,7 +550,7 @@ df123 = df111.select(regexp_replace("A", "B", "", 1, 0), regexp_replace(col("A")
 
 df124 = df111.select(replace(col("A"), "", ""), replace("A", "B", "ahsgj"))
 
-df125 = df111.select(charindex("A", "B", 20), charindex("A", "B", col("C")))
+df125 = df111.select(charindex(col("A"), col("B"), None), charindex("A", "B", None), charindex("A", "B", 20), charindex("A", "B", col("C")))
 
 df126 = df111.select(collate(col("A"), "sp-upper"))
 
@@ -576,7 +576,7 @@ df136 = df111.select(right("A", col("B")), right(col("A"), 10))
 
 df137 = df111.select(char("A"))
 
-df138 = df111.select(to_char("A", "bcd"))
+df138 = df111.select(to_char("A", None), to_char(col("B"), None), to_char("A", "bcd"))
 
 df139 = df111.select(date_format(col("A"), col("B")), date_format("A", "YYYY"))
 
@@ -3433,6 +3433,17 @@ body {
                   }
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 56
+                    end_line: 85
+                    file: 2
+                    start_column: 25
+                    start_line: 85
+                  }
+                }
+              }
               src {
                 end_column: 56
                 end_line: 85
@@ -3501,6 +3512,17 @@ body {
                   v: "B"
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 89
+                    end_line: 85
+                    file: 2
+                    start_column: 58
+                    start_line: 85
+                  }
+                }
+              }
               src {
                 end_column: 89
                 end_line: 85
@@ -3545,6 +3567,17 @@ body {
                     start_line: 85
                   }
                   v: "B"
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 117
+                    end_line: 85
+                    file: 2
+                    start_column: 91
+                    start_line: 85
+                  }
                 }
               }
               src {
@@ -3637,6 +3670,17 @@ body {
                   }
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 155
+                    end_line: 85
+                    file: 2
+                    start_column: 119
+                    start_line: 85
+                  }
+                }
+              }
               src {
                 end_column: 155
                 end_line: 85
@@ -3681,6 +3725,17 @@ body {
                     start_line: 85
                   }
                   v: "B"
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 187
+                    end_line: 85
+                    file: 2
+                    start_column: 157
+                    start_line: 85
+                  }
                 }
               }
               src {
@@ -3859,6 +3914,17 @@ body {
                     end_line: 87
                     file: 2
                     start_column: 54
+                    start_line: 87
+                  }
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 63
+                    end_line: 87
+                    file: 2
+                    start_column: 25
                     start_line: 87
                   }
                 }
@@ -4912,7 +4978,7 @@ body {
                 }
               }
               pos_args {
-                string_val {
+                list_val {
                   src {
                     end_column: 47
                     end_line: 103
@@ -4920,19 +4986,30 @@ body {
                     start_column: 25
                     start_line: 103
                   }
-                  v: "A"
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 47
-                    end_line: 103
-                    file: 2
-                    start_column: 25
-                    start_line: 103
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 47
+                        end_line: 103
+                        file: 2
+                        start_column: 25
+                        start_line: 103
+                      }
+                      v: "A"
+                    }
                   }
-                  v: "B"
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 47
+                        end_line: 103
+                        file: 2
+                        start_column: 25
+                        start_line: 103
+                      }
+                      v: "B"
+                    }
+                  }
                 }
               }
               src {
@@ -4990,7 +5067,7 @@ body {
                 }
               }
               pos_args {
-                string_val {
+                tuple_val {
                   src {
                     end_column: 57
                     end_line: 105
@@ -4998,43 +5075,54 @@ body {
                     start_column: 25
                     start_line: 105
                   }
-                  v: "A"
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 57
-                    end_line: 105
-                    file: 2
-                    start_column: 25
-                    start_line: 105
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 57
+                        end_line: 105
+                        file: 2
+                        start_column: 25
+                        start_line: 105
+                      }
+                      v: "A"
+                    }
                   }
-                  v: "B"
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 57
-                    end_line: 105
-                    file: 2
-                    start_column: 25
-                    start_line: 105
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 57
+                        end_line: 105
+                        file: 2
+                        start_column: 25
+                        start_line: 105
+                      }
+                      v: "B"
+                    }
                   }
-                  v: "A"
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 57
-                    end_line: 105
-                    file: 2
-                    start_column: 25
-                    start_line: 105
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 57
+                        end_line: 105
+                        file: 2
+                        start_column: 25
+                        start_line: 105
+                      }
+                      v: "A"
+                    }
                   }
-                  v: "B"
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 57
+                        end_line: 105
+                        file: 2
+                        start_column: 25
+                        start_line: 105
+                      }
+                      v: "B"
+                    }
+                  }
                 }
               }
               src {
@@ -7395,30 +7483,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    int64_val {
-                      src {
-                        end_column: 75
-                        end_line: 163
-                        file: 2
-                        start_column: 49
-                        start_line: 163
-                      }
-                      v: 10
-                    }
-                  }
+                int64_val {
                   src {
                     end_column: 75
                     end_line: 163
@@ -7426,44 +7491,11 @@ body {
                     start_column: 49
                     start_line: 163
                   }
+                  v: 10
                 }
               }
               pos_args {
-                column_cast {
-                  col {
-                    apply_expr {
-                      fn {
-                        builtin_fn {
-                          name {
-                            name {
-                              name_flat {
-                                name: "lit"
-                              }
-                            }
-                          }
-                        }
-                      }
-                      pos_args {
-                        float64_val {
-                          src {
-                            end_column: 75
-                            end_line: 163
-                            file: 2
-                            start_column: 49
-                            start_line: 163
-                          }
-                          v: 13.0
-                        }
-                      }
-                      src {
-                        end_column: 75
-                        end_line: 163
-                        file: 2
-                        start_column: 49
-                        start_line: 163
-                      }
-                    }
-                  }
+                float64_val {
                   src {
                     end_column: 75
                     end_line: 163
@@ -7471,9 +7503,7 @@ body {
                     start_column: 49
                     start_line: 163
                   }
-                  to {
-                    float_type: true
-                  }
+                  v: 13.0
                 }
               }
               pos_args {
@@ -7533,41 +7563,7 @@ body {
                 }
               }
               pos_args {
-                column_cast {
-                  col {
-                    apply_expr {
-                      fn {
-                        builtin_fn {
-                          name {
-                            name {
-                              name_flat {
-                                name: "lit"
-                              }
-                            }
-                          }
-                        }
-                      }
-                      pos_args {
-                        float64_val {
-                          src {
-                            end_column: 97
-                            end_line: 163
-                            file: 2
-                            start_column: 77
-                            start_line: 163
-                          }
-                          v: 0.2
-                        }
-                      }
-                      src {
-                        end_column: 97
-                        end_line: 163
-                        file: 2
-                        start_column: 77
-                        start_line: 163
-                      }
-                    }
-                  }
+                float64_val {
                   src {
                     end_column: 97
                     end_line: 163
@@ -7575,36 +7571,11 @@ body {
                     start_column: 77
                     start_line: 163
                   }
-                  to {
-                    float_type: true
-                  }
+                  v: 0.2
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    int64_val {
-                      src {
-                        end_column: 97
-                        end_line: 163
-                        file: 2
-                        start_column: 77
-                        start_line: 163
-                      }
-                      v: 2
-                    }
-                  }
+                int64_val {
                   src {
                     end_column: 97
                     end_line: 163
@@ -7612,33 +7583,11 @@ body {
                     start_column: 77
                     start_line: 163
                   }
+                  v: 2
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    float64_val {
-                      src {
-                        end_column: 97
-                        end_line: 163
-                        file: 2
-                        start_column: 77
-                        start_line: 163
-                      }
-                      v: 0.2
-                    }
-                  }
+                float64_val {
                   src {
                     end_column: 97
                     end_line: 163
@@ -7646,6 +7595,7 @@ body {
                     start_column: 77
                     start_line: 163
                   }
+                  v: 0.2
                 }
               }
               src {
@@ -15422,6 +15372,164 @@ body {
                 }
               }
               pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 44
+                        end_line: 277
+                        file: 2
+                        start_column: 36
+                        start_line: 277
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 44
+                    end_line: 277
+                    file: 2
+                    start_column: 36
+                    start_line: 277
+                  }
+                }
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 54
+                        end_line: 277
+                        file: 2
+                        start_column: 46
+                        start_line: 277
+                      }
+                      v: "B"
+                    }
+                  }
+                  src {
+                    end_column: 54
+                    end_line: 277
+                    file: 2
+                    start_column: 46
+                    start_line: 277
+                  }
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 55
+                    end_line: 277
+                    file: 2
+                    start_column: 26
+                    start_line: 277
+                  }
+                }
+              }
+              src {
+                end_column: 55
+                end_line: 277
+                file: 2
+                start_column: 26
+                start_line: 277
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "charindex"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 82
+                    end_line: 277
+                    file: 2
+                    start_column: 57
+                    start_line: 277
+                  }
+                  v: "A"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 82
+                    end_line: 277
+                    file: 2
+                    start_column: 57
+                    start_line: 277
+                  }
+                  v: "B"
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 82
+                    end_line: 277
+                    file: 2
+                    start_column: 57
+                    start_line: 277
+                  }
+                }
+              }
+              src {
+                end_column: 82
+                end_line: 277
+                file: 2
+                start_column: 57
+                start_line: 277
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "charindex"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
                 string_val {
                   src {
                     end_column: 107
@@ -17100,6 +17208,118 @@ body {
     expr {
       dataframe_select {
         cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "to_char"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 38
+                    end_line: 303
+                    file: 2
+                    start_column: 26
+                    start_line: 303
+                  }
+                  v: "A"
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 38
+                    end_line: 303
+                    file: 2
+                    start_column: 26
+                    start_line: 303
+                  }
+                }
+              }
+              src {
+                end_column: 38
+                end_line: 303
+                file: 2
+                start_column: 26
+                start_line: 303
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "to_char"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 56
+                        end_line: 303
+                        file: 2
+                        start_column: 48
+                        start_line: 303
+                      }
+                      v: "B"
+                    }
+                  }
+                  src {
+                    end_column: 56
+                    end_line: 303
+                    file: 2
+                    start_column: 48
+                    start_line: 303
+                  }
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 63
+                    end_line: 303
+                    file: 2
+                    start_column: 40
+                    start_line: 303
+                  }
+                }
+              }
+              src {
+                end_column: 63
+                end_line: 303
+                file: 2
+                start_column: 40
+                start_line: 303
+              }
+            }
+          }
           args {
             apply_expr {
               fn {
@@ -19157,4 +19377,5 @@ client_language {
 client_version {
   major: 1
   minor: 29
+  patch: 1
 }

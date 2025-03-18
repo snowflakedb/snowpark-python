@@ -1041,29 +1041,36 @@ def test_relational_dataframe_api_calls(session):
     )
 
 
-def test_dataframe_stat_functions_api_calls(session):
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_dataframe_stat_functions_api_calls(session, use_simplified_query_generation):
+    session.conf.set("use_simplified_query_generation", use_simplified_query_generation)
     df = TestData.monthly_sales(session)
     compare_api_calls(
         df._plan.api_calls, [{"name": "Session.create_dataframe[values]"}]
     )
 
     sample_by = df.stat.sample_by(col("empid"), {1: 0.0, 2: 1.0})
+    if use_simplified_query_generation:
+        sample_by_api_calls = {"name": "DataFrameStatFunctions.sample_by[percent_rank]"}
+    else:
+        sample_by_api_calls = {
+            "name": "DataFrameStatFunctions.sample_by[union_all]",
+            "subcalls": [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.filter"},
+                {"name": "DataFrame.sample"},
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.filter"},
+                {"name": "DataFrame.sample"},
+                {"name": "DataFrame.union_all"},
+            ],
+        }
+
     compare_api_calls(
         sample_by._plan.api_calls,
         [
             {"name": "Session.create_dataframe[values]"},
-            {
-                "name": "DataFrameStatFunctions.sample_by",
-                "subcalls": [
-                    {"name": "Session.create_dataframe[values]"},
-                    {"name": "DataFrame.filter"},
-                    {"name": "DataFrame.sample"},
-                    {"name": "Session.create_dataframe[values]"},
-                    {"name": "DataFrame.filter"},
-                    {"name": "DataFrame.sample"},
-                    {"name": "DataFrame.union_all"},
-                ],
-            },
+            sample_by_api_calls,
         ],
     )
     # check to make sure that the original DF is unchanged
