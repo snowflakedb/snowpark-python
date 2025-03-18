@@ -465,18 +465,6 @@ def test_pivot_multiple_aggs(session):
         ],
     )
 
-    # # 3) AVG and COUNT_DISTINCT
-    # Utils.check_answer(
-    #     TestData.monthly_sales(session)
-    #     .pivot("month", ["JAN", "FEB", "MAR", "APR"])
-    #     .agg([avg(col("amount")), count_distinct(col("amount"))])
-    #     .sort(col("empid")),
-    #     [
-    #         Row(1, 5200, 4000, 5500, 9000),
-    #         Row(2, 19750, 45350, 6000, 2650),
-    #     ],
-    # )
-
 
 def test_rel_grouped_dataframe_agg(session):
     df = (
