@@ -4,6 +4,7 @@
 #
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
@@ -221,6 +222,8 @@ class RelationalGroupedDataFrame:
                 self._dataframe._select_statement or self._dataframe._plan,
             )
         elif isinstance(self._group_type, _PivotType):
+            if len(agg_exprs) != 1 and len(unaliased_grouping) == 0:
+                raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             group_plan = Pivot(
                 unaliased_grouping,
                 self._group_type.pivot_col,

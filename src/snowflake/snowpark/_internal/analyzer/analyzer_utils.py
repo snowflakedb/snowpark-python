@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     quote_name,
     random_name_for_temp_object,
+    unwrap_single_quote,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
@@ -1249,6 +1250,7 @@ def pivot_statement(
     default_on_null: Optional[str],
     child: str,
 ) -> str:
+    select_str = STAR
     if isinstance(pivot_values, str):
         # The subexpression in this case already includes parenthesis.
         values_str = pivot_values
@@ -1258,10 +1260,23 @@ def pivot_statement(
             + (ANY if pivot_values is None else COMMA.join(pivot_values))
             + RIGHT_PARENTHESIS
         )
+        if pivot_values is not None:
+            quoted_names = [quote_name(value) for value in pivot_values]
+            aliased_names = [
+                quote_name(f"{unwrap_single_quote(value)}_{aggregate}")
+                for value in pivot_values
+            ]
+            aliased_string = [
+                f"{quoted_name} AS {aliased_name}"
+                for aliased_name, quoted_name in zip(aliased_names, quoted_names)
+            ]
+            exclude_str = COMMA.join(quoted_names)
+            alised_str = COMMA.join(aliased_string)
+            select_str = f"{STAR} EXCLUDE({exclude_str}), {alised_str}"
 
     return (
         SELECT
-        + STAR
+        + select_str
         + FROM
         + LEFT_PARENTHESIS
         + child

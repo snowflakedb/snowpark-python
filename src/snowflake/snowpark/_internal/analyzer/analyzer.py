@@ -50,9 +50,10 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryExpression,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    FullOuter,
     Join,
     SetOperation,
-    Union as UnionPlan,
+    UsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
@@ -1128,7 +1129,10 @@ class Analyzer:
                 pivot_values = None
 
             plan = None
+
             for agg_expr in logical_plan.aggregates:
+                # We only allow pivot on more than one aggregates when it on a groupby clause
+                join_columns: List[str] | None = None
                 if (
                     len(logical_plan.grouping_columns) != 0
                     and agg_expr.children is not None
@@ -1147,6 +1151,9 @@ class Analyzer:
                         ],  # aggregate column is first child in logical_plan.aggregates
                         logical_plan.pivot_column,
                     ]
+                    join_columns = [
+                        column.name for column in logical_plan.grouping_columns
+                    ]
                     child = self.plan_builder.project(
                         [
                             self.analyze(col, df_aliased_col_name_to_real_col_name)
@@ -1163,9 +1170,7 @@ class Analyzer:
                         logical_plan.pivot_column, df_aliased_col_name_to_real_col_name
                     ),
                     pivot_values,
-                    self.analyze(
-                        logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
-                    ),
+                    self.analyze(agg_expr, df_aliased_col_name_to_real_col_name),
                     self.analyze(
                         logical_plan.default_on_null,
                         df_aliased_col_name_to_real_col_name,
@@ -1190,10 +1195,19 @@ class Analyzer:
                 # https://docs.snowflake.com/en/sql-reference/constructs/pivot#dynamic-pivot-with-multiple-aggregations-using-union
                 if plan is None:
                     plan = pivot_plan
+                elif join_columns is not None:
+                    plan = self.plan_builder.join(
+                        plan,
+                        pivot_plan,
+                        UsingJoin(FullOuter(), join_columns),
+                        None,
+                        None,
+                        logical_plan,
+                        self.session.conf.get("use_constant_subquery_alias", False),
+                    )
                 else:
-                    union_plan = UnionPlan(plan, pivot_plan, is_all=False)
-                    plan = self.plan_builder.set_operator(
-                        plan, pivot_plan, union_plan.sql, union_plan
+                    return (
+                        SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
                     )
 
             assert plan is not None
