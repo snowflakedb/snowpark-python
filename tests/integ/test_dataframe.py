@@ -3554,7 +3554,7 @@ def test_create_dataframe_string_length(session, local_testing_mode):
             session.sql(f"show columns in {table_name}").collect()[0]["data_type"]
         )
         assert datatype["type"] == "TEXT"
-        assert datatype["length"] == 2**20 * 16  # max length (16 MB)
+        assert datatype["length"] == session._conn.max_string_size
     else:
         datatype = df.schema[0].datatype
         assert isinstance(datatype, StringType)
@@ -4888,7 +4888,7 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
 
     expected_fields = [
         StructField("COL1", LongType(), nullable=False),
-        StructField("COL2", StringType(), nullable=True),
+        StructField("COL2", StringType(2**24), nullable=True),
     ]
     assert df.schema.fields == expected_fields
 
@@ -4948,7 +4948,7 @@ def test_create_dataframe_implicit_struct_not_null_mixed(session):
     expected_fields = [
         StructField("FLAG", BooleanType(), nullable=False),
         StructField("DT", df.schema.fields[1].datatype, nullable=True),
-        StructField("TXT", StringType(), nullable=False),
+        StructField("TXT", StringType(2**24), nullable=False),
     ]
 
     assert df.schema.fields == expected_fields
