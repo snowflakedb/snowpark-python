@@ -909,7 +909,7 @@ def test_add_requirements_unsupported_with_cache_path_negative(
         "cache_path": "arbitrary_name_for_not_existent_stages",
     }
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        with pytest.raises(RuntimeError, match="does not exist or not authorized"):
+        with pytest.raises(RuntimeError, match="Unable to auto-upload packages"):
             session.add_requirements(test_files.test_unsupported_requirements_file)
 
 
