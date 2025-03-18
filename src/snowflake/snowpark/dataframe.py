@@ -5989,7 +5989,7 @@ class DataFrame:
                 ]
 
             for df in res_dfs:
-                # adjust for .where and .drop
+                # adjust for .with_column().where().drop()
                 adjust_api_subcalls(
                     df,
                     api_name,
