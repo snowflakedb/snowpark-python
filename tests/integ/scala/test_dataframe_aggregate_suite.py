@@ -431,12 +431,29 @@ def test_pivot_multiple_aggs(session):
             "month", ["JAN", "FEB", "MAR", "APR"]
         ).agg([sum(col("amount")), avg(col("amount"))]).sort(col("empid"))
 
-    Utils.check_answer(
+    df = (
         TestData.monthly_sales(session)
         .groupBy(col("empid"))
         .pivot("month", ["JAN", "FEB", "MAR", "APR"])
         .agg([sum(col("amount")), avg(col("amount"))])
-        .sort(col("empid")),
+        .sort(col("empid"))
+    )
+
+    print(df.schema.fields)
+    assert [f.name for f in df.schema.fields] == [
+        "EMPID",
+        '"JAN_sum(""AMOUNT"")"',
+        '"FEB_sum(""AMOUNT"")"',
+        '"MAR_sum(""AMOUNT"")"',
+        '"APR_sum(""AMOUNT"")"',
+        '"JAN_avg(""AMOUNT"")"',
+        '"FEB_avg(""AMOUNT"")"',
+        '"MAR_avg(""AMOUNT"")"',
+        '"APR_avg(""AMOUNT"")"',
+    ]
+
+    Utils.check_answer(
+        df,
         [
             Row(1, 10400, 8000, 11000, 18000, 5200.0, 4000.0, 5500.0, 9000.0),
             Row(
@@ -453,13 +470,29 @@ def test_pivot_multiple_aggs(session):
         ],
     )
 
-    # 2) MIN and MAX
-    Utils.check_answer(
+    df = (
         TestData.monthly_sales(session)
         .groupBy(col("empid"))
         .pivot("month", ["JAN", "FEB", "MAR", "APR"])
         .agg([min(col("amount")), max(col("amount"))])
-        .sort(col("empid")),
+        .sort(col("empid"))
+    )
+
+    assert [f.name for f in df.schema.fields] == [
+        "EMPID",
+        '"JAN_min(""AMOUNT"")"',
+        '"FEB_min(""AMOUNT"")"',
+        '"MAR_min(""AMOUNT"")"',
+        '"APR_min(""AMOUNT"")"',
+        '"JAN_max(""AMOUNT"")"',
+        '"FEB_max(""AMOUNT"")"',
+        '"MAR_max(""AMOUNT"")"',
+        '"APR_max(""AMOUNT"")"',
+    ]
+
+    # 2) MIN and MAX
+    Utils.check_answer(
+        df,
         [
             Row(1, 400, 3000, 5000, 8000, 10000, 5000, 6000, 10000),
             Row(2, 4500, 200, 2500, 800, 35000, 90500, 9500, 4500),
