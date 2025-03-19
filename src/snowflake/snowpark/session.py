@@ -1376,8 +1376,8 @@ class Session:
             else self._session_stage
         )
         file_list = (
-            self.sql(f"ls {normalized}")
-            .select('"name"')
+            self.sql(f"ls {normalized}", _emit_ast=False)
+            .select('"name"', _emit_ast=False)
             ._internal_collect_with_tag(statement_params=statement_params)
         )
         prefix_length = get_stage_file_prefix_length(stage_location)
@@ -2043,7 +2043,8 @@ class Session:
                     row[0]: row[1] if row[1] else []
                     for row in (
                         self.sql(
-                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
+                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t",
+                            _emit_ast=False,
                         )._internal_collect_with_tag()
                     )
                 }
@@ -2148,9 +2149,10 @@ class Session:
             row[0]: row[1].split("|") if row[1] else []
             for row in (
                 self.sql(
-                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t"
+                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t",
+                    _emit_ast=False,
                 )
-                .filter(col("signature") == environment_signature)
+                .filter(col("signature") == environment_signature, _emit_ast=False)
                 ._internal_collect_with_tag()
             )
         }
@@ -2183,7 +2185,7 @@ class Session:
         package_to_version_mapping = (
             {
                 p[0]: json.loads(p[1])
-                for p in self.table(package_table_name)
+                for p in self.table(package_table_name, _emit_ast=False)
                 .filter(
                     (col("language", _emit_ast=False) == "python")
                     & (
@@ -2240,7 +2242,7 @@ class Session:
         Fetches the current sessions query tag.
         """
         remote_tag_rows = self.sql(
-            "SHOW PARAMETERS LIKE 'QUERY_TAG'"
+            "SHOW PARAMETERS LIKE 'QUERY_TAG'", _emit_ast=False
         )._internal_collect_with_tag_no_telemetry()
 
         # Check if the result has the expected schema
@@ -3330,6 +3332,7 @@ class Session:
                         auto_create_table=True,
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
+                        _emit_ast=False,
                     )
                     set_api_call_source(table, "Session.create_dataframe[arrow]")
                 else:
@@ -3342,6 +3345,7 @@ class Session:
                         auto_create_table=True,
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
+                        _emit_ast=False,
                     )
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
