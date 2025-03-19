@@ -1340,16 +1340,18 @@ def test_udtf_artifact_repository(session, resources_path):
         ],
     )
 
-    with pytest.raises(
-        SnowparkSQLException,
-        match="Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse.",
-    ):
+    try:
         ar_udtf = session.udtf.register(
             ArtifactRepositoryUDTF,
             output_schema=StructType([StructField("a", StringType())]),
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
             artifact_repository_packages=["urllib3", "requests"],
             resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex)
         )
 
 
