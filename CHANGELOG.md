@@ -11,6 +11,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### Bug Fixes
+
+- Fixed a bug that caused `to_timestamp` to fail when casting filtered columns.
+
 #### New Features
 
 ### Snowpark pandas API Updates
