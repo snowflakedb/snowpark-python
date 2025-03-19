@@ -23,7 +23,7 @@
 #### Improvements
 
 - Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
-- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
+- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources.
 
 ## 1.29.1 (2025-03-12)
 
