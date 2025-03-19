@@ -4,6 +4,7 @@
 #
 import copy
 import datetime
+import decimal
 import json
 import logging
 import math
@@ -2562,8 +2563,44 @@ def test_fillna(session, local_testing_mode):
         df.fillna(1, subset={1: "a"})
     assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
+    # Fill Decimal columns with int
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123, include_decimal=True),
+        [
+            Row(decimal.Decimal(1), decimal.Decimal(123)),
+            Row(decimal.Decimal(123), 2),
+        ],
+        sort=False,
+    )
+    # Fill Decimal columns with float
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123.0, include_decimal=True),
+        [
+            Row(decimal.Decimal(1), decimal.Decimal(123)),
+            Row(decimal.Decimal(123), 2),
+        ],
+        sort=False,
+    )
+    # Making sure default still reflects old behavior
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123.0),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
 
-def test_replace_with_coercion(session):
+
+def test_replace_with_coercion(session, local_testing_mode):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
     )
@@ -2634,6 +2671,48 @@ def test_replace_with_coercion(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
+    if local_testing_mode:
+        # SNOW-1989698: local test gap
+        return
+    # Replace Decimal value with int
+    Utils.check_answer(
+        TestData.null_data4(session).replace(
+            decimal.Decimal(1), 123, include_decimal=True
+        ),
+        [
+            Row(decimal.Decimal(123), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    # Replace Decimal value with float
+    Utils.check_answer(
+        TestData.null_data4(session).replace(
+            decimal.Decimal(1), 123.0, include_decimal=True
+        ),
+        [
+            Row(decimal.Decimal(123.0), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    # Make sure old behavior is untouched
+    Utils.check_answer(
+        TestData.null_data4(session).replace(decimal.Decimal(1), 123),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data4(session).replace(decimal.Decimal(1), 123.0),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
 
 
 @pytest.mark.skipif(
