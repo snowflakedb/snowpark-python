@@ -704,6 +704,7 @@ class UDFRegistration:
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -837,6 +838,7 @@ class UDFRegistration:
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udf(

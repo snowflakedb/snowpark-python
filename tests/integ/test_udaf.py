@@ -4,7 +4,9 @@
 
 import datetime
 import decimal
+import os
 import sys
+from textwrap import dedent
 from typing import Any, Dict, List
 
 import pytest
@@ -643,3 +645,52 @@ def test_udaf_artifact_repository(session):
             artifact_repository_packages=["urllib3", "requests"],
             resource_constraint={"architecture": "x86"},
         )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udaf_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import urllib3
+
+    class ArtifactRepositoryHandler:
+        def __init__(self) -> None:
+            self._result = ""
+
+        @property
+        def aggregate_state(self):
+            return self._result
+
+        def accumulate(self, input_value):
+            import urllib3
+
+            self._result = str(urllib3.exceptions.HTTPError("test"))
+
+        def merge(self, other_result):
+            self._result += other_result
+
+        def finish(self):
+            return self._result
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_udaf.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    ar_udaf = session.udaf.register_from_file(
+        file_path,
+        "ArtifactRepositoryHandler",
+        return_type=StringType(),
+        input_types=[IntegerType()],
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+    df = session.create_dataframe([(1,)], schema=["a"])
+    Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])
