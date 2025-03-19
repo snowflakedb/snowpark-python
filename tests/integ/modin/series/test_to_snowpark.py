@@ -47,7 +47,8 @@ def test_to_snowpark_from_pandas_series(snow_series_basic, index, index_label) -
         )
         assert isinstance(snowpark_df.schema[start].datatype, StringType)
         start += 1
-    # verify the rest of data column is included
+
+    # verify the data column is included
     assert snowpark_df.schema[start].column_identifier.quoted_name == '"SER"'
     assert isinstance(snowpark_df.schema[start].datatype, LongType)
 
@@ -77,13 +78,18 @@ def test_to_snowpark_with_no_series_name_raises(snow_series_basic) -> None:
 
 
 @sql_count_checker(query_count=0)
-def test_to_snowpark_with_no_index_name_raises() -> None:
+def test_to_snowpark_with_no_index_name() -> None:
     native_series = native_pd.Series(
         [1, 2, 3, 4], index=native_pd.Index(["A", "B", "C", "D"]), name="SER"
     )
     snow_series = pd.Series(native_series)
-    message = re.escape(
-        "Label None is found in the index columns [None], which is invalid in Snowflake. "
-    )
-    with pytest.raises(ValueError, match=message):
-        snow_series.to_snowpark()
+
+    snowpark_df = snow_series.to_snowpark()
+
+    # verify the index column is included
+    assert snowpark_df.schema[0].column_identifier.quoted_name == '"index"'
+    assert isinstance(snowpark_df.schema[0].datatype, StringType)
+
+    # verify the data column is included
+    assert snowpark_df.schema[1].column_identifier.quoted_name == '"SER"'
+    assert isinstance(snowpark_df.schema[1].datatype, LongType)
