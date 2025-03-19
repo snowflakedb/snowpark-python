@@ -3735,10 +3735,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         (
             is_supported,
             unsupported_arguments,
+            is_supported_kwargs,
         ) = check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)
         if not is_supported:
             raise AttributeError(
-                f"'SeriesGroupBy' object has no attribute '{unsupported_arguments}'"
+                f"'SeriesGroupBy' object has no attribute {repr_aggregate_function(unsupported_arguments, is_supported_kwargs)}"
             )
 
         sort = groupby_kwargs.get("sort", True)
@@ -6109,12 +6110,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         (
             is_supported,
             unsupported_arguments,
+            is_supported_kwargs,
         ) = check_is_aggregation_supported_in_snowflake(
             func, kwargs, axis, _is_df_agg=True
         )
         if not is_supported:
             raise AttributeError(
-                f"'SeriesGroupBy' object has no attribute '{unsupported_arguments}'"
+                f"{repr_aggregate_function(unsupported_arguments, is_supported_kwargs)} is not a valid function for 'Series' object"
             )
 
         query_compiler = self
