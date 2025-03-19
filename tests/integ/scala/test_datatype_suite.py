@@ -507,7 +507,10 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg(
-    structured_type_session, local_testing_mode, structured_type_support, max_string
+    structured_type_session,
+    local_testing_mode,
+    structured_type_support,
+    server_side_max_string,
 ):
 
     if not (
@@ -515,7 +518,9 @@ def test_structured_dtypes_iceberg(
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
-    query, expected_dtypes, expected_schema = _create_example(True, max_string)
+    query, expected_dtypes, expected_schema = _create_example(
+        True, server_side_max_string
+    )
 
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}".upper()
     dynamic_table_name = f"snowpark_dynamic_iceberg_{uuid.uuid4().hex[:5]}".upper()
