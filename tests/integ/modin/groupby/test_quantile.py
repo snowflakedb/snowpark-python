@@ -260,7 +260,7 @@ def test_quantile_raises():
 @pytest.mark.xfail(
     reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
     strict=True,
-    raises=AttributeError,
+    raises=RuntimeError,
 )
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=9)
