@@ -20,19 +20,19 @@ fill1 = df.na.fill(42)
 
 fill2 = df.na.fill({"NUM": 42, "STR": "abc"})
 
-fill3 = df.na.fill(42, subset="NUM")
+fill3 = df.na.fill(42, subset="NUM", include_decimal=True)
 
 fill4 = df.na.fill("def", subset=["STR"])
 
-fill5 = df.na.fill(42, subset=[])
+fill5 = df.na.fill(42, subset=[], include_decimal=True)
 
-replace1 = df.na.replace({1: 10, "three": "trzy"})
+replace1 = df.na.replace({1: 10, "three": "trzy"}, include_decimal=True)
 
 replace2 = df.na.replace([1, 2], [10, 20])
 
-replace3 = df.na.replace(1, 10, subset=["NUM"])
+replace3 = df.na.replace(1, 10, subset=["NUM"], include_decimal=True)
 
-replace4 = df.na.replace(1, 10, subset=[])
+replace4 = df.na.replace(1, 10, subset=[], include_decimal=False)
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -52,23 +52,23 @@ drop6 = df.na.drop("any", 42, ["NUM"])
 
 drop7 = df.na.drop("any", [])
 
-fill1 = df.na.fill(42)
+fill1 = df.na.fill(42, include_decimal=False)
 
-fill2 = df.na.fill({"NUM": 42, "STR": "abc"})
+fill2 = df.na.fill({"NUM": 42, "STR": "abc"}, include_decimal=False)
 
-fill3 = df.na.fill(42, "NUM")
+fill3 = df.na.fill(42, "NUM", include_decimal=True)
 
-fill4 = df.na.fill("def", ["STR"])
+fill4 = df.na.fill("def", ["STR"], include_decimal=False)
 
-fill5 = df.na.fill(42, [])
+fill5 = df.na.fill(42, [], include_decimal=True)
 
-replace1 = df.na.replace({1: 10, "three": "trzy"}, None)
+replace1 = df.na.replace({1: 10, "three": "trzy"}, None, include_decimal=True)
 
-replace2 = df.na.replace([1, 2], [10, 20])
+replace2 = df.na.replace([1, 2], [10, 20], include_decimal=False)
 
-replace3 = df.na.replace(1, 10, ["NUM"])
+replace3 = df.na.replace(1, 10, ["NUM"], include_decimal=True)
 
-replace4 = df.na.replace(1, 10, [])
+replace4 = df.na.replace(1, 10, [], include_decimal=False)
 
 ## EXPECTED ENCODED AST
 
@@ -497,8 +497,9 @@ body {
             }
           }
         }
+        include_decimal: true
         src {
-          end_column: 44
+          end_column: 66
           end_line: 45
           file: 2
           start_column: 16
@@ -508,7 +509,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 44
+                end_column: 66
                 end_line: 45
                 file: 2
                 start_column: 16
@@ -522,7 +523,7 @@ body {
         value {
           int64_val {
             src {
-              end_column: 44
+              end_column: 66
               end_line: 45
               file: 2
               start_column: 16
@@ -608,8 +609,9 @@ body {
             }
           }
         }
+        include_decimal: true
         src {
-          end_column: 41
+          end_column: 63
           end_line: 49
           file: 2
           start_column: 16
@@ -620,7 +622,7 @@ body {
         value {
           int64_val {
             src {
-              end_column: 41
+              end_column: 63
               end_line: 49
               file: 2
               start_column: 16
@@ -651,11 +653,12 @@ body {
             }
           }
         }
+        include_decimal: true
         replacement_map {
           _1 {
             int64_val {
               src {
-                end_column: 58
+                end_column: 80
                 end_line: 51
                 file: 2
                 start_column: 19
@@ -667,7 +670,7 @@ body {
           _2 {
             int64_val {
               src {
-                end_column: 58
+                end_column: 80
                 end_line: 51
                 file: 2
                 start_column: 19
@@ -681,7 +684,7 @@ body {
           _1 {
             string_val {
               src {
-                end_column: 58
+                end_column: 80
                 end_line: 51
                 file: 2
                 start_column: 19
@@ -693,7 +696,7 @@ body {
           _2 {
             string_val {
               src {
-                end_column: 58
+                end_column: 80
                 end_line: 51
                 file: 2
                 start_column: 19
@@ -704,7 +707,7 @@ body {
           }
         }
         src {
-          end_column: 58
+          end_column: 80
           end_line: 51
           file: 2
           start_column: 19
@@ -713,7 +716,7 @@ body {
         value {
           null_val {
             src {
-              end_column: 58
+              end_column: 80
               end_line: 51
               file: 2
               start_column: 19
@@ -820,8 +823,9 @@ body {
             }
           }
         }
+        include_decimal: true
         src {
-          end_column: 55
+          end_column: 77
           end_line: 55
           file: 2
           start_column: 19
@@ -831,7 +835,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 55
+                end_column: 77
                 end_line: 55
                 file: 2
                 start_column: 19
@@ -844,7 +848,7 @@ body {
         to_replace_value {
           int64_val {
             src {
-              end_column: 55
+              end_column: 77
               end_line: 55
               file: 2
               start_column: 19
@@ -856,7 +860,7 @@ body {
         value {
           int64_val {
             src {
-              end_column: 55
+              end_column: 77
               end_line: 55
               file: 2
               start_column: 19
@@ -888,7 +892,7 @@ body {
           }
         }
         src {
-          end_column: 50
+          end_column: 73
           end_line: 57
           file: 2
           start_column: 19
@@ -899,7 +903,7 @@ body {
         to_replace_value {
           int64_val {
             src {
-              end_column: 50
+              end_column: 73
               end_line: 57
               file: 2
               start_column: 19
@@ -911,7 +915,7 @@ body {
         value {
           int64_val {
             src {
-              end_column: 50
+              end_column: 73
               end_line: 57
               file: 2
               start_column: 19
