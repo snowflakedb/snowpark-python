@@ -285,7 +285,7 @@ def test_create_session_in_sp(session):
     internal_utils.PLATFORM = "XP"
     try:
         if not session._conn._get_client_side_session_parameter(
-                "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
+            "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
         ):
             with pytest.raises(SnowparkSessionException) as exec_info:
                 Session(session._conn)
