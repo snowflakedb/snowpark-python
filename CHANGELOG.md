@@ -13,6 +13,10 @@
 
 #### New Features
 
+#### Bug Fixes
+
+- Fixed a bug in aggregation that caused empty groups to still produce rows.
+
 ### Snowpark pandas API Updates
 
 #### New Features

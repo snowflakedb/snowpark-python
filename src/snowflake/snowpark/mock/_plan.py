@@ -1267,14 +1267,16 @@ def execute_mock_plan(
                 )
                 # and then append the calculated value
                 if isinstance(cal_exp_res, ColumnEmulator):
-                    values.append(cal_exp_res.iat[0])
+                    if cur_group.size != 0:
+                        values.append(cal_exp_res.iat[0])
                     result_df_sf_Types[
                         columns[idx + len(column_exps)]
                     ] = result_df_sf_Types_by_col_idx[
                         idx + len(column_exps)
                     ] = cal_exp_res.sf_type
                 else:
-                    values.append(cal_exp_res)
+                    if cur_group.size != 0:
+                        values.append(cal_exp_res)
                     result_df_sf_Types[
                         columns[idx + len(column_exps)]
                     ] = result_df_sf_Types_by_col_idx[
