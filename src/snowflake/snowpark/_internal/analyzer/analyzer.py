@@ -615,6 +615,13 @@ class Analyzer:
         )  # pragma: no cover
 
     def internal_alias_extractor(self, expr: Expression) -> Expression:
+        """
+        This function is used to extract the internal alias of an expression. This function
+        needs to be called whenever an expr is coming from a Column object. This is done because
+        _InternalAlias is generated for implementing a few functions on the client-side with
+        the final output column being aliased internally. Such internal aliases need to be
+        dropped when they are not applied at the top level in a sql nesting level.
+        """
         if isinstance(expr, _InternalAlias):
             return expr.child
         return expr

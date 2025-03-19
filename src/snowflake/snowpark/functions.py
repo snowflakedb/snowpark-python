@@ -5986,6 +5986,7 @@ def window(
         window_start,
         lit("end", _emit_ast=False),
         dateadd(window_unit, window_duration, window_start, _emit_ast=False),
+        _emit_ast=False,
     )._alias("window")
     ans._ast = ast
     return ans
