@@ -13,6 +13,10 @@
 
 #### New Features
 
+#### Bug Fixes
+
+- Fixed a bug in `Dataframe.except_` that would cause rows to be incorrectly dropped.
+
 ### Snowpark pandas API Updates
 
 #### New Features
