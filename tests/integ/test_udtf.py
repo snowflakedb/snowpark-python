@@ -549,7 +549,7 @@ def test_apply_in_pandas(session):
     df._column_map = ColumnMap()
     df._column_map.columns = [Column("id"), Column("v")]
 
-    context._is_called_from_snowpark_connect = True
+    context._is_snowpark_connect_compatible_mode = True
 
     def normalize(pdf):
         v = pdf.v

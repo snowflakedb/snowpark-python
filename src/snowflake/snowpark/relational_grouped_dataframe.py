@@ -412,7 +412,7 @@ class RelationalGroupedDataFrame:
         # this is not handleing nested column access, it is assuming that the access in the function is not nested
         original_columns: List[str] | None = None
         key_columns: List[str] | None = None
-        if context._is_called_from_snowpark_connect:
+        if context._is_snowpark_connect_compatible_mode:
             if self._dataframe._column_map is not None:
                 original_columns = [
                     column.spark_name for column in self._dataframe._column_map.columns
