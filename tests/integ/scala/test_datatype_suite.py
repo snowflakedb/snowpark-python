@@ -431,7 +431,7 @@ def test_structured_dtypes(structured_type_session, examples, structured_type_su
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 def test_structured_dtypes_select(
-    structured_type_session, examples, structured_type_support
+    structured_type_session, examples, structured_type_support, max_string
 ):
     query, expected_dtypes, expected_schema = examples
     df = _create_test_dataframe(structured_type_session, structured_type_support)
@@ -452,7 +452,7 @@ def test_structured_dtypes_select(
     assert flattened_df.schema == StructType(
         [
             StructField("VALUE1", override_type or LongType(), nullable=True),
-            StructField("A", override_type or StringType(16777216), nullable=True),
+            StructField("A", override_type or StringType(max_string), nullable=True),
             StructField(
                 nested_field_name, override_type or DoubleType(), nullable=True
             ),
@@ -463,7 +463,7 @@ def test_structured_dtypes_select(
     )
     assert flattened_df.dtypes == [
         ("VALUE1", override_dtype or "bigint"),
-        ("A", override_dtype or "string(16777216)"),
+        ("A", override_dtype or f"string({max_string})"),
         ("B", override_dtype or "double"),
         ("VALUE2", override_dtype or "double"),
         ("VALUE3", override_dtype or "double"),
