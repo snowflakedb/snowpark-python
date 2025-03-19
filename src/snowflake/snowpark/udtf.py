@@ -751,6 +751,7 @@ class UDTFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -885,6 +886,7 @@ class UDTFRegistration:
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udtf(
