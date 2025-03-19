@@ -644,6 +644,10 @@ def test_select_table_function_negative(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="hash is not supported in Local Testing",
+)
 def test_random_split(session):
     original_enabled = session.conf.get("use_simplified_query_generation")
     try:
