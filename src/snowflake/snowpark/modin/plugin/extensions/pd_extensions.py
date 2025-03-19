@@ -74,8 +74,7 @@ def read_snowflake(
         Snowpark pandas provides two modes of consistency and ordering semantics.
 
         * When `relaxed_ordering` is set to True, Snowpark pandas provides relaxed consistency and ordering guarantees. In particular, the returned DataFrame object will be
-          directly based on the source given by `name_or_query` as long as it is not a query. Setting `relaxed_ordering` to True along with passing a query in `name_or_query`
-          is not currently supported. Consistency and isolation guarantees are relaxed in this case because any changes that happen to the source will be reflected in the
+          directly based on the source given by `name_or_query`. Consistency and isolation guarantees are relaxed in this case because any changes that happen to the source will be reflected in the
           DataFrame object returned by `pd.read_snowflake`.
 
           Ordering guarantees will also be relaxed in the sense that each time an operation is run on the returned DataFrame object, the underlying ordering of rows maybe
@@ -84,6 +83,9 @@ def read_snowflake(
 
           With this mode, it is still possible to switch to strict ordering guarantees by explicitly calling `df.sort_values()` and providing a custom sort key. This will
           ensure that future operations will consistently experience the same sort order, but the consistency guarantees will remain relaxed.
+
+          Note that when `name_or_query` is a query with an ORDER BY clause, this will only guarantee that the immediate results of the input query are sorted. But it still gives no guarantees
+          on the order of the final results (after applying a sequence of pandas operations to those initial results).
 
         * When `relaxed_ordering` is set to False, Snowpark pandas provides the same consistency and ordering guarantees for `read_snowflake` as if local files were read.
           For example, calling `df.head(5)` two consecutive times is guaranteed to result in the exact same set of 5 rows each time and with the same ordering.
