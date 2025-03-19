@@ -27,7 +27,7 @@ from snowflake.snowpark.functions import (
     upper,
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
-from snowflake.snowpark.types import DoubleType
+from snowflake.snowpark.types import DoubleType, IntegerType, StructType, StructField
 from tests.utils import Utils
 
 
@@ -614,3 +614,8 @@ def test_agg_column_naming(session):
     expected = [Row("X", 2), Row("Y", 1)]
     Utils.check_answer(df2, expected)
     Utils.check_answer(df3, expected)
+
+
+def test_agg_on_empty_df(session):
+    df = session.create_dataframe([], StructType([StructField("a", IntegerType())]))
+    Utils.check_answer(df.group_by("a").agg(max_("a")), [])
