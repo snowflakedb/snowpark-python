@@ -1272,8 +1272,8 @@ def pivot_statement(
                 for aliased_name, quoted_name in zip(aliased_names, quoted_names)
             ]
             exclude_str = COMMA.join(quoted_names)
-            alised_str = COMMA.join(aliased_string)
-            select_str = f"{STAR} EXCLUDE({exclude_str}), {alised_str}"
+            aliased_str = COMMA.join(aliased_string)
+            select_str = f"{STAR} EXCLUDE({exclude_str}), {aliased_str}"
 
     return (
         SELECT
