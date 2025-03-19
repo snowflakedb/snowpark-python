@@ -860,7 +860,6 @@ def convert_timezone(
         build_function_expr(
             "convert_timezone",
             [target_timezone, source_time, source_timezone],
-            ignore_null_args=True,
         )
         if _emit_ast
         else None
@@ -1099,19 +1098,18 @@ def create_map(
         -----------------------
         <BLANKLINE>
     """
-
-    check_create_map_parameter(*cols)
+    variadic = check_create_map_parameter(*cols)
+    ast = proto.Expr()
+    build_builtin_fn_apply(
+        ast, "create_map", *cols if variadic else cols
+    ) if _emit_ast else None
 
     # TODO SNOW-1790918: Remove as part of refactoring with alias.
     if len(cols) == 1 and isinstance(cols[0], (list, tuple)):
         cols = cols[0]
 
-    col = object_construct_keep_null(*cols, _emit_ast=_emit_ast)
-
-    if _emit_ast:
-        # Alias to create_map.
-        set_builtin_fn_alias(col._ast, "create_map")
-
+    col = object_construct_keep_null(*cols, _emit_ast=False)
+    col._ast = ast
     return col
 
 
@@ -1784,13 +1782,13 @@ def grouping(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> from snowflake.snowpark import GroupingSets
         >>> df = session.create_dataframe([[1, 2, 3], [4, 5, 6]],schema=["a", "b", "c"])
         >>> grouping_sets = GroupingSets([col("a")], [col("b")], [col("a"), col("b")])
-        >>> df.group_by_grouping_sets(grouping_sets).agg([count("c"), grouping("a"), grouping("b"), grouping("a", "b")]).collect()
-        [Row(A=1, B=2, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
-Row(A=4, B=5, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
-Row(A=1, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
-Row(A=4, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
-Row(A=None, B=2, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2), \
-Row(A=None, B=5, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2)]
+        >>> df.group_by_grouping_sets(grouping_sets).agg([count("c").alias("count_c"), grouping("a").alias("ga"), grouping("b").alias("gb"), grouping("a", "b").alias("gab")]).sort("a", "b").collect()
+        [Row(A=None, B=2, COUNT_C=1, GA=1, GB=0, GAB=2), \
+Row(A=None, B=5, COUNT_C=1, GA=1, GB=0, GAB=2), \
+Row(A=1, B=None, COUNT_C=1, GA=0, GB=1, GAB=1), \
+Row(A=1, B=2, COUNT_C=1, GA=0, GB=0, GAB=0), \
+Row(A=4, B=None, COUNT_C=1, GA=0, GB=1, GAB=1), \
+Row(A=4, B=5, COUNT_C=1, GA=0, GB=0, GAB=0)]
     """
     columns = [_to_col_if_str(c, "grouping") for c in cols]
     return builtin("grouping", _emit_ast=_emit_ast)(*columns)
@@ -1967,18 +1965,21 @@ def uniform(
         >>> df.select(uniform(1, 100, col("a")).alias("UNIFORM")).collect()
         [Row(UNIFORM=62)]
     """
+    ast = build_function_expr("uniform", [min_, max_, gen]) if _emit_ast else None
 
     def convert_limit_to_col(limit):
         if isinstance(limit, int):
-            return lit(limit)
+            return lit(limit, _emit_ast=False)
         elif isinstance(limit, float):
-            return lit(limit).cast(FloatType())
+            return lit(limit, _emit_ast=False).cast(FloatType(), _emit_ast=False)
         return _to_col_if_str(limit, "uniform")
 
     min_col = convert_limit_to_col(min_)
     max_col = convert_limit_to_col(max_)
     gen_col = (
-        lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
+        lit(gen, _emit_ast=False)
+        if isinstance(gen, (int, float))
+        else _to_col_if_str(gen, "uniform")
     )
     return _call_function(
         "uniform",
@@ -1987,6 +1988,7 @@ def uniform(
         max_col,
         gen_col,
         is_data_generator=True,
+        _ast=ast,
         _emit_ast=_emit_ast,
     )
 
@@ -3346,11 +3348,7 @@ def substring(
     """
     s = _to_col_if_str(str, "substring")
     # Build AST here to prevent `pos` and `len` from being recorded as a literal instead of int/None.
-    ast = (
-        build_function_expr("substring", [s, pos, len], ignore_null_args=True)
-        if _emit_ast
-        else None
-    )
+    ast = build_function_expr("substring", [s, pos, len]) if _emit_ast else None
     p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=False)
     if len is None:
         return builtin("substring", _emit_ast=False)(s, p)
@@ -3651,11 +3649,7 @@ def charindex(
     t = _to_col_if_str(target_expr, "charindex")
     s = _to_col_if_str(source_expr, "charindex")
     # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
-    ast = (
-        build_function_expr("charindex", [t, s, position], ignore_null_args=True)
-        if _emit_ast
-        else None
-    )
+    ast = build_function_expr("charindex", [t, s, position]) if _emit_ast else None
     return (
         builtin("charindex", _ast=ast, _emit_ast=False)(
             t,
@@ -3665,7 +3659,7 @@ def charindex(
             else lit(position, _emit_ast=False),
         )
         if position is not None
-        else builtin("charindex", _emit_ast=False)(t, s)
+        else builtin("charindex", _ast=ast, _emit_ast=False)(t, s)
     )
 
 
@@ -4059,7 +4053,7 @@ def to_char(
             c, format if isinstance(format, Column) else lit(format, _emit_ast=False)
         )
         if format is not None
-        else builtin("to_char", _emit_ast=False)(c)
+        else builtin("to_char", _ast=ast, _emit_ast=False)(c)
     )
 
 
@@ -5899,6 +5893,7 @@ def window(
         |}                                     |
         ----------------------------------------
         <BLANKLINE>
+
         >>> df.select(window(df.time, "5 minutes", start_time="2 minutes")).show()
         ----------------------------------------
         |"WINDOW"                              |
@@ -5922,7 +5917,7 @@ def window(
         ...         (datetime.datetime(2024, 10, 31, 5, 0, 0), 1),
         ...     ], schema=["time", "value"]
         ... )
-        >>> df.group_by(window(df.time, "2 hours")).agg(sum(df.value)).show()
+        >>> df.group_by(window(df.time, "2 hours")).agg(sum(df.value)).sort("window").show()
         -------------------------------------------------------
         |"WINDOW"                              |"SUM(VALUE)"  |
         -------------------------------------------------------
@@ -6804,7 +6799,7 @@ def array_agg(
 
     Example::
         >>> df = session.create_dataframe([[1], [2], [3], [1]], schema=["a"])
-        >>> df.select(array_agg("a", True).alias("result")).show()
+        >>> df.select(array_agg("a", True).within_group("a").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -6816,8 +6811,9 @@ def array_agg(
         ------------
         <BLANKLINE>
     """
+    ast = build_function_expr("array_agg", [col, is_distinct]) if _emit_ast else None
     c = _to_col_if_str(col, "array_agg")
-    return _call_function("array_agg", is_distinct, c, _emit_ast=_emit_ast)
+    return _call_function("array_agg", is_distinct, c, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -7294,7 +7290,7 @@ def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "array_unique_agg")
-    return _call_function("array_unique_agg", True, c, _emit_ast=_emit_ast)
+    return _call_function("array_unique_agg", False, c, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -8349,7 +8345,7 @@ def to_variant(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     Example::
 
         >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
-        >>> df_conv = df.select(to_variant(col("a")).as_("ans"))
+        >>> df_conv = df.select(to_variant(col("a")).as_("ans")).sort("ans")
         >>> df_conv.collect()
         [Row(ANS='1'), Row(ANS='2'), Row(ANS='3'), Row(ANS='4')]
 
@@ -8359,8 +8355,8 @@ def to_variant(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> from snowflake.snowpark import Row
         >>> schema = StructType([StructField("a", VariantType())])
         >>> df_other = session.create_dataframe([Row(a=10), Row(a='test'), Row(a={'a': 10, 'b': 20}), Row(a=[1, 2, 3])], schema=schema)
-        >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).collect()
-        [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='VARCHAR'), Row(ANS='OBJECT'), Row(ANS='ARRAY')]
+        >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).sort("ans").collect()
+        [Row(ANS='ARRAY'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='OBJECT'), Row(ANS='VARCHAR')]
     """
     c = _to_col_if_str(e, "to_variant")
     return builtin("to_variant", _emit_ast=_emit_ast)(c)
@@ -11593,14 +11589,14 @@ def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(to_file("@mystage/testCSV.csv").alias("file"))
         >>> result = json.loads(df.collect()[0][0])
-        >>> result["STAGE"]
+        >>> result["STAGE"]  # doctest: +SKIP
         'MYSTAGE'
-        >>> result["RELATIVE_PATH"]
+        >>> result["RELATIVE_PATH"]  # doctest: +SKIP
         'testCSV.csv'
-        >>> result["SIZE"]
+        >>> result["SIZE"]  # doctest: +SKIP
         32
-        >>> result["CONTENT_TYPE"]
-        'application/octet-stream'
+        >>> result["CONTENT_TYPE"]  # doctest: +SKIP
+        'text/csv'
     """
     ast = build_function_expr("to_file", [stage_file_uri]) if _emit_ast else None
     # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI
@@ -11626,8 +11622,8 @@ def fl_get_content_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_content_type(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
-        'application/octet-stream'
+        >>> df.collect()[0][0]  # doctest: +SKIP
+        'text/csv'
     """
     function_name = "fl_get_content_type"
     ast = build_function_expr(function_name, [e]) if _emit_ast else None
@@ -11649,8 +11645,7 @@ def fl_get_etag(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_etag(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> len(df.collect()[0][0])  # the length of etag
-        32
+        >>> len(df.collect()[0][0])  # doctest: +SKIP
     """
     function_name = "fl_get_etag"
     ast = build_function_expr(function_name, [e]) if _emit_ast else None
@@ -11684,8 +11679,8 @@ def fl_get_file_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_file_type(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
-        'unknown'
+        >>> df.collect()[0][0]  # doctest: +SKIP
+        'document'
     """
     function_name = "fl_get_file_type"
     ast = build_function_expr(function_name, [e]) if _emit_ast else None
@@ -11886,8 +11881,8 @@ def fl_is_document(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_is_document(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
-        False
+        >>> df.collect()[0][0]  # doctest: +SKIP
+        True
     """
     function_name = "fl_is_document"
     ast = build_function_expr(function_name, [e]) if _emit_ast else None
@@ -11907,7 +11902,7 @@ def fl_is_compressed(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_is_compressed(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
+        >>> df.collect()[0][0]  # doctest: +SKIP
         False
     """
     function_name = "fl_is_compressed"

@@ -12,9 +12,9 @@ df = df.select(listagg("a").within_group(["a", "b", col("c")]))
 
 df = session.table("table1")
 
-df = df.select(array_agg("a").within_group("b"))
+df = df.select(array_agg("a", False).within_group("b"))
 
-df = df.select(array_agg("a").within_group("a", col("b")))
+df = df.select(array_agg("a", False).within_group("a", col("b")))
 
 df = df.select(listagg("a", "", False).within_group(["a", "b", col("c")]))
 
@@ -91,6 +91,17 @@ body {
                         start_line: 27
                       }
                       v: "a"
+                    }
+                  }
+                  pos_args {
+                    bool_val {
+                      src {
+                        end_column: 37
+                        end_line: 27
+                        file: 2
+                        start_column: 23
+                        start_line: 27
+                      }
                     }
                   }
                   src {
@@ -176,6 +187,17 @@ body {
                         start_line: 29
                       }
                       v: "a"
+                    }
+                  }
+                  pos_args {
+                    bool_val {
+                      src {
+                        end_column: 37
+                        end_line: 29
+                        file: 2
+                        start_column: 23
+                        start_line: 29
+                      }
                     }
                   }
                   src {
@@ -424,4 +446,5 @@ client_language {
 client_version {
   major: 1
   minor: 29
+  patch: 1
 }

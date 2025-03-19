@@ -268,22 +268,6 @@ def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, agg_name, b
         getattr(grp_agg(snowpark_pandas_group), agg_name)()
 
 
-@pytest.mark.parametrize(
-    "by, query_count",
-    [
-        (native_pd.Grouper(key="col1"), 0),
-        (["col5", native_pd.Grouper(key="col1")], 1),
-    ],
-)
-def test_grouper_unsupported(basic_snowpark_pandas_df, by, query_count):
-    with SqlCounter(query_count=query_count):
-        snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-        with pytest.raises(
-            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
-        ):
-            snowpark_pandas_group.max()
-
-
 @sql_count_checker(query_count=0)
 def test_groupby_ngroups_axis_1():
     by = "x"

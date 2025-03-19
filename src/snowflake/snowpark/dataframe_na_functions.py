@@ -26,6 +26,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import iff, lit, when
 from snowflake.snowpark.types import (
     DataType,
+    DecimalType,
     DoubleType,
     FloatType,
     IntegerType,
@@ -44,20 +45,29 @@ _logger = getLogger(__name__)
 
 
 def _is_value_type_matching_for_na_function(
-    value: LiteralType, datatype: DataType
+    value: LiteralType,
+    datatype: DataType,
+    include_decimal: bool = False,
 ) -> bool:
     # Python `int` can match into FloatType/DoubleType,
     # but Python `float` can't match IntegerType/LongType.
     # None should be compatible with any Snowpark type.
+    int_types = (IntegerType, LongType, FloatType, DoubleType)
+    float_types = (FloatType, DoubleType)
+    # Python `int` and `float` can also match for DecimalType,
+    # for now this is protected by this argument
+    if include_decimal:
+        int_types = (int_types, DecimalType)
+        float_types = (float_types, DecimalType)
     return (
         value is None
         or (
             isinstance(value, int)
             # bool is a subclass of int, but we don't want to consider it numeric
             and not isinstance(value, bool)
-            and isinstance(datatype, (IntegerType, LongType, FloatType, DoubleType))
+            and isinstance(datatype, int_types)
         )
-        or (isinstance(value, float) and isinstance(datatype, (FloatType, DoubleType)))
+        or (isinstance(value, float) and isinstance(datatype, float_types))
         or isinstance(datatype, type(python_type_to_snow_type(type(value))[0]))
     )
 
@@ -193,9 +203,12 @@ class DataFrameNaFunctions:
             if thresh is not None:
                 ast.thresh.value = thresh
             if isinstance(subset, str):
-                ast.subset.list.append(subset)
+                ast.subset.variadic = True
+                build_expr_from_python_val(ast.subset.args.add(), subset)
             elif isinstance(subset, Iterable):
-                ast.subset.list.extend(subset)
+                ast.subset.variadic = False
+                for col in subset:
+                    build_expr_from_python_val(ast.subset.args.add(), col)
             self._dataframe._set_ast_ref(ast.df)
 
         # if subset is not provided, drop will be applied to all columns
@@ -270,6 +283,9 @@ class DataFrameNaFunctions:
         value: Union[LiteralType, Dict[str, LiteralType]],
         subset: Optional[Union[str, Iterable[str]]] = None,
         _emit_ast: bool = True,
+        *,
+        # keyword only arguments
+        include_decimal: bool = False,
     ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces all null and NaN values in the specified
@@ -286,6 +302,8 @@ class DataFrameNaFunctions:
                     * If ``subset`` is not provided or ``None``, all columns will be included.
 
                     * If ``subset`` is empty, the method returns the original DataFrame.
+            include_decimal: Whether to allow ``Decimal`` values to fill in ``IntegerType``
+                and ``FloatType`` columns.
 
         Examples::
 
@@ -386,9 +404,12 @@ class DataFrameNaFunctions:
             else:
                 build_expr_from_python_val(ast.value, value)
             if isinstance(subset, str):
-                ast.subset.list.append(subset)
+                ast.subset.variadic = True
+                build_expr_from_python_val(ast.subset.args.add(), subset)
             elif isinstance(subset, Iterable):
-                ast.subset.list.extend(subset)
+                ast.subset.variadic = False
+                for col in subset:
+                    build_expr_from_python_val(ast.subset.args.add(), col)
 
         if subset is None:
             subset = self._dataframe.columns
@@ -439,7 +460,9 @@ class DataFrameNaFunctions:
             col = self._dataframe.col(col_name)
             if col_name in normalized_value_dict:
                 value = normalized_value_dict[col_name]
-                if _is_value_type_matching_for_na_function(value, datatype):
+                if _is_value_type_matching_for_na_function(
+                    value, datatype, include_decimal=include_decimal
+                ):
                     if isinstance(datatype, (FloatType, DoubleType)):
                         # iff(col = 'NaN' or col is null, value, col)
                         res_columns.append(
@@ -483,6 +506,9 @@ class DataFrameNaFunctions:
         value: Optional[Union[LiteralType, Iterable[LiteralType]]] = None,
         subset: Optional[Union[str, Iterable[str]]] = None,
         _emit_ast: bool = True,
+        *,
+        # keyword only arguments
+        include_decimal: bool = False,
     ) -> "snowflake.snowpark.DataFrame":
         """
         Returns a new DataFrame that replaces values in the specified columns.
@@ -502,7 +528,8 @@ class DataFrameNaFunctions:
                 replaced. If ``cols`` is not provided or ``None``, the replacement
                 will be applied to all columns. If ``cols`` is empty, the method
                 returns the original DataFrame.
-
+            include_decimal: Whether to allow ``Decimal`` values to replace ``IntegerType``
+                and ``FloatType`` values.
         Examples::
 
             >>> df = session.create_dataframe([[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"])
@@ -600,9 +627,12 @@ class DataFrameNaFunctions:
                 build_expr_from_python_val(ast.value, value)
 
             if isinstance(subset, str):
-                ast.subset.list.append(subset)
+                ast.subset.variadic = True
+                build_expr_from_python_val(ast.subset.args.add(), subset)
             elif isinstance(subset, Iterable):
-                ast.subset.list.extend(subset)
+                ast.subset.variadic = False
+                for col in subset:
+                    build_expr_from_python_val(ast.subset.args.add(), col)
 
         # Modify subset.
         if subset is None:
@@ -669,8 +699,14 @@ class DataFrameNaFunctions:
                 case_when = None
                 for key, value in replacement.items():
                     if _is_value_type_matching_for_na_function(
-                        key, datatype
-                    ) and _is_value_type_matching_for_na_function(value, datatype):
+                        key,
+                        datatype,
+                        include_decimal=include_decimal,
+                    ) and _is_value_type_matching_for_na_function(
+                        value,
+                        datatype,
+                        include_decimal=include_decimal,
+                    ):
                         cond = col.is_null() if key is None else (col == lit(key))
                         replace_value = lit(None) if value is None else lit(value)
                         case_when = (
