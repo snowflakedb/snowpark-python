@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- `DataFrameReader.dbapi` (PrPr) now accepts a list of strings for the session_init_statement parameter, allowing multiple SQL statements to be executed during session initialization.
+
 #### Improvements
 
 - Improved query generation for `Dataframe.stat.sample_by` to generate a single flat query that scales well with large `fractions` dictionary compared to older method of creating a UNION ALL subquery for each key in `fractions`. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.

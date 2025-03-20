@@ -44,7 +44,7 @@ class DataSourcePartitioner:
         fetch_size: Optional[int] = 0,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
-        session_init_statement: Optional[str] = None,
+        session_init_statement: Optional[List[str]] = None,
     ) -> None:
         self.create_connection = create_connection
         self.table_or_query = table_or_query
