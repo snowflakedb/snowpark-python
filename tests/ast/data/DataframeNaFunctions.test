@@ -52,23 +52,23 @@ drop6 = df.na.drop("any", 42, ["NUM"])
 
 drop7 = df.na.drop("any", [])
 
-fill1 = df.na.fill(42)
+fill1 = df.na.fill(42, include_decimal=False)
 
-fill2 = df.na.fill({"NUM": 42, "STR": "abc"})
+fill2 = df.na.fill({"NUM": 42, "STR": "abc"}, include_decimal=False)
 
-fill3 = df.na.fill(42, "NUM")
+fill3 = df.na.fill(42, "NUM", include_decimal=False)
 
-fill4 = df.na.fill("def", ["STR"])
+fill4 = df.na.fill("def", ["STR"], include_decimal=False)
 
-fill5 = df.na.fill(42, [])
+fill5 = df.na.fill(42, [], include_decimal=False)
 
-replace1 = df.na.replace({1: 10, "three": "trzy"}, None)
+replace1 = df.na.replace({1: 10, "three": "trzy"}, None, include_decimal=False)
 
-replace2 = df.na.replace([1, 2], [10, 20])
+replace2 = df.na.replace([1, 2], [10, 20], include_decimal=False)
 
-replace3 = df.na.replace(1, 10, ["NUM"])
+replace3 = df.na.replace(1, 10, ["NUM"], include_decimal=False)
 
-replace4 = df.na.replace(1, 10, [])
+replace4 = df.na.replace(1, 10, [], include_decimal=False)
 
 ## EXPECTED ENCODED AST
 
