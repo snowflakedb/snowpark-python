@@ -64,6 +64,7 @@ RIGHT_PARENTHESIS = ")"
 LEFT_BRACKET = "["
 RIGHT_BRACKET = "]"
 AS = " AS "
+EXCLUDE = " EXCLUDE "
 AND = " AND "
 OR = " OR "
 NOT = " NOT "
@@ -1263,17 +1264,18 @@ def pivot_statement(
         )
         if pivot_values is not None and should_alias_column_with_agg:
             quoted_names = [quote_name(value) for value in pivot_values]
+            # unwrap_single_quote on the value to match the output closer to what spark generates
             aliased_names = [
                 quote_name(f"{unwrap_single_quote(value)}_{aggregate}")
                 for value in pivot_values
             ]
             aliased_string = [
-                f"{quoted_name} AS {aliased_name}"
+                f"{quoted_name}{AS}{aliased_name}"
                 for aliased_name, quoted_name in zip(aliased_names, quoted_names)
             ]
             exclude_str = COMMA.join(quoted_names)
             aliased_str = COMMA.join(aliased_string)
-            select_str = f"{STAR} EXCLUDE({exclude_str}), {aliased_str}"
+            select_str = f"{STAR}{EXCLUDE}{LEFT_PARENTHESIS}{exclude_str}{RIGHT_PARENTHESIS}, {aliased_str}"
 
     return (
         SELECT
