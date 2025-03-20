@@ -8721,13 +8721,6 @@ def in_(
 
         values_args = []
         for val in vals:
-            # Skip if for other value AST generation was disabled.
-            if (
-                isinstance(val, snowflake.snowpark.dataframe.DataFrame)
-                and val._ast_id is None
-            ):
-                continue
-
             val_ast = proto.Expr()
             if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
                 val._set_ast_ref(val_ast)

@@ -383,7 +383,7 @@ class DataFrameReader:
         self._ast = None
         if _emit_ast:
             reader = proto.Expr()
-            with_src_position(reader.dataframe_reader_init)
+            with_src_position(reader.dataframe_reader)
             self._ast = reader
 
     @property
@@ -438,7 +438,7 @@ class DataFrameReader:
 
         # AST.
         stmt = None
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.read_table, stmt)
             ast.reader.CopyFrom(self._ast)
@@ -446,7 +446,7 @@ class DataFrameReader:
 
         table = self._session.table(name, _emit_ast=False)
 
-        if _emit_ast:
+        if _emit_ast and stmt is not None:
             table._ast_id = stmt.var_id.bitfield1
 
         return table
@@ -463,12 +463,8 @@ class DataFrameReader:
         """
 
         # AST.
-        if _emit_ast:
-            reader = proto.Expr()
-            ast = with_src_position(reader.dataframe_reader_schema)
-            ast.reader.CopyFrom(self._ast)
-            build_proto_from_struct_type(schema, ast.schema)
-            self._ast = reader
+        if _emit_ast and self._ast is not None:
+            build_proto_from_struct_type(schema, self._ast.dataframe_reader.schema)
 
         self._user_schema = schema
         return self
@@ -492,17 +488,15 @@ class DataFrameReader:
             )
 
         # AST.
-        if _emit_ast:
-            reader = proto.Expr()
-            ast = with_src_position(reader.dataframe_reader_with_metadata)
-            ast.reader.CopyFrom(self._ast)
+        if _emit_ast and self._ast is not None:
             col_names, is_variadic = parse_positional_args_to_list_variadic(
                 *metadata_cols
             )
-            ast.metadata_columns.variadic = is_variadic
+            self._ast.dataframe_reader.metadata_columns.variadic = is_variadic
             for e in col_names:
-                build_expr_from_python_val(ast.metadata_columns.args.add(), e)
-            self._ast = reader
+                build_expr_from_python_val(
+                    self._ast.dataframe_reader.metadata_columns.args.add(), e
+                )
 
         self._metadata_cols = [
             _to_col_if_str(col, "DataFrameReader.with_metadata")
@@ -524,8 +518,11 @@ class DataFrameReader:
             )
         self.__format = canon_format
 
+    @publicapi
     def format(
-        self, format: Literal["csv", "json", "avro", "parquet", "orc", "xml"]
+        self,
+        format: Literal["csv", "json", "avro", "parquet", "orc", "xml"],
+        _emit_ast: bool = True,
     ) -> "DataFrameReader":
         """Specify the format of the file(s) to load.
 
@@ -536,9 +533,13 @@ class DataFrameReader:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
         """
         self._format = format
+        # AST.
+        if _emit_ast and self._ast is not None:
+            self._ast.dataframe_reader.format.value = self._format
         return self
 
-    def load(self, path: Optional[str] = None) -> DataFrame:
+    @publicapi
+    def load(self, path: Optional[str] = None, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the file(s) to load.
 
         Args:
@@ -567,7 +568,15 @@ class DataFrameReader:
 
         loader = getattr(self, self._format, None)
         if loader is not None:
-            return loader(path)
+            res = loader(path, _emit_ast=False)
+            # AST.
+            if _emit_ast and self._ast is not None:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.read_load, stmt)
+                ast.path = path
+                ast.reader.CopyFrom(self._ast)
+                res._ast_id = stmt.var_id.bitfield1
+            return res
 
         raise ValueError(f"Invalid format '{self._format}'.")
 
@@ -626,6 +635,14 @@ class DataFrameReader:
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
+        # AST.
+        stmt = None
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.read_csv, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -645,6 +662,8 @@ class DataFrameReader:
                     ),
                     analyzer=self._session._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             df = DataFrame(
@@ -659,17 +678,11 @@ class DataFrameReader:
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         df._reader = self
         set_api_call_source(df, "DataFrameReader.csv")
-
-        # AST.
-        if _emit_ast:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.read_csv, stmt)
-            ast.path = path
-            ast.reader.CopyFrom(self._ast)
-            df._ast_id = stmt.var_id.bitfield1
 
         return df
 
@@ -689,7 +702,7 @@ class DataFrameReader:
         df = self._read_semi_structured_file(path, "JSON")
 
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.read_json, stmt)
             ast.path = path
@@ -717,7 +730,7 @@ class DataFrameReader:
         df = self._read_semi_structured_file(path, "AVRO")
 
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.read_avro, stmt)
             ast.path = path
@@ -746,7 +759,7 @@ class DataFrameReader:
         df = self._read_semi_structured_file(path, "PARQUET")
 
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.read_parquet, stmt)
             ast.path = path
@@ -774,7 +787,7 @@ class DataFrameReader:
         df = self._read_semi_structured_file(path, "ORC")
 
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.read_orc, stmt)
             ast.path = path
@@ -796,7 +809,7 @@ class DataFrameReader:
         df = self._read_semi_structured_file(path, "XML")
 
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.read_xml, stmt)
             ast.path = path
@@ -822,13 +835,10 @@ class DataFrameReader:
         """
 
         # AST.
-        if _emit_ast:
-            reader = proto.Expr()
-            ast = with_src_position(reader.dataframe_reader_option)
-            ast.reader.CopyFrom(self._ast)
-            ast.key = key
-            build_expr_from_python_val(ast.value, value)
-            self._ast = reader
+        if _emit_ast and self._ast is not None:
+            t = self._ast.dataframe_reader.options.add()
+            t._1 = key
+            build_expr_from_python_val(t._2, value)
 
         aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
@@ -855,19 +865,8 @@ class DataFrameReader:
                 raise ValueError("No options were provided")
             configs = kwargs
 
-        # AST.
-        if _emit_ast:
-            reader = proto.Expr()
-            ast = with_src_position(reader.dataframe_reader_options)
-            ast.reader.CopyFrom(self._ast)
-            for k, v in configs.items():
-                t = ast.configs.add()
-                t._1 = k
-                build_expr_from_python_val(t._2, v)
-            self._ast = reader
-
         for k, v in configs.items():
-            self.option(k, v, _emit_ast=False)
+            self.option(k, v, _emit_ast=_emit_ast)
         return self
 
     def _infer_schema_for_file_format(
@@ -1052,6 +1051,7 @@ class DataFrameReader:
                     ),
                     analyzer=self._session._analyzer,
                 ),
+                _emit_ast=False,
             )
         else:
             df = DataFrame(
@@ -1067,6 +1067,7 @@ class DataFrameReader:
                     metadata_schema=metadata_schema,
                     use_user_schema=use_user_schema,
                 ),
+                _emit_ast=False,
             )
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
