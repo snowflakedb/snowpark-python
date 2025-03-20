@@ -439,7 +439,6 @@ def test_pivot_multiple_aggs(session):
         .sort(col("empid"))
     )
 
-    print(df.schema.fields)
     assert [f.name for f in df.schema.fields] == [
         "EMPID",
         '"JAN_sum(""AMOUNT"")"',

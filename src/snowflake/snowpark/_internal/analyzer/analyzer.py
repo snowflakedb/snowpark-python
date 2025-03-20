@@ -1233,8 +1233,21 @@ class Analyzer:
                     # table as it may not exist at later point in time when dataframe.schema is called.
                     pivot_plan.schema_query = pivot_plan.queries[-1].sql
 
-                # union multiple aggregations
-                # https://docs.snowflake.com/en/sql-reference/constructs/pivot#dynamic-pivot-with-multiple-aggregations-using-union
+                # using join here to have the output similar to what spark have
+                # both the aggregations are happening over the same set of columns and pivot values
+                # we will receive left and right both pivot table with same set of groupby columns and columns corresponding to pivot values
+                # to differentiate between columns corresponding to pivot values for aggregation function they will have name suffixed by agg fun
+                # join would keep the group by column same and append the columns corresponding to pivot values for multiple agg functions
+                # output would look similar to below for a statement like
+                # df.groupBy("name").pivot("department", ["Sales", "Marketing"]).sum("year", "salary").show()
+                # +-------+---------------+---------------+-------------------+-------------------+
+                # |   name|Sales_sum(year)|Sales_sum(year)|Marketing_sum(year)|Marketing_sum(year)|
+                # +-------+---------------+---------------+-------------------+-------------------+
+                # |  Scott|           NULL|           NULL|               NULL|               NULL|
+                # |  James|           4039|           4039|               NULL|               NULL|
+                # |    Jen|           NULL|           NULL|               NULL|               NULL|
+                # |Michael|           2020|           2020|               NULL|               NULL|
+
                 if plan is None:
                     plan = pivot_plan
                 elif join_columns is not None:
@@ -1247,6 +1260,8 @@ class Analyzer:
                         logical_plan,
                         self.session.conf.get("use_constant_subquery_alias", False),
                     )
+                # we have a check in relational_grouped_dataframe.py which will prevent a case where there are more than one aggregate
+                # without having a grouping condition which is essential to create join_columns
 
             assert plan is not None
             return plan
