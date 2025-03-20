@@ -1769,7 +1769,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 ### Dependency updates
 
-- Updated ``snowflake-connector-python`` to 2.7.12.
+- Updated `snowflake-connector-python` to 2.7.12.
 
 ## 0.9.0 (2022-08-30)
 
@@ -1877,7 +1877,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Added support for vectorized UDFs with the input as a pandas DataFrame or pandas Series and the output as a pandas Series. This improves the performance of UDFs in Snowpark.
 - Added support for inferring the schema of a DataFrame by default when it is created by reading a Parquet, Avro, or ORC file in the stage.
-- Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`,  `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
+- Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`, `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
 
 ### Breaking Changes:
 
@@ -1960,7 +1960,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 ### Dependency updates
 
-- Updated ``snowflake-connector-python`` to 2.7.4.
+- Updated `snowflake-connector-python` to 2.7.4.
 
 ## 0.3.0 (2022-01-09)
 
@@ -1985,7 +1985,11 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 ### Dependency updates
 
-- Update ``snowflake-connector-python`` to 2.7.2, which upgrades ``pyarrow`` dependency to 6.0.x. Refer to the [python connector 2.7.2 release notes](https://pypi.org/project/snowflake-connector-python/2.7.2/) for more details.
+<<<<<<< HEAD
+
+- # Update `snowflake-connector-python` to 2.7.2, which upgrades `pyarrow` dependency to 6.0.x. Refer to the [python connector 2.7.2 release notes](https://pypi.org/project/snowflake-connector-python/2.7.2/) for more details.
+- Update `snowflake-connector-python` to 2.7.2, which upgrades `pyarrow` dependency to 6.0.x. Refer to the [python connector 2.7.2 release notes](https://pypi.org/project/snowflake-connector-python/2.7.2/) for more details.
+  > > > > > > > fece2ed0c7ab633e076b776c766c99542e86f7a8
 
 ## 0.2.0 (2021-12-02)
 

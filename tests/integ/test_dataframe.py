@@ -2144,6 +2144,21 @@ def test_create_dataframe_empty(session):
             Row("max", None),
         ],
     )
+    
+    # all summary stats should be 0 or None
+    Utils.check_answer(
+        df.summary("b").collect(),
+        [
+            Row("count", 0),
+            Row("mean", None),
+            Row("stddev", None),
+            Row("min", None),
+            Row("max", None),
+            Row("25%", None),
+            Row("50%", None),
+            Row("75%", None),
+        ],
+    )
 
     # with_column can append a column, but still no rows
     Utils.check_answer(df.with_column("c", lit(2)), [])
@@ -2885,6 +2900,109 @@ def test_describe(session):
         TestData.test_data2(session).describe("c")
     assert "invalid identifier" in str(ex_info)
 
+def test_summary(session):
+    assert TestData.test_data2(session).summary().columns == [
+        "SUMMARY",
+        "A",
+        "B",
+    ]
+
+    Utils.check_answer(
+        TestData.test_data2(session).summary("a", "b").collect(),
+        [
+            Row("count", 6, 6),
+            Row("mean", 2.0, 1.5),
+            Row("stddev", 0.8944271909999159, 0.5477225575051661),
+            Row("min", 1, 1),
+            Row("max", 3, 2),
+            Row("25%", 1.5, 1),
+            Row("50%", 2, 1.5),
+            Row("75%", 3, 2),
+        ],
+    )
+
+    Utils.check_answer(
+        TestData.test_data3(session).summary().collect(),
+        [
+            Row("count", 2, 1),
+            Row("mean", 1.5, 2.0),
+            Row("stddev", 0.7071067811865476, None),
+            Row("min", 1, 2),
+            Row("max", 2, 2),
+            Row("25%", 1.5, 2),
+            Row("50%", 1.5, 2),
+            Row("75%", 2.5, 2),
+        ],
+    )
+
+    Utils.check_answer(
+        session.create_dataframe(["a", "a", "c", "z", "b", "a"]).summary(),
+        [
+            Row("count", "6"),
+            Row("mean", None),
+            Row("stddev", None),
+            Row("min", "a"),
+            Row("max", "z"),
+            Row("25%", None),
+            Row("50%", None),
+            Row("75%", None),
+        ],
+    )
+
+    # summary() will ignore all non-numeric and non-string columns
+    data = [
+        1,
+        "one",
+        1.0,
+        Decimal(0.5),
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        bytearray("a", "utf-8"),
+    ]
+    assert session.create_dataframe([data]).summary().columns == [
+        "SUMMARY",
+        "_1",
+        "_2",
+        "_3",
+        "_4",
+    ]
+
+    # summary() will still work when there are more than two string columns
+    # ambiguity will be eliminated
+    Utils.check_answer(
+        TestData.string1(session).summary(),
+        [
+            Row("count", "3", "3"),
+            Row("mean", None, None),
+            Row("stddev", None, None),
+            Row("min", "test1", "a"),
+            Row("max", "test3", "c"),
+            Row("25%", None, None),
+            Row("50%", None, None),
+            Row("75%", None, None),
+        ],
+    )
+
+    # return an "empty" dataframe if no numeric or string column is present
+    Utils.check_answer(
+        TestData.timestamp1(session).summary(),
+        [
+            Row("count"),
+            Row("mean"),
+            Row("stddev"),
+            Row("min"),
+            Row("max"),
+            Row("25%"),
+            Row("50%"),
+            Row("75%"),
+        ],
+    )
+
+    with pytest.raises(SnowparkSQLException) as ex_info:
+        TestData.test_data2(session).summary("c")
+    assert "invalid identifier" in str(ex_info)
 
 def test_truncate_preserves_schema(session, local_testing_mode):
     tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
