@@ -80,17 +80,17 @@ def test__is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) 
 @pytest.mark.parametrize(
     "agg_func, agg_kwargs, expected_result",
     [
-        # ("max", {}, True),  # snowflake supported aggregation function str
-        # (np.sum, {}, True),  # snowflake supported aggregation function numpy function
-        # (np.quantile, {}, False),  # snowflake unsupported aggregation function
-        # (
-        #     {"col1": "max", "col2": np.sum},
-        #     {},
-        #     True,
-        # ),  # dictionary fo aggregation functions
+        ("max", {}, True),  # snowflake supported aggregation function str
+        (np.sum, {}, True),  # snowflake supported aggregation function numpy function
+        (np.quantile, {}, False),  # snowflake unsupported aggregation function
+        (
+            {"col1": "max", "col2": np.sum},
+            {},
+            True,
+        ),  # dictionary fo aggregation functions
         ({"col1": np.min, "col2": ["max", "sum"]}, {}, True),
-        # ({"col1": np.quantile, "col2": [np.mean, "max"]}, {}, False),
-        # ({"col1": "max", "col2": ["min", np.quantile, "max"]}, {}, False),
+        ({"col1": np.quantile, "col2": [np.mean, "max"]}, {}, False),
+        ({"col1": "max", "col2": ["min", np.quantile, "max"]}, {}, False),
         ([np.min, "max", "max", np.sum], {}, True),
         ([np.percentile, min, sum, "min"], {}, False),
         ("std", {}, True),  # std with no ddof configured (default 1)
