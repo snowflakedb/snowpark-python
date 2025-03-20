@@ -850,7 +850,7 @@ def _is_supported_snowflake_agg_func(
         agg_kwargs: keyword argument passed for the aggregation function, such as ddof, min_count etc.
                     The value can be different for different aggregation functions.
     Returns:
-        is_valid: bool. Whether it is valid to implement with snowflake or not.
+        is_valid: bool. Whether the function is supported for aggregation in snowflake.
         unsupported_function: list. The list of unsupported functions used for aggregation.
         unsupported_kwargs: dict. The kwargs for the unsupported function
     """
