@@ -91,6 +91,7 @@ class UserDefinedAggregateFunction:
         self._ast = _ast
         self._ast_id = _ast_id
 
+    @publicapi
     def __call__(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -334,7 +335,8 @@ class UDAFRegistration:
         """
         func_args = [convert_sp_to_sf_type(t) for t in udaf_obj._input_types]
         return self._session.sql(
-            f"describe function {udaf_obj.name}({','.join(func_args)})"
+            f"describe function {udaf_obj.name}({','.join(func_args)})",
+            _emit_ast=False,
         )
 
     # TODO: Support strict/secure once the server side supports these keywords in Python UDAF

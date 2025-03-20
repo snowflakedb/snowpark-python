@@ -8,10 +8,24 @@
 
 - Improved query generation for `Dataframe.stat.sample_by` to generate a single flat query that scales well with large `fractions` dictionary compared to older method of creating a UNION ALL subquery for each key in `fractions`. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
 - Improved performance of `DataFrameReader.dbapi` by enable vectorized option when copy parquet file into table.
+- Improved query generation for `DataFrame.random_split` in the following ways. They can be enabled by setting `session.conf.set("use_simplified_query_generation", True)`:
+  - Removed the need to `cache_result` in the internal implementation of the input dataframe resulting in a pure lazy dataframe operation.
+  - The `seed` argument now behaves as expected with repeatable results across multiple calls and sessions.
+- `DataFrame.fillna` and `DataFrame.replace` now both support fitting `int` and `float` into `Decimal` columns if `include_decimal` is set to True.
+
+#### Bug Fixes
+
+- Fixed a bug for the following functions that raised errors `.cast()` is applied to their output
+  - `from_json`
+  - `size`
 
 ### Snowpark Local Testing Updates
 
 #### New Features
+
+#### Bug Fixes
+
+- Fixed a bug in `Dataframe.except_` that would cause rows to be incorrectly dropped.
 
 ### Snowpark pandas API Updates
 
@@ -22,7 +36,9 @@
 
 #### Improvements
 
-- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for non-query data sources.
+- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
+- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources.
+- Improved how a missing `index_label` in `DataFrame.to_snowflake` and `Series.to_snowflake` is handled when `index=True`. Instead of raising a `ValueError`, system-defined labels are used for the index columns.
 
 ## 1.29.1 (2025-03-12)
 
@@ -91,12 +107,18 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added support for list values in `Series.str.slice`.
+- Added support for applying Snowflake Cortex functions `ClassifyText`, `Translate`, and `ExtractAnswer`.
+- Added support for `Series.hist`.
+
 #### Improvements
 
+- Improved performance of `DataFrame.groupby.transform` and `Series.groupby.transform` by avoiding expensive pivot step.
 - Improve error message for `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake` when the table does not exist.
 - Improve readability of docstring for the `if_exists` parameter in `pd.to_snowflake`, `DataFrame.to_snowflake`, and `Series.to_snowflake`.
 - Improve error message for all pandas functions that use UDFs with Snowpark objects.
-- Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
 
 #### Bug Fixes
 
@@ -143,17 +165,10 @@
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 - Added support for list values in `Series.str.get`.
-- Added support for list values in `Series.str.slice`.
-- Added support for applying Snowflake Cortex functions `ClassifyText`, `Translate`, and `ExtractAnswer`.
-- Added support for `Series.hist`.
 
 #### Bug Fixes
 
 - Fixed a bug in `apply` where kwargs were not being correctly passed into the applied function.
-
-#### Improvements
-- Improved performance of `DataFrame.groupby.transform` and `Series.groupby.transform` by avoiding expensive pivot step.
-
 
 ### Snowpark Local Testing Updates
 
