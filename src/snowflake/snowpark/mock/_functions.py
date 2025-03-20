@@ -236,8 +236,9 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(
         column.sf_type.datatype, _NumericType
     ):  # TODO: figure out where 5 is coming from
-        return ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
-    res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
+        res = ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
+    else:
+        res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
             return ColumnEmulator(data=[None], sf_type=column.sf_type)
@@ -249,8 +250,9 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
 @patch("max")
 def mock_max(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(column.sf_type.datatype, _NumericType):
-        return ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
-    res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
+        res = ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
+    else:
+        res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
             return ColumnEmulator(data=[None], sf_type=column.sf_type)
@@ -446,7 +448,7 @@ def mock_median(column: ColumnEmulator) -> ColumnEmulator:
     else:
         return_type = column.sf_type.datatype
     return ColumnEmulator(
-        data=round(column.median(), 5),
+        data=round(column.median(), 5) if column.size else [None],
         sf_type=ColumnType(return_type, column.sf_type.nullable),
     )
 

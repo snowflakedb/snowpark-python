@@ -15,6 +15,7 @@ from snowflake.snowpark.functions import (
     avg,
     col,
     count,
+    count_distinct,
     covar_pop,
     listagg,
     max as max_,
@@ -618,4 +619,22 @@ def test_agg_column_naming(session):
 
 def test_agg_on_empty_df(session):
     df = session.create_dataframe([], StructType([StructField("a", IntegerType())]))
-    Utils.check_answer(df.group_by("a").agg(max_("a")), [])
+    aggs = [
+        avg("a"),
+        count("a"),
+        count_distinct("a"),
+        listagg("a"),
+        max_("a"),
+        mean("a"),
+        median("a"),
+        min_("a"),
+        stddev("a"),
+        sum_("a"),
+    ]
+    agged_with_group_by = df.group_by("a").agg(*aggs)
+    agged_no_group_by = df.group_by().agg(*aggs)
+
+    Utils.check_answer(agged_with_group_by, [])
+    Utils.check_answer(
+        agged_no_group_by, [Row(None, 0, 0, "", None, None, None, None, None, None)]
+    )
