@@ -80,8 +80,12 @@ body {
       dataframe_to_local_iterator {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 53
@@ -113,8 +117,12 @@ body {
     expr {
       dataframe_to_local_iterator {
         case_sensitive: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 64
@@ -190,8 +198,12 @@ body {
       dataframe_to_local_iterator {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 6
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
         }
         src {
           end_column: 65
@@ -224,8 +236,12 @@ body {
       dataframe_to_local_iterator {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 100
@@ -331,8 +347,12 @@ body {
     expr {
       dataframe_to_local_iterator {
         case_sensitive: true
-        id {
-          bitfield1: 11
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 11
+            }
+          }
         }
         src {
           end_column: 86
@@ -364,8 +384,12 @@ body {
     expr {
       dataframe_to_local_iterator {
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 122

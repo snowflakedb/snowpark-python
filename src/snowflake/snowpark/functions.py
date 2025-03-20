@@ -191,6 +191,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_call_table_function_apply,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
+    debug_check_missing_ast,
     set_builtin_fn_alias,
     snowpark_expression_to_ast,
     with_src_position,
@@ -8721,12 +8722,8 @@ def in_(
 
         values_args = []
         for val in vals:
-            # Skip if for other value AST generation was disabled.
-            if (
-                isinstance(val, snowflake.snowpark.dataframe.DataFrame)
-                and val._ast_id is None
-            ):
-                continue
+            if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
+                debug_check_missing_ast(val._ast_id, val._session, val)
 
             val_ast = proto.Expr()
             if isinstance(val, snowflake.snowpark.dataframe.DataFrame):

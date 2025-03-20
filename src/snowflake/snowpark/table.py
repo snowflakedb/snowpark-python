@@ -24,7 +24,6 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_dict_str_str,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_python_val,
-    debug_check_missing_ast,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
     build_table_name,
@@ -527,8 +526,7 @@ class Table(DataFrame):
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.table_update, stmt)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            ast.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.df)
             if assignments is not None:
                 for k, v in assignments.items():
                     t = ast.assignments.add()
@@ -659,8 +657,7 @@ class Table(DataFrame):
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.table_delete, stmt)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            ast.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.df)
             if condition is not None:
                 build_expr_from_snowpark_column(ast.condition, condition)
             if source is not None:
@@ -791,8 +788,7 @@ class Table(DataFrame):
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.table_merge, stmt)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            ast.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.df)
             source._set_ast_ref(ast.source)
             build_expr_from_snowpark_column_or_python_val(ast.join_expr, join_expr)
 
@@ -911,8 +907,7 @@ class Table(DataFrame):
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.table_drop_table, stmt)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            ast.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.df)
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.

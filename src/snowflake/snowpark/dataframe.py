@@ -109,7 +109,6 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_table_fn,
     build_indirect_table_fn_apply,
-    build_proto_from_pivot_values,
     debug_check_missing_ast,
     fill_ast_for_column,
     fill_save_mode,
@@ -611,7 +610,7 @@ class DataFrame:
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
-        self._writer = DataFrameWriter(self)
+        self._writer = DataFrameWriter(self, _emit_ast=False)
 
         self._stat = DataFrameStatFunctions(self)
         self._analytics = DataFrameAnalyticsFunctions(self)
@@ -701,8 +700,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_collect)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            expr.id.bitfield1 = self._ast_id
+            self._set_ast_ref(expr.df)
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
             expr.block = block
@@ -751,8 +749,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_collect)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            expr.id.bitfield1 = self._ast_id
+            self._set_ast_ref(expr.df)
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
             expr.case_sensitive = case_sensitive
@@ -889,9 +886,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(stmt.expr.dataframe_to_local_iterator)
 
-            debug_check_missing_ast(self._ast_id, self._session, self)
-
-            expr.id.bitfield1 = self._ast_id
+            self._set_ast_ref(expr.df)
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
             expr.block = block
@@ -1014,8 +1009,7 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_to_pandas, stmt)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            ast.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.df)
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
             ast.block = block
@@ -1118,8 +1112,7 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.dataframe_to_pandas_batches, stmt)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            ast.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.df)
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
             ast.block = block
@@ -1372,7 +1365,6 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.to_snowpark_pandas, stmt)
             self._set_ast_ref(ast.df)
-            debug_check_missing_ast(self._ast_id, self._session, self)
             if index_col is not None:
                 ast.index_col.extend(
                     index_col if isinstance(index_col, list) else [index_col]
@@ -2518,7 +2510,7 @@ class DataFrame:
             ast = with_src_position(stmt.expr.dataframe_pivot, stmt)
             self._set_ast_ref(ast.df)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
-            build_proto_from_pivot_values(ast.values, values)
+            build_expr_from_python_val(ast.values, values)
             build_expr_from_python_val(ast.default_on_null, default_on_null)
 
         target_df, pc, pivot_values, default_on_null = prepare_pivot_arguments(
@@ -4160,8 +4152,7 @@ class DataFrame:
             # Add an Assign node that applies DataframeCount() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
             expr = with_src_position(repr.expr.dataframe_count)
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            expr.id.bitfield1 = self._ast_id
+            self._set_ast_ref(expr.df)
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
             expr.block = block
@@ -4202,14 +4193,15 @@ class DataFrame:
             >>> df.write.copy_into_location("@test_stage/copied_from_dataframe")  # default CSV
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
-
-        # AST.
-        if self._ast_id is not None:
-            stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.dataframe_write, stmt)
-            self._set_ast_ref(expr.df)
-            self._writer._ast_stmt = stmt
-
+        if (
+            self._ast_id is not None
+            and self._writer._ast is None
+            and self._session.ast_enabled
+        ):
+            writer = proto.Expr()
+            with_src_position(writer.dataframe_writer)
+            self._writer._ast = writer
+            self._set_ast_ref(self._writer._ast.dataframe_writer.df)
         return self._writer
 
     @df_collect_api_telemetry
@@ -4356,6 +4348,7 @@ class DataFrame:
                     format_type_options=format_type_options,
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
 
             return df._internal_collect_with_tag_no_telemetry(
@@ -4444,6 +4437,7 @@ class DataFrame:
                 iceberg_config=iceberg_config,
             ),
             _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
         )
 
         # TODO SNOW-1776638: Add Eval and pass dataframeAst as part of kwargs.
@@ -4632,10 +4626,9 @@ class DataFrame:
         if _emit_ast:
             # Add an Assign node that applies DataframeShow() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            debug_check_missing_ast(self._ast_id, self._session, self)
-            if self._ast_id is not None:
-                repr.expr.dataframe_show.id.bitfield1 = self._ast_id
-            repr.expr.dataframe_show.n = n
+            ast = with_src_position(repr.expr.dataframe_show)
+            self._set_ast_ref(ast.df)
+            ast.n = n
             self._session._ast_batch.eval(repr)
 
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()

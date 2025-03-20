@@ -525,8 +525,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 11
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 11
+            }
+          }
         }
         src {
           end_column: 50
@@ -701,8 +705,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 15
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 15
+            }
+          }
         }
         src {
           end_column: 22

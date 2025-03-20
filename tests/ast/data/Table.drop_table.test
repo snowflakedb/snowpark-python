@@ -57,8 +57,12 @@ body {
   assign {
     expr {
       table_drop_table {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 23
