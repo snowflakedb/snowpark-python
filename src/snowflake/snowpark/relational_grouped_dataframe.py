@@ -31,6 +31,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_proto_from_callable,
     build_proto_from_pivot_values,
     build_proto_from_struct_type,
+    debug_check_missing_ast,
     with_src_position,
 )
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
@@ -440,7 +441,7 @@ class RelationalGroupedDataFrame:
             ast = with_src_position(
                 stmt.expr.relational_grouped_dataframe_apply_in_pandas, stmt
             )
-            ast.grouped_df.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.grouped_df)
             build_proto_from_callable(
                 ast.func, func, self._dataframe._session._ast_batch
             )
@@ -558,7 +559,7 @@ class RelationalGroupedDataFrame:
                 build_expr_from_python_val(ast.default_on_null, default_on_null)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
             build_proto_from_pivot_values(ast.values, values)
-            ast.grouped_df.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.grouped_df)
 
             # Update self's id.
             self._ast_id = stmt.var_id.bitfield1
@@ -617,7 +618,7 @@ class RelationalGroupedDataFrame:
             ast = with_src_position(
                 stmt.expr.relational_grouped_dataframe_builtin, stmt
             )
-            ast.grouped_df.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.grouped_df)
             ast.agg_name = "count"
             df._ast_id = stmt.var_id.bitfield1
 
@@ -648,7 +649,7 @@ class RelationalGroupedDataFrame:
             ast = with_src_position(
                 stmt.expr.relational_grouped_dataframe_builtin, stmt
             )
-            ast.grouped_df.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
+            self._set_ast_ref(ast.grouped_df)
             ast.agg_name = agg_name
             exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
             ast.cols.variadic = is_variadic
@@ -674,5 +675,5 @@ class RelationalGroupedDataFrame:
         Given a field builder expression of the AST type Expr, points the builder to reference this RelationalGroupedDataFrame.
         """
         # TODO: remove the None guard below once we generate the correct AST.
-        if self._ast_id is not None:
-            expr_builder.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
+        debug_check_missing_ast(self._ast_id, self._dataframe._session, self._dataframe)
+        expr_builder.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
