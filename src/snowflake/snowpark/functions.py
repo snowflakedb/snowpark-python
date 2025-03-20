@@ -487,7 +487,14 @@ def system_reference(
         [Row(IDENTIFIER='ENT_REF_TABLE_')]
     """
     privileges = privileges or []
-    return builtin("system$reference", _emit_ast=_emit_ast)(
+    ast = (
+        build_function_expr(
+            "system_reference", [object_type, object_identifier, scope, privileges]
+        )
+        if _emit_ast
+        else None
+    )
+    return builtin("system$reference", _ast=ast, _emit_ast=_emit_ast)(
         object_type, object_identifier, scope, *privileges
     )
 
@@ -1158,7 +1165,9 @@ def mean(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         [Row(X=Decimal('3.600000'))]
     """
     c = _to_col_if_str(e, "mean")
-    return avg(c, _emit_ast=_emit_ast)
+    ans = avg(c, _emit_ast=_emit_ast)
+    ans._ast = build_function_expr("mean", [c]) if _emit_ast else None
+    return ans
 
 
 @publicapi
@@ -1377,7 +1386,9 @@ def var_samp(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     """
     c = _to_col_if_str(e, "var_samp")
-    return variance(c, _emit_ast=_emit_ast)
+    ans = variance(c, _emit_ast=_emit_ast)
+    ans._ast = build_function_expr("var_samp", [c]) if _emit_ast else None
+    return ans
 
 
 @publicapi
@@ -3108,7 +3119,7 @@ def log1p(
         else _to_col_if_str(x, "log")
     )
     one_plus_x = _to_col_if_str(x, "log1p") + lit(1, _emit_ast=False)
-    return ln(one_plus_x, _emit_ast=False, _ast=ast)
+    return ln(one_plus_x, _emit_ast=_emit_ast, _ast=ast)
 
 
 @publicapi
@@ -5943,8 +5954,16 @@ def window(
             "snowflake.snowpark.functions.window does not support slide_duration parameter yet."
         )
 
+    ast = (
+        build_function_expr(
+            "window", [time_column, window_duration, slide_duration, start_time]
+        )
+        if _emit_ast
+        else None
+    )
+
     epoch = lit("1970-01-01 00:00:00", _emit_ast=False).cast(
-        TimestampType(timezone=TimestampTimeZone.NTZ)
+        TimestampType(timezone=TimestampTimeZone.NTZ), _emit_ast=False
     )
     time = _to_col_if_str(time_column, "window")
 
@@ -5955,16 +5974,22 @@ def window(
     base = epoch
     if start_time:
         start_duration, start_unit = parse_duration_string(start_time)
-        base += make_interval(**{f"{start_unit}s": start_duration})
+        base += make_interval(**{f"{start_unit}s": start_duration}, _emit_ast=False)
 
-    window = floor(datediff(window_unit, base, time, _emit_ast=False) / window_duration)
+    window = floor(
+        datediff(window_unit, base, time, _emit_ast=False) / window_duration,
+        _emit_ast=False,
+    )
     window_start = dateadd(window_unit, window * window_duration, base, _emit_ast=False)
-    return object_construct_keep_null(
+    ans = object_construct_keep_null(
         lit("start", _emit_ast=False),
         window_start,
         lit("end", _emit_ast=False),
         dateadd(window_unit, window_duration, window_start, _emit_ast=False),
+        _emit_ast=False,
     ).alias("window", _emit_ast=False)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -6734,13 +6759,16 @@ def from_json(
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "from_json")
+    ast = build_function_expr("from_json", [c, schema]) if _emit_ast else None
     if isinstance(schema, str):
         schema = type_string_to_type_object(schema)
-    return (
+    ans = (
         parse_json(e, _emit_ast=False)
         .cast(schema, _emit_ast=False)
         .alias(f"from_json({c.get_name()})", _emit_ast=False)
     )
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -7748,14 +7776,13 @@ def ln(
     """
 
     # AST.
-    ast = _ast
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(ast, "ln", c)
+    if _ast is None and _emit_ast:
+        _ast = proto.Expr()
+        build_builtin_fn_apply(_ast, "ln", c)
 
     c = _to_col_if_str(c, "ln")
     ans = builtin("ln", _emit_ast=False)(c)
-    ans._ast = ast
+    ans._ast = _ast
     return ans
 
 
@@ -11039,7 +11066,14 @@ def localtimestamp(fract_sec_precision: int = 9, _emit_ast: bool = True) -> Colu
         >>> df = session.create_dataframe([1], schema=["a"])
         >>> df.select(localtimestamp(3)).collect()  # doctest: +SKIP
     """
-    return builtin("localtimestamp", _emit_ast=_emit_ast)(lit(fract_sec_precision))
+    ast = (
+        build_function_expr("localtimestamp", [fract_sec_precision])
+        if _emit_ast
+        else None
+    )
+    return builtin("localtimestamp", _ast=ast, _emit_ast=_emit_ast)(
+        lit(fract_sec_precision, _emit_ast=False)
+    )
 
 
 @publicapi
@@ -11069,8 +11103,13 @@ def max_by(
     c1 = _to_col_if_str(col_to_return, "max_by")
     c2 = _to_col_if_str(col_containing_maximum, "max_by")
     if maximum_number_of_values_to_return is not None:
-        return builtin("max_by", _emit_ast=_emit_ast)(
-            c1, c2, lit(maximum_number_of_values_to_return)
+        ast = (
+            build_function_expr("max_by", [c1, c2, maximum_number_of_values_to_return])
+            if _emit_ast
+            else None
+        )
+        return builtin("max_by", _ast=ast, _emit_ast=_emit_ast)(
+            c1, c2, lit(maximum_number_of_values_to_return, _emit_ast=False)
         )
     else:
         return builtin("max_by", _emit_ast=_emit_ast)(c1, c2)
@@ -11104,8 +11143,13 @@ def min_by(
     c1 = _to_col_if_str(col_to_return, "min_by")
     c2 = _to_col_if_str(col_containing_minimum, "min_by")
     if maximum_number_of_values_to_return is not None:
-        return builtin("min_by", _emit_ast=_emit_ast)(
-            c1, c2, lit(maximum_number_of_values_to_return)
+        ast = (
+            build_function_expr("max_by", [c1, c2, maximum_number_of_values_to_return])
+            if _emit_ast
+            else None
+        )
+        return builtin("min_by", _ast=ast, _emit_ast=_emit_ast)(
+            c1, c2, lit(maximum_number_of_values_to_return, _emit_ast=False)
         )
     else:
         return builtin("min_by", _emit_ast=_emit_ast)(c1, c2)
@@ -11148,7 +11192,11 @@ def position(
     """
     c1 = _to_col_if_str(expr1, "position")
     c2 = _to_col_if_str(expr2, "position")
-    return builtin("position", _ast=_ast, _emit_ast=_emit_ast)(c1, c2, lit(start_pos))
+    if _ast is None and _emit_ast:
+        _ast = build_function_expr("position", [c1, c2, start_pos])
+    return builtin("position", _ast=_ast, _emit_ast=_emit_ast)(
+        c1, c2, lit(start_pos, _emit_ast=False)
+    )
 
 
 @publicapi
@@ -11848,6 +11896,8 @@ def fl_is_audio(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
 
 
+@private_preview(version="1.29.0")
+@publicapi
 def fl_is_video(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Checks if the input is a video FILE.
@@ -11869,6 +11919,8 @@ def fl_is_video(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
 
 
+@private_preview(version="1.29.0")
+@publicapi
 def fl_is_document(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Checks if the input is a document FILE.
@@ -11890,6 +11942,8 @@ def fl_is_document(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
 
 
+@private_preview(version="1.29.0")
+@publicapi
 def fl_is_compressed(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Checks if the input is a compressed FILE.
@@ -11911,6 +11965,8 @@ def fl_is_compressed(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
 
 
+@private_preview(version="1.29.0")
+@publicapi
 def fl_is_image(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Checks if the input is an image FILE.

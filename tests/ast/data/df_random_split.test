@@ -4,7 +4,7 @@ df = session.table(tables.table1)
 
 # Single weight means returning the dataframe itself.
 
-# df, = df.random_split([0.7])
+df, = df.random_split([0.7])
 
 weights = [0.1, 0.2, 0.3]
 
@@ -24,29 +24,31 @@ t[0].collect()
 
 df = session.table("table1")
 
-res1 = df.random_split([0.1, 0.2, 0.3], None)
+res1 = df.random_split([0.7], None)
 
-df1 = res1[0]
+res2 = df.random_split([0.1, 0.2, 0.3], None)
 
-df2 = res1[1]
+df1 = res2[0]
 
-df3 = res1[2]
+df2 = res2[1]
 
-res2 = df.random_split([0.1, 0.2, 0.3], 24)
+df3 = res2[2]
 
-df3 = res2[0]
+res3 = df.random_split([0.1, 0.2, 0.3], 24)
 
-df1 = res2[1]
+df3 = res3[0]
 
-df2 = res2[2]
+df1 = res3[1]
+
+df2 = res3[2]
 
 df1.select(col("NUM") > lit(10)).collect()
 
 t = df.random_split([0.1, 0.2, 0.3], 24)
 
-res6 = t[1]
+res7 = t[1]
 
-res7 = t[2]
+res8 = t[2]
 
 t[0].collect()
 
@@ -105,15 +107,13 @@ body {
           }
         }
         src {
-          end_column: 48
-          end_line: 33
+          end_column: 36
+          end_line: 29
           file: 2
-          start_column: 24
-          start_line: 33
+          start_column: 14
+          start_line: 29
         }
-        weights: 0.1
-        weights: 0.2
-        weights: 0.3
+        weights: 0.7
       }
     }
     symbol {
@@ -127,20 +127,13 @@ body {
 body {
   assign {
     expr {
-      object_get_item {
-        args {
-          int64_val {
-            src {
-              end_column: 48
-              end_line: 33
-              file: 2
-              start_column: 24
-              start_line: 33
+      dataframe_random_split {
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
             }
           }
-        }
-        obj {
-          bitfield1: 2
         }
         src {
           end_column: 48
@@ -149,10 +142,12 @@ body {
           start_column: 24
           start_line: 33
         }
+        weights: 0.1
+        weights: 0.2
+        weights: 0.3
       }
     }
     symbol {
-      value: "df1"
     }
     uid: 3
     var_id {
@@ -173,11 +168,10 @@ body {
               start_column: 24
               start_line: 33
             }
-            v: 1
           }
         }
         obj {
-          bitfield1: 2
+          bitfield1: 3
         }
         src {
           end_column: 48
@@ -189,7 +183,7 @@ body {
       }
     }
     symbol {
-      value: "df2"
+      value: "df1"
     }
     uid: 4
     var_id {
@@ -210,11 +204,48 @@ body {
               start_column: 24
               start_line: 33
             }
+            v: 1
+          }
+        }
+        obj {
+          bitfield1: 3
+        }
+        src {
+          end_column: 48
+          end_line: 33
+          file: 2
+          start_column: 24
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      object_get_item {
+        args {
+          int64_val {
+            src {
+              end_column: 48
+              end_line: 33
+              file: 2
+              start_column: 24
+              start_line: 33
+            }
             v: 2
           }
         }
         obj {
-          bitfield1: 2
+          bitfield1: 3
         }
         src {
           end_column: 48
@@ -228,9 +259,9 @@ body {
     symbol {
       value: "df3"
     }
-    uid: 5
+    uid: 6
     var_id {
-      bitfield1: 5
+      bitfield1: 6
     }
   }
 }
@@ -262,42 +293,6 @@ body {
     }
     symbol {
     }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      object_get_item {
-        args {
-          int64_val {
-            src {
-              end_column: 57
-              end_line: 37
-              file: 2
-              start_column: 24
-              start_line: 37
-            }
-          }
-        }
-        obj {
-          bitfield1: 6
-        }
-        src {
-          end_column: 57
-          end_line: 37
-          file: 2
-          start_column: 24
-          start_line: 37
-        }
-      }
-    }
-    symbol {
-      value: "df3"
-    }
     uid: 7
     var_id {
       bitfield1: 7
@@ -317,11 +312,10 @@ body {
               start_column: 24
               start_line: 37
             }
-            v: 1
           }
         }
         obj {
-          bitfield1: 6
+          bitfield1: 7
         }
         src {
           end_column: 57
@@ -333,7 +327,7 @@ body {
       }
     }
     symbol {
-      value: "df1"
+      value: "df3"
     }
     uid: 8
     var_id {
@@ -354,11 +348,48 @@ body {
               start_column: 24
               start_line: 37
             }
+            v: 1
+          }
+        }
+        obj {
+          bitfield1: 7
+        }
+        src {
+          end_column: 57
+          end_line: 37
+          file: 2
+          start_column: 24
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      object_get_item {
+        args {
+          int64_val {
+            src {
+              end_column: 57
+              end_line: 37
+              file: 2
+              start_column: 24
+              start_line: 37
+            }
             v: 2
           }
         }
         obj {
-          bitfield1: 6
+          bitfield1: 7
         }
         src {
           end_column: 57
@@ -372,9 +403,9 @@ body {
     symbol {
       value: "df2"
     }
-    uid: 9
+    uid: 10
     var_id {
-      bitfield1: 9
+      bitfield1: 10
     }
   }
 }
@@ -467,38 +498,12 @@ body {
         df {
           dataframe_ref {
             id {
-              bitfield1: 8
+              bitfield1: 9
             }
           }
         }
         src {
           end_column: 40
-          end_line: 39
-          file: 2
-          start_column: 8
-          start_line: 39
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 10
-    var_id {
-      bitfield1: 10
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
-          bitfield1: 10
-        }
-        src {
-          end_column: 50
           end_line: 39
           file: 2
           start_column: 8
@@ -515,10 +520,36 @@ body {
   }
 }
 body {
-  eval {
+  assign {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 11
+        }
+        src {
+          end_column: 50
+          end_line: 39
+          file: 2
+          start_column: 8
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+    }
     uid: 12
     var_id {
-      bitfield1: 11
+      bitfield1: 12
+    }
+  }
+}
+body {
+  eval {
+    uid: 13
+    var_id {
+      bitfield1: 12
     }
   }
 }
@@ -551,41 +582,6 @@ body {
     symbol {
       value: "t"
     }
-    uid: 13
-    var_id {
-      bitfield1: 13
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      object_get_item {
-        args {
-          int64_val {
-            src {
-              end_column: 48
-              end_line: 41
-              file: 2
-              start_column: 12
-              start_line: 41
-            }
-          }
-        }
-        obj {
-          bitfield1: 13
-        }
-        src {
-          end_column: 48
-          end_line: 41
-          file: 2
-          start_column: 12
-          start_line: 41
-        }
-      }
-    }
-    symbol {
-    }
     uid: 14
     var_id {
       bitfield1: 14
@@ -605,11 +601,10 @@ body {
               start_column: 12
               start_line: 41
             }
-            v: 1
           }
         }
         obj {
-          bitfield1: 13
+          bitfield1: 14
         }
         src {
           end_column: 48
@@ -641,11 +636,11 @@ body {
               start_column: 12
               start_line: 41
             }
-            v: 2
+            v: 1
           }
         }
         obj {
-          bitfield1: 13
+          bitfield1: 14
         }
         src {
           end_column: 48
@@ -667,18 +662,28 @@ body {
 body {
   assign {
     expr {
-      dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
+      object_get_item {
+        args {
+          int64_val {
+            src {
+              end_column: 48
+              end_line: 41
+              file: 2
+              start_column: 12
+              start_line: 41
+            }
+            v: 2
+          }
+        }
+        obj {
           bitfield1: 14
         }
         src {
-          end_column: 22
-          end_line: 43
+          end_column: 48
+          end_line: 41
           file: 2
-          start_column: 8
-          start_line: 43
+          start_column: 12
+          start_line: 41
         }
       }
     }
@@ -691,10 +696,36 @@ body {
   }
 }
 body {
-  eval {
+  assign {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 15
+        }
+        src {
+          end_column: 22
+          end_line: 43
+          file: 2
+          start_column: 8
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+    }
     uid: 18
     var_id {
-      bitfield1: 17
+      bitfield1: 18
+    }
+  }
+}
+body {
+  eval {
+    uid: 19
+    var_id {
+      bitfield1: 18
     }
   }
 }

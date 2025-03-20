@@ -2213,7 +2213,7 @@ class DataFrame:
                 for c in col_list:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-                expr.df.dataframe_ref.id.bitfield1 = self._ast_id
+                self._set_ast_ref(expr.df)
             else:
                 stmt = _ast_stmt
 

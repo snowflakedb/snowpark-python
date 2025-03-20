@@ -112,6 +112,21 @@ def select_sp(session_: snowflake.snowpark.Session, x: int, y: int) -> DataFrame
     return session_.sql(f"SELECT {x} as A, {y} as B")
 select_sp(1, 2).show()
 
+# Example 9: Registering a stored procedure from a file
+mod5_sp = session.sproc.register_from_file(
+    test_files.test_sp_py_file,
+    "mod5",
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+)
+mod5_sp(3)
+
+# Example 10: Registering a stored procedure from a file with type hints
+range5_sproc = session.sproc.register_from_file(
+    test_files.test_table_sp_py_file,
+    "range5_sproc",
+)
+range5_sproc()
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -180,6 +195,18 @@ session.sql("SELECT 1 as A, 2 as B").show()
 res41 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
+
+mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+
+session.create_dataframe([[3]], schema=["a"]).select(col("a") % 5).collect()
+
+mod5_sp(3)
+
+range5_sproc = sproc("range5_sproc", return_type=StructType(structured=False), _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+
+res48 = range5_sproc()
+
+res49 = session.range(5, None, 1)
 
 ## EXPECTED ENCODED AST
 
@@ -2186,6 +2213,364 @@ body {
     uid: 73
     var_id {
       bitfield1: 72
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 9
+          name: "mod5"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
+            }
+          }
+        }
+        input_types {
+          integer_type: true
+        }
+        parallel: 4
+        return_type {
+          integer_type: true
+        }
+        source_code_display: true
+        src {
+          end_column: 9
+          end_line: 143
+          file: 2
+          start_column: 18
+          start_line: 138
+        }
+      }
+    }
+    symbol {
+      value: "mod5_sp"
+    }
+    uid: 74
+    var_id {
+      bitfield1: 74
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          fn_ref {
+            id {
+              bitfield1: 74
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              end_column: 18
+              end_line: 144
+              file: 2
+              start_column: 8
+              start_line: 144
+            }
+            v: 3
+          }
+        }
+        src {
+          end_column: 18
+          end_line: 144
+          file: 2
+          start_column: 8
+          start_line: 144
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 75
+    var_id {
+      bitfield1: 75
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 53
+                  end_line: 7
+                  file: 2
+                  start_column: 8
+                  start_line: 7
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 53
+                      end_line: 7
+                      file: 2
+                      start_column: 8
+                      start_line: 7
+                    }
+                    v: 3
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          end_column: 53
+          end_line: 7
+          file: 2
+          start_column: 8
+          start_line: 7
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 76
+    var_id {
+      bitfield1: 76
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            mod {
+              lhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 24
+                        end_line: 8
+                        file: 2
+                        start_column: 16
+                        start_line: 8
+                      }
+                      v: "a"
+                    }
+                  }
+                  src {
+                    end_column: 24
+                    end_line: 8
+                    file: 2
+                    start_column: 16
+                    start_line: 8
+                  }
+                }
+              }
+              rhs {
+                int64_val {
+                  src {
+                    end_column: 28
+                    end_line: 8
+                    file: 2
+                    start_column: 16
+                    start_line: 8
+                  }
+                  v: 5
+                }
+              }
+              src {
+                end_column: 28
+                end_line: 8
+                file: 2
+                start_column: 16
+                start_line: 8
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 76
+            }
+          }
+        }
+        src {
+          end_column: 29
+          end_line: 8
+          file: 2
+          start_column: 9
+          start_line: 8
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 77
+    var_id {
+      bitfield1: 77
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 77
+        }
+        src {
+          end_column: 18
+          end_line: 9
+          file: 2
+          start_column: 9
+          start_line: 9
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 78
+    var_id {
+      bitfield1: 78
+    }
+  }
+}
+body {
+  eval {
+    uid: 79
+    var_id {
+      bitfield1: 78
+    }
+  }
+}
+body {
+  eval {
+    uid: 80
+    var_id {
+      bitfield1: 75
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 10
+          name: "range5_sproc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
+            }
+          }
+        }
+        parallel: 4
+        return_type {
+          struct_type {
+          }
+        }
+        source_code_display: true
+        src {
+          end_column: 9
+          end_line: 150
+          file: 2
+          start_column: 23
+          start_line: 147
+        }
+      }
+    }
+    symbol {
+      value: "range5_sproc"
+    }
+    uid: 81
+    var_id {
+      bitfield1: 81
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          fn_ref {
+            id {
+              bitfield1: 81
+            }
+          }
+        }
+        src {
+          end_column: 22
+          end_line: 151
+          file: 2
+          start_column: 8
+          start_line: 151
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 82
+    var_id {
+      bitfield1: 82
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      range {
+        src {
+          end_column: 27
+          end_line: 6
+          file: 2
+          start_column: 11
+          start_line: 6
+        }
+        start: 5
+        step {
+          value: 1
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 83
+    var_id {
+      bitfield1: 83
     }
   }
 }

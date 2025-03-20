@@ -223,3 +223,8 @@ def session(local_testing_mode):
 @pytest.fixture(scope="function")
 def tables(session):
     return TestTables(session)
+
+
+@pytest.fixture(scope="session")
+def resources_path() -> str:
+    return os.path.normpath(os.path.join(os.path.dirname(__file__), "../resources"))

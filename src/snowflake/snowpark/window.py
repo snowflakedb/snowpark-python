@@ -105,11 +105,13 @@ class Window:
     currentRow: int = CURRENT_ROW
 
     @staticmethod
+    @publicapi
     def partition_by(
         *cols: Union[
             ColumnOrName,
             Iterable[ColumnOrName],
-        ]
+        ],
+        _emit_ast: bool = True,
     ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with partition by clause.
@@ -118,7 +120,7 @@ class Window:
             cols: A column, as :class:`str`, :class:`~snowflake.snowpark.column.Column`
                 or a list of those.
         """
-        return Window._spec().partition_by(*cols)
+        return Window._spec().partition_by(*cols, _emit_ast=_emit_ast)
 
     @staticmethod
     @publicapi

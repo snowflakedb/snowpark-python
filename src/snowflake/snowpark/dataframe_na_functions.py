@@ -410,6 +410,7 @@ class DataFrameNaFunctions:
                 ast.subset.variadic = False
                 for col in subset:
                     build_expr_from_python_val(ast.subset.args.add(), col)
+            ast.include_decimal = include_decimal
 
         if subset is None:
             subset = self._dataframe.columns
@@ -633,6 +634,7 @@ class DataFrameNaFunctions:
                 ast.subset.variadic = False
                 for col in subset:
                     build_expr_from_python_val(ast.subset.args.add(), col)
+            ast.include_decimal = include_decimal
 
         # Modify subset.
         if subset is None:
