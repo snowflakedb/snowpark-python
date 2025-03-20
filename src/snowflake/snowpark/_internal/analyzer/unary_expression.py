@@ -106,6 +106,10 @@ class Alias(UnaryExpression, NamedExpression):
         return {}
 
 
+class _InternalAlias(Alias):
+    pass
+
+
 class UnresolvedAlias(UnaryExpression, NamedExpression):
     sql_operator = "AS"
     operator_first = False
