@@ -212,6 +212,8 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    private_preview,
+    validate_stage_location,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -455,7 +457,7 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
     ast = None
     if _emit_ast:
         sql_expr_ast = proto.Expr()
-        ast = with_src_position(sql_expr_ast.sp_column_sql_expr)
+        ast = with_src_position(sql_expr_ast.sql_expr)
         ast.sql = sql
 
         # Capture with ApplyFn in order to restore sql_expr(...) function.
@@ -485,7 +487,14 @@ def system_reference(
         [Row(IDENTIFIER='ENT_REF_TABLE_')]
     """
     privileges = privileges or []
-    return builtin("system$reference", _emit_ast=_emit_ast)(
+    ast = (
+        build_function_expr(
+            "system_reference", [object_type, object_identifier, scope, privileges]
+        )
+        if _emit_ast
+        else None
+    )
+    return builtin("system$reference", _ast=ast, _emit_ast=_emit_ast)(
         object_type, object_identifier, scope, *privileges
     )
 
@@ -858,7 +867,6 @@ def convert_timezone(
         build_function_expr(
             "convert_timezone",
             [target_timezone, source_time, source_timezone],
-            ignore_null_args=True,
         )
         if _emit_ast
         else None
@@ -1097,19 +1105,18 @@ def create_map(
         -----------------------
         <BLANKLINE>
     """
-
-    check_create_map_parameter(*cols)
+    variadic = check_create_map_parameter(*cols)
+    ast = proto.Expr()
+    build_builtin_fn_apply(
+        ast, "create_map", *cols if variadic else cols
+    ) if _emit_ast else None
 
     # TODO SNOW-1790918: Remove as part of refactoring with alias.
     if len(cols) == 1 and isinstance(cols[0], (list, tuple)):
         cols = cols[0]
 
-    col = object_construct_keep_null(*cols, _emit_ast=_emit_ast)
-
-    if _emit_ast:
-        # Alias to create_map.
-        set_builtin_fn_alias(col._ast, "create_map")
-
+    col = object_construct_keep_null(*cols, _emit_ast=False)
+    col._ast = ast
     return col
 
 
@@ -1158,7 +1165,9 @@ def mean(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         [Row(X=Decimal('3.600000'))]
     """
     c = _to_col_if_str(e, "mean")
-    return avg(c, _emit_ast=_emit_ast)
+    ans = avg(c, _emit_ast=_emit_ast)
+    ans._ast = build_function_expr("mean", [c]) if _emit_ast else None
+    return ans
 
 
 @publicapi
@@ -1377,7 +1386,9 @@ def var_samp(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     """
     c = _to_col_if_str(e, "var_samp")
-    return variance(c, _emit_ast=_emit_ast)
+    ans = variance(c, _emit_ast=_emit_ast)
+    ans._ast = build_function_expr("var_samp", [c]) if _emit_ast else None
+    return ans
 
 
 @publicapi
@@ -1782,13 +1793,13 @@ def grouping(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> from snowflake.snowpark import GroupingSets
         >>> df = session.create_dataframe([[1, 2, 3], [4, 5, 6]],schema=["a", "b", "c"])
         >>> grouping_sets = GroupingSets([col("a")], [col("b")], [col("a"), col("b")])
-        >>> df.group_by_grouping_sets(grouping_sets).agg([count("c"), grouping("a"), grouping("b"), grouping("a", "b")]).collect()
-        [Row(A=1, B=2, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
-Row(A=4, B=5, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=0, GROUPING(A, B)=0), \
-Row(A=1, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
-Row(A=4, B=None, COUNT(C)=1, GROUPING(A)=0, GROUPING(B)=1, GROUPING(A, B)=1), \
-Row(A=None, B=2, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2), \
-Row(A=None, B=5, COUNT(C)=1, GROUPING(A)=1, GROUPING(B)=0, GROUPING(A, B)=2)]
+        >>> df.group_by_grouping_sets(grouping_sets).agg([count("c").alias("count_c"), grouping("a").alias("ga"), grouping("b").alias("gb"), grouping("a", "b").alias("gab")]).sort("a", "b").collect()
+        [Row(A=None, B=2, COUNT_C=1, GA=1, GB=0, GAB=2), \
+Row(A=None, B=5, COUNT_C=1, GA=1, GB=0, GAB=2), \
+Row(A=1, B=None, COUNT_C=1, GA=0, GB=1, GAB=1), \
+Row(A=1, B=2, COUNT_C=1, GA=0, GB=0, GAB=0), \
+Row(A=4, B=None, COUNT_C=1, GA=0, GB=1, GAB=1), \
+Row(A=4, B=5, COUNT_C=1, GA=0, GB=0, GAB=0)]
     """
     columns = [_to_col_if_str(c, "grouping") for c in cols]
     return builtin("grouping", _emit_ast=_emit_ast)(*columns)
@@ -1965,18 +1976,21 @@ def uniform(
         >>> df.select(uniform(1, 100, col("a")).alias("UNIFORM")).collect()
         [Row(UNIFORM=62)]
     """
+    ast = build_function_expr("uniform", [min_, max_, gen]) if _emit_ast else None
 
     def convert_limit_to_col(limit):
         if isinstance(limit, int):
-            return lit(limit)
+            return lit(limit, _emit_ast=False)
         elif isinstance(limit, float):
-            return lit(limit).cast(FloatType())
+            return lit(limit, _emit_ast=False).cast(FloatType(), _emit_ast=False)
         return _to_col_if_str(limit, "uniform")
 
     min_col = convert_limit_to_col(min_)
     max_col = convert_limit_to_col(max_)
     gen_col = (
-        lit(gen) if isinstance(gen, (int, float)) else _to_col_if_str(gen, "uniform")
+        lit(gen, _emit_ast=False)
+        if isinstance(gen, (int, float))
+        else _to_col_if_str(gen, "uniform")
     )
     return _call_function(
         "uniform",
@@ -1985,6 +1999,7 @@ def uniform(
         max_col,
         gen_col,
         is_data_generator=True,
+        _ast=ast,
         _emit_ast=_emit_ast,
     )
 
@@ -3104,7 +3119,7 @@ def log1p(
         else _to_col_if_str(x, "log")
     )
     one_plus_x = _to_col_if_str(x, "log1p") + lit(1, _emit_ast=False)
-    return ln(one_plus_x, _emit_ast=False, _ast=ast)
+    return ln(one_plus_x, _emit_ast=_emit_ast, _ast=ast)
 
 
 @publicapi
@@ -3344,11 +3359,7 @@ def substring(
     """
     s = _to_col_if_str(str, "substring")
     # Build AST here to prevent `pos` and `len` from being recorded as a literal instead of int/None.
-    ast = (
-        build_function_expr("substring", [s, pos, len], ignore_null_args=True)
-        if _emit_ast
-        else None
-    )
+    ast = build_function_expr("substring", [s, pos, len]) if _emit_ast else None
     p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=False)
     if len is None:
         return builtin("substring", _emit_ast=False)(s, p)
@@ -3649,11 +3660,7 @@ def charindex(
     t = _to_col_if_str(target_expr, "charindex")
     s = _to_col_if_str(source_expr, "charindex")
     # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
-    ast = (
-        build_function_expr("charindex", [t, s, position], ignore_null_args=True)
-        if _emit_ast
-        else None
-    )
+    ast = build_function_expr("charindex", [t, s, position]) if _emit_ast else None
     return (
         builtin("charindex", _ast=ast, _emit_ast=False)(
             t,
@@ -3663,7 +3670,7 @@ def charindex(
             else lit(position, _emit_ast=False),
         )
         if position is not None
-        else builtin("charindex", _emit_ast=False)(t, s)
+        else builtin("charindex", _ast=ast, _emit_ast=False)(t, s)
     )
 
 
@@ -3802,7 +3809,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
     """
     # TODO: SNOW-1831917 create ast
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
-    names = ",".join([c.get_name() for c in columns])
+    names = ",".join([c.get_name() or f"COL{i}" for i, c in enumerate(columns)])
 
     # The implementation of this function is as follows with example input of
     # sep = "," and row = [a, NULL], b, NULL, c:
@@ -3814,7 +3821,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
     #   [a, NULL, b, c]
     # 4. Filter out nulls (array_remove_nulls).
     #   [a, b, c]
-    # 5. Concatenate the non-null values into a single string (concat_strings_with_sep).
+    # 5. Concatenate the non-null values into a single string (array_to_string).
     #   "a,b,c"
 
     def array_remove_nulls(col: Column) -> Column:
@@ -3823,21 +3830,8 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
             col, sql_expr("x -> NOT IS_NULL_VALUE(x)", _emit_ast=False)
         )
 
-    def concat_strings_with_sep(col: Column) -> Column:
-        """
-        Expects an array of strings and returns a single string
-        with the values concatenated with the separator.
-        """
-        return substring(
-            builtin("reduce", _emit_ast=False)(
-                col, lit(""), sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False)
-            ),
-            len(sep) + 1,
-            _emit_ast=False,
-        )
-
-    return concat_strings_with_sep(
-        array_remove_nulls(
+    return array_to_string(
+        array=array_remove_nulls(
             array_flatten(
                 array_construct_compact(
                     *[c.cast(ArrayType(), _emit_ast=False) for c in columns],
@@ -3845,8 +3839,10 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
                 ),
                 _emit_ast=False,
             )
-        )
-    ).alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False)
+        ),
+        separator=lit(sep, _emit_ast=False),
+        _emit_ast=False,
+    )._alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})")
 
 
 @publicapi
@@ -4068,7 +4064,7 @@ def to_char(
             c, format if isinstance(format, Column) else lit(format, _emit_ast=False)
         )
         if format is not None
-        else builtin("to_char", _emit_ast=False)(c)
+        else builtin("to_char", _ast=ast, _emit_ast=False)(c)
     )
 
 
@@ -4873,7 +4869,7 @@ def array_except(
 
     When allow_duplicates is set to True (default), this function is the same as the Snowflake ARRAY_EXCEPT semantic:
 
-    This function compares arrays by using multi-set semantics (sometimes called “bag semantics”). If source_array
+    This function compares arrays by using multi-set semantics (sometimes called "bag semantics"). If source_array
     includes multiple copies of a value, the function only removes the number of copies of that value that are specified
     in array_of_elements_to_exclude.
 
@@ -5908,6 +5904,7 @@ def window(
         |}                                     |
         ----------------------------------------
         <BLANKLINE>
+
         >>> df.select(window(df.time, "5 minutes", start_time="2 minutes")).show()
         ----------------------------------------
         |"WINDOW"                              |
@@ -5931,7 +5928,7 @@ def window(
         ...         (datetime.datetime(2024, 10, 31, 5, 0, 0), 1),
         ...     ], schema=["time", "value"]
         ... )
-        >>> df.group_by(window(df.time, "2 hours")).agg(sum(df.value)).show()
+        >>> df.group_by(window(df.time, "2 hours")).agg(sum(df.value)).sort("window").show()
         -------------------------------------------------------
         |"WINDOW"                              |"SUM(VALUE)"  |
         -------------------------------------------------------
@@ -5957,8 +5954,16 @@ def window(
             "snowflake.snowpark.functions.window does not support slide_duration parameter yet."
         )
 
+    ast = (
+        build_function_expr(
+            "window", [time_column, window_duration, slide_duration, start_time]
+        )
+        if _emit_ast
+        else None
+    )
+
     epoch = lit("1970-01-01 00:00:00", _emit_ast=False).cast(
-        TimestampType(timezone=TimestampTimeZone.NTZ)
+        TimestampType(timezone=TimestampTimeZone.NTZ), _emit_ast=False
     )
     time = _to_col_if_str(time_column, "window")
 
@@ -5969,16 +5974,22 @@ def window(
     base = epoch
     if start_time:
         start_duration, start_unit = parse_duration_string(start_time)
-        base += make_interval(**{f"{start_unit}s": start_duration})
+        base += make_interval(**{f"{start_unit}s": start_duration}, _emit_ast=False)
 
-    window = floor(datediff(window_unit, base, time, _emit_ast=False) / window_duration)
+    window = floor(
+        datediff(window_unit, base, time, _emit_ast=False) / window_duration,
+        _emit_ast=False,
+    )
     window_start = dateadd(window_unit, window * window_duration, base, _emit_ast=False)
-    return object_construct_keep_null(
+    ans = object_construct_keep_null(
         lit("start", _emit_ast=False),
         window_start,
         lit("end", _emit_ast=False),
         dateadd(window_unit, window_duration, window_start, _emit_ast=False),
-    ).alias("window", _emit_ast=False)
+        _emit_ast=False,
+    )._alias("window")
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -6748,13 +6759,16 @@ def from_json(
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "from_json")
+    ast = build_function_expr("from_json", [c, schema]) if _emit_ast else None
     if isinstance(schema, str):
         schema = type_string_to_type_object(schema)
-    return (
+    ans = (
         parse_json(e, _emit_ast=False)
         .cast(schema, _emit_ast=False)
-        .alias(f"from_json({c.get_name()})", _emit_ast=False)
+        ._alias(f"from_json({c.get_name()})")
     )
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -6813,7 +6827,7 @@ def array_agg(
 
     Example::
         >>> df = session.create_dataframe([[1], [2], [3], [1]], schema=["a"])
-        >>> df.select(array_agg("a", True).alias("result")).show()
+        >>> df.select(array_agg("a", True).within_group("a").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -6825,8 +6839,9 @@ def array_agg(
         ------------
         <BLANKLINE>
     """
+    ast = build_function_expr("array_agg", [col, is_distinct]) if _emit_ast else None
     c = _to_col_if_str(col, "array_agg")
-    return _call_function("array_agg", is_distinct, c, _emit_ast=_emit_ast)
+    return _call_function("array_agg", is_distinct, c, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -7303,7 +7318,7 @@ def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "array_unique_agg")
-    return _call_function("array_unique_agg", True, c, _emit_ast=_emit_ast)
+    return _call_function("array_unique_agg", False, c, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -7452,7 +7467,7 @@ def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
             _emit_ast=False,
         )
         .otherwise(lit(None), _emit_ast=False)
-        .alias(f"SIZE({c.get_name()})", _emit_ast=False)
+        ._alias(f"SIZE({c.get_name()})")
     )
     result._ast = ast
     return result
@@ -7761,14 +7776,13 @@ def ln(
     """
 
     # AST.
-    ast = _ast
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(ast, "ln", c)
+    if _ast is None and _emit_ast:
+        _ast = proto.Expr()
+        build_builtin_fn_apply(_ast, "ln", c)
 
     c = _to_col_if_str(c, "ln")
     ans = builtin("ln", _emit_ast=False)(c)
-    ans._ast = ast
+    ans._ast = _ast
     return ans
 
 
@@ -8358,7 +8372,7 @@ def to_variant(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     Example::
 
         >>> df = session.create_dataframe([1, 2, 3, 4], schema=['a'])
-        >>> df_conv = df.select(to_variant(col("a")).as_("ans"))
+        >>> df_conv = df.select(to_variant(col("a")).as_("ans")).sort("ans")
         >>> df_conv.collect()
         [Row(ANS='1'), Row(ANS='2'), Row(ANS='3'), Row(ANS='4')]
 
@@ -8368,8 +8382,8 @@ def to_variant(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> from snowflake.snowpark import Row
         >>> schema = StructType([StructField("a", VariantType())])
         >>> df_other = session.create_dataframe([Row(a=10), Row(a='test'), Row(a={'a': 10, 'b': 20}), Row(a=[1, 2, 3])], schema=schema)
-        >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).collect()
-        [Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='VARCHAR'), Row(ANS='OBJECT'), Row(ANS='ARRAY')]
+        >>> df_conv.union(df_other).select(typeof(col("ans")).as_("ans")).sort("ans").collect()
+        [Row(ANS='ARRAY'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='INTEGER'), Row(ANS='OBJECT'), Row(ANS='VARCHAR')]
     """
     c = _to_col_if_str(e, "to_variant")
     return builtin("to_variant", _emit_ast=_emit_ast)(c)
@@ -8589,7 +8603,7 @@ def when(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        expr = with_src_position(ast.sp_column_case_when)
+        expr = with_src_position(ast.column_case_expr)
         case_expr = with_src_position(expr.cases.add())
         build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
         build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
@@ -11052,7 +11066,14 @@ def localtimestamp(fract_sec_precision: int = 9, _emit_ast: bool = True) -> Colu
         >>> df = session.create_dataframe([1], schema=["a"])
         >>> df.select(localtimestamp(3)).collect()  # doctest: +SKIP
     """
-    return builtin("localtimestamp", _emit_ast=_emit_ast)(lit(fract_sec_precision))
+    ast = (
+        build_function_expr("localtimestamp", [fract_sec_precision])
+        if _emit_ast
+        else None
+    )
+    return builtin("localtimestamp", _ast=ast, _emit_ast=_emit_ast)(
+        lit(fract_sec_precision, _emit_ast=False)
+    )
 
 
 @publicapi
@@ -11082,8 +11103,13 @@ def max_by(
     c1 = _to_col_if_str(col_to_return, "max_by")
     c2 = _to_col_if_str(col_containing_maximum, "max_by")
     if maximum_number_of_values_to_return is not None:
-        return builtin("max_by", _emit_ast=_emit_ast)(
-            c1, c2, lit(maximum_number_of_values_to_return)
+        ast = (
+            build_function_expr("max_by", [c1, c2, maximum_number_of_values_to_return])
+            if _emit_ast
+            else None
+        )
+        return builtin("max_by", _ast=ast, _emit_ast=_emit_ast)(
+            c1, c2, lit(maximum_number_of_values_to_return, _emit_ast=False)
         )
     else:
         return builtin("max_by", _emit_ast=_emit_ast)(c1, c2)
@@ -11117,8 +11143,13 @@ def min_by(
     c1 = _to_col_if_str(col_to_return, "min_by")
     c2 = _to_col_if_str(col_containing_minimum, "min_by")
     if maximum_number_of_values_to_return is not None:
-        return builtin("min_by", _emit_ast=_emit_ast)(
-            c1, c2, lit(maximum_number_of_values_to_return)
+        ast = (
+            build_function_expr("max_by", [c1, c2, maximum_number_of_values_to_return])
+            if _emit_ast
+            else None
+        )
+        return builtin("min_by", _ast=ast, _emit_ast=_emit_ast)(
+            c1, c2, lit(maximum_number_of_values_to_return, _emit_ast=False)
         )
     else:
         return builtin("min_by", _emit_ast=_emit_ast)(c1, c2)
@@ -11161,7 +11192,11 @@ def position(
     """
     c1 = _to_col_if_str(expr1, "position")
     c2 = _to_col_if_str(expr2, "position")
-    return builtin("position", _ast=_ast, _emit_ast=_emit_ast)(c1, c2, lit(start_pos))
+    if _ast is None and _emit_ast:
+        _ast = build_function_expr("position", [c1, c2, start_pos])
+    return builtin("position", _ast=_ast, _emit_ast=_emit_ast)(
+        c1, c2, lit(start_pos, _emit_ast=False)
+    )
 
 
 @publicapi
@@ -11543,4 +11578,555 @@ def randn(
         seed,
         _emit_ast=False,
         _ast=ast,
+    )
+
+
+@publicapi
+def build_stage_file_url(
+    stage_name: str, relative_file_path: str, _emit_ast: bool = True
+) -> Column:
+    """
+    Generates a Snowflake file URL to a staged file using the stage name and relative file path as inputs.
+    A file URL permits prolonged access to a specified file. That is, the file URL does not expire.
+    The file URL is in the following format:
+
+    ``https://<account_identifier>/api/files/<db_name>/<schema_name>/<stage_name>/<relative_path>``
+
+    See more details `here <https://docs.snowflake.com/en/sql-reference/functions/build_stage_file_url#returns>`_.
+
+    Args:
+        stage_name: Name of the internal or external stage where the file is stored.
+            If the stage name includes spaces or special characters, it must be enclosed in single quotes
+            (e.g. '@"my stage"' for a stage named "my stage"). It has to be a constant instead of a column expression.
+        relative_file_path: Path and filename of the file relative to its location in the stage.
+            It has to be a constant instead of a column expression.
+
+    Example::
+
+        >>> df.select(build_stage_file_url("@images_stage", "/us/yosemite/half_dome.jpg").alias("url")).collect()  # doctest: +SKIP
+    """
+    function_name = "build_stage_file_url"
+    ast = (
+        build_function_expr(function_name, [stage_name, relative_file_path])
+        if _emit_ast
+        else None
+    )
+    return builtin(function_name, _emit_ast=_emit_ast, _ast=ast)(
+        stage_name, relative_file_path
+    )
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
+    """
+    Converts a stage file URI to a FILE value or NULL (if input is NULL), with the
+    `metadata <https://docs.snowflake.com/LIMITEDACCESS/sql-reference/data-types-unstructured#file-data-type>`_
+    related to the file.
+
+    Args:
+        stage_file_uri: The stage file URI to convert to a FILE value, e.g., ``@mystage/myfile.txt``.
+            It has to be a constant instead of a column expression.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(to_file("@mystage/testCSV.csv").alias("file"))
+        >>> result = json.loads(df.collect()[0][0])
+        >>> result["STAGE"]  # doctest: +SKIP
+        'MYSTAGE'
+        >>> result["RELATIVE_PATH"]  # doctest: +SKIP
+        'testCSV.csv'
+        >>> result["SIZE"]  # doctest: +SKIP
+        32
+        >>> result["CONTENT_TYPE"]  # doctest: +SKIP
+        'text/csv'
+    """
+    ast = build_function_expr("to_file", [stage_file_uri]) if _emit_ast else None
+    # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI
+    parts = validate_stage_location(stage_file_uri).split("/", maxsplit=1)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid stage file URI: {stage_file_uri}")
+    stage_name, relative_file_path = parts
+    c = build_stage_file_url(stage_name, relative_file_path, _emit_ast=False)
+    return builtin("to_file", _ast=ast, _emit_ast=_emit_ast)(c)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_content_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the content type (also known as mime type) of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_content_type(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]  # doctest: +SKIP
+        'text/csv'
+    """
+    function_name = "fl_get_content_type"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_etag(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the hash content (ETAG) of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_etag(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> len(df.collect()[0][0])  # doctest: +SKIP
+    """
+    function_name = "fl_get_etag"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_file_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the file type (modality) of a FILE. One of following values are returned:
+
+        - document
+
+        - video
+
+        - audio
+
+        - image
+
+        - compressed
+
+        - unknown
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_file_type(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]  # doctest: +SKIP
+        'document'
+    """
+    function_name = "fl_get_file_type"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_last_modified(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the last modified date of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_last_modified(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> type(df.collect()[0][0])
+        <class 'datetime.datetime'>
+    """
+    function_name = "fl_get_last_modified"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_relative_path(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the relative path of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_relative_path(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        'testCSV.csv'
+    """
+    function_name = "fl_get_relative_path"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_scoped_file_url(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the scoped URL of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_scoped_file_url(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+    """
+    function_name = "fl_get_scoped_file_url"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_size(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the size, in bytes, of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_size(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        32
+    """
+    function_name = "fl_get_size"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_stage(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the stage name of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_stage(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        'MYSTAGE'
+    """
+    function_name = "fl_get_stage"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_get_stage_file_url(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the stage URL of a FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_get_stage_file_url(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0][:8]
+        'https://'
+    """
+    function_name = "fl_get_stage_file_url"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_is_audio(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is an audio FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_audio(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        False
+    """
+    function_name = "fl_is_audio"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_is_video(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is a video FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_video(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        False
+    """
+    function_name = "fl_is_video"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_is_document(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is a document FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_document(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]  # doctest: +SKIP
+        True
+    """
+    function_name = "fl_is_document"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_is_compressed(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is a compressed FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_compressed(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]  # doctest: +SKIP
+        False
+    """
+    function_name = "fl_is_compressed"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def fl_is_image(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the input is an image FILE.
+
+    Example::
+
+        >>> import json
+        >>> # Create a temp stage.
+        >>> _ = session.sql("create or replace temp stage mystage").collect()
+        >>> # Upload a file to a stage.
+        >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
+        >>> df = session.range(1).select(fl_is_image(to_file("@mystage/testCSV.csv")).alias("file"))
+        >>> df.collect()[0][0]
+        False
+    """
+    function_name = "fl_is_image"
+    ast = build_function_expr(function_name, [e]) if _emit_ast else None
+    col_input = _to_col_if_str(e, function_name)
+    return builtin(function_name, _ast=ast, _emit_ast=_emit_ast)(col_input)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def ai_filter(
+    predicate: ColumnOrLiteralStr, expr: ColumnOrLiteralStr, _emit_ast: bool = True
+) -> Column:
+    """
+    Classifies free-form text into boolean based on a natural language predicate.
+    Returns a boolean value representing whether the predicate is valid for the provided text.
+    ``ai_filter`` will return NULL if the text is NULL.
+
+    Args:
+        predicate: The natural language condition that determines the result of the text string.
+        expr: A string containing the text to be classified.
+
+    Example::
+
+        >>> if "gcp" not in session.connection.host.split("."):
+        ...     df = session.create_dataframe(["Switzerland", "Korea", "Panama"], schema=["country"])
+        ...     df.select(
+        ...         ai_filter("Is the country in Asia?", col("country")).as_("asia"),
+        ...         ai_filter("Is the country in Europe?", col("country")).as_("europe"),
+        ...         ai_filter("Is the country in North America?", col("country")).as_("north_america"),
+        ...         ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
+        ...     ).show()
+        -----------------------------------------------------------
+        |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
+        -----------------------------------------------------------
+        |False   |True      |False            |False              |
+        |True    |False     |False            |False              |
+        |False   |False     |False            |True               |
+        -----------------------------------------------------------
+        <BLANKLINE>
+        >>> df.filter(ai_filter("Is the country in Asia?", col("country"))).show()
+        -------------
+        |"COUNTRY"  |
+        -------------
+        |Korea      |
+        -------------
+        <BLANKLINE>
+    """
+    ast = build_function_expr("ai_filter", [predicate, expr]) if _emit_ast else None
+
+    sql_func_name = "snowflake.cortex.ai_filter"
+    predicate_col = _to_col_if_lit(predicate, sql_func_name)
+    expr_col = _to_col_if_lit(expr, sql_func_name)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(
+        predicate_col, expr_col
+    )
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def summarize_agg(expr: ColumnOrLiteralStr, _emit_ast: bool = True) -> Column:
+    """
+    Summarizes a column of text data.
+
+    Args:
+        expr: This is an expression that contains text for summarization, such as restaurant reviews or phone transcripts.
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [1, "Excellent"],
+        ...     [1, "Excellent"],
+        ...     [1, "Great"],
+        ...     [1, "Mediocre"],
+        ...     [2, "Terrible"],
+        ...     [2, "Bad"],
+        ... ], schema=["product_id", "review"])
+        >>> summary_df = df.select(summarize_agg(col("review")))
+        >>> summary_df.count()
+        1
+        >>> summary_df = df.group_by("product_id").agg(summarize_agg(col("review")))
+        >>> summary_df.count()
+        2
+    """
+    sql_func_name = "summarize_agg"
+    ast = build_function_expr(sql_func_name, [expr]) if _emit_ast else None
+    expr_col = _to_col_if_lit(expr, sql_func_name)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(expr_col)
+
+
+@private_preview(version="1.29.0")
+@publicapi
+def ai_agg(
+    expr: ColumnOrLiteralStr,
+    task_description: ColumnOrLiteralStr,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Aggregates a column of text data using a natural language task description.
+
+    This function reduces a column of text by performing a natural language aggregation
+    as described in the task description. For instance, it can summarize large datasets or
+    extract specific insights.
+
+    Args:
+        expr: A column or literal string containing the text data on which the aggregation operation
+            is to be performed.
+        task_description: A plain English string that describes the aggregation task, such as
+            "Summarize the product reviews for a blog post targeting consumers" or
+            "Identify the most positive review and translate it into French and Polish, one word only".
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [1, "Excellent"],
+        ...     [1, "Excellent"],
+        ...     [1, "Great"],
+        ...     [1, "Mediocre"],
+        ...     [2, "Terrible"],
+        ...     [2, "Bad"],
+        ... ], schema=["product_id", "review"])
+        >>> summary_df = df.select(ai_agg(col("review"), "Summarize the product reviews for a blog post targeting consumers"))
+        >>> summary_df.count()
+        1
+        >>> summary_df = df.group_by("product_id").agg(ai_agg(col("review"), "Summarize the product reviews for a blog post targeting consumers"))
+        >>> summary_df.count()
+        2
+
+    Note:
+        For optimal performance, follow these guidelines:
+
+            - Use plain English text for the task description.
+
+            - Describe the text provided in the task description. For example, instead of a task description like "summarize", use "Summarize the phone call transcripts".
+
+            - Describe the intended use case. For example, instead of "find the best review", use "Find the most positive and well-written restaurant review to highlight on the restaurant website".
+
+            - Consider breaking the task description into multiple steps. For example, instead of "Summarize the new articles", use "You will be provided with news articles from various publishers presenting events from different points of view. Please create a concise and elaborative summary of source texts without missing any crucial information.".
+    """
+    sql_func_name = "ai_agg"
+    ast = (
+        build_function_expr(sql_func_name, [expr, task_description])
+        if _emit_ast
+        else None
+    )
+    expr_col = _to_col_if_lit(expr, sql_func_name)
+    task_description_col = _to_col_if_lit(task_description, sql_func_name)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(
+        expr_col, task_description_col
     )

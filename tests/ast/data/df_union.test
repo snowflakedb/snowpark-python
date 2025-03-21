@@ -16,6 +16,10 @@ df5 = df1.union_by_name(df2)
 
 df6 = df1.union_all_by_name(df2)
 
+df7 = df1.union_by_name(df2, allow_missing_columns=True)
+
+df8 = df1.union_all_by_name(df2, allow_missing_columns=True)
+
 ## EXPECTED UNPARSER OUTPUT
 
 df1 = session.table("df1")
@@ -34,6 +38,10 @@ df5 = df1.union_by_name(df2)
 
 df6 = df1.union_all_by_name(df2)
 
+df7 = df1.union_by_name(df2, allow_missing_columns=True)
+
+df8 = df1.union_all_by_name(df2, allow_missing_columns=True)
+
 ## EXPECTED ENCODED AST
 
 interned_value_table {
@@ -48,10 +56,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "df1"
             }
           }
@@ -64,7 +72,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -80,10 +88,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "df2"
             }
           }
@@ -96,7 +104,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -112,16 +120,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union {
+      dataframe_union {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -148,16 +156,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union_all {
+      dataframe_union {
+        all: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -184,10 +193,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "df3"
             }
           }
@@ -200,7 +209,7 @@ body {
           start_line: 33
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -216,10 +225,10 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "df4"
             }
           }
@@ -232,7 +241,7 @@ body {
           start_line: 35
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -248,16 +257,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union_by_name {
+      dataframe_union {
+        by_name: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -284,16 +294,18 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_union_all_by_name {
+      dataframe_union {
+        all: true
+        by_name: true
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 5
             }
           }
         }
         other {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 6
             }
@@ -317,6 +329,83 @@ body {
     }
   }
 }
+body {
+  assign {
+    expr {
+      dataframe_union {
+        allow_missing_columns: true
+        by_name: true
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        other {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
+        }
+        src {
+          end_column: 64
+          end_line: 41
+          file: 2
+          start_column: 14
+          start_line: 41
+        }
+      }
+    }
+    symbol {
+      value: "df7"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_union {
+        all: true
+        allow_missing_columns: true
+        by_name: true
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        other {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
+        }
+        src {
+          end_column: 68
+          end_line: 43
+          file: 2
+          start_column: 14
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+      value: "df8"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -330,5 +419,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
+  patch: 1
 }

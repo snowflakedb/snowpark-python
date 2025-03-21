@@ -66,12 +66,12 @@ _logger = getLogger(__name__)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def debug_check_missing_ast(ast, container) -> None:  # type: ignore[no-untyped-def] # pragma: no cover
+def debug_check_missing_ast(ast, session, container) -> None:  # type: ignore[no-untyped-def] # pragma: no cover
     """
     Debug check for missing AST. This is invoked with various arguments that are expected to be non-NULL if the AST
     is emitted correctly.
     """
-    if ast is None and FAIL_ON_MISSING_AST:
+    if session.ast_enabled and FAIL_ON_MISSING_AST and ast is None:
         _logger.debug(container._explain_string())
         raise NotImplementedError(
             f"DataFrame with API usage {container._plan.api_calls} is missing complete AST logging."
@@ -116,7 +116,22 @@ def extract_assign_targets(
     # in this function we only care about extracting <left>.
     # For this reason, when '=' is found, replace <right> with w.l.o.g. None.
     if "=" in source_line:
-        source_line = source_line[: source_line.find("=")] + " = None"
+        equal_loc = source_line.find("=")
+        expr = source_line[equal_loc + 1 :]
+        source_line = source_line[:equal_loc] + " = None"
+
+    # When list or dict comprehension is used on the right side of the assignment, we don't want to extract the
+    # symbols from the assignment. The target is the symbol inside the dict or list comprehension, which needs
+    # to be extracted properly.
+    try:
+        expr_tree = ast.parse(expr.strip())
+        if isinstance(expr_tree.body[0], ast.Expr) and isinstance(
+            expr_tree.body[0].value,
+            (ast.ListComp, ast.DictComp, ast.GeneratorExp),
+        ):
+            return None
+    except Exception:
+        pass
 
     try:
         tree = ast.parse(source_line.strip())
@@ -206,10 +221,10 @@ def build_expr_from_python_val(
             expr_builder.CopyFrom(obj._ast)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Column" has no attribute "_ast"; maybe "_cast"?
 
     elif isinstance(obj, Row):
-        ast = with_src_position(expr_builder.sp_row)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpRow"; expected "Expr"
+        ast = with_src_position(expr_builder.row)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Row"; expected "Expr"
         if hasattr(obj, "_named_values") and obj._named_values is not None:
             for field in obj._fields:
-                ast.names.list.append(field)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "names"
+                ast.names.append(field)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "names"
                 build_expr_from_python_val(ast.vs.add(), obj._named_values[field])  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "vs"
         else:
             for field in obj:
@@ -220,8 +235,15 @@ def build_expr_from_python_val(
         ast.v = obj  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
 
     elif isinstance(obj, int):
-        ast = with_src_position(expr_builder.int64_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Int64Val"; expected "Expr"
-        ast.v = obj  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
+        # If the integer is too large to fit in 64 bits, we need to convert it to bytes.
+        # The absolute value of the integer needs to be encoded in big-endian mode.
+        if obj.bit_length() >= 64:
+            ast = with_src_position(expr_builder.big_int_val)
+            ast.v = abs(obj).to_bytes(1 + (obj.bit_length() // 8), "big", signed=True)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
+            ast.is_negative = obj < 0  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "is_negative"
+        else:
+            ast = with_src_position(expr_builder.int64_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Int64Val"; expected "Expr"
+            ast.v = obj  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "v"
 
     elif isinstance(obj, float):
         ast = with_src_position(expr_builder.float64_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "Float64Val"; expected "Expr"
@@ -311,7 +333,7 @@ def build_expr_from_python_val(
         for v in obj:
             build_expr_from_python_val(ast.vs.add(), v)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "vs"
     elif isinstance(obj, snowflake.snowpark.dataframe.DataFrame):
-        ast = with_src_position(expr_builder.sp_dataframe_ref)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpDataframeRef"; expected "Expr"
+        ast = with_src_position(expr_builder.dataframe_ref)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "DataframeRef"; expected "Expr"
         assert (
             obj._ast_id is not None
         ), "Dataframe object to encode as part of AST does not have an id assigned. Missing AST for object or previous operation?"
@@ -321,7 +343,7 @@ def build_expr_from_python_val(
             "TODO SNOW-1629946: Implement TableFunctionCall with args."
         )
     elif isinstance(obj, snowflake.snowpark._internal.type_utils.DataType):
-        ast = with_src_position(expr_builder.sp_datatype_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpDatatypeVal"; expected "Expr"
+        ast = with_src_position(expr_builder.datatype_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "DataTypeVal"; expected "Expr"
         obj._fill_ast(ast.datatype)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast", "Expr" has no attribute "datatype"
     elif isinstance(obj, snowflake.snowpark._internal.analyzer.expression.Literal):
         build_expr_from_python_val(expr_builder, obj.value)
@@ -331,7 +353,7 @@ def build_expr_from_python_val(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_struct_type(
-    schema: "snowflake.snowpark.types.StructType", expr: proto.SpStructType
+    schema: "snowflake.snowpark.types.StructType", expr: proto.StructType
 ) -> None:  # pragma: no cover
     from snowflake.snowpark.types import StructType
 
@@ -339,22 +361,22 @@ def build_proto_from_struct_type(
 
     expr.structured = schema.structured
     for field in schema.fields:
-        ast_field = expr.fields.list.add()
+        ast_field = expr.fields.add()
         if isinstance(field.original_column_identifier, str):
-            ast_field.column_identifier.sp_column_name.name = (
+            ast_field.column_identifier.column_name.name = (
                 field.original_column_identifier
             )
         else:
-            field.column_identifier._fill_ast(ast_field.column_identifier.sp_column_identifier)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "ColumnIdentifier" has no attribute "_fill_ast"
+            field.column_identifier._fill_ast(ast_field.column_identifier.column_identifier)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "ColumnIdentifier" has no attribute "_fill_ast"
         field.datatype._fill_ast(ast_field.data_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
         ast_field.nullable = field.nullable
 
 
-def build_sp_name(name: Union[str, Iterable[str]], expr: proto.SpName) -> None:
+def build_name(name: Union[str, Iterable[str]], expr: proto.Name) -> None:
     if isinstance(name, str):
-        expr.sp_name_flat.name = name
+        expr.name_flat.name = name
     elif isinstance(name, Iterable):
-        expr.sp_name_structured.name.extend(name)
+        expr.name_structured.name.extend(name)
     else:
         raise ValueError(
             f"Invalid object name: {name}. The object name must be a string or an iterable of strings."
@@ -375,24 +397,24 @@ def _set_fn_name(
         ValueError: Raised if the function name is not a string or an iterable of strings.
     """
     try:
-        build_sp_name(name, fn.name.name)
+        build_name(name, fn.name.name)
     except ValueError as e:
         raise ValueError("Invalid function name") from e
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def build_sp_table_name(
-    expr_builder: proto.SpNameRef, name: Union[str, Iterable[str]]
+def build_table_name(
+    expr_builder: proto.NameRef, name: Union[str, Iterable[str]]
 ) -> None:  # pragma: no cover
     try:
-        build_sp_name(name, expr_builder.name)
+        build_name(name, expr_builder.name)
     except ValueError as e:
         raise ValueError("Invalid table name") from e
 
 
-def build_sp_view_name(expr: proto.SpNameRef, name: Union[str, Iterable[str]]) -> None:
+def build_view_name(expr: proto.NameRef, name: Union[str, Iterable[str]]) -> None:
     try:
-        build_sp_name(name, expr.name)
+        build_name(name, expr.name)
     except ValueError as e:
         raise ValueError("Invalid view name") from e
 
@@ -400,25 +422,22 @@ def build_sp_view_name(expr: proto.SpNameRef, name: Union[str, Iterable[str]]) -
 def build_function_expr(
     builtin_name: str,
     args: List[Any],
-    ignore_null_args: bool = False,
 ) -> proto.Expr:
     """
     Creates AST encoding for the methods in function.py.
     Args:
         builtin_name: Name of the builtin function to call.
         args: Positional arguments to pass to function, in the form of a list.
-        ignore_null_args: If True, null arguments will be ignored.
     Returns:
         The AST encoding of the function.
     """
     ast = proto.Expr()
-    args_list = [arg for arg in args if arg is not None] if ignore_null_args else args
     build_builtin_fn_apply(
         ast,
         builtin_name,
         *tuple(
             snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-            for arg in args_list
+            for arg in args
         ),
     )
     return ast
@@ -452,7 +471,7 @@ def build_udf_apply(
     *args: Tuple[Union[proto.Expr, Any]],
 ) -> None:  # pragma: no cover
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
-    expr.fn.sp_fn_ref.id.bitfield1 = udf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+    expr.fn.fn_ref.id.bitfield1 = udf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
     build_fn_apply_args(ast, *args)
 
 
@@ -463,7 +482,7 @@ def build_udaf_apply(
     *args: Tuple[Union[proto.Expr, Any]],
 ) -> None:  # pragma: no cover
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
-    expr.fn.sp_fn_ref.id.bitfield1 = udaf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+    expr.fn.fn_ref.id.bitfield1 = udaf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
     build_fn_apply_args(ast, *args)
 
 
@@ -473,7 +492,7 @@ def build_udtf_apply(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Fun
 ) -> None:  # pragma: no cover
     """Encodes a call to UDTF into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
-    expr.fn.sp_fn_ref.id.bitfield1 = udtf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+    expr.fn.fn_ref.id.bitfield1 = udtf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
     build_fn_apply_args(ast, *args, **kwargs)
 
 
@@ -487,7 +506,7 @@ def build_sproc_apply(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Fu
 ) -> None:  # pragma: no cover
     """Encodes a call to stored procedure into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
-    expr.fn.sp_fn_ref.id.bitfield1 = sproc_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+    expr.fn.fn_ref.id.bitfield1 = sproc_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
     build_fn_apply_args(ast, *args, **kwargs)
 
 
@@ -829,7 +848,7 @@ def build_expr_from_snowpark_column_or_sql_str(
     if isinstance(value, snowflake.snowpark.Column):
         build_expr_from_snowpark_column(expr_builder, value)
     elif isinstance(value, str):
-        expr = with_src_position(expr_builder.sp_column_sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        expr = with_src_position(expr_builder.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ColumnSqlExpr"; expected "Expr"
         expr.sql = value  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
     else:
         raise TypeError(
@@ -910,14 +929,14 @@ def fill_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # 
     if fn_name is None:
         # Handle the special case * (as a SQL column expr).
         if name2 == "*":
-            ast = with_src_position(expr.sp_column_sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+            ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
             ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
             if name1 is not None:
                 ast.df_alias.value = name1  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "df_alias"
             return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
 
         if name1 == "*" and name2 is None:
-            ast = with_src_position(expr.sp_column_sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+            ast = with_src_position(expr.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
             ast.sql = "*"  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
             return expr  # type: ignore[return-value] # TODO(SNOW-1491199) # No return value expected
 
@@ -981,7 +1000,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
     elif isinstance(expr, UnresolvedAttribute):
         # Unresolved means treatment as sql expression.
         ast = proto.Expr()
-        sql_expr_ast = with_src_position(ast.sp_column_sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "SpColumnSqlExpr"; expected "Expr"
+        sql_expr_ast = with_src_position(ast.sql_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ColumnSqlExpr"; expected "Expr"
         sql_expr_ast.sql = expr.sql  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "sql"
         return ast
     elif isinstance(expr, MultipleExpression):
@@ -1015,26 +1034,26 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def fill_sp_save_mode(
-    expr: proto.SpSaveMode, save_mode: Union[str, SaveMode]
+def fill_save_mode(
+    expr: proto.SaveMode, save_mode: Union[str, SaveMode]
 ) -> None:  # pragma: no cover
     if isinstance(save_mode, str):
         save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Enum", variable has type "Union[str, SaveMode]")
 
     if save_mode == SaveMode.APPEND:
-        expr.sp_save_mode_append = True
+        expr.save_mode_append = True
     elif save_mode == SaveMode.ERROR_IF_EXISTS:
-        expr.sp_save_mode_error_if_exists = True
+        expr.save_mode_error_if_exists = True
     elif save_mode == SaveMode.IGNORE:
-        expr.sp_save_mode_ignore = True
+        expr.save_mode_ignore = True
     elif save_mode == SaveMode.OVERWRITE:
-        expr.sp_save_mode_overwrite = True
+        expr.save_mode_overwrite = True
     elif save_mode == SaveMode.TRUNCATE:
-        expr.sp_save_mode_truncate = True
+        expr.save_mode_truncate = True
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def fill_sp_write_file(
+def fill_write_file(
     expr: proto.Expr,
     location: str,
     *,
@@ -1075,7 +1094,7 @@ def fill_sp_write_file(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_pivot_values(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.SpPivotValue,
+    expr_builder: proto.PivotValue,
     values: Optional[Union[Iterable["LiteralType"], "DataFrame"]],  # type: ignore[name-defined] # noqa: F821 # TODO(SNOW-1491199) # Name "LiteralType" is not defined, Name "DataFrame" is not defined
 ):  # pragma: no cover
     """Helper function to encode Snowpark pivot values that are used in various pivot operations to AST."""
@@ -1083,19 +1102,19 @@ def build_proto_from_pivot_values(  # type: ignore[no-untyped-def] # TODO(SNOW-1
         return
 
     if isinstance(values, snowflake.snowpark.dataframe.DataFrame):
-        expr_builder.sp_pivot_value__dataframe.v.id.bitfield1 = values._ast_id
+        expr_builder.pivot_value__dataframe.v.id.bitfield1 = values._ast_id
     else:
-        build_expr_from_python_val(expr_builder.sp_pivot_value__expr.v, values)
+        build_expr_from_python_val(expr_builder.pivot_value__expr.v, values)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.SpCallable,
+    expr_builder: proto.Callable,
     func: Union[Callable, Tuple[str, str]],
     ast_batch: Optional[AstBatch] = None,
     object_name: Optional[Union[str, Iterable[str]]] = None,
 ):  # pragma: no cover
-    """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
+    """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as Callable protobuf."""
 
     udf_id = None
     if ast_batch is not None:
@@ -1119,7 +1138,7 @@ def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-14911
         expr_builder.name = func.__name__  # type: ignore[union-attr] # TODO(SNOW-1491199) # error: Item "Tuple[str, ...]" of "Union[Callable[..., Any], Tuple[str, str]]" has no attribute "__name__"
 
     if object_name is not None:
-        build_sp_table_name(expr_builder.object_name, object_name)
+        build_table_name(expr_builder.object_name, object_name)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -1166,14 +1185,14 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         return_type._fill_ast(ast.return_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
-            input_type._fill_ast(ast.input_types.list.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
+            input_type._fill_ast(ast.input_types.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     ast.is_permanent = is_permanent
     if stage_location is not None:
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpNameRef()
-            build_sp_table_name(import_expr, import_)
+            import_expr = proto.NameRef()
+            build_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:
@@ -1255,14 +1274,14 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         return_type._fill_ast(ast.return_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
-            input_type._fill_ast(ast.input_types.list.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
+            input_type._fill_ast(ast.input_types.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     ast.is_permanent = is_permanent
     if stage_location is not None:
         ast.stage_location.value = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpNameRef()
-            build_sp_table_name(import_expr, import_)
+            import_expr = proto.NameRef()
+            build_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:
@@ -1352,14 +1371,14 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
 
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
-            input_type._fill_ast(ast.input_types.list.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
+            input_type._fill_ast(ast.input_types.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     ast.is_permanent = is_permanent
     if stage_location is not None:
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpNameRef()
-            build_sp_table_name(import_expr, import_)
+            import_expr = proto.NameRef()
+            build_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:
@@ -1429,7 +1448,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
-    sp_name: str,
+    name: str,
     stage_location: Optional[str] = None,
     imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
     packages: Optional[List[Union[str, ModuleType]]] = None,
@@ -1450,8 +1469,8 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
 ) -> None:  # pragma: no cover
     """Helper function to encode stored procedure parameters (used in both regular and mock StoredProcedureRegistration)."""
 
-    if sp_name is not None:
-        _set_fn_name(sp_name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "StoredProcedure"; expected "FnNameRefExpr"
+    if name is not None:
+        _set_fn_name(name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "StoredProcedure"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
         ast.func,
@@ -1464,14 +1483,14 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
         return_type._fill_ast(ast.return_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     if input_types is not None and len(input_types) != 0:
         for input_type in input_types:
-            input_type._fill_ast(ast.input_types.list.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
+            input_type._fill_ast(ast.input_types.add())  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
     ast.is_permanent = is_permanent
     if stage_location is not None:
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpNameRef()
-            build_sp_table_name(import_expr, import_)
+            import_expr = proto.NameRef()
+            build_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
         for package in packages:
@@ -1533,9 +1552,9 @@ def ClearTempTables(message: proto.Request) -> None:
     """Removes temp table when passing pandas data."""
     for stmt in message.body:
         if str(
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
+            stmt.assign.expr.create_dataframe.data.dataframe_data__pandas.v.temp_table
         ):
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
+            stmt.assign.expr.create_dataframe.data.dataframe_data__pandas.v.ClearField(
                 "temp_table"
             )
 

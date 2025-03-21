@@ -5,6 +5,7 @@
 
 import copy
 import itertools
+import random
 import re
 import sys
 from collections import Counter
@@ -28,6 +29,7 @@ from typing import (
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
+
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -111,15 +113,17 @@ from snowflake.snowpark._internal.ast.utils import (
     build_proto_from_pivot_values,
     debug_check_missing_ast,
     fill_ast_for_column,
-    fill_sp_save_mode,
+    fill_save_mode,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
-    build_sp_view_name,
-    build_sp_table_name,
+    build_view_name,
+    build_table_name,
+    build_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
+    ResourceUsageCollector,
     add_api_call,
     adjust_api_subcalls,
     df_api_usage,
@@ -173,11 +177,12 @@ from snowflake.snowpark.functions import (
     abs as abs_,
     col,
     count,
+    hash as hash_,
     lit,
     max as max_,
     mean,
     min as min_,
-    random,
+    random as random_,
     row_number,
     sql_expr,
     stddev,
@@ -486,7 +491,7 @@ class DataFrame:
         >>> df_total_price_per_category = df_prices.group_by(col("product_id")).sum(col("amount"))
         >>> # Have multiple aggregation values with the group by
         >>> import snowflake.snowpark.functions as f
-        >>> df_summary = df_prices.group_by(col("product_id")).agg(f.sum(col("amount")).alias("total_amount"), f.avg("amount"))
+        >>> df_summary = df_prices.group_by(col("product_id")).agg(f.sum(col("amount")).alias("total_amount"), f.avg("amount")).sort(col("product_id"))
         >>> df_summary.show()
         -------------------------------------------------
         |"PRODUCT_ID"  |"TOTAL_AMOUNT"  |"AVG(AMOUNT)"  |
@@ -625,13 +630,13 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
-    def _set_ast_ref(self, sp_dataframe_expr_builder: Any) -> None:
+    def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """
-        Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
+        Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
-        debug_check_missing_ast(self._ast_id, self)
-        sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        debug_check_missing_ast(self._ast_id, self._session, self)
+        dataframe_expr_builder.dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -695,10 +700,10 @@ class DataFrame:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
+            # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_collect)
-            debug_check_missing_ast(self._ast_id, self)
+            expr = with_src_position(repr.expr.dataframe_collect)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -745,10 +750,10 @@ class DataFrame:
         """
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies SpDataframeCollect() to the input, followed by its Eval.
+            # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_collect)
-            debug_check_missing_ast(self._ast_id, self)
+            expr = with_src_position(repr.expr.dataframe_collect)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -882,11 +887,11 @@ class DataFrame:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies SpDataframeToLocalIterator() to the input, followed by its Eval.
+            # Add an Assign node that applies DataframeToLocalIterator() to the input, followed by its Eval.
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_to_local_iterator)
+            expr = with_src_position(stmt.expr.dataframe_to_local_iterator)
 
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
 
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
@@ -916,22 +921,36 @@ class DataFrame:
             **kwargs,
         )
 
-    def __copy__(self) -> "DataFrame":
-        """Implements shallow copy protocol for copy.copy(...)."""
+    def _copy_plan(self) -> LogicalPlan:
+        """Returns a shallow copy of the plan of the DataFrame."""
         if self._select_statement:
             new_plan = copy.copy(self._select_statement)
             new_plan.column_states = self._select_statement.column_states
             new_plan._projection_in_str = self._select_statement.projection_in_str
             new_plan._schema_query = self._select_statement.schema_query
             new_plan._query_params = self._select_statement.query_params
+            return new_plan
         else:
-            new_plan = copy.copy(self._plan)
+            return copy.copy(self._plan)
 
-        # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
-        # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
-        df = DataFrame(self._session, new_plan)
-        df._ast_id = self._ast_id
-        return df
+    def _copy_without_ast(self) -> "DataFrame":
+        """Returns a shallow copy of the DataFrame without AST generation."""
+        return DataFrame(self._session, self._copy_plan(), _emit_ast=False)
+
+    def __copy__(self) -> "DataFrame":
+        """Implements shallow copy protocol for copy.copy(...)."""
+        stmt = None
+        if self._session.ast_enabled:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.dataframe_ref, stmt)
+            debug_check_missing_ast(self._ast_id, self._session, self)
+            ast.id.bitfield1 = self._ast_id
+        return DataFrame(
+            self._session,
+            self._copy_plan(),
+            _ast_stmt=stmt,
+            _emit_ast=self._session.ast_enabled,
+        )
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -996,8 +1015,8 @@ class DataFrame:
 
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_to_pandas, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            ast = with_src_position(stmt.expr.dataframe_to_pandas, stmt)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
@@ -1100,8 +1119,8 @@ class DataFrame:
         """
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_to_pandas_batches, stmt)
-            debug_check_missing_ast(self._ast_id, self)
+            ast = with_src_position(stmt.expr.dataframe_to_pandas_batches, stmt)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
@@ -1250,7 +1269,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_to_df, stmt)
+            ast = with_src_position(stmt.expr.dataframe_to_df, stmt)
             for col in col_names:
                 build_expr_from_python_val(ast.col_names.args.add(), col)
             ast.col_names.variadic = is_variadic
@@ -1353,17 +1372,15 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_to_snowpark_pandas, stmt)
+            ast = with_src_position(stmt.expr.to_snowpark_pandas, stmt)
             self._set_ast_ref(ast.df)
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             if index_col is not None:
-                ast.index_col.list.extend(
+                ast.index_col.extend(
                     index_col if isinstance(index_col, list) else [index_col]
                 )
             if columns is not None:
-                ast.columns.list.extend(
-                    columns if isinstance(columns, list) else [columns]
-                )
+                ast.columns.extend(columns if isinstance(columns, list) else [columns])
 
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
@@ -1393,7 +1410,7 @@ class DataFrame:
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
 
-        _emit_ast = self._ast_id is not None
+        _emit_ast = self._ast_id is not None and self._session.ast_enabled
 
         if isinstance(item, str):
             return self.col(item, _emit_ast=_emit_ast)
@@ -1438,7 +1455,7 @@ class DataFrame:
         expr = None
         if _emit_ast:
             expr = proto.Expr()
-            col_expr_ast = with_src_position(expr.sp_dataframe_col)
+            col_expr_ast = with_src_position(expr.dataframe_col)
             self._set_ast_ref(col_expr_ast.df)
             col_expr_ast.col_name = col_name
         if col_name == "*":
@@ -1597,9 +1614,10 @@ class DataFrame:
         # AST IDs created preceed the AST ID of the select statement so they are deserialized in dependent order.
         if _emit_ast and _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
+            ast = with_src_position(stmt.expr.dataframe_select, stmt)
             self._set_ast_ref(ast.df)
             ast.cols.variadic = is_variadic
+            ast.expr_variant = False
 
             # Add columns after the statement to ensure any dependent columns have lower ast id.
             for ast_col in ast_cols:
@@ -1663,11 +1681,12 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_select__exprs, stmt)
+                ast = with_src_position(stmt.expr.dataframe_select, stmt)
                 self._set_ast_ref(ast.df)
-                ast.exprs.variadic = is_variadic
+                ast.cols.variadic = is_variadic
+                ast.expr_variant = True
                 for expr in exprs:
-                    build_expr_from_python_val(ast.exprs.args.add(), expr)
+                    build_expr_from_python_val(ast.cols.args.add(), expr)
             else:
                 stmt = _ast_stmt
 
@@ -1721,7 +1740,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_drop, stmt)
+            ast = with_src_position(stmt.expr.dataframe_drop, stmt)
             self._set_ast_ref(ast.df)
             for c in exprs:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
@@ -1807,7 +1826,7 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_filter, stmt)
+                ast = with_src_position(stmt.expr.dataframe_filter, stmt)
                 self._set_ast_ref(ast.df)
                 build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
             else:
@@ -1894,7 +1913,7 @@ class DataFrame:
             # Parsing args separately since the original column expr or string
             # needs to be recorded.
             _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
-            ast = with_src_position(stmt.expr.sp_dataframe_sort, stmt)
+            ast = with_src_position(stmt.expr.dataframe_sort, stmt)
             for c in _cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
             ast.cols.variadic = is_variadic
@@ -2004,21 +2023,11 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_alias, stmt)
+            ast = with_src_position(stmt.expr.dataframe_alias, stmt)
             ast.name = name
             self._set_ast_ref(ast.df)
 
-        # TODO: Support alias in MockServerConnection.
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
-        if (
-            isinstance(self._session._conn, MockServerConnection)
-            and self._session._conn._suppress_not_implemented_error
-        ):
-            # Allow AST tests to pass.
-            return None
-
-        _copy = copy.copy(self)
+        _copy = self._copy_without_ast()
         _copy._alias = name
         for attr in self._plan.attributes:
             if _copy._select_statement:
@@ -2104,7 +2113,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_agg, stmt)
+            expr = with_src_position(stmt.expr.dataframe_agg, stmt)
             exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
             for e in exprs:
                 build_expr_from_python_val(expr.exprs.args.add(), e)
@@ -2138,7 +2147,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_rollup, stmt)
+            expr = with_src_position(stmt.expr.dataframe_rollup, stmt)
             self._set_ast_ref(expr.df)
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
@@ -2180,17 +2189,17 @@ class DataFrame:
             >>> df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
             >>> df.group_by().agg(sum_("b")).collect()
             [Row(SUM(B)=9)]
-            >>> df.group_by("a").agg(sum_("b")).collect()
+            >>> df.group_by("a").agg(sum_("b")).sort("a").collect()
             [Row(A=1, SUM(B)=3), Row(A=2, SUM(B)=3), Row(A=3, SUM(B)=3)]
-            >>> df.group_by("a").agg(sum_("b").alias("sum_b"), max_("b").alias("max_b")).collect()
+            >>> df.group_by("a").agg(sum_("b").alias("sum_b"), max_("b").alias("max_b")).sort("a").collect()
             [Row(A=1, SUM_B=3, MAX_B=2), Row(A=2, SUM_B=3, MAX_B=2), Row(A=3, SUM_B=3, MAX_B=2)]
-            >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).collect()
+            >>> df.group_by(["a", lit("snow")]).agg(sum_("b")).sort("a").collect()
             [Row(A=1, LITERAL()='snow', SUM(B)=3), Row(A=2, LITERAL()='snow', SUM(B)=3), Row(A=3, LITERAL()='snow', SUM(B)=3)]
-            >>> df.group_by("a").agg((col("*"), "count"), max_("b")).collect()
+            >>> df.group_by("a").agg((col("*"), "count"), max_("b")).sort("a").collect()
             [Row(A=1, COUNT(LITERAL())=2, MAX(B)=2), Row(A=2, COUNT(LITERAL())=2, MAX(B)=2), Row(A=3, COUNT(LITERAL())=2, MAX(B)=2)]
-            >>> df.group_by("a").median("b").collect()
-            [Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500')), Row(A=1, MEDIAN(B)=Decimal('1.500'))]
-            >>> df.group_by("a").function("avg")("b").collect()
+            >>> df.group_by("a").median("b").sort("a").collect()
+            [Row(A=1, MEDIAN(B)=Decimal('1.500')), Row(A=2, MEDIAN(B)=Decimal('1.500')), Row(A=3, MEDIAN(B)=Decimal('1.500'))]
+            >>> df.group_by("a").function("avg")("b").sort("a").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
         # This code performs additional type checks, run first.
@@ -2201,14 +2210,14 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                expr = with_src_position(stmt.expr.sp_dataframe_group_by, stmt)
+                expr = with_src_position(stmt.expr.dataframe_group_by, stmt)
                 col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
                     *cols
                 )
                 for c in col_list:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-                expr.df.sp_dataframe_ref.id.bitfield1 = self._ast_id
+                self._set_ast_ref(expr.df)
             else:
                 stmt = _ast_stmt
 
@@ -2250,14 +2259,14 @@ class DataFrame:
 
             >>> from snowflake.snowpark import GroupingSets
             >>> df = session.create_dataframe([[1, 2, 10], [3, 4, 20], [1, 4, 30]], schema=["A", "B", "C"])
-            >>> df.group_by_grouping_sets(GroupingSets([col("a")])).count().collect()
+            >>> df.group_by_grouping_sets(GroupingSets([col("a")])).count().sort("a").collect()
             [Row(A=1, COUNT=2), Row(A=3, COUNT=1)]
-            >>> df.group_by_grouping_sets(GroupingSets(col("a"))).count().collect()
+            >>> df.group_by_grouping_sets(GroupingSets(col("a"))).count().sort("a").collect()
             [Row(A=1, COUNT=2), Row(A=3, COUNT=1)]
-            >>> df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().collect()
-            [Row(A=1, B=None, COUNT=2), Row(A=3, B=None, COUNT=1), Row(A=None, B=2, COUNT=1), Row(A=None, B=4, COUNT=2)]
-            >>> df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().collect()
-            [Row(A=None, B=None, C=10, COUNT=1), Row(A=None, B=None, C=20, COUNT=1), Row(A=None, B=None, C=30, COUNT=1), Row(A=1, B=2, C=None, COUNT=1), Row(A=3, B=4, C=None, COUNT=1), Row(A=1, B=4, C=None, COUNT=1)]
+            >>> df.group_by_grouping_sets(GroupingSets([col("a")], [col("b")])).count().sort("a", "b").collect()
+            [Row(A=None, B=2, COUNT=1), Row(A=None, B=4, COUNT=2), Row(A=1, B=None, COUNT=2), Row(A=3, B=None, COUNT=1)]
+            >>> df.group_by_grouping_sets(GroupingSets([col("a"), col("b")], [col("c")])).count().sort("a", "b", "c").collect()
+            [Row(A=None, B=None, C=10, COUNT=1), Row(A=None, B=None, C=20, COUNT=1), Row(A=None, B=None, C=30, COUNT=1), Row(A=1, B=2, C=None, COUNT=1), Row(A=1, B=4, C=None, COUNT=1), Row(A=3, B=4, C=None, COUNT=1)]
 
 
         Args:
@@ -2268,9 +2277,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                stmt.expr.sp_dataframe_group_by_grouping_sets, stmt
-            )
+            expr = with_src_position(stmt.expr.dataframe_group_by_grouping_sets, stmt)
             self._set_ast_ref(expr.df)
             (
                 grouping_set_list,
@@ -2306,7 +2313,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_cube, stmt)
+            expr = with_src_position(stmt.expr.dataframe_cube, stmt)
             self._set_ast_ref(expr.df)
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
@@ -2319,7 +2326,6 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
-    @df_api_usage
     @publicapi
     def distinct(
         self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
@@ -2335,16 +2341,34 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_distinct, stmt)
+                ast = with_src_position(stmt.expr.dataframe_distinct, stmt)
                 self._set_ast_ref(ast.df)
             else:
                 stmt = _ast_stmt
                 ast = None
 
-        if self._select_statement:
-            df = self._with_plan(self._select_statement.distinct(), _ast_stmt=stmt)
+        if self._session.conf.get("use_simplified_query_generation"):
+            with ResourceUsageCollector() as resource_usage_collector:
+                if self._select_statement:
+                    df = self._with_plan(
+                        self._select_statement.distinct(), _ast_stmt=stmt
+                    )
+                else:
+                    df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
+            add_api_call(
+                df,
+                "DataFrame.distinct[select]",
+                resource_usage=resource_usage_collector.get_resource_usage(),
+            )
         else:
-            df = self._with_plan(Distinct(self._plan), _ast_stmt=stmt)
+            df = self.group_by(
+                [
+                    self.col(quote_name(f.name), _emit_ast=False)
+                    for f in self.schema.fields
+                ],
+                _emit_ast=False,
+            ).agg(_emit_ast=False)
+            adjust_api_subcalls(df, "DataFrame.distinct[group_by]", len_subcalls=2)
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -2381,7 +2405,7 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_drop_duplicates, stmt)
+                ast = with_src_position(stmt.expr.dataframe_drop_duplicates, stmt)
                 ast.cols.variadic = is_variadic
                 for arg in subset:
                     build_expr_from_python_val(ast.cols.args.add(), arg)
@@ -2397,19 +2421,27 @@ class DataFrame:
                 df._ast_id = stmt.var_id.bitfield1
             return df
 
-        filter_cols = [self.col(x) for x in subset]
-        output_cols = [self.col(col_name) for col_name in self.columns]
-        rownum = row_number().over(
-            snowflake.snowpark.Window.partition_by(*filter_cols).order_by(*filter_cols)
-        )
-        rownum_name = generate_random_alphanumeric()
-        df = (
-            self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
-            .where(col(rownum_name) == 1, _emit_ast=False)
-            .select(output_cols, _emit_ast=False)
-        )
+        with ResourceUsageCollector() as resource_usage_collector:
+            filter_cols = [self.col(x) for x in subset]
+            output_cols = [self.col(col_name) for col_name in self.columns]
+            rownum = row_number().over(
+                snowflake.snowpark.Window.partition_by(*filter_cols).order_by(
+                    *filter_cols
+                )
+            )
+            rownum_name = generate_random_alphanumeric()
+            df = (
+                self.select(*output_cols, rownum.as_(rownum_name), _emit_ast=False)
+                .where(col(rownum_name) == 1, _emit_ast=False)
+                .select(output_cols, _emit_ast=False)
+            )
         # Reformat the extra API calls
-        adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=3)
+        adjust_api_subcalls(
+            df,
+            "DataFrame.drop_duplicates",
+            len_subcalls=3,
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
 
         if _emit_ast:
             df._ast_id = stmt.var_id.bitfield1
@@ -2485,7 +2517,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_pivot, stmt)
+            ast = with_src_position(stmt.expr.dataframe_pivot, stmt)
             self._set_ast_ref(ast.df)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
             build_proto_from_pivot_values(ast.values, values)
@@ -2548,7 +2580,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_unpivot, stmt)
+            ast = with_src_position(stmt.expr.dataframe_unpivot, stmt)
             self._set_ast_ref(ast.df)
             ast.value_column = value_column
             ast.name_column = name_column
@@ -2626,7 +2658,7 @@ class DataFrame:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_limit, stmt)
+                ast = with_src_position(stmt.expr.dataframe_limit, stmt)
                 self._set_ast_ref(ast.df)
                 ast.n = n
                 ast.offset = offset
@@ -2654,13 +2686,13 @@ class DataFrame:
         Example::
             >>> df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[0, 1], [3, 4]], schema=["c", "d"])
-            >>> df1.union(df2).show()
+            >>> df1.union(df2).sort("a").show()
             -------------
             |"A"  |"B"  |
             -------------
+            |0    |1    |
             |1    |2    |
             |3    |4    |
-            |0    |1    |
             -------------
             <BLANKLINE>
 
@@ -2670,7 +2702,10 @@ class DataFrame:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_union, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = False
+            ast.by_name = False
+            ast.allow_missing_columns = False
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -2722,7 +2757,10 @@ class DataFrame:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_union_all, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = True
+            ast.by_name = False
+            ast.allow_missing_columns = False
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -2776,7 +2814,7 @@ class DataFrame:
 
             >>> df1 = session.create_dataframe([[1, 2]], schema=["a", "b"])
             >>> df2 = session.create_dataframe([[2, 1, 3]], schema=["b", "a", "c"])
-            >>> df1.union_by_name(df2, allow_missing_columns=True).show()
+            >>> df1.union_by_name(df2, allow_missing_columns=True).sort("c").show()
             --------------------
             |"A"  |"B"  |"C"   |
             --------------------
@@ -2793,7 +2831,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_union_by_name, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = False
+            ast.by_name = True
+            ast.allow_missing_columns = allow_missing_columns
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
@@ -2854,7 +2895,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_union_all_by_name, stmt)
+            ast = with_src_position(stmt.expr.dataframe_union, stmt)
+            ast.all = True
+            ast.by_name = True
+            ast.allow_missing_columns = allow_missing_columns
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
@@ -2965,7 +3009,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_intersect, stmt)
+            ast = with_src_position(stmt.expr.dataframe_intersect, stmt)
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -3015,7 +3059,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_except, stmt)
+            ast = with_src_position(stmt.expr.dataframe_except, stmt)
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
 
@@ -3097,17 +3141,17 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_natural_join, stmt)
+            ast = with_src_position(stmt.expr.dataframe_natural_join, stmt)
             self._set_ast_ref(ast.lhs)
             right._set_ast_ref(ast.rhs)
             if isinstance(join_type, Inner):
-                ast.join_type.sp_join_type__inner = True
+                ast.join_type.join_type__inner = True
             elif isinstance(join_type, LeftOuter):
-                ast.join_type.sp_join_type__left_outer = True
+                ast.join_type.join_type__left_outer = True
             elif isinstance(join_type, RightOuter):
-                ast.join_type.sp_join_type__right_outer = True
+                ast.join_type.join_type__right_outer = True
             elif isinstance(join_type, FullOuter):
-                ast.join_type.sp_join_type__full_outer = True
+                ast.join_type.join_type__full_outer = True
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
 
@@ -3454,25 +3498,25 @@ class DataFrame:
             stmt = None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_dataframe_join, stmt)
+                ast = with_src_position(stmt.expr.dataframe_join, stmt)
                 self._set_ast_ref(ast.lhs)
                 right._set_ast_ref(ast.rhs)
                 if isinstance(join_type, Inner):
-                    ast.join_type.sp_join_type__inner = True
+                    ast.join_type.join_type__inner = True
                 elif isinstance(join_type, LeftOuter):
-                    ast.join_type.sp_join_type__left_outer = True
+                    ast.join_type.join_type__left_outer = True
                 elif isinstance(join_type, RightOuter):
-                    ast.join_type.sp_join_type__right_outer = True
+                    ast.join_type.join_type__right_outer = True
                 elif isinstance(join_type, FullOuter):
-                    ast.join_type.sp_join_type__full_outer = True
+                    ast.join_type.join_type__full_outer = True
                 elif isinstance(join_type, Cross):
-                    ast.join_type.sp_join_type__cross = True
+                    ast.join_type.join_type__cross = True
                 elif isinstance(join_type, LeftSemi):
-                    ast.join_type.sp_join_type__left_semi = True
+                    ast.join_type.join_type__left_semi = True
                 elif isinstance(join_type, LeftAnti):
-                    ast.join_type.sp_join_type__left_anti = True
+                    ast.join_type.join_type__left_anti = True
                 elif isinstance(join_type, AsOf):
-                    ast.join_type.sp_join_type__asof = True
+                    ast.join_type.join_type__asof = True
                 else:
                     raise ValueError(f"Unsupported join type {join_type_arg}")
 
@@ -3617,7 +3661,7 @@ class DataFrame:
         if _emit_ast:
             add_intermediate_stmt(self._session._ast_batch, func)
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_join_table_function, stmt)
+            ast = with_src_position(stmt.expr.dataframe_join_table_function, stmt)
             self._set_ast_ref(ast.lhs)
             build_indirect_table_fn_apply(
                 ast.fn,
@@ -3732,7 +3776,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_cross_join, stmt)
+            ast = with_src_position(stmt.expr.dataframe_cross_join, stmt)
             self._set_ast_ref(ast.lhs)
             right._set_ast_ref(ast.rhs)
             if lsuffix:
@@ -3909,7 +3953,7 @@ class DataFrame:
         """
         if ast_stmt is None and _emit_ast:
             ast_stmt = self._session._ast_batch.assign()
-            expr = with_src_position(ast_stmt.expr.sp_dataframe_with_column, ast_stmt)
+            expr = with_src_position(ast_stmt.expr.dataframe_with_column, ast_stmt)
             expr.col_name = col_name
             build_expr_from_snowpark_column_or_table_fn(expr.col, col)
             self._set_ast_ref(expr.df)
@@ -4025,9 +4069,7 @@ class DataFrame:
         # AST
         if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                _ast_stmt.expr.sp_dataframe_with_columns, _ast_stmt
-            )
+            expr = with_src_position(_ast_stmt.expr.dataframe_with_columns, _ast_stmt)
             for col_name in col_names:
                 expr.col_names.append(col_name)
             for value in values:
@@ -4117,10 +4159,10 @@ class DataFrame:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies SpDataframeCount() to the input, followed by its Eval.
+            # Add an Assign node that applies DataframeCount() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_count)
-            debug_check_missing_ast(self._ast_id, self)
+            expr = with_src_position(repr.expr.dataframe_count)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
@@ -4133,7 +4175,7 @@ class DataFrame:
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
-            add_api_call(df, "DataFrame.count")
+            adjust_api_subcalls(df, "DataFrame.count", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params,
                 block=block,
@@ -4166,7 +4208,7 @@ class DataFrame:
         # AST.
         if self._ast_id is not None:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_write, stmt)
+            expr = with_src_position(stmt.expr.dataframe_write, stmt)
             self._set_ast_ref(expr.df)
             self._writer._ast_stmt = stmt
 
@@ -4261,9 +4303,9 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table, stmt)
+            expr = with_src_position(stmt.expr.dataframe_copy_into_table, stmt)
 
-            build_sp_table_name(expr.table_name, table_name)
+            build_table_name(expr.table_name, table_name)
             if files is not None:
                 expr.files.extend(files)
             if pattern is not None:
@@ -4525,7 +4567,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_flatten, stmt)
+            expr = with_src_position(stmt.expr.dataframe_flatten, stmt)
             self._set_ast_ref(expr.df)
             build_expr_from_python_val(expr.input, input)
             if path is not None:
@@ -4535,11 +4577,11 @@ class DataFrame:
 
             mode = mode.upper()
             if mode.upper() == "OBJECT":
-                expr.mode.sp_flatten_mode_object = True
+                expr.mode.flatten_mode_object = True
             elif mode.upper() == "ARRAY":
-                expr.mode.sp_flatten_mode_array = True
+                expr.mode.flatten_mode_array = True
             else:
-                expr.mode.sp_flatten_mode_both = True
+                expr.mode.flatten_mode_both = True
 
         if isinstance(input, str):
             input = self.col(input)
@@ -4590,12 +4632,12 @@ class DataFrame:
         query = self._plan.queries[-1].sql.strip().lower()
 
         if _emit_ast:
-            # Add an Assign node that applies SpDataframeShow() to the input, followed by its Eval.
+            # Add an Assign node that applies DataframeShow() to the input, followed by its Eval.
             repr = self._session._ast_batch.assign()
-            debug_check_missing_ast(self._ast_id, self)
+            debug_check_missing_ast(self._ast_id, self._session, self)
             if self._ast_id is not None:
-                repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
-            repr.expr.sp_dataframe_show.n = n
+                repr.expr.dataframe_show.id.bitfield1 = self._ast_id
+            repr.expr.dataframe_show.n = n
             self._session._ast_batch.eval(repr)
 
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
@@ -4881,12 +4923,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                stmt.expr.sp_dataframe_create_or_replace_view, stmt
-            )
+            expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = False
             self._set_ast_ref(expr.df)
-            build_sp_view_name(expr.name, name)
+            build_view_name(expr.name, name)
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
@@ -4993,16 +5033,16 @@ class DataFrame:
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(
-                stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt
+                stmt.expr.dataframe_create_or_replace_dynamic_table, stmt
             )
             self._set_ast_ref(expr.df)
-            build_sp_table_name(expr.name, name)
+            build_table_name(expr.name, name)
             expr.warehouse = warehouse
             expr.lag = lag
             if comment is not None:
                 expr.comment.value = comment
 
-            fill_sp_save_mode(expr.mode, mode)
+            fill_save_mode(expr.mode, mode)
             if refresh_mode is not None:
                 expr.refresh_mode.value = refresh_mode
             if initialize is not None:
@@ -5010,7 +5050,7 @@ class DataFrame:
             if clustering_keys is not None:
                 for col_or_name in clustering_keys:
                     build_expr_from_snowpark_column_or_col_name(
-                        expr.clustering_keys.list.add(), col_or_name
+                        expr.clustering_keys.add(), col_or_name
                     )
             expr.is_transient = is_transient
             if data_retention_time is not None:
@@ -5094,12 +5134,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                stmt.expr.sp_dataframe_create_or_replace_view, stmt
-            )
+            expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = True
             self._set_ast_ref(expr.df)
-            build_sp_view_name(expr.name, name)
+            build_view_name(expr.name, name)
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
@@ -5157,12 +5195,10 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(
-                stmt.expr.sp_dataframe_create_or_replace_view, stmt
-            )
+            expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = True
             self._set_ast_ref(expr.df)
-            build_sp_view_name(expr.name, name)
+            build_view_name(expr.name, name)
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
@@ -5310,7 +5346,7 @@ class DataFrame:
         kwargs = {}
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_first, stmt)
+            ast = with_src_position(stmt.expr.dataframe_first, stmt)
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
             self._set_ast_ref(ast.df)
@@ -5324,7 +5360,7 @@ class DataFrame:
 
         if n is None:
             df = self.limit(1, _emit_ast=False)
-            add_api_call(df, "DataFrame.first")
+            adjust_api_subcalls(df, "DataFrame.first", len_subcalls=1)
             result = df._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
@@ -5332,12 +5368,13 @@ class DataFrame:
                 return result
             return result[0] if result else None
         elif n < 0:
+            add_api_call(self, "DataFrame.first")
             return self._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
         else:
             df = self.limit(n, _emit_ast=False)
-            add_api_call(df, "DataFrame.first")
+            adjust_api_subcalls(df, "DataFrame.first", len_subcalls=1)
             return df._internal_collect_with_tag(
                 statement_params=statement_params, block=block, **kwargs
             )
@@ -5367,7 +5404,7 @@ class DataFrame:
         if _emit_ast:
             # AST.
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_sample, stmt)
+            ast = with_src_position(stmt.expr.dataframe_sample, stmt)
             if frac:
                 ast.probability_fraction.value = frac
             if n:
@@ -5448,7 +5485,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_describe, stmt)
+            expr = with_src_position(stmt.expr.dataframe_describe, stmt)
             self._set_ast_ref(expr.df)
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
@@ -5492,37 +5529,41 @@ class DataFrame:
             return df
 
         # otherwise, calculate stats
-        res_df = None
-        for name, func in stat_func_dict.items():
-            agg_cols = []
-            for c, t in numerical_string_col_type_dict.items():
-                # for string columns, we need to convert all stats to string
-                # such that they can be fitted into one column
-                if isinstance(t, StringType):
-                    if name in ["mean", "stddev"]:
-                        agg_cols.append(to_char(func(lit(None))).as_(c))
+        with ResourceUsageCollector() as resource_usage_collector:
+            res_df = None
+            for name, func in stat_func_dict.items():
+                agg_cols = []
+                for c, t in numerical_string_col_type_dict.items():
+                    # for string columns, we need to convert all stats to string
+                    # such that they can be fitted into one column
+                    if isinstance(t, StringType):
+                        if name in ["mean", "stddev"]:
+                            agg_cols.append(to_char(func(lit(None))).as_(c))
+                        else:
+                            agg_cols.append(to_char(func(c)))
                     else:
-                        agg_cols.append(to_char(func(c)))
-                else:
-                    agg_cols.append(func(c))
-            agg_stat_df = (
-                self.agg(agg_cols, _emit_ast=False)
-                .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
-                .select(
-                    lit(name).as_("summary"),
-                    *numerical_string_col_type_dict.keys(),
-                    _emit_ast=False,
+                        agg_cols.append(func(c))
+                agg_stat_df = (
+                    self.agg(agg_cols, _emit_ast=False)
+                    .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
+                    .select(
+                        lit(name).as_("summary"),
+                        *numerical_string_col_type_dict.keys(),
+                        _emit_ast=False,
+                    )
                 )
-            )
-            res_df = (
-                res_df.union(agg_stat_df, _emit_ast=False) if res_df else agg_stat_df
-            )
+                res_df = (
+                    res_df.union(agg_stat_df, _emit_ast=False)
+                    if res_df
+                    else agg_stat_df
+                )
 
         adjust_api_subcalls(
             res_df,
             "DataFrame.describe",
             precalls=self._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
+            resource_usage=resource_usage_collector.get_resource_usage(),
         )
 
         if _emit_ast:
@@ -5573,7 +5614,7 @@ class DataFrame:
         expr = None
         if _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
-            expr = with_src_position(_ast_stmt.expr.sp_dataframe_rename, _ast_stmt)
+            expr = with_src_position(_ast_stmt.expr.dataframe_rename, _ast_stmt)
             self._set_ast_ref(expr.df)
             if new_column is not None:
                 expr.new_column.value = new_column
@@ -5691,7 +5732,7 @@ class DataFrame:
         if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(
-                _ast_stmt.expr.sp_dataframe_with_column_renamed, _ast_stmt
+                _ast_stmt.expr.dataframe_with_column_renamed, _ast_stmt
             )
             self._set_ast_ref(expr.df)
             expr.new_name = new
@@ -5779,25 +5820,33 @@ class DataFrame:
         with open_telemetry_context_manager(self.cache_result, self):
             from snowflake.snowpark.mock._connection import MockServerConnection
 
-        # AST.
-        stmt = None
-        if _emit_ast:
-            stmt = self._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_cache_result, stmt)
-            self._set_ast_ref(expr.df)
-            if statement_params is not None:
-                build_expr_from_dict_str_str(expr.statement_params, statement_params)
-
         temp_table_name = self._session.get_fully_qualified_name_if_possible(
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
         )
 
-        # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.dataframe_cache_result, stmt)
+            self._set_ast_ref(expr.df)
+            if statement_params is not None:
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
+
+            # We do not treat cache_result() (alias: cache()) as eval. Instead, in AST given it returns a
+            # Dataframe we follow a similar model to other APIs. However, this API will materialize the data before in
+            # a temporary table. We store a reference to this entity as part of the AST.
+            build_name(
+                temp_table_name, stmt.expr.dataframe_cache_result.object_name.name
+            )
 
         if isinstance(self._session._conn, MockServerConnection):
+            ast_id = self._ast_id
+            self._ast_id = None  # set the AST ID to None to prevent AST emission.
             self.write.save_as_table(
                 temp_table_name, create_temp_table=True, _emit_ast=False
             )
+            self._ast_id = ast_id  # restore the original AST ID.
         else:
             df = self._with_plan(
                 SnowflakeCreateTable(
@@ -5836,7 +5885,6 @@ class DataFrame:
             cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
 
-    @df_collect_api_telemetry
     @publicapi
     def random_split(
         self,
@@ -5884,7 +5932,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_random_split, stmt)
+            ast = with_src_position(stmt.expr.dataframe_random_split, stmt)
             for w in weights:
                 ast.weights.append(w)
             if seed:
@@ -5901,27 +5949,61 @@ class DataFrame:
                     raise ValueError("weights must be positive numbers")
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
-            cached_df = self.with_column(
-                temp_column_name,
-                abs_(random(seed)) % _ONE_MILLION,
-                _emit_ast=False,
-            ).cache_result(statement_params=statement_params, _emit_ast=False)
-            sum_weights = sum(weights)
-            normalized_cum_weights = [0] + [
-                int(w * _ONE_MILLION)
-                for w in list(itertools.accumulate([w / sum_weights for w in weights]))
-            ]
-            normalized_boundaries = zip(
-                normalized_cum_weights[:-1], normalized_cum_weights[1:]
-            )
-            res_dfs = [
-                cached_df.where(
-                    (col(temp_column_name) >= lower_bound)
-                    & (col(temp_column_name) < upper_bound),
-                    _emit_ast=False,
-                ).drop(temp_column_name, _emit_ast=False)
-                for lower_bound, upper_bound in normalized_boundaries
-            ]
+            with ResourceUsageCollector() as resource_usage_collector:
+                if self._session.conf.get("use_simplified_query_generation"):
+                    api_name = "DataFrame.random_split[hash]"
+                    if seed is not None:
+                        local_random = random.Random(seed)
+                        python_seed = local_random.random()
+                    else:
+                        python_seed = random.random()
+                    intermediate_df = self.with_column(
+                        temp_column_name,
+                        abs_(
+                            hash_(
+                                "*", lit(python_seed, _emit_ast=False), _emit_ast=False
+                            ),
+                            _emit_ast=False,
+                        )
+                        % _ONE_MILLION,
+                        _emit_ast=False,
+                    )
+                else:
+                    api_name = "DataFrame.random_split[cache_result]"
+                    intermediate_df = self.with_column(
+                        temp_column_name,
+                        abs_(random_(seed, _emit_ast=False), _emit_ast=False)
+                        % _ONE_MILLION,
+                        _emit_ast=False,
+                    ).cache_result(statement_params=statement_params, _emit_ast=False)
+                sum_weights = sum(weights)
+                normalized_cum_weights = [0] + [
+                    int(w * _ONE_MILLION)
+                    for w in list(
+                        itertools.accumulate([w / sum_weights for w in weights])
+                    )
+                ]
+                normalized_boundaries = zip(
+                    normalized_cum_weights[:-1], normalized_cum_weights[1:]
+                )
+                res_dfs = [
+                    intermediate_df.where(
+                        (col(temp_column_name) >= lower_bound)
+                        & (col(temp_column_name) < upper_bound),
+                        _emit_ast=False,
+                    ).drop(temp_column_name, _emit_ast=False)
+                    for lower_bound, upper_bound in normalized_boundaries
+                ]
+
+            for df in res_dfs:
+                # adjust for .with_column().where().drop()
+                adjust_api_subcalls(
+                    df,
+                    api_name,
+                    precalls=self._plan.api_calls,
+                    subcalls=df._plan.api_calls[-3:],
+                    resource_usage=resource_usage_collector.get_resource_usage(),
+                )
 
             if _emit_ast:
                 # Assign each Dataframe in res_dfs a __getitem__ from random_split.

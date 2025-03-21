@@ -13,7 +13,7 @@ df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
+df = session.create_dataframe(pandas.DataFrame(<not shown>), schema=StructType(fields=[StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
 
 df.count()
 
@@ -35,43 +35,41 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
             }
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
-                list {
-                  column_identifier {
-                    sp_column_name {
-                      name: "\"A\""
-                    }
+                column_identifier {
+                  column_name {
+                    name: "\"A\""
                   }
-                  data_type {
-                    sp_string_type {
-                      length {
-                        value: 16777216
-                      }
-                    }
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
-                    sp_column_name {
-                      name: "\"B\""
+                data_type {
+                  string_type {
+                    length {
+                      value: 16777216
                     }
                   }
-                  data_type {
-                    sp_long_type: true
-                  }
-                  nullable: true
                 }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"B\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
               }
             }
           }
@@ -97,7 +95,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         block: true
         id {
           bitfield1: 1
@@ -130,7 +128,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         id {
           bitfield1: 1
         }
@@ -162,7 +160,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         id {
           bitfield1: 1
         }
@@ -208,5 +206,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
+  patch: 1
 }

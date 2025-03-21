@@ -4,6 +4,7 @@
 
 import datetime
 import decimal
+import sys
 from typing import Any, Dict, List
 
 import pytest
@@ -15,7 +16,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udaf
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType, Variant
+from snowflake.snowpark.types import IntegerType, Variant, StringType
 from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
 pytestmark = [
@@ -590,3 +591,42 @@ def test_udaf_external_access_integration(session, db_parameters):
         Utils.check_answer(df.agg(external_access_udaf("a")), [Row(4)])
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udaf_artifact_repository(session):
+    class ArtifactRepositoryHandler:
+        def __init__(self) -> None:
+            self._result = ""
+
+        @property
+        def aggregate_state(self):
+            return self._result
+
+        def accumulate(self, input_value):
+            import urllib3
+
+            self._result = str(urllib3.exceptions.HTTPError("test"))
+
+        def merge(self, other_result):
+            self._result += other_result
+
+        def finish(self):
+            return self._result
+
+    ar_udaf = udaf(
+        ArtifactRepositoryHandler,
+        return_type=StringType(),
+        input_types=[IntegerType()],
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+    df = session.create_dataframe([(1,)], schema=["a"])
+    Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])

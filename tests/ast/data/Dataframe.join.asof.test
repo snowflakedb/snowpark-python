@@ -35,9 +35,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -277,7 +277,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "c1"
             vs: "c2"
             vs: "c3"
@@ -305,9 +305,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -429,7 +429,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "c1"
             vs: "c2"
             vs: "c3"
@@ -457,16 +457,16 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_join {
+      dataframe_join {
         join_expr {
           and {
             lhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "c1"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -482,10 +482,10 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "c1"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -512,10 +512,10 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "c2"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 1
                         }
@@ -531,10 +531,10 @@ body {
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "c2"
                     df {
-                      sp_dataframe_ref {
+                      dataframe_ref {
                         id {
                           bitfield1: 2
                         }
@@ -568,10 +568,10 @@ body {
           }
         }
         join_type {
-          sp_join_type__asof: true
+          join_type__asof: true
         }
         lhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -583,10 +583,10 @@ body {
         match_condition {
           geq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "c3"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -602,10 +602,10 @@ body {
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "c3"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 2
                     }
@@ -630,7 +630,7 @@ body {
           }
         }
         rhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -659,7 +659,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
+      dataframe_sort {
         cols {
           args {
             string_val {
@@ -688,7 +688,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -714,7 +714,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -758,5 +758,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
+  patch: 1
 }

@@ -4,6 +4,7 @@
 #
 import copy
 import datetime
+import decimal
 import json
 import logging
 import math
@@ -234,9 +235,11 @@ def test_show_using_with_select_statement(session):
     )
 
 
-def test_distinct(session):
+@pytest.mark.parametrize("use_simplification", [True, False])
+def test_distinct(session, use_simplification, local_testing_mode):
     """Tests df.distinct()."""
 
+    session.conf.set("use_simplified_query_generation", use_simplification)
     df = session.create_dataframe(
         [
             [1, 1],
@@ -268,6 +271,13 @@ def test_distinct(session):
 
     res = df.select(col("v")).distinct().sort(["v"]).collect()
     assert res == [Row(None), Row(1), Row(2), Row(3), Row(4), Row(5)]
+
+    if not local_testing_mode:
+        queries = df.distinct().queries["queries"]
+        if use_simplification:
+            assert "SELECT  DISTINCT" in queries[0]
+        else:
+            assert "GROUP BY" in queries[0]
 
 
 def test_first(session):
@@ -633,6 +643,34 @@ def test_select_table_function_negative(session):
         "The number of aliases should be same as the number of cols added by table function"
         in str(ex_info)
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="hash is not supported in Local Testing",
+)
+def test_random_split(session):
+    original_enabled = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set("use_simplified_query_generation", True)
+        # test the cache_result is not invoked
+        df = session.range(1, 50)
+        with session.query_history() as history:
+            df1, df2 = df.random_split([0.5, 0.5])
+        assert len(history.queries) == 0
+
+        # test the that seed is respected
+        df1, df2, df3 = df.random_split([0.5, 0.4, 0.1], seed=1729)
+        dfa, dfb, dfc = df.random_split([0.5, 0.4, 0.1], seed=1729)
+        Utils.check_answer(df1, dfa)
+        Utils.check_answer(df2, dfb)
+        Utils.check_answer(df3, dfc)
+
+        # assert that there in no overlap between the splits
+        df1, df2 = df.random_split([0.5, 0.5])
+        assert df1.intersect(df2).count() == 0
+    finally:
+        session.conf.set("use_simplified_query_generation", original_enabled)
 
 
 @pytest.mark.skipif(
@@ -2553,8 +2591,44 @@ def test_fillna(session, local_testing_mode):
         df.fillna(1, subset={1: "a"})
     assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
+    # Fill Decimal columns with int
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123, include_decimal=True),
+        [
+            Row(decimal.Decimal(1), decimal.Decimal(123)),
+            Row(decimal.Decimal(123), 2),
+        ],
+        sort=False,
+    )
+    # Fill Decimal columns with float
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123.0, include_decimal=True),
+        [
+            Row(decimal.Decimal(1), decimal.Decimal(123)),
+            Row(decimal.Decimal(123), 2),
+        ],
+        sort=False,
+    )
+    # Making sure default still reflects old behavior
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123.0),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
 
-def test_replace_with_coercion(session):
+
+def test_replace_with_coercion(session, local_testing_mode):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
     )
@@ -2625,6 +2699,48 @@ def test_replace_with_coercion(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
+    if local_testing_mode:
+        # SNOW-1989698: local test gap
+        return
+    # Replace Decimal value with int
+    Utils.check_answer(
+        TestData.null_data4(session).replace(
+            decimal.Decimal(1), 123, include_decimal=True
+        ),
+        [
+            Row(decimal.Decimal(123), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    # Replace Decimal value with float
+    Utils.check_answer(
+        TestData.null_data4(session).replace(
+            decimal.Decimal(1), 123.0, include_decimal=True
+        ),
+        [
+            Row(decimal.Decimal(123.0), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    # Make sure old behavior is untouched
+    Utils.check_answer(
+        TestData.null_data4(session).replace(decimal.Decimal(1), 123),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data4(session).replace(decimal.Decimal(1), 123.0),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
 
 
 @pytest.mark.skipif(
@@ -3545,7 +3661,7 @@ def test_create_dataframe_string_length(session, local_testing_mode):
             session.sql(f"show columns in {table_name}").collect()[0]["data_type"]
         )
         assert datatype["type"] == "TEXT"
-        assert datatype["length"] == 2**20 * 16  # max length (16 MB)
+        assert datatype["length"] == session._conn.max_string_size
     else:
         datatype = df.schema[0].datatype
         assert isinstance(datatype, StringType)
@@ -4879,7 +4995,7 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
 
     expected_fields = [
         StructField("COL1", LongType(), nullable=False),
-        StructField("COL2", StringType(), nullable=True),
+        StructField("COL2", StringType(2**24), nullable=True),
     ]
     assert df.schema.fields == expected_fields
 
@@ -4939,7 +5055,7 @@ def test_create_dataframe_implicit_struct_not_null_mixed(session):
     expected_fields = [
         StructField("FLAG", BooleanType(), nullable=False),
         StructField("DT", df.schema.fields[1].datatype, nullable=True),
-        StructField("TXT", StringType(), nullable=False),
+        StructField("TXT", StringType(2**24), nullable=False),
     ]
 
     assert df.schema.fields == expected_fields

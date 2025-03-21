@@ -37,10 +37,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -53,7 +53,7 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -69,15 +69,8 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        exprs {
+      dataframe_select {
+        cols {
           args {
             string_val {
               src {
@@ -92,6 +85,14 @@ body {
           }
           variadic: true
         }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        expr_variant: true
         src {
           end_column: 33
           end_line: 27
@@ -113,15 +114,8 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
-          }
-        }
-        exprs {
+      dataframe_select {
+        cols {
           args {
             string_val {
               src {
@@ -135,6 +129,14 @@ body {
             }
           }
         }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        expr_variant: true
         src {
           end_column: 35
           end_line: 29
@@ -156,15 +158,8 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 3
-            }
-          }
-        }
-        exprs {
+      dataframe_select {
+        cols {
           args {
             string_val {
               src {
@@ -239,6 +234,14 @@ body {
           }
           variadic: true
         }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        expr_variant: true
         src {
           end_column: 100
           end_line: 31
@@ -260,15 +263,8 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 4
-            }
-          }
-        }
-        exprs {
+      dataframe_select {
+        cols {
           args {
             string_val {
               src {
@@ -342,6 +338,14 @@ body {
             }
           }
         }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 4
+            }
+          }
+        }
+        expr_variant: true
         src {
           end_column: 102
           end_line: 33
@@ -373,5 +377,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
+  patch: 1
 }
