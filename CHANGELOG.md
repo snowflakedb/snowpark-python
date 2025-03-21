@@ -6,8 +6,7 @@
 
 #### New Features
 
-- Added support for the following UDF and stored procedure functions in `files.py` (General Availability)
-  - `SnowflakeFile.open_new_result`
+- Added documentation for the following UDF and stored procedure functions in `files.py` as a result of their General Availability.
   - `SnowflakeFile.write`
   - `SnowflakeFile.writelines`
   - `SnowflakeFile.writeable`
@@ -20,6 +19,7 @@
   - Removed the need to `cache_result` in the internal implementation of the input dataframe resulting in a pure lazy dataframe operation.
   - The `seed` argument now behaves as expected with repeatable results across multiple calls and sessions.
 - `DataFrame.fillna` and `DataFrame.replace` now both support fitting `int` and `float` into `Decimal` columns if `include_decimal` is set to True.
+- Minor documentation changes for `SnowflakeFile` and `SnowflakeFile.open()`
 
 #### Bug Fixes
 

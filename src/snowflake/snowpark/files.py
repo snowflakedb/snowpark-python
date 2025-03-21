@@ -32,7 +32,7 @@ class SnowflakeFile(RawIOBase):
     SnowflakeFile supports most operations supported by Python IOBase objects.
     A SnowflakeFile object can be used as a Python IOBase object.
 
-    The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a SnowflakeFile object.
+    The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a read-only SnowflakeFile object, and call :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result` to create a write-only SnowflakeFile object.
 
     This class is intended for usage within UDFs and stored procedures and many methods do not work locally.
     """
@@ -71,8 +71,9 @@ class SnowflakeFile(RawIOBase):
         require_scoped_url: bool = True,
     ) -> SnowflakeFile:
         """
-        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
-        In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
+        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for read-based IO operations on the file.
+
+        In UDFs and Stored Procedures, the object works like a read-only Python IOBase object and as a wrapper for an IO stream of remote files.
 
         All files are accessed in the context of the UDF owner (with the exception of caller's rights stored procedures which use the caller's context).
         UDF callers should use scoped URLs to allow the UDF to access their files. By accepting only scoped URLs the UDF owner can ensure
@@ -94,10 +95,9 @@ class SnowflakeFile(RawIOBase):
     @classmethod
     def open_new_result(cls, mode: str = "w") -> SnowflakeFile:
         """
-        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
-        In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
+        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for write-based IO operations. Upon successful UDF/Stored Procedure completion, the file is materialized and accessible via a scoped URL passed as the query result.
 
-        This stream will open a writable result file that will be materialized when it's returned by a UDF or Stored Procedure. When the file is materialized then file_uri will be set to a scoped URL that temporarily references this file.
+        In UDFs and Stored Procedures, the object works like a write-only Python IOBase object and as a wrapper for an IO stream of remote files.
 
         Args:
             mode: A string used to mark the type of an IO stream.
