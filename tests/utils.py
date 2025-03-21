@@ -1529,6 +1529,14 @@ class TestFiles:
     def test_concat_file2_csv(self):
         return os.path.join(self.resources_path, "test_concat_file2.csv")
 
+    @property
+    def test_books_xml(self):
+        return os.path.join(self.resources_path, "books.xml")
+
+    @property
+    def test_house_xml(self):
+        return os.path.join(self.resources_path, "fias_house.xml")
+
 
 class TypeMap(NamedTuple):
     col_name: str

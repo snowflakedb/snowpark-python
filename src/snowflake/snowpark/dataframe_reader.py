@@ -55,6 +55,9 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
 )
 from snowflake.snowpark._internal.utils import (
+    XML_ROW_TAG_STRING,
+    XML_ROW_DATA_COLUMN_NAME,
+    XML_READER_FILE_PATH,
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
@@ -78,6 +81,7 @@ from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
     VariantType,
+    StructField,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1032,6 +1036,20 @@ class DataFrameReader:
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
+        if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
+            output_schema = StructType(
+                [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
+            )
+            xml_reader_udtf = self._session.udtf.register_from_file(
+                XML_READER_FILE_PATH,
+                "XMLReader",
+                output_schema=output_schema,
+                packages=["snowflake-snowpark-python"],
+                replace=True,
+            )
+        else:
+            xml_reader_udtf = None
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
@@ -1047,6 +1065,7 @@ class DataFrameReader:
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
                             use_user_schema=use_user_schema,
+                            xml_reader_udtf=xml_reader_udtf,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -1066,6 +1085,7 @@ class DataFrameReader:
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
                     use_user_schema=use_user_schema,
+                    xml_reader_udtf=xml_reader_udtf,
                 ),
             )
         df._reader = self
