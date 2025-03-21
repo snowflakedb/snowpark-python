@@ -29,6 +29,7 @@ from typing import (
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
+
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -117,6 +118,7 @@ from snowflake.snowpark._internal.ast.utils import (
     DATAFRAME_AST_PARAMETER,
     build_view_name,
     build_table_name,
+    build_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -5818,6 +5820,10 @@ class DataFrame:
         with open_telemetry_context_manager(self.cache_result, self):
             from snowflake.snowpark.mock._connection import MockServerConnection
 
+        temp_table_name = self._session.get_fully_qualified_name_if_possible(
+            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
+        )
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -5827,11 +5833,12 @@ class DataFrame:
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
 
-        temp_table_name = self._session.get_fully_qualified_name_if_possible(
-            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
-        )
-
-        # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
+            # We do not treat cache_result() (alias: cache()) as eval. Instead, in AST given it returns a
+            # Dataframe we follow a similar model to other APIs. However, this API will materialize the data before in
+            # a temporary table. We store a reference to this entity as part of the AST.
+            build_name(
+                temp_table_name, stmt.expr.dataframe_cache_result.object_name.name
+            )
 
         if isinstance(self._session._conn, MockServerConnection):
             ast_id = self._ast_id
