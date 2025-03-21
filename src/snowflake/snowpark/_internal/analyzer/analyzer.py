@@ -50,9 +50,10 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryExpression,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    FullOuter,
     Join,
     SetOperation,
-    Union as UnionPlan,
+    UsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
@@ -1167,7 +1168,10 @@ class Analyzer:
                 pivot_values = None
 
             plan = None
+
             for agg_expr in logical_plan.aggregates:
+                # We only allow pivot on more than one aggregates when it on a groupby clause
+                join_columns: List[str] | None = None
                 if (
                     len(logical_plan.grouping_columns) != 0
                     and agg_expr.children is not None
@@ -1186,6 +1190,10 @@ class Analyzer:
                         ],  # aggregate column is first child in logical_plan.aggregates
                         logical_plan.pivot_column,
                     ]
+                    join_columns = [
+                        self.analyze(expression, df_aliased_col_name_to_real_col_name)
+                        for expression in logical_plan.grouping_columns
+                    ]
                     child = self.plan_builder.project(
                         [
                             self.analyze(col, df_aliased_col_name_to_real_col_name)
@@ -1202,9 +1210,7 @@ class Analyzer:
                         logical_plan.pivot_column, df_aliased_col_name_to_real_col_name
                     ),
                     pivot_values,
-                    self.analyze(
-                        logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
-                    ),
+                    self.analyze(agg_expr, df_aliased_col_name_to_real_col_name),
                     self.analyze(
                         logical_plan.default_on_null,
                         df_aliased_col_name_to_real_col_name,
@@ -1213,6 +1219,8 @@ class Analyzer:
                     else None,
                     child,
                     logical_plan,
+                    len(logical_plan.aggregates)
+                    > 1,  # we need to alias the names with agg function when we have more than one agg functions on the pivot
                 )
 
                 # If this is a dynamic pivot, then we can't use child.schema_query which is used in the schema_query
@@ -1225,15 +1233,35 @@ class Analyzer:
                     # table as it may not exist at later point in time when dataframe.schema is called.
                     pivot_plan.schema_query = pivot_plan.queries[-1].sql
 
-                # union multiple aggregations
-                # https://docs.snowflake.com/en/sql-reference/constructs/pivot#dynamic-pivot-with-multiple-aggregations-using-union
+                # using join here to have the output similar to what spark have
+                # both the aggregations are happening over the same set of columns and pivot values
+                # we will receive left and right both pivot table with same set of groupby columns and columns corresponding to pivot values
+                # to differentiate between columns corresponding to pivot values for aggregation function they will have name suffixed by agg fun
+                # join would keep the group by column same and append the columns corresponding to pivot values for multiple agg functions
+                # output would look similar to below for a statement like
+                # df.groupBy("name").pivot("department", ["Sales", "Marketing"]).sum("year", "salary").show()
+                # +-------+---------------+---------------+-------------------+-------------------+
+                # |   name|Sales_sum(year)|Sales_sum(year)|Marketing_sum(year)|Marketing_sum(year)|
+                # +-------+---------------+---------------+-------------------+-------------------+
+                # |  Scott|           NULL|           NULL|               NULL|               NULL|
+                # |  James|           4039|           4039|               NULL|               NULL|
+                # |    Jen|           NULL|           NULL|               NULL|               NULL|
+                # |Michael|           2020|           2020|               NULL|               NULL|
+
                 if plan is None:
                     plan = pivot_plan
-                else:
-                    union_plan = UnionPlan(plan, pivot_plan, is_all=False)
-                    plan = self.plan_builder.set_operator(
-                        plan, pivot_plan, union_plan.sql, union_plan
+                elif join_columns is not None:
+                    plan = self.plan_builder.join(
+                        plan,
+                        pivot_plan,
+                        UsingJoin(FullOuter(), join_columns),
+                        "",
+                        "",
+                        logical_plan,
+                        self.session.conf.get("use_constant_subquery_alias", False),
                     )
+                # we have a check in relational_grouped_dataframe.py which will prevent a case where there are more than one aggregate
+                # without having a grouping condition which is essential to create join_columns
 
             assert plan is not None
             return plan
