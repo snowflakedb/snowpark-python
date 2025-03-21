@@ -84,7 +84,7 @@ class SnowflakeFile(RawIOBase):
 
         Args:
             file_location: scoped URL, file URL, or string path for files located in a stage
-            mode: A string used to mark the type of an IO stream.
+            mode: A string used to mark the type of an IO stream. Supported modes are "r" for text read and "rb" for binary read.
             is_owner_file: (Deprecated) A boolean value, if True, the API is intended to access owner's files and all URI/URL are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped URL is allowed.
             require_scoped_url: A boolean value, if True, file_location must be a scoped URL. A scoped URL ensures that the caller cannot access the UDF owners files that the caller does not have access to.
         """
@@ -95,12 +95,12 @@ class SnowflakeFile(RawIOBase):
     @classmethod
     def open_new_result(cls, mode: str = "w") -> SnowflakeFile:
         """
-        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for write-based IO operations. Upon successful UDF/Stored Procedure completion, the file is materialized and accessible via a scoped URL passed as the query result.
+        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for write-based IO operations. UDFs/Stored Procedures should return the file to materialize it, and it is then made accessible via a scoped URL returned in the queries results.
 
         In UDFs and Stored Procedures, the object works like a write-only Python IOBase object and as a wrapper for an IO stream of remote files.
 
         Args:
-            mode: A string used to mark the type of an IO stream.
+            mode: A string used to mark the type of an IO stream. Supported modes are "w" for text write and "wb" for binary write.
         """
         return cls("new results file", mode, require_scoped_url=0, from_result_api=True)
 
