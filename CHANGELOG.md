@@ -4,6 +4,14 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for the following UDF and stored procedure functions in `files.py` (General Availability)
+  - `SnowflakeFile.open_new_result`
+  - `SnowflakeFile.write`
+  - `SnowflakeFile.writelines`
+  - `SnowflakeFile.writeable`
+
 #### Improvements
 
 - Improved query generation for `Dataframe.stat.sample_by` to generate a single flat query that scales well with large `fractions` dictionary compared to older method of creating a UNION ALL subquery for each key in `fractions`. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
