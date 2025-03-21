@@ -7,9 +7,7 @@
 from pandas.util._decorators import doc
 
 from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
-    _doc_binary_op,
-    _shared_docs,
-)
+    _doc_binary_op, _shared_docs)
 
 _doc_binary_op_kwargs = {"returns": "BasePandasDataset", "left": "BasePandasDataset"}
 
