@@ -811,11 +811,12 @@ message DataframeAnalyticsTimeSeriesAgg {
   repeated string windows = 8;
 }
 
-// dataframe-io.ir:183
+// dataframe.ir:348
 message DataframeCacheResult {
   Expr df = 1;
-  SrcPosition src = 2;
-  repeated Tuple_String_String statement_params = 3;
+  NameRef object_name = 2;
+  SrcPosition src = 3;
+  repeated Tuple_String_String statement_params = 4;
 }
 
 // column.ir:1
