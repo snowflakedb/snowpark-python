@@ -13,6 +13,7 @@ and if possible, whether this can be reconciled with upstream Modin.
 from __future__ import annotations
 
 import copy
+import functools
 import pickle as pkl
 import warnings
 from collections.abc import Sequence
@@ -23,83 +24,52 @@ import numpy as np
 import numpy.typing as npt
 import pandas
 from modin.pandas import Series
-from modin.pandas.api.extensions import (
-    register_dataframe_accessor,
-    register_series_accessor,
-    register_base_accessor
-)
+from modin.pandas.api.extensions import (register_base_accessor,
+                                         register_dataframe_accessor,
+                                         register_series_accessor)
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas._libs import lib
 from pandas._libs.lib import NoDefault, is_bool, no_default
-from pandas._typing import (
-    AggFuncType,
-    AnyArrayLike,
-    Axes,
-    Axis,
-    CompressionOptions,
-    FillnaOptions,
-    IgnoreRaise,
-    IndexKeyFunc,
-    IndexLabel,
-    Level,
-    NaPosition,
-    RandomState,
-    Scalar,
-    StorageOptions,
-    TimedeltaConvertibleTypes,
-    TimestampConvertibleTypes,
-)
+from pandas._typing import (AggFuncType, AnyArrayLike, Axes, Axis,
+                            CompressionOptions, FillnaOptions, IgnoreRaise,
+                            IndexKeyFunc, IndexLabel, Level, NaPosition,
+                            RandomState, Scalar, StorageOptions,
+                            TimedeltaConvertibleTypes,
+                            TimestampConvertibleTypes)
 from pandas.core.common import apply_if_callable
-from pandas.core.dtypes.common import (
-    is_dict_like,
-    is_dtype_equal,
-    is_list_like,
-    is_numeric_dtype,
-    pandas_dtype,
-)
+from pandas.core.dtypes.common import (is_dict_like, is_dtype_equal,
+                                       is_list_like, is_numeric_dtype,
+                                       pandas_dtype)
 from pandas.core.dtypes.inference import is_integer
 from pandas.core.methods.describe import _refine_percentiles
 from pandas.errors import SpecificationError
-from pandas.util._validators import (
-    validate_ascending,
-    validate_bool_kwarg,
-    validate_percentile,
-)
+from pandas.util._validators import (validate_ascending, validate_bool_kwarg,
+                                     validate_percentile)
 
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.extensions.utils import (
-    ensure_index,
-    extract_validate_and_try_convert_named_aggs_from_kwargs,
+    ensure_index, extract_validate_and_try_convert_named_aggs_from_kwargs,
     get_as_shape_compatible_dataframe_or_series,
     raise_if_native_pandas_objects,
-    validate_and_try_convert_agg_func_arg_func_to_str,
-)
+    validate_and_try_convert_agg_func_arg_func_to_str)
 from snowflake.snowpark.modin.plugin.utils.error_message import (
-    ErrorMessage,
-    base_not_implemented,
-)
+    ErrorMessage, base_not_implemented)
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
-    WarningMessage,
-    materialization_warning,
-)
+    WarningMessage, materialization_warning)
 from snowflake.snowpark.modin.utils import validate_int_kwarg
-import functools
 
 _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
     "pct_change(axis=1) is invalid when one column is Timedelta another column is not."
 )
 
-register_base_override_helper = functools.partial(
-    register_base_accessor,
-    engine="Snowflake",
-    storage_format="Snowflake",
-)
+register_base_override_helper = lambda name: register_base_accessor(name=name, backend="Snowflake")
+
 
 
 def register_base_not_implemented():
     def decorator(base_method: Any):
-        return register_base_accessor(base_not_implemented()(base_method), engine="Snowflake", storage_format="Snowflake")
+        return register_base_accessor(name= base_method.__name__, backend="Snowflake")(base_not_implemented()(base_method))
 
     return decorator
 
@@ -1308,7 +1278,8 @@ def resample(
     """
     Resample time-series data.
     """
-    from snowflake.snowpark.modin.plugin.extensions.resample_overrides import Resampler
+    from snowflake.snowpark.modin.plugin.extensions.resample_overrides import \
+        Resampler
 
     if axis is not lib.no_default:  # pragma: no cover
         axis = self._get_axis_number(axis)
@@ -1353,7 +1324,8 @@ def expanding(self, min_periods=1, axis=0, method="single"):  # noqa: PR01, RT01
     """
     Provide expanding window calculations.
     """
-    from snowflake.snowpark.modin.plugin.extensions.window_overrides import Expanding
+    from snowflake.snowpark.modin.plugin.extensions.window_overrides import \
+        Expanding
 
     if axis is not lib.no_default:
         axis = self._get_axis_number(axis)
@@ -1425,7 +1397,8 @@ def rolling(
         axis = 0
 
     if win_type is not None:
-        from snowflake.snowpark.modin.plugin.extensions.window_overrides import Window
+        from snowflake.snowpark.modin.plugin.extensions.window_overrides import \
+            Window
 
         return Window(
             self,
@@ -1439,7 +1412,8 @@ def rolling(
             step=step,
             method=method,
         )
-    from snowflake.snowpark.modin.plugin.extensions.window_overrides import Rolling
+    from snowflake.snowpark.modin.plugin.extensions.window_overrides import \
+        Rolling
 
     return Rolling(
         self,
@@ -1464,9 +1438,8 @@ def iloc(self):
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     # TODO: SNOW-930028 enable all skipped doctests
-    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
-        _iLocIndexer,
-    )
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import \
+        _iLocIndexer
 
     return _iLocIndexer(self)
 
@@ -1481,9 +1454,8 @@ def loc(self):
     # TODO: SNOW-935444 fix doctest where index key has name
     # TODO: SNOW-933782 fix multiindex transpose bug, e.g., Name: (cobra, mark ii) => Name: ('cobra', 'mark ii')
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
-        _LocIndexer,
-    )
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import \
+        _LocIndexer
 
     return _LocIndexer(self)
 
@@ -1496,9 +1468,8 @@ def iat(self, axis=None):  # noqa: PR01, RT01, D200
     Get a single value for a row/column pair by integer position.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
-        _iAtIndexer,
-    )
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import \
+        _iAtIndexer
 
     return _iAtIndexer(self)
 
@@ -1511,7 +1482,8 @@ def at(self, axis=None):  # noqa: PR01, RT01, D200
     Get a single value for a row/column label pair.
     """
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
-    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import _AtIndexer
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import \
+        _AtIndexer
 
     return _AtIndexer(self)
 
@@ -1827,7 +1799,8 @@ def to_csv(
     errors: str = "strict",
     storage_options: StorageOptions = None,
 ):  # pragma: no cover
-    from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
+    from modin.core.execution.dispatching.factories.dispatcher import \
+        FactoryDispatcher
 
     return FactoryDispatcher.to_csv(
         self._query_compiler,
@@ -2395,9 +2368,8 @@ def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
     if method != "__call__":
         # Return sentinel value NotImplemented
         return NotImplemented  # pragma: no cover
-    from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
-        numpy_to_pandas_universal_func_map,
-    )
+    from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import \
+        numpy_to_pandas_universal_func_map
 
     if ufunc.__name__ in numpy_to_pandas_universal_func_map:
         ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
