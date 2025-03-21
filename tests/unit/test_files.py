@@ -6,7 +6,6 @@ from functools import partial
 
 import pytest
 
-from snowflake.snowpark._internal.utils import private_preview
 from snowflake.snowpark.files import _DEFER_IMPLEMENTATION_ERR_MSG, SnowflakeFile
 
 
@@ -16,7 +15,6 @@ def test_create_snowflakefile():
         assert snowflake_file._mode == "r"
 
 
-@private_preview(version="1.22.1")
 def test_write_snowflakefile():
     with SnowflakeFile.open_new_result("w") as snowflake_file:
         assert snowflake_file._file_location == "new results file"
