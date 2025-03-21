@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import functools
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta, tzinfo
 from logging import getLogger
@@ -34,55 +35,37 @@ import pandas
 import pandas.core.common as common
 from modin.pandas import DataFrame, Series
 from modin.pandas.api.extensions import register_pd_accessor
-import functools
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas import IntervalIndex, NaT, Timedelta, Timestamp
 from pandas._libs import NaTType, lib
 from pandas._libs.tslibs import to_offset
-from pandas._typing import (
-    AnyArrayLike,
-    ArrayLike,
-    Axis,
-    DateTimeErrorChoices,
-    Frequency,
-    IndexLabel,
-    IntervalClosedType,
-    Scalar,
-    Suffixes,
-)
+from pandas._typing import (AnyArrayLike, ArrayLike, Axis,
+                            DateTimeErrorChoices, Frequency, IndexLabel,
+                            IntervalClosedType, Scalar, Suffixes)
 from pandas.core.arrays import datetimelike
-from pandas.core.arrays.datetimes import (
-    _infer_tz_from_endpoints,
-    _maybe_localize_point,
-    _maybe_normalize_endpoints,
-)
+from pandas.core.arrays.datetimes import (_infer_tz_from_endpoints,
+                                          _maybe_localize_point,
+                                          _maybe_normalize_endpoints)
 from pandas.core.dtypes.common import is_list_like, is_nested_list_like
 from pandas.core.dtypes.inference import is_array_like
-from pandas.core.tools.datetimes import (
-    ArrayConvertible,
-    DatetimeScalar,
-    DatetimeScalarOrArrayConvertible,
-    DictConvertible,
-)
+from pandas.core.tools.datetimes import (ArrayConvertible, DatetimeScalar,
+                                         DatetimeScalarOrArrayConvertible,
+                                         DictConvertible)
 from pandas.errors import MergeError
 from pandas.util._validators import validate_inclusive
 
-from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
-    VALID_TO_DATETIME_UNIT,
-)
+from snowflake.snowpark.modin.plugin._internal.timestamp_utils import \
+    VALID_TO_DATETIME_UNIT
 from snowflake.snowpark.modin.plugin._typing import ListLike, ListLikeOfFloats
-from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-    SnowflakeQueryCompiler,
-)
-from snowflake.snowpark.modin.plugin.extensions.utils import (
-    raise_if_native_pandas_objects,
-)
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import \
+    SnowflakeQueryCompiler
+from snowflake.snowpark.modin.plugin.extensions.utils import \
+    raise_if_native_pandas_objects
 from snowflake.snowpark.modin.plugin.utils.error_message import (
-    ErrorMessage,
-    pandas_module_level_function_not_implemented,
-)
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+    ErrorMessage, pandas_module_level_function_not_implemented)
+from snowflake.snowpark.modin.plugin.utils.warning_message import \
+    WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 
 # To prevent cross-reference warnings when building documentation and prevent erroneously
@@ -103,8 +86,6 @@ VALID_DATE_TYPE = Union[
 
 register_pd_accessor_helper = functools.partial(
     register_pd_accessor, 
-    engine="Snowflake",
-    storage_format="Snowflake"
 )
 
 @register_pd_accessor_helper("melt")

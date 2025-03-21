@@ -7,6 +7,7 @@ File containing Series APIs defined in Snowpark pandas but not the Modin API lay
 as `Series.to_snowflake`.
 """
 
+import functools
 from collections.abc import Iterable
 from typing import Any, Literal, Optional, Union
 
@@ -16,13 +17,12 @@ from modin.pandas.api.extensions import register_series_accessor
 from pandas._typing import Axis, IndexLabel
 
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
-from snowflake.snowpark.modin.plugin.utils.warning_message import (
-    materialization_warning,
-)
-import functools
+from snowflake.snowpark.modin.plugin.extensions.utils import \
+    add_cache_result_docstring
+from snowflake.snowpark.modin.plugin.utils.warning_message import \
+    materialization_warning
 
-register_series_accessor_helper = functools.partial(register_series_accessor, engine="Snowflake", storage_format="Snowflake")
+register_series_accessor_helper = lambda name: register_series_accessor(name=name, backend="Snowflake")
 
 
 @register_series_accessor_helper("_set_axis_name")
