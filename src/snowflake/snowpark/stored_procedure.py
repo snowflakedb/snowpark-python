@@ -80,7 +80,7 @@ class StoredProcedure:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.StoredProcedure] = None,
         _ast_id: Optional[int] = None,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -97,7 +97,7 @@ class StoredProcedure:
         # If None, no ast will be emitted. Else, passed whenever sproc is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
-        # field to hold the assign statement for the stored procedure
+        # field to hold the bind statement for the stored procedure
         self._ast_stmt = _ast_stmt
 
     def _validate_call(
@@ -828,9 +828,9 @@ class StoredProcedureRegistration:
         stmt, ast, ast_id = None, None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.stored_procedure, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
 
             return StoredProcedure(
                 func,
@@ -865,9 +865,9 @@ class StoredProcedureRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.stored_procedure, stmt)
-            ast_id = stmt.var_id.bitfield1
+            ast_id = stmt.uid
 
             build_sproc(
                 ast,

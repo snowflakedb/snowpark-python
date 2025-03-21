@@ -286,11 +286,11 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         is_temp_table_for_cleanup: bool = False,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
     ) -> None:
         if _ast_stmt is None and session is not None and _emit_ast:
-            _ast_stmt = session._ast_batch.assign()
+            _ast_stmt = session._ast_batch.bind()
             ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
             build_table_name(ast.name, table_name)
             ast.variant.table_init = True
@@ -392,7 +392,7 @@ class Table(DataFrame):
         stmt = None
         if _emit_ast:
             # AST.
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.table_sample, stmt)
             if frac:
                 ast.probability_fraction.value = frac
@@ -524,7 +524,7 @@ class Table(DataFrame):
         kwargs = {}
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.table_update, stmt)
             self._set_ast_ref(ast.df)
             if assignments is not None:
@@ -655,7 +655,7 @@ class Table(DataFrame):
         kwargs = {}
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.table_delete, stmt)
             self._set_ast_ref(ast.df)
             if condition is not None:
@@ -786,7 +786,7 @@ class Table(DataFrame):
         kwargs = {}
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.table_merge, stmt)
             self._set_ast_ref(ast.df)
             source._set_ast_ref(ast.source)
@@ -905,7 +905,7 @@ class Table(DataFrame):
         kwargs = {}
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.table_drop_table, stmt)
             self._set_ast_ref(ast.df)
             self._session._ast_batch.eval(stmt)
