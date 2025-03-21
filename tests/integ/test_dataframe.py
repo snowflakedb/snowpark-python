@@ -647,6 +647,34 @@ def test_select_table_function_negative(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="hash is not supported in Local Testing",
+)
+def test_random_split(session):
+    original_enabled = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set("use_simplified_query_generation", True)
+        # test the cache_result is not invoked
+        df = session.range(1, 50)
+        with session.query_history() as history:
+            df1, df2 = df.random_split([0.5, 0.5])
+        assert len(history.queries) == 0
+
+        # test the that seed is respected
+        df1, df2, df3 = df.random_split([0.5, 0.4, 0.1], seed=1729)
+        dfa, dfb, dfc = df.random_split([0.5, 0.4, 0.1], seed=1729)
+        Utils.check_answer(df1, dfa)
+        Utils.check_answer(df2, dfb)
+        Utils.check_answer(df3, dfc)
+
+        # assert that there in no overlap between the splits
+        df1, df2 = df.random_split([0.5, 0.5])
+        assert df1.intersect(df2).count() == 0
+    finally:
+        session.conf.set("use_simplified_query_generation", original_enabled)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
 @pytest.mark.udf

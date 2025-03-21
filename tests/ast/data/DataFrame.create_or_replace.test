@@ -461,6 +461,13 @@ body {
             }
           }
         }
+        object_name {
+          name {
+            name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_TABLE_xxx\""
+            }
+          }
+        }
         src {
           end_column: 31
           end_line: 51
@@ -487,6 +494,13 @@ body {
           dataframe_ref {
             id {
               bitfield1: 1
+            }
+          }
+        }
+        object_name {
+          name {
+            name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_TABLE_xxx\""
             }
           }
         }

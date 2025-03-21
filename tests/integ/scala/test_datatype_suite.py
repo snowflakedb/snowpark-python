@@ -80,7 +80,7 @@ def _create_test_dataframe(s, structured_type_support):
     nested_field_name = "b" if structured_type_support else "B"
     df = s.create_dataframe([1], schema=["a"]).select(
         object_construct(lit("k1"), lit(1))
-        .cast(MapType(StringType(), IntegerType(), structured=True))
+        .cast(MapType(StringType(), IntegerType(), structured=structured_type_support))
         .alias("map"),
         object_construct(lit("A"), lit("foo"), lit(nested_field_name), lit(0.05))
         .cast(
@@ -89,12 +89,12 @@ def _create_test_dataframe(s, structured_type_support):
                     StructField("A", StringType()),
                     StructField(nested_field_name, DoubleType()),
                 ],
-                structured=True,
+                structured=structured_type_support,
             )
         )
         .alias("obj"),
         array_construct(lit(1.0), lit(3.1), lit(4.5))
-        .cast(ArrayType(FloatType(), structured=True))
+        .cast(ArrayType(FloatType(), structured=structured_type_support))
         .alias("arr"),
     )
     return df
@@ -422,7 +422,6 @@ def test_structured_dtypes(structured_type_session, examples, structured_type_su
     assert df.dtypes == expected_dtypes
 
 
-@pytest.mark.skip(reason="SNOW-1959569: Undo once structured types issue is fixed")
 @pytest.mark.skipif(
     "config.getoption('disable_sql_simplifier', default=False)",
     reason="without sql_simplifier returned types are all variants",
@@ -432,7 +431,7 @@ def test_structured_dtypes(structured_type_session, examples, structured_type_su
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 def test_structured_dtypes_select(
-    structured_type_session, examples, structured_type_support
+    structured_type_session, examples, structured_type_support, max_string
 ):
     query, expected_dtypes, expected_schema = examples
     df = _create_test_dataframe(structured_type_session, structured_type_support)
@@ -445,27 +444,41 @@ def test_structured_dtypes_select(
         df.arr[1].alias("value3"),
         col("arr")[2].alias("value4"),
     )
+
+    # Semi structured schemas can't extract inner types
+    override_type = None if structured_type_support else VariantType()
+    override_dtype = None if structured_type_support else "variant"
+
     assert flattened_df.schema == StructType(
         [
-            StructField("VALUE1", LongType(), nullable=True),
-            StructField("A", StringType(16777216), nullable=True),
-            StructField(nested_field_name, DoubleType(), nullable=True),
-            StructField("VALUE2", DoubleType(), nullable=True),
-            StructField("VALUE3", DoubleType(), nullable=True),
-            StructField("VALUE4", DoubleType(), nullable=True),
+            StructField("VALUE1", override_type or LongType(), nullable=True),
+            StructField("A", override_type or StringType(max_string), nullable=True),
+            StructField(
+                nested_field_name, override_type or DoubleType(), nullable=True
+            ),
+            StructField("VALUE2", override_type or DoubleType(), nullable=True),
+            StructField("VALUE3", override_type or DoubleType(), nullable=True),
+            StructField("VALUE4", override_type or DoubleType(), nullable=True),
         ]
     )
     assert flattened_df.dtypes == [
-        ("VALUE1", "bigint"),
-        ("A", "string(16777216)"),
-        ("B", "double"),
-        ("VALUE2", "double"),
-        ("VALUE3", "double"),
-        ("VALUE4", "double"),
+        ("VALUE1", override_dtype or "bigint"),
+        ("A", override_dtype or f"string({max_string})"),
+        ("B", override_dtype or "double"),
+        ("VALUE2", override_dtype or "double"),
+        ("VALUE3", override_dtype or "double"),
+        ("VALUE4", override_dtype or "double"),
     ]
-    assert flattened_df.collect() == [
-        Row(VALUE1=1, A="foo", B=0.05, VALUE2=1.0, VALUE3=3.1, VALUE4=4.5)
-    ]
+
+    if structured_type_support:
+        expected_row = Row(
+            VALUE1=1, A="foo", B=0.05, VALUE2=1.0, VALUE3=3.1, VALUE4=4.5
+        )
+    else:
+        expected_row = Row(
+            VALUE1="1", A='"foo"', B="0.05", VALUE2="1", VALUE3="3.1", VALUE4="4.5"
+        )
+    assert flattened_df.collect() == [expected_row]
 
 
 @pytest.mark.skipif(not installed_pandas, reason="Pandas required for this test.")
@@ -485,17 +498,19 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
     else:
         assert (
             pdf.to_json()
-            == '{"MAP":{"0":"{\\n  \\"k1\\": 1\\n}"},"OBJ":{"0":"{\\n  \\"A\\": \\"foo\\",\\n  \\"B\\": 5.000000000000000e-02\\n}"},"ARR":{"0":"[\\n  1.000000000000000e+00,\\n  3.100000000000000e+00,\\n  4.500000000000000e+00\\n]"}}'
+            == '{"MAP":{"0":"{\\n  \\"k1\\": 1\\n}"},"OBJ":{"0":"{\\n  \\"A\\": \\"foo\\",\\n  \\"B\\": 0.05\\n}"},"ARR":{"0":"[\\n  1,\\n  3.1,\\n  4.5\\n]"}}'
         )
 
 
-@pytest.mark.skip(reason="SNOW-1959569: Undo once structured types issue is fixed")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
 def test_structured_dtypes_iceberg(
-    structured_type_session, local_testing_mode, structured_type_support, max_string
+    structured_type_session,
+    local_testing_mode,
+    structured_type_support,
+    server_side_max_string,
 ):
 
     if not (
@@ -503,7 +518,9 @@ def test_structured_dtypes_iceberg(
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
-    query, expected_dtypes, expected_schema = _create_example(True, max_string)
+    query, expected_dtypes, expected_schema = _create_example(
+        True, server_side_max_string
+    )
 
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}".upper()
     dynamic_table_name = f"snowpark_dynamic_iceberg_{uuid.uuid4().hex[:5]}".upper()
@@ -549,10 +566,13 @@ def test_structured_dtypes_iceberg(
             if structured_type_session.sql_simplifier_enabled
             else f"({table_name})"
         )
+
         assert dynamic_ddl[0][0] == (
-            f"create or replace dynamic table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n) "
-            f"target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
-            f"warehouse = {warehouse}\n as  SELECT  *  FROM ( SELECT  *  FROM {formatted_table_name});"
+            f"create or replace dynamic iceberg table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n)"
+            " target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
+            f"warehouse = {warehouse} external_volume = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'  "
+            "catalog = 'SNOWFLAKE'  base_location = 'python_connector_merge_gate/' \n as  "
+            f"SELECT  *  FROM ( SELECT  *  FROM {formatted_table_name});"
         )
 
     finally:
