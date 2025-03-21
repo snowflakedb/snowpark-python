@@ -87,6 +87,23 @@ u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], na
 
 df.agg(u2("a"))
 
+# Test registering UDAF from file without type hints
+sum_udaf = session.udaf.register_from_file(
+    test_files.test_udaf_py_file,
+    "MyUDAFWithoutTypeHints",
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+    immutable=True,
+)
+df.agg(sum_udaf("a"))
+
+# Test registering UDAF from file with type hints
+sum_udaf = session.udaf.register_from_file(
+    test_files.test_udaf_py_file,
+    "MyUDAFWithTypeHints",
+)
+df.agg(sum_udaf("a"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 sum_udaf = udaf("PythonSumUDAF", return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, copy_grants=False, _registered_object_name="sum_int")
@@ -100,6 +117,14 @@ df.agg(sum_udaf("a")).collect()
 u2 = udaf("PythonTopK", return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", copy_grants=False, force_inline_code=True, _registered_object_name="top_k")
 
 res3 = df.agg(u2("a"))
+
+sum_udaf = udaf("MyUDAFWithoutTypeHints", return_type=IntegerType(), input_types=[IntegerType()], immutable=True, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+
+res4 = df.agg(sum_udaf("a"))
+
+sum_udaf = udaf("MyUDAFWithTypeHints", return_type=LongType(), input_types=[LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+
+res5 = df.agg(sum_udaf("a"))
 
 ## EXPECTED ENCODED AST
 
@@ -120,16 +145,14 @@ body {
           name: "PythonSumUDAF"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "sum_int"
               }
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
         }
         kwargs {
           _1: "copy_grants"
@@ -147,7 +170,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "sum_int"
             }
           }
@@ -155,7 +178,7 @@ body {
         parallel: 4
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         src {
           end_column: 9
@@ -178,9 +201,9 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -344,7 +367,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_df {
+      dataframe_to_df {
         col_names {
           args {
             string_val {
@@ -373,7 +396,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -400,9 +423,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_agg {
+      dataframe_agg {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -412,7 +435,7 @@ body {
           args {
             apply_expr {
               fn {
-                sp_fn_ref {
+                fn_ref {
                   id {
                     bitfield1: 1
                   }
@@ -461,7 +484,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_collect {
+      dataframe_collect {
         block: true
         case_sensitive: true
         id {
@@ -505,7 +528,7 @@ body {
           name: "PythonTopK"
           object_name {
             name {
-              sp_name_flat {
+              name_flat {
                 name: "top_k"
               }
             }
@@ -514,15 +537,13 @@ body {
         immutable: true
         imports {
           name {
-            sp_name_flat {
+            name_flat {
               name: "numpy"
             }
           }
         }
         input_types {
-          list {
-            sp_integer_type: true
-          }
+          integer_type: true
         }
         is_permanent: true
         kwargs {
@@ -556,7 +577,7 @@ body {
         }
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "top_k"
             }
           }
@@ -565,7 +586,7 @@ body {
         parallel: 8
         replace: true
         return_type {
-          sp_integer_type: true
+          integer_type: true
         }
         secrets {
           _1: "a"
@@ -607,9 +628,9 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_agg {
+      dataframe_agg {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -619,7 +640,7 @@ body {
           args {
             apply_expr {
               fn {
-                sp_fn_ref {
+                fn_ref {
                   id {
                     bitfield1: 7
                   }
@@ -665,6 +686,237 @@ body {
     }
   }
 }
+body {
+  assign {
+    expr {
+      udaf {
+        handler {
+          id: 2
+          name: "MyUDAFWithoutTypeHints"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        immutable: true
+        input_types {
+          integer_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 119
+                file: 2
+                start_column: 19
+                start_line: 113
+              }
+            }
+          }
+        }
+        parallel: 4
+        return_type {
+          integer_type: true
+        }
+        src {
+          end_column: 9
+          end_line: 119
+          file: 2
+          start_column: 19
+          start_line: 113
+        }
+      }
+    }
+    symbol {
+      value: "sum_udaf"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_agg {
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id {
+                    bitfield1: 9
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 28
+                    end_line: 120
+                    file: 2
+                    start_column: 15
+                    start_line: 120
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                end_column: 28
+                end_line: 120
+                file: 2
+                start_column: 15
+                start_line: 120
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 29
+          end_line: 120
+          file: 2
+          start_column: 8
+          start_line: 120
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udaf {
+        handler {
+          id: 3
+          name: "MyUDAFWithTypeHints"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 126
+                file: 2
+                start_column: 19
+                start_line: 123
+              }
+            }
+          }
+        }
+        parallel: 4
+        return_type {
+          long_type: true
+        }
+        src {
+          end_column: 9
+          end_line: 126
+          file: 2
+          start_column: 19
+          start_line: 123
+        }
+      }
+    }
+    symbol {
+      value: "sum_udaf"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_agg {
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id {
+                    bitfield1: 11
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 28
+                    end_line: 127
+                    file: 2
+                    start_column: 15
+                    start_line: 127
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                end_column: 28
+                end_line: 127
+                file: 2
+                start_column: 15
+                start_line: 127
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 29
+          end_line: 127
+          file: 2
+          start_column: 8
+          start_line: 127
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -678,5 +930,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
+  patch: 1
 }

@@ -4,10 +4,12 @@
 
 import sys
 from functools import reduce
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
+
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
+from snowflake.snowpark._internal.analyzer.unary_plan_node import SampleBy
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
@@ -15,7 +17,11 @@ from snowflake.snowpark._internal.ast.utils import (
     DATAFRAME_AST_PARAMETER,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
+from snowflake.snowpark._internal.telemetry import (
+    ResourceUsageCollector,
+    add_api_call,
+    adjust_api_subcalls,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import publicapi, warning
 from snowflake.snowpark.functions import (
@@ -91,16 +97,18 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsApproxQuantile() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsApproxQuantile() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stat_approx_quantile, repr)
+            expr = with_src_position(repr.expr.dataframe_stat_approx_quantile, repr)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             if isinstance(col, Iterable) and not isinstance(col, str):
+                expr.cols.variadic = False
                 for c in col:
-                    build_expr_from_snowpark_column_or_col_name(expr.cols.add(), c)
+                    build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
             else:
-                build_expr_from_snowpark_column_or_col_name(expr.cols.add(), col)
+                expr.cols.variadic = True
+                build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), col)
 
             # Because we build AST at beginning, error out if not iterable.
             if not isinstance(percentile, Iterable):
@@ -199,9 +207,9 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsCorr() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsCorr() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stat_corr, repr)
+            expr = with_src_position(repr.expr.dataframe_stat_corr, repr)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
@@ -256,9 +264,9 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsCov() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsCov() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.sp_dataframe_stat_cov, repr)
+            expr = with_src_position(repr.expr.dataframe_stat_cov, repr)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
@@ -308,7 +316,7 @@ class DataFrameStatFunctions:
 
             >>> df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 1), (2, 3), (3, 2), (3, 3)], schema=["key", "value"])
             >>> ct = df.stat.crosstab("key", "value").sort(df["key"])
-            >>> ct.show()
+            >>> ct.show()  # doctest: +SKIP
             ---------------------------------------------------------------------------------------------
             |"KEY"  |"CAST(1 AS NUMBER(38,0))"  |"CAST(2 AS NUMBER(38,0))"  |"CAST(3 AS NUMBER(38,0))"  |
             ---------------------------------------------------------------------------------------------
@@ -326,9 +334,9 @@ class DataFrameStatFunctions:
 
         stmt = None
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsCrossTab() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsCrossTab() to the input, followed by its Eval.
             stmt = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_stat_cross_tab, stmt)
+            expr = with_src_position(stmt.expr.dataframe_stat_cross_tab, stmt)
             expr.id.bitfield1 = self._dataframe._ast_id
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
@@ -369,6 +377,53 @@ class DataFrameStatFunctions:
 
         return df
 
+    def _sample_by_with_union_all(
+        self,
+        col: ColumnOrName,
+        fractions: Dict[LiteralType, float],
+        df_generator: Callable,
+    ) -> "snowflake.snowpark.DataFrame":
+        with ResourceUsageCollector() as resource_usage_collector:
+            res_df = reduce(
+                lambda x, y: x.union_all(y, _emit_ast=False),
+                [df_generator(self, k, v) for k, v in fractions.items()],
+            )
+        adjust_api_subcalls(
+            res_df,
+            "DataFrameStatFunctions.sample_by[union_all]",
+            precalls=self._dataframe._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
+        return res_df
+
+    def _sample_by_with_percent_rank(
+        self,
+        col: Column,
+        fractions: Dict[LiteralType, float],
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        sample_by_plan = SampleBy(self._dataframe._plan, col._expression, fractions)
+        with ResourceUsageCollector() as resource_usage_collector:
+            if self._dataframe._select_statement:
+                session = self._dataframe.session
+                select_stmt = session._analyzer.create_select_statement(
+                    from_=session._analyzer.create_select_snowflake_plan(
+                        sample_by_plan, analyzer=session._analyzer
+                    ),
+                    analyzer=session._analyzer,
+                )
+                res_df = self._dataframe._with_plan(select_stmt)
+            else:
+                res_df = self._dataframe._with_plan(sample_by_plan)
+
+        add_api_call(
+            res_df,
+            "DataFrameStatFunctions.sample_by[percent_rank]",
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
+        return res_df
+
     @publicapi
     def sample_by(
         self,
@@ -396,9 +451,9 @@ class DataFrameStatFunctions:
 
         stmt = None
         if _emit_ast:
-            # Add an assign node that applies SpDataframeStatsSampleBy() to the input, followed by its Eval.
+            # Add an assign node that applies DataframeStatsSampleBy() to the input, followed by its Eval.
             stmt = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_dataframe_stat_sample_by, stmt)
+            expr = with_src_position(stmt.expr.dataframe_stat_sample_by, stmt)
             build_expr_from_snowpark_column_or_col_name(expr.col, col)
 
             if fractions is not None:
@@ -412,7 +467,7 @@ class DataFrameStatFunctions:
         if not fractions:
             res_df = self._dataframe.limit(0, _emit_ast=False)
             adjust_api_subcalls(
-                res_df, "DataFrameStatFunctions.sample_by", len_subcalls=1
+                res_df, "DataFrameStatFunctions.sample_by[empty]", len_subcalls=1
             )
 
             if _emit_ast:
@@ -430,15 +485,14 @@ class DataFrameStatFunctions:
 
             # Similar to how `Table.sample` is implemented, because SAMPLE clause does not support subqueries,
             # we just use session.sql to compile a flat query
-            res_df = reduce(
-                lambda x, y: x.union_all(y, _emit_ast=False),
-                [
-                    self._dataframe._session.sql(
-                        f"SELECT * FROM {self._dataframe.table_name} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
-                        _emit_ast=False,
-                    )
-                    for k, v in fractions.items()
-                ],
+            def df_generator(self, k, v):
+                return self._dataframe._session.sql(
+                    f"SELECT * FROM {self._dataframe.table_name} SAMPLE ({v * 100.0}) SEED ({seed}) WHERE {equal_condition_str(k)}",
+                    _emit_ast=False,
+                )
+
+            res_df = self._sample_by_with_union_all(
+                col=col, fractions=fractions, df_generator=df_generator
             )
         else:
             if seed is not None:
@@ -447,25 +501,22 @@ class DataFrameStatFunctions:
                     "`seed` argument is ignored on `DataFrame` object. Save this DataFrame to a temporary table "
                     "to get a `Table` object and specify a seed.",
                 )
-            res_df = reduce(
-                lambda x, y: x.union_all(y, _emit_ast=False),
-                [
-                    self._dataframe.filter(col == k, _emit_ast=False).sample(
+
+            if self._dataframe._session.conf.get("use_simplified_query_generation"):
+                res_df = self._sample_by_with_percent_rank(col=col, fractions=fractions)
+            else:
+
+                def df_generator(self, k, v):
+                    return self._dataframe.filter(col == k, _emit_ast=False).sample(
                         v, _emit_ast=False
                     )
-                    for k, v in fractions.items()
-                ],
-            )
-        adjust_api_subcalls(
-            res_df,
-            "DataFrameStatFunctions.sample_by",
-            precalls=self._dataframe._plan.api_calls,
-            subcalls=res_df._plan.api_calls.copy(),
-        )
+
+                res_df = self._sample_by_with_union_all(
+                    col=col, fractions=fractions, df_generator=df_generator
+                )
 
         if _emit_ast:
             res_df._ast_id = stmt.var_id.bitfield1
-            self._dataframe._session._ast_batch.eval(stmt)
 
         return res_df
 

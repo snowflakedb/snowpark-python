@@ -298,6 +298,10 @@ df146 = df.select(to_utc_timestamp("A", lit(1234)), to_utc_timestamp(col("A"), c
 
 df147 = df.select(to_date("A"), to_date("A", col("A")), to_date(col("A"), None))
 
+df148 = df.select(system_reference("table", "table1"))
+
+df149 = df.select(to_boolean("A"), to_boolean(col("A")))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -358,9 +362,9 @@ df27 = df.select(bitshiftright("A", col("B")), bitshiftright("A", -10), bitshift
 
 df28 = df.select(bround("A", 10), bround("A", 2), bround(col("A"), col("B")))
 
-df29 = df.select(convert_timezone("A", col("B")), convert_timezone(col("A"), "B"), convert_timezone("A", "B"), convert_timezone(col("A"), col("B")), convert_timezone("A", "B"), convert_timezone("A", "B", "A"))
+df29 = df.select(convert_timezone("A", col("B"), None), convert_timezone(col("A"), "B", None), convert_timezone("A", "B", None), convert_timezone(col("A"), col("B"), None), convert_timezone("A", "B", None), convert_timezone("A", "B", "A"))
 
-df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
+df30 = df.select(convert_timezone(lit("UTC"), col("a"), None), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
 
 df31 = df.select(approx_count_distinct("A"), approx_count_distinct(col("A")))
 
@@ -376,9 +380,9 @@ df36 = df.select(covar_pop("A", col("B")))
 
 df37 = df.select(covar_samp("A", "B"))
 
-df38 = df.select(create_map("A", "B"))
+df38 = df.select(create_map(["A", "B"]))
 
-df39 = df.select(create_map("A", "B", "A", "B"))
+df39 = df.select(create_map(("A", "B", "A", "B")))
 
 df40 = df.select(create_map("A", "B"))
 
@@ -388,7 +392,7 @@ df42 = df.select(kurtosis("A"))
 
 df43 = df.select(max("*"), max("A"), max(col("A")))
 
-df44 = df.select(avg("A"))
+df44 = df.select(mean("A"))
 
 df45 = df.select(median("A"))
 
@@ -410,7 +414,7 @@ df53 = df.select(sum_distinct("A"))
 
 df54 = df.select(variance("A"))
 
-df55 = df.select(variance("A"))
+df55 = df.select(var_samp("A"))
 
 df56 = df.select(var_pop("A"))
 
@@ -436,7 +440,7 @@ df66 = df.select(not_("A"))
 
 df67 = df.select(random(), random(), random(10))
 
-df68 = df.select(uniform("A", "B", "A"), uniform(lit(10), lit(13.0).cast(FloatType()), col("A")), uniform(lit(0.2).cast(FloatType()), lit(2), lit(0.2)))
+df68 = df.select(uniform("A", "B", "A"), uniform(10, 13.0, col("A")), uniform(0.2, 2, 0.2))
 
 df69 = df.select(seq1(0), seq1(10), seq1(-10))
 
@@ -550,7 +554,7 @@ df123 = df111.select(regexp_replace("A", "B", "", 1, 0), regexp_replace(col("A")
 
 df124 = df111.select(replace(col("A"), "", ""), replace("A", "B", "ahsgj"))
 
-df125 = df111.select(charindex("A", "B", 20), charindex("A", "B", col("C")))
+df125 = df111.select(charindex(col("A"), col("B"), None), charindex("A", "B", None), charindex("A", "B", 20), charindex("A", "B", col("C")))
 
 df126 = df111.select(collate(col("A"), "sp-upper"))
 
@@ -576,7 +580,7 @@ df136 = df111.select(right("A", col("B")), right(col("A"), 10))
 
 df137 = df111.select(char("A"))
 
-df138 = df111.select(to_char("A", "bcd"))
+df138 = df111.select(to_char("A", None), to_char(col("B"), None), to_char("A", "bcd"))
 
 df139 = df111.select(date_format(col("A"), col("B")), date_format("A", "YYYY"))
 
@@ -596,6 +600,10 @@ df146 = df111.select(to_utc_timestamp("A", lit(1234)), to_utc_timestamp(col("A")
 
 df147 = df111.select(to_date("A"), to_date("A", col("A")), to_date(col("A")))
 
+df148 = df111.select(system_reference("table", "table1", "CALL", []))
+
+df149 = df111.select(to_boolean("A"), to_boolean(col("A")))
+
 ## EXPECTED ENCODED AST
 
 interned_value_table {
@@ -610,10 +618,10 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -626,7 +634,7 @@ body {
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -642,7 +650,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -650,7 +658,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -681,7 +689,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -708,7 +716,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -716,7 +724,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -759,7 +767,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -786,7 +794,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -794,7 +802,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -825,7 +833,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -852,7 +860,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -860,7 +868,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "column"
                       }
                     }
@@ -891,7 +899,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -918,7 +926,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -926,7 +934,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "column"
                       }
                     }
@@ -969,7 +977,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -996,7 +1004,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1004,7 +1012,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "column"
                       }
                     }
@@ -1035,7 +1043,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1062,7 +1070,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1070,7 +1078,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lit"
                       }
                     }
@@ -1104,7 +1112,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lit"
                       }
                     }
@@ -1138,7 +1146,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lit"
                       }
                     }
@@ -1172,7 +1180,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lit"
                       }
                     }
@@ -1206,7 +1214,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lit"
                       }
                     }
@@ -1240,7 +1248,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lit"
                       }
                     }
@@ -1276,7 +1284,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lit"
                       }
                     }
@@ -1333,7 +1341,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lit"
                       }
                     }
@@ -1389,7 +1397,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1416,7 +1424,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1424,7 +1432,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sql_expr"
                       }
                     }
@@ -1432,7 +1440,7 @@ body {
                 }
               }
               pos_args {
-                sp_column_sql_expr {
+                sql_expr {
                   sql: "CURRENT_WAREHOUSE()"
                   src {
                     end_column: 56
@@ -1455,7 +1463,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1482,7 +1490,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1490,7 +1498,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_session"
                       }
                     }
@@ -1509,7 +1517,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1536,7 +1544,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1544,7 +1552,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_statement"
                       }
                     }
@@ -1563,7 +1571,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1590,7 +1598,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1598,7 +1606,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_user"
                       }
                     }
@@ -1617,7 +1625,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1644,7 +1652,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1652,7 +1660,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_version"
                       }
                     }
@@ -1671,7 +1679,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1698,7 +1706,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1706,7 +1714,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_warehouse"
                       }
                     }
@@ -1725,7 +1733,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1752,7 +1760,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1760,7 +1768,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_database"
                       }
                     }
@@ -1779,7 +1787,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1806,7 +1814,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1814,7 +1822,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_role"
                       }
                     }
@@ -1833,7 +1841,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1860,7 +1868,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1868,7 +1876,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_schema"
                       }
                     }
@@ -1887,7 +1895,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1914,7 +1922,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1922,7 +1930,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_schemas"
                       }
                     }
@@ -1941,7 +1949,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1968,7 +1976,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -1976,7 +1984,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_region"
                       }
                     }
@@ -1995,7 +2003,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2022,7 +2030,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2030,7 +2038,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_account"
                       }
                     }
@@ -2049,7 +2057,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2076,7 +2084,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2084,7 +2092,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "current_available_roles"
                       }
                     }
@@ -2103,7 +2111,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2130,7 +2138,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2138,7 +2146,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "add_months"
                       }
                     }
@@ -2181,7 +2189,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2208,7 +2216,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2216,7 +2224,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "add_months"
                       }
                     }
@@ -2229,7 +2237,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2281,7 +2289,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2308,7 +2316,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2316,7 +2324,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "add_months"
                       }
                     }
@@ -2329,7 +2337,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2363,7 +2371,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2403,7 +2411,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2430,7 +2438,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2438,7 +2446,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "any_value"
                       }
                     }
@@ -2472,7 +2480,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "any_value"
                       }
                     }
@@ -2485,7 +2493,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2525,7 +2533,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2552,7 +2560,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2560,7 +2568,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitnot"
                       }
                     }
@@ -2594,7 +2602,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitnot"
                       }
                     }
@@ -2607,7 +2615,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2650,7 +2658,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitnot"
                       }
                     }
@@ -2663,7 +2671,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2703,7 +2711,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2730,7 +2738,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2738,7 +2746,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitshiftleft"
                       }
                     }
@@ -2763,7 +2771,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2806,7 +2814,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitshiftleft"
                       }
                     }
@@ -2852,7 +2860,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitshiftleft"
                       }
                     }
@@ -2865,7 +2873,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -2917,7 +2925,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -2944,7 +2952,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -2952,7 +2960,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitshiftright"
                       }
                     }
@@ -2977,7 +2985,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3020,7 +3028,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitshiftright"
                       }
                     }
@@ -3066,7 +3074,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bitshiftright"
                       }
                     }
@@ -3079,7 +3087,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3131,7 +3139,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -3158,7 +3166,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -3166,7 +3174,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bround"
                       }
                     }
@@ -3212,7 +3220,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bround"
                       }
                     }
@@ -3258,7 +3266,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "bround"
                       }
                     }
@@ -3271,7 +3279,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3305,7 +3313,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3345,7 +3353,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -3372,7 +3380,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -3380,7 +3388,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "convert_timezone"
                       }
                     }
@@ -3405,7 +3413,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3433,6 +3441,17 @@ body {
                   }
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 56
+                    end_line: 85
+                    file: 2
+                    start_column: 25
+                    start_line: 85
+                  }
+                }
+              }
               src {
                 end_column: 56
                 end_line: 85
@@ -3448,7 +3467,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "convert_timezone"
                       }
                     }
@@ -3461,7 +3480,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3501,6 +3520,17 @@ body {
                   v: "B"
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 89
+                    end_line: 85
+                    file: 2
+                    start_column: 58
+                    start_line: 85
+                  }
+                }
+              }
               src {
                 end_column: 89
                 end_line: 85
@@ -3516,7 +3546,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "convert_timezone"
                       }
                     }
@@ -3547,6 +3577,17 @@ body {
                   v: "B"
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 117
+                    end_line: 85
+                    file: 2
+                    start_column: 91
+                    start_line: 85
+                  }
+                }
+              }
               src {
                 end_column: 117
                 end_line: 85
@@ -3562,7 +3603,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "convert_timezone"
                       }
                     }
@@ -3575,7 +3616,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3609,7 +3650,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3637,6 +3678,17 @@ body {
                   }
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 155
+                    end_line: 85
+                    file: 2
+                    start_column: 119
+                    start_line: 85
+                  }
+                }
+              }
               src {
                 end_column: 155
                 end_line: 85
@@ -3652,7 +3704,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "convert_timezone"
                       }
                     }
@@ -3683,6 +3735,17 @@ body {
                   v: "B"
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 187
+                    end_line: 85
+                    file: 2
+                    start_column: 157
+                    start_line: 85
+                  }
+                }
+              }
               src {
                 end_column: 187
                 end_line: 85
@@ -3698,7 +3761,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "convert_timezone"
                       }
                     }
@@ -3753,7 +3816,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -3780,7 +3843,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -3788,7 +3851,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "convert_timezone"
                       }
                     }
@@ -3801,7 +3864,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -3835,7 +3898,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3863,6 +3926,17 @@ body {
                   }
                 }
               }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 63
+                    end_line: 87
+                    file: 2
+                    start_column: 25
+                    start_line: 87
+                  }
+                }
+              }
               src {
                 end_column: 63
                 end_line: 87
@@ -3878,7 +3952,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "convert_timezone"
                       }
                     }
@@ -3891,7 +3965,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -3925,7 +3999,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -3959,7 +4033,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -3999,7 +4073,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4026,7 +4100,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4034,7 +4108,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "approx_count_distinct"
                       }
                     }
@@ -4068,7 +4142,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "approx_count_distinct"
                       }
                     }
@@ -4081,7 +4155,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -4121,7 +4195,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4148,7 +4222,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4156,7 +4230,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "avg"
                       }
                     }
@@ -4190,7 +4264,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "avg"
                       }
                     }
@@ -4203,7 +4277,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -4243,7 +4317,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4270,7 +4344,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4278,7 +4352,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "corr"
                       }
                     }
@@ -4321,7 +4395,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4348,7 +4422,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4356,7 +4430,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "count"
                       }
                     }
@@ -4390,7 +4464,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "count"
                       }
                     }
@@ -4424,7 +4498,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "count"
                       }
                     }
@@ -4437,7 +4511,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -4477,7 +4551,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4504,7 +4578,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4512,7 +4586,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "count_distinct"
                       }
                     }
@@ -4534,7 +4608,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "count_distinct"
                       }
                     }
@@ -4547,7 +4621,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -4590,7 +4664,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "count_distinct"
                       }
                     }
@@ -4651,7 +4725,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -4691,7 +4765,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4718,7 +4792,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4726,7 +4800,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "covar_pop"
                       }
                     }
@@ -4751,7 +4825,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -4791,7 +4865,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4818,7 +4892,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4826,7 +4900,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "covar_samp"
                       }
                     }
@@ -4869,7 +4943,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4896,7 +4970,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4904,7 +4978,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "create_map"
                       }
                     }
@@ -4912,7 +4986,7 @@ body {
                 }
               }
               pos_args {
-                string_val {
+                list_val {
                   src {
                     end_column: 47
                     end_line: 103
@@ -4920,19 +4994,30 @@ body {
                     start_column: 25
                     start_line: 103
                   }
-                  v: "A"
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 47
-                    end_line: 103
-                    file: 2
-                    start_column: 25
-                    start_line: 103
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 47
+                        end_line: 103
+                        file: 2
+                        start_column: 25
+                        start_line: 103
+                      }
+                      v: "A"
+                    }
                   }
-                  v: "B"
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 47
+                        end_line: 103
+                        file: 2
+                        start_column: 25
+                        start_line: 103
+                      }
+                      v: "B"
+                    }
+                  }
                 }
               }
               src {
@@ -4947,7 +5032,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -4974,7 +5059,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -4982,7 +5067,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "create_map"
                       }
                     }
@@ -4990,7 +5075,7 @@ body {
                 }
               }
               pos_args {
-                string_val {
+                tuple_val {
                   src {
                     end_column: 57
                     end_line: 105
@@ -4998,43 +5083,54 @@ body {
                     start_column: 25
                     start_line: 105
                   }
-                  v: "A"
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 57
-                    end_line: 105
-                    file: 2
-                    start_column: 25
-                    start_line: 105
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 57
+                        end_line: 105
+                        file: 2
+                        start_column: 25
+                        start_line: 105
+                      }
+                      v: "A"
+                    }
                   }
-                  v: "B"
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 57
-                    end_line: 105
-                    file: 2
-                    start_column: 25
-                    start_line: 105
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 57
+                        end_line: 105
+                        file: 2
+                        start_column: 25
+                        start_line: 105
+                      }
+                      v: "B"
+                    }
                   }
-                  v: "A"
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 57
-                    end_line: 105
-                    file: 2
-                    start_column: 25
-                    start_line: 105
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 57
+                        end_line: 105
+                        file: 2
+                        start_column: 25
+                        start_line: 105
+                      }
+                      v: "A"
+                    }
                   }
-                  v: "B"
+                  vs {
+                    string_val {
+                      src {
+                        end_column: 57
+                        end_line: 105
+                        file: 2
+                        start_column: 25
+                        start_line: 105
+                      }
+                      v: "B"
+                    }
+                  }
                 }
               }
               src {
@@ -5049,7 +5145,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5076,7 +5172,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5084,7 +5180,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "create_map"
                       }
                     }
@@ -5127,7 +5223,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5154,7 +5250,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5162,7 +5258,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "create_map"
                       }
                     }
@@ -5229,7 +5325,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5256,7 +5352,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5264,7 +5360,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "kurtosis"
                       }
                     }
@@ -5295,7 +5391,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5322,7 +5418,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5330,7 +5426,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "max"
                       }
                     }
@@ -5338,7 +5434,7 @@ body {
                 }
               }
               pos_args {
-                sp_column_sql_expr {
+                sql_expr {
                   sql: "*"
                   src {
                     end_column: 33
@@ -5364,7 +5460,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "max"
                       }
                     }
@@ -5398,7 +5494,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "max"
                       }
                     }
@@ -5411,7 +5507,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -5451,7 +5547,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5478,7 +5574,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5486,8 +5582,8 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
-                        name: "avg"
+                      name_flat {
+                        name: "mean"
                       }
                     }
                   }
@@ -5517,7 +5613,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5544,7 +5640,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5552,7 +5648,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "median"
                       }
                     }
@@ -5583,7 +5679,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5610,7 +5706,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5618,7 +5714,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "min"
                       }
                     }
@@ -5649,7 +5745,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5676,7 +5772,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5684,7 +5780,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "mode"
                       }
                     }
@@ -5715,7 +5811,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5742,7 +5838,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5750,7 +5846,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "skew"
                       }
                     }
@@ -5781,7 +5877,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5808,7 +5904,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5816,7 +5912,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "stddev"
                       }
                     }
@@ -5847,7 +5943,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5874,7 +5970,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5882,7 +5978,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "stddev_samp"
                       }
                     }
@@ -5913,7 +6009,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -5940,7 +6036,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -5948,7 +6044,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "stddev_pop"
                       }
                     }
@@ -5979,7 +6075,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6006,7 +6102,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6014,7 +6110,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sum"
                       }
                     }
@@ -6045,7 +6141,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6072,7 +6168,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6080,7 +6176,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sum_distinct"
                       }
                     }
@@ -6111,7 +6207,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6138,7 +6234,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6146,7 +6242,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "variance"
                       }
                     }
@@ -6177,7 +6273,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6204,7 +6300,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6212,8 +6308,8 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
-                        name: "variance"
+                      name_flat {
+                        name: "var_samp"
                       }
                     }
                   }
@@ -6243,7 +6339,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6270,7 +6366,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6278,7 +6374,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "var_pop"
                       }
                     }
@@ -6309,7 +6405,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6336,7 +6432,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6344,7 +6440,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "approx_percentile"
                       }
                     }
@@ -6390,7 +6486,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "approx_percentile"
                       }
                     }
@@ -6403,7 +6499,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -6454,7 +6550,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6481,7 +6577,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6489,7 +6585,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "approx_percentile_accumulate"
                       }
                     }
@@ -6520,7 +6616,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6547,7 +6643,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6555,7 +6651,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "approx_percentile_estimate"
                       }
                     }
@@ -6598,7 +6694,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6625,7 +6721,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6633,7 +6729,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "approx_percentile_combine"
                       }
                     }
@@ -6664,7 +6760,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6691,7 +6787,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6699,7 +6795,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "grouping"
                       }
                     }
@@ -6733,7 +6829,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "grouping"
                       }
                     }
@@ -6776,7 +6872,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6803,7 +6899,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6811,7 +6907,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "coalesce"
                       }
                     }
@@ -6833,7 +6929,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "coalesce"
                       }
                     }
@@ -6846,7 +6942,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -6880,7 +6976,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -6920,7 +7016,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -6947,7 +7043,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -6955,7 +7051,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "equal_nan"
                       }
                     }
@@ -6986,7 +7082,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7013,7 +7109,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7021,7 +7117,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "is_null"
                       }
                     }
@@ -7052,7 +7148,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7079,7 +7175,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7087,7 +7183,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "negate"
                       }
                     }
@@ -7118,7 +7214,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7145,7 +7241,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7153,7 +7249,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "not_"
                       }
                     }
@@ -7184,7 +7280,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7211,7 +7307,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7219,7 +7315,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "random"
                       }
                     }
@@ -7241,7 +7337,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "random"
                       }
                     }
@@ -7263,7 +7359,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "random"
                       }
                     }
@@ -7294,7 +7390,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7321,7 +7417,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7329,7 +7425,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "uniform"
                       }
                     }
@@ -7387,7 +7483,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "uniform"
                       }
                     }
@@ -7395,30 +7491,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    int64_val {
-                      src {
-                        end_column: 75
-                        end_line: 163
-                        file: 2
-                        start_column: 49
-                        start_line: 163
-                      }
-                      v: 10
-                    }
-                  }
+                int64_val {
                   src {
                     end_column: 75
                     end_line: 163
@@ -7426,44 +7499,11 @@ body {
                     start_column: 49
                     start_line: 163
                   }
+                  v: 10
                 }
               }
               pos_args {
-                sp_column_cast {
-                  col {
-                    apply_expr {
-                      fn {
-                        builtin_fn {
-                          name {
-                            name {
-                              sp_name_flat {
-                                name: "lit"
-                              }
-                            }
-                          }
-                        }
-                      }
-                      pos_args {
-                        float64_val {
-                          src {
-                            end_column: 75
-                            end_line: 163
-                            file: 2
-                            start_column: 49
-                            start_line: 163
-                          }
-                          v: 13.0
-                        }
-                      }
-                      src {
-                        end_column: 75
-                        end_line: 163
-                        file: 2
-                        start_column: 49
-                        start_line: 163
-                      }
-                    }
-                  }
+                float64_val {
                   src {
                     end_column: 75
                     end_line: 163
@@ -7471,9 +7511,7 @@ body {
                     start_column: 49
                     start_line: 163
                   }
-                  to {
-                    sp_float_type: true
-                  }
+                  v: 13.0
                 }
               }
               pos_args {
@@ -7482,7 +7520,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -7525,7 +7563,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "uniform"
                       }
                     }
@@ -7533,41 +7571,7 @@ body {
                 }
               }
               pos_args {
-                sp_column_cast {
-                  col {
-                    apply_expr {
-                      fn {
-                        builtin_fn {
-                          name {
-                            name {
-                              sp_name_flat {
-                                name: "lit"
-                              }
-                            }
-                          }
-                        }
-                      }
-                      pos_args {
-                        float64_val {
-                          src {
-                            end_column: 97
-                            end_line: 163
-                            file: 2
-                            start_column: 77
-                            start_line: 163
-                          }
-                          v: 0.2
-                        }
-                      }
-                      src {
-                        end_column: 97
-                        end_line: 163
-                        file: 2
-                        start_column: 77
-                        start_line: 163
-                      }
-                    }
-                  }
+                float64_val {
                   src {
                     end_column: 97
                     end_line: 163
@@ -7575,36 +7579,11 @@ body {
                     start_column: 77
                     start_line: 163
                   }
-                  to {
-                    sp_float_type: true
-                  }
+                  v: 0.2
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    int64_val {
-                      src {
-                        end_column: 97
-                        end_line: 163
-                        file: 2
-                        start_column: 77
-                        start_line: 163
-                      }
-                      v: 2
-                    }
-                  }
+                int64_val {
                   src {
                     end_column: 97
                     end_line: 163
@@ -7612,33 +7591,11 @@ body {
                     start_column: 77
                     start_line: 163
                   }
+                  v: 2
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          sp_name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    float64_val {
-                      src {
-                        end_column: 97
-                        end_line: 163
-                        file: 2
-                        start_column: 77
-                        start_line: 163
-                      }
-                      v: 0.2
-                    }
-                  }
+                float64_val {
                   src {
                     end_column: 97
                     end_line: 163
@@ -7646,6 +7603,7 @@ body {
                     start_column: 77
                     start_line: 163
                   }
+                  v: 0.2
                 }
               }
               src {
@@ -7660,7 +7618,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7687,7 +7645,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7695,7 +7653,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "seq1"
                       }
                     }
@@ -7728,7 +7686,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "seq1"
                       }
                     }
@@ -7762,7 +7720,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "seq1"
                       }
                     }
@@ -7793,7 +7751,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7820,7 +7778,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7828,7 +7786,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "seq2"
                       }
                     }
@@ -7859,7 +7817,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7886,7 +7844,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7894,7 +7852,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "seq4"
                       }
                     }
@@ -7925,7 +7883,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -7952,7 +7910,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -7960,7 +7918,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "seq8"
                       }
                     }
@@ -7991,7 +7949,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -8018,7 +7976,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -8026,7 +7984,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_decimal"
                       }
                     }
@@ -8084,7 +8042,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_decimal"
                       }
                     }
@@ -8097,7 +8055,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -8161,7 +8119,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -8188,7 +8146,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -8196,7 +8154,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_double"
                       }
                     }
@@ -8209,7 +8167,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -8263,7 +8221,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_double"
                       }
                     }
@@ -8308,7 +8266,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_double"
                       }
                     }
@@ -8354,7 +8312,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_double"
                       }
                     }
@@ -8367,7 +8325,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -8401,7 +8359,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -8441,7 +8399,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -8468,7 +8426,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -8476,7 +8434,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "div0"
                       }
                     }
@@ -8521,7 +8479,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "div0"
                       }
                     }
@@ -8567,7 +8525,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "div0"
                       }
                     }
@@ -8613,7 +8571,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "div0"
                       }
                     }
@@ -8659,7 +8617,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "div0"
                       }
                     }
@@ -8705,7 +8663,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "div0"
                       }
                     }
@@ -8730,7 +8688,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -8770,7 +8728,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -8797,7 +8755,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -8805,7 +8763,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sqrt"
                       }
                     }
@@ -8836,7 +8794,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -8863,7 +8821,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -8871,7 +8829,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "abs"
                       }
                     }
@@ -8902,7 +8860,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -8929,7 +8887,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -8937,7 +8895,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "acos"
                       }
                     }
@@ -8968,7 +8926,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -8995,7 +8953,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9003,7 +8961,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "asin"
                       }
                     }
@@ -9034,7 +8992,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9061,7 +9019,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9069,7 +9027,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "atan"
                       }
                     }
@@ -9100,7 +9058,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9127,7 +9085,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9135,7 +9093,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "atan2"
                       }
                     }
@@ -9178,7 +9136,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9205,7 +9163,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9213,7 +9171,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "ceil"
                       }
                     }
@@ -9244,7 +9202,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9271,7 +9229,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9279,7 +9237,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "cos"
                       }
                     }
@@ -9310,7 +9268,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9337,7 +9295,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9345,7 +9303,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "cosh"
                       }
                     }
@@ -9376,7 +9334,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9403,7 +9361,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9411,7 +9369,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "exp"
                       }
                     }
@@ -9442,7 +9400,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9469,7 +9427,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9477,7 +9435,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "factorial"
                       }
                     }
@@ -9508,7 +9466,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9535,7 +9493,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9543,7 +9501,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "floor"
                       }
                     }
@@ -9574,7 +9532,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9601,7 +9559,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9609,7 +9567,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "format_number"
                       }
                     }
@@ -9634,7 +9592,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -9677,7 +9635,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "format_number"
                       }
                     }
@@ -9720,7 +9678,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9747,7 +9705,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9755,7 +9713,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sin"
                       }
                     }
@@ -9786,7 +9744,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9813,7 +9771,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9821,7 +9779,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sinh"
                       }
                     }
@@ -9852,7 +9810,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9879,7 +9837,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9887,7 +9845,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "tan"
                       }
                     }
@@ -9918,7 +9876,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -9945,7 +9903,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -9953,7 +9911,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "tanh"
                       }
                     }
@@ -9984,7 +9942,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10011,7 +9969,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10019,7 +9977,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "degrees"
                       }
                     }
@@ -10050,7 +10008,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10077,7 +10035,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10085,7 +10043,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "radians"
                       }
                     }
@@ -10116,7 +10074,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10143,7 +10101,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10151,7 +10109,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "md5"
                       }
                     }
@@ -10182,7 +10140,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10209,7 +10167,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10217,7 +10175,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sha1"
                       }
                     }
@@ -10248,7 +10206,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10275,7 +10233,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10283,7 +10241,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sha2"
                       }
                     }
@@ -10296,7 +10254,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -10350,7 +10308,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sha2"
                       }
                     }
@@ -10393,7 +10351,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10420,7 +10378,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10428,7 +10386,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "hash"
                       }
                     }
@@ -10441,7 +10399,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -10474,7 +10432,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -10508,7 +10466,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -10560,7 +10518,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10587,7 +10545,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10595,7 +10553,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "ascii"
                       }
                     }
@@ -10626,7 +10584,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10653,7 +10611,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10661,7 +10619,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "initcap"
                       }
                     }
@@ -10695,7 +10653,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "initcap"
                       }
                     }
@@ -10729,7 +10687,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "initcap"
                       }
                     }
@@ -10775,7 +10733,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "initcap"
                       }
                     }
@@ -10788,7 +10746,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -10822,7 +10780,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -10862,7 +10820,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10889,7 +10847,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10897,7 +10855,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "length"
                       }
                     }
@@ -10928,7 +10886,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -10955,7 +10913,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -10963,7 +10921,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lower"
                       }
                     }
@@ -10994,7 +10952,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -11021,7 +10979,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -11029,7 +10987,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lpad"
                       }
                     }
@@ -11054,7 +11012,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11109,7 +11067,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lpad"
                       }
                     }
@@ -11167,7 +11125,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "lpad"
                       }
                     }
@@ -11180,7 +11138,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11214,7 +11172,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11248,7 +11206,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11288,7 +11246,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -11315,7 +11273,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -11323,7 +11281,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "ltrim"
                       }
                     }
@@ -11357,7 +11315,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "ltrim"
                       }
                     }
@@ -11391,7 +11349,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "ltrim"
                       }
                     }
@@ -11404,7 +11362,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11459,7 +11417,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "ltrim"
                       }
                     }
@@ -11472,7 +11430,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11506,7 +11464,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -11546,7 +11504,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -11573,7 +11531,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -11581,7 +11539,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "rpad"
                       }
                     }
@@ -11606,7 +11564,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11661,7 +11619,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "rpad"
                       }
                     }
@@ -11719,7 +11677,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "rpad"
                       }
                     }
@@ -11732,7 +11690,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11766,7 +11724,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11800,7 +11758,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -11840,7 +11798,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -11867,7 +11825,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -11875,7 +11833,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "rtrim"
                       }
                     }
@@ -11909,7 +11867,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "rtrim"
                       }
                     }
@@ -11943,7 +11901,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "rtrim"
                       }
                     }
@@ -11956,7 +11914,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12011,7 +11969,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "rtrim"
                       }
                     }
@@ -12024,7 +11982,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12058,7 +12016,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -12098,7 +12056,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -12125,7 +12083,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -12133,7 +12091,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "repeat"
                       }
                     }
@@ -12179,7 +12137,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "repeat"
                       }
                     }
@@ -12192,7 +12150,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12247,7 +12205,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "repeat"
                       }
                     }
@@ -12272,7 +12230,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12312,7 +12270,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -12339,7 +12297,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -12347,7 +12305,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "reverse"
                       }
                     }
@@ -12378,7 +12336,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -12405,7 +12363,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -12413,7 +12371,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "soundex"
                       }
                     }
@@ -12444,7 +12402,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -12471,7 +12429,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -12479,7 +12437,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "trim"
                       }
                     }
@@ -12513,7 +12471,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "trim"
                       }
                     }
@@ -12547,7 +12505,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "trim"
                       }
                     }
@@ -12560,7 +12518,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12615,7 +12573,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "trim"
                       }
                     }
@@ -12628,7 +12586,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12662,7 +12620,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -12702,7 +12660,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -12729,7 +12687,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -12737,7 +12695,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "upper"
                       }
                     }
@@ -12768,7 +12726,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -12795,7 +12753,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -12803,7 +12761,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "strtok_to_array"
                       }
                     }
@@ -12837,7 +12795,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "strtok_to_array"
                       }
                     }
@@ -12850,7 +12808,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12893,7 +12851,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "strtok_to_array"
                       }
                     }
@@ -12906,7 +12864,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12940,7 +12898,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -12983,7 +12941,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "strtok_to_array"
                       }
                     }
@@ -13026,7 +12984,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -13053,7 +13011,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -13061,7 +13019,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "struct"
                       }
                     }
@@ -13086,7 +13044,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -13120,7 +13078,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -13160,7 +13118,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -13187,7 +13145,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -13195,7 +13153,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "log"
                       }
                     }
@@ -13241,7 +13199,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "log"
                       }
                     }
@@ -13254,7 +13212,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -13309,7 +13267,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "log"
                       }
                     }
@@ -13352,7 +13310,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -13379,7 +13337,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -13387,7 +13345,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "pow"
                       }
                     }
@@ -13433,7 +13391,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "pow"
                       }
                     }
@@ -13446,7 +13404,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -13501,7 +13459,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "pow"
                       }
                     }
@@ -13544,7 +13502,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -13571,7 +13529,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -13579,7 +13537,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "round"
                       }
                     }
@@ -13624,7 +13582,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "round"
                       }
                     }
@@ -13669,7 +13627,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "round"
                       }
                     }
@@ -13682,7 +13640,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -13734,7 +13692,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -13761,7 +13719,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -13769,7 +13727,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "sign"
                       }
                     }
@@ -13800,7 +13758,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -13827,7 +13785,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -13835,7 +13793,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "split"
                       }
                     }
@@ -13881,7 +13839,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "split"
                       }
                     }
@@ -13894,7 +13852,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -13928,7 +13886,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -13968,7 +13926,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -13995,7 +13953,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -14003,7 +13961,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "substring"
                       }
                     }
@@ -14028,7 +13986,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14062,7 +14020,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14105,7 +14063,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "substring"
                       }
                     }
@@ -14118,7 +14076,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14184,7 +14142,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "substring"
                       }
                     }
@@ -14197,7 +14155,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14243,7 +14201,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14283,7 +14241,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -14310,7 +14268,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -14318,7 +14276,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "substring_index"
                       }
                     }
@@ -14376,7 +14334,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "substring_index"
                       }
                     }
@@ -14389,7 +14347,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14423,7 +14381,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14475,7 +14433,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -14502,7 +14460,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -14510,7 +14468,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "regexp_count"
                       }
                     }
@@ -14547,7 +14505,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14590,7 +14548,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "regexp_count"
                       }
                     }
@@ -14603,7 +14561,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14637,7 +14595,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14671,7 +14629,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14747,7 +14705,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -14774,7 +14732,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -14782,7 +14740,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "regexp_extract"
                       }
                     }
@@ -14837,7 +14795,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -14864,7 +14822,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -14872,7 +14830,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "regexp_replace"
                       }
                     }
@@ -14952,7 +14910,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "regexp_replace"
                       }
                     }
@@ -14965,7 +14923,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -14999,7 +14957,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15033,7 +14991,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15067,7 +15025,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15101,7 +15059,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15135,7 +15093,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15211,7 +15169,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -15238,7 +15196,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -15246,7 +15204,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "replace"
                       }
                     }
@@ -15259,7 +15217,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15324,7 +15282,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "replace"
                       }
                     }
@@ -15379,7 +15337,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -15406,7 +15364,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -15414,7 +15372,165 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
+                        name: "charindex"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 44
+                        end_line: 277
+                        file: 2
+                        start_column: 36
+                        start_line: 277
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 44
+                    end_line: 277
+                    file: 2
+                    start_column: 36
+                    start_line: 277
+                  }
+                }
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 54
+                        end_line: 277
+                        file: 2
+                        start_column: 46
+                        start_line: 277
+                      }
+                      v: "B"
+                    }
+                  }
+                  src {
+                    end_column: 54
+                    end_line: 277
+                    file: 2
+                    start_column: 46
+                    start_line: 277
+                  }
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 55
+                    end_line: 277
+                    file: 2
+                    start_column: 26
+                    start_line: 277
+                  }
+                }
+              }
+              src {
+                end_column: 55
+                end_line: 277
+                file: 2
+                start_column: 26
+                start_line: 277
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "charindex"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 82
+                    end_line: 277
+                    file: 2
+                    start_column: 57
+                    start_line: 277
+                  }
+                  v: "A"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 82
+                    end_line: 277
+                    file: 2
+                    start_column: 57
+                    start_line: 277
+                  }
+                  v: "B"
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 82
+                    end_line: 277
+                    file: 2
+                    start_column: 57
+                    start_line: 277
+                  }
+                }
+              }
+              src {
+                end_column: 82
+                end_line: 277
+                file: 2
+                start_column: 57
+                start_line: 277
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
                         name: "charindex"
                       }
                     }
@@ -15472,7 +15588,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "charindex"
                       }
                     }
@@ -15509,7 +15625,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15549,7 +15665,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -15576,7 +15692,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -15584,7 +15700,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "collate"
                       }
                     }
@@ -15597,7 +15713,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15649,7 +15765,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -15676,7 +15792,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -15684,7 +15800,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "collation"
                       }
                     }
@@ -15715,7 +15831,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -15742,7 +15858,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -15750,7 +15866,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "concat"
                       }
                     }
@@ -15775,7 +15891,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15830,7 +15946,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "concat"
                       }
                     }
@@ -15849,7 +15965,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -15876,7 +15992,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -15884,7 +16000,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "concat_ws"
                       }
                     }
@@ -15909,7 +16025,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -15961,7 +16077,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -15988,7 +16104,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -15996,7 +16112,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "translate"
                       }
                     }
@@ -16054,7 +16170,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "translate"
                       }
                     }
@@ -16067,7 +16183,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16101,7 +16217,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16135,7 +16251,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -16175,7 +16291,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -16202,7 +16318,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -16210,7 +16326,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "contains"
                       }
                     }
@@ -16253,7 +16369,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -16280,7 +16396,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -16288,7 +16404,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "startswith"
                       }
                     }
@@ -16331,7 +16447,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -16358,7 +16474,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -16366,7 +16482,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "endswith"
                       }
                     }
@@ -16409,7 +16525,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -16436,7 +16552,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -16444,7 +16560,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "insert"
                       }
                     }
@@ -16457,7 +16573,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16491,7 +16607,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16525,7 +16641,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16580,7 +16696,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "insert"
                       }
                     }
@@ -16629,7 +16745,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16669,7 +16785,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -16696,7 +16812,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -16704,7 +16820,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "left"
                       }
                     }
@@ -16729,7 +16845,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16772,7 +16888,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "left"
                       }
                     }
@@ -16785,7 +16901,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16837,7 +16953,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -16864,7 +16980,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -16872,7 +16988,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "right"
                       }
                     }
@@ -16897,7 +17013,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -16940,7 +17056,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "right"
                       }
                     }
@@ -16953,7 +17069,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17005,7 +17121,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -17032,7 +17148,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -17040,7 +17156,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "char"
                       }
                     }
@@ -17071,7 +17187,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -17098,7 +17214,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -17106,7 +17222,119 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
+                        name: "to_char"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 38
+                    end_line: 303
+                    file: 2
+                    start_column: 26
+                    start_line: 303
+                  }
+                  v: "A"
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 38
+                    end_line: 303
+                    file: 2
+                    start_column: 26
+                    start_line: 303
+                  }
+                }
+              }
+              src {
+                end_column: 38
+                end_line: 303
+                file: 2
+                start_column: 26
+                start_line: 303
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "to_char"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 56
+                        end_line: 303
+                        file: 2
+                        start_column: 48
+                        start_line: 303
+                      }
+                      v: "B"
+                    }
+                  }
+                  src {
+                    end_column: 56
+                    end_line: 303
+                    file: 2
+                    start_column: 48
+                    start_line: 303
+                  }
+                }
+              }
+              pos_args {
+                null_val {
+                  src {
+                    end_column: 63
+                    end_line: 303
+                    file: 2
+                    start_column: 40
+                    start_line: 303
+                  }
+                }
+              }
+              src {
+                end_column: 63
+                end_line: 303
+                file: 2
+                start_column: 40
+                start_line: 303
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
                         name: "to_char"
                       }
                     }
@@ -17149,7 +17377,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -17176,7 +17404,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -17184,7 +17412,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "date_format"
                       }
                     }
@@ -17197,7 +17425,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17231,7 +17459,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17274,7 +17502,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "date_format"
                       }
                     }
@@ -17317,7 +17545,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -17344,7 +17572,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -17352,7 +17580,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_time"
                       }
                     }
@@ -17386,7 +17614,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_time"
                       }
                     }
@@ -17432,7 +17660,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_time"
                       }
                     }
@@ -17445,7 +17673,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17479,7 +17707,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17519,7 +17747,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -17546,7 +17774,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -17554,7 +17782,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp"
                       }
                     }
@@ -17588,7 +17816,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp"
                       }
                     }
@@ -17622,7 +17850,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp"
                       }
                     }
@@ -17635,7 +17863,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17669,7 +17897,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17709,7 +17937,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -17736,7 +17964,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -17744,7 +17972,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_ntz"
                       }
                     }
@@ -17789,7 +18017,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_ntz"
                       }
                     }
@@ -17802,7 +18030,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17856,7 +18084,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_ntz"
                       }
                     }
@@ -17902,7 +18130,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_ntz"
                       }
                     }
@@ -17915,7 +18143,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17949,7 +18177,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -17989,7 +18217,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -18016,7 +18244,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -18024,7 +18252,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_ltz"
                       }
                     }
@@ -18069,7 +18297,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_ltz"
                       }
                     }
@@ -18082,7 +18310,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18136,7 +18364,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_ltz"
                       }
                     }
@@ -18182,7 +18410,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_ltz"
                       }
                     }
@@ -18195,7 +18423,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18229,7 +18457,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18269,7 +18497,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -18296,7 +18524,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -18304,7 +18532,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_tz"
                       }
                     }
@@ -18349,7 +18577,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_tz"
                       }
                     }
@@ -18362,7 +18590,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18416,7 +18644,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_tz"
                       }
                     }
@@ -18462,7 +18690,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_timestamp_tz"
                       }
                     }
@@ -18475,7 +18703,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18509,7 +18737,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18549,7 +18777,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -18576,7 +18804,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -18584,7 +18812,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "from_utc_timestamp"
                       }
                     }
@@ -18609,7 +18837,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -18652,7 +18880,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "from_utc_timestamp"
                       }
                     }
@@ -18665,7 +18893,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18699,7 +18927,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18739,7 +18967,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -18766,7 +18994,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -18774,7 +19002,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_utc_timestamp"
                       }
                     }
@@ -18799,7 +19027,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "lit"
                           }
                         }
@@ -18842,7 +19070,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_utc_timestamp"
                       }
                     }
@@ -18855,7 +19083,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18889,7 +19117,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -18929,7 +19157,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -18956,7 +19184,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -18964,7 +19192,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_date"
                       }
                     }
@@ -18998,7 +19226,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_date"
                       }
                     }
@@ -19023,7 +19251,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -19066,7 +19294,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "to_date"
                       }
                     }
@@ -19079,7 +19307,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "col"
                           }
                         }
@@ -19119,7 +19347,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 112
             }
@@ -19143,6 +19371,229 @@ body {
     }
   }
 }
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "system_reference"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 61
+                    end_line: 323
+                    file: 2
+                    start_column: 26
+                    start_line: 323
+                  }
+                  v: "table"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 61
+                    end_line: 323
+                    file: 2
+                    start_column: 26
+                    start_line: 323
+                  }
+                  v: "table1"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 61
+                    end_line: 323
+                    file: 2
+                    start_column: 26
+                    start_line: 323
+                  }
+                  v: "CALL"
+                }
+              }
+              pos_args {
+                list_val {
+                  src {
+                    end_column: 61
+                    end_line: 323
+                    file: 2
+                    start_column: 26
+                    start_line: 323
+                  }
+                }
+              }
+              src {
+                end_column: 61
+                end_line: 323
+                file: 2
+                start_column: 26
+                start_line: 323
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 112
+            }
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 323
+          file: 2
+          start_column: 16
+          start_line: 323
+        }
+      }
+    }
+    symbol {
+      value: "df148"
+    }
+    uid: 149
+    var_id {
+      bitfield1: 149
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "to_boolean"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 41
+                    end_line: 325
+                    file: 2
+                    start_column: 26
+                    start_line: 325
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 41
+                end_line: 325
+                file: 2
+                start_column: 26
+                start_line: 325
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "to_boolean"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 62
+                        end_line: 325
+                        file: 2
+                        start_column: 54
+                        start_line: 325
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 62
+                    end_line: 325
+                    file: 2
+                    start_column: 54
+                    start_line: 325
+                  }
+                }
+              }
+              src {
+                end_column: 63
+                end_line: 325
+                file: 2
+                start_column: 43
+                start_line: 325
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 112
+            }
+          }
+        }
+        src {
+          end_column: 64
+          end_line: 325
+          file: 2
+          start_column: 16
+          start_line: 325
+        }
+      }
+    }
+    symbol {
+      value: "df149"
+    }
+    uid: 150
+    var_id {
+      bitfield1: 150
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -19156,5 +19607,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
+  patch: 1
 }

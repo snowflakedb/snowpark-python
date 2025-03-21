@@ -88,9 +88,9 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -196,7 +196,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -222,15 +222,15 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
-                    sp_dataframe_ref {
+                    dataframe_ref {
                       id {
                         bitfield1: 1
                       }
@@ -251,7 +251,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "make_interval"
                           }
                         }
@@ -429,7 +429,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -456,15 +456,15 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
-                    sp_dataframe_ref {
+                    dataframe_ref {
                       id {
                         bitfield1: 1
                       }
@@ -485,7 +485,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "make_interval"
                           }
                         }
@@ -528,7 +528,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -555,15 +555,15 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
-                    sp_dataframe_ref {
+                    dataframe_ref {
                       id {
                         bitfield1: 1
                       }
@@ -584,7 +584,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "make_interval"
                           }
                         }
@@ -717,7 +717,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -744,15 +744,15 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
-                    sp_dataframe_ref {
+                    dataframe_ref {
                       id {
                         bitfield1: 1
                       }
@@ -773,7 +773,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "make_interval"
                           }
                         }
@@ -951,7 +951,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -978,15 +978,15 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             add {
               lhs {
-                sp_dataframe_col {
+                dataframe_col {
                   col_name: "a"
                   df {
-                    sp_dataframe_ref {
+                    dataframe_ref {
                       id {
                         bitfield1: 1
                       }
@@ -1007,7 +1007,7 @@ body {
                     builtin_fn {
                       name {
                         name {
-                          sp_name_flat {
+                          name_flat {
                             name: "make_interval"
                           }
                         }
@@ -1064,7 +1064,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -1101,5 +1101,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 29
+  patch: 1
 }

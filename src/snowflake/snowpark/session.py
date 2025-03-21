@@ -70,7 +70,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_indirect_table_fn_apply,
     build_proto_from_struct_type,
-    build_sp_table_name,
+    build_table_name,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -155,6 +155,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
+    to_file,
     array_agg,
     col,
     column,
@@ -210,6 +211,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    FileType,
     _AtomicType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration
@@ -275,6 +277,9 @@ _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION = (
 # Flag for controlling the usage of scoped temp read only table.
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
+)
+_PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION = (
+    "PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION"
 )
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -371,6 +376,7 @@ class Session:
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
                 "collect_stacktrace_in_query_tag": False,
+                "use_simplified_query_generation": False,
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
@@ -650,6 +656,10 @@ class Session:
                 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND,
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
+        )
+        # TODO: SNOW-1951048 local testing diamond join fix
+        self._join_alias_fix: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
         )
 
         self._thread_store = create_thread_local(
@@ -1366,8 +1376,8 @@ class Session:
             else self._session_stage
         )
         file_list = (
-            self.sql(f"ls {normalized}")
-            .select('"name"')
+            self.sql(f"ls {normalized}", _emit_ast=False)
+            .select('"name"', _emit_ast=False)
             ._internal_collect_with_tag(statement_params=statement_params)
         )
         prefix_length = get_stage_file_prefix_length(stage_location)
@@ -1413,10 +1423,10 @@ class Session:
             >>> import pandas
             >>> import dateutil
             >>> # add numpy with the latest version on Snowflake Anaconda
-            >>> # and pandas with the version "1.3.*"
+            >>> # and pandas with the version "2.1.*"
             >>> # and dateutil with the local version in your environment
             >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
-            >>> session.add_packages("numpy", "pandas==1.5.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==2.1.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1460,7 +1470,7 @@ class Session:
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==1.3.5")
+            >>> session.add_packages("numpy", "pandas==2.1.4")
             >>> len(session.get_packages())
             2
             >>> session.remove_package("numpy")
@@ -1562,7 +1572,8 @@ class Session:
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
-            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            >>> if sys.version_info <= (3, 11):
+            ...     session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()  # doctest: +SKIP
             --------------
             |"COL1"      |
             --------------
@@ -1718,7 +1729,27 @@ class Session:
                         package_client_version = pkg_resources.get_distribution(
                             package_name
                         ).version
-                        if package_client_version not in valid_packages[package_name]:
+
+                        def is_valid_version(
+                            package_name, package_client_version, valid_packages
+                        ):
+                            if package_name == "snowflake-snowpark-python":
+                                # bugfix versions are ignored as they do not introduce new features
+                                client_major, client_minor, _ = map(
+                                    int, package_client_version.split(".")
+                                )
+                                valid_versions = {
+                                    tuple(map(int, v.split(".")[:2]))
+                                    for v in valid_packages.get(package_name, [])
+                                }
+                                return (client_major, client_minor) in valid_versions
+                            return package_client_version in valid_packages.get(
+                                package_name, []
+                            )
+
+                        if not is_valid_version(
+                            package_name, package_client_version, valid_packages
+                        ):
                             _logger.warning(
                                 f"The version of package '{package_name}' in the local environment is "
                                 f"{package_client_version}, which does not fit the criteria for the "
@@ -2012,7 +2043,8 @@ class Session:
                     row[0]: row[1] if row[1] else []
                     for row in (
                         self.sql(
-                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
+                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t",
+                            _emit_ast=False,
                         )._internal_collect_with_tag()
                     )
                 }
@@ -2117,9 +2149,10 @@ class Session:
             row[0]: row[1].split("|") if row[1] else []
             for row in (
                 self.sql(
-                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t"
+                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t",
+                    _emit_ast=False,
                 )
-                .filter(col("signature") == environment_signature)
+                .filter(col("signature") == environment_signature, _emit_ast=False)
                 ._internal_collect_with_tag()
             )
         }
@@ -2152,7 +2185,7 @@ class Session:
         package_to_version_mapping = (
             {
                 p[0]: json.loads(p[1])
-                for p in self.table(package_table_name)
+                for p in self.table(package_table_name, _emit_ast=False)
                 .filter(
                     (col("language", _emit_ast=False) == "python")
                     & (
@@ -2209,7 +2242,7 @@ class Session:
         Fetches the current sessions query tag.
         """
         remote_tag_rows = self.sql(
-            "SHOW PARAMETERS LIKE 'QUERY_TAG'"
+            "SHOW PARAMETERS LIKE 'QUERY_TAG'", _emit_ast=False
         )._internal_collect_with_tag_no_telemetry()
 
         # Check if the result has the expected schema
@@ -2337,9 +2370,9 @@ class Session:
         """
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table, stmt)
-            build_sp_table_name(ast.name, name)
-            ast.variant.sp_session_table = True
+            ast = with_src_position(stmt.expr.table, stmt)
+            build_table_name(ast.name, name)
+            ast.variant.session_table = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
         else:
             stmt = None
@@ -2416,7 +2449,7 @@ class Session:
         if _emit_ast:
             add_intermediate_stmt(self._ast_batch, func_name)
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_session_table_function, stmt)
+            ast = with_src_position(stmt.expr.session_table_function, stmt)
             build_indirect_table_fn_apply(
                 ast.fn,
                 func_name,
@@ -2528,7 +2561,7 @@ class Session:
         stmt = None
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_generator, stmt)
+            ast = with_src_position(stmt.expr.generator, stmt)
             col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
                 *columns
             )
@@ -2632,7 +2665,7 @@ class Session:
         if _emit_ast:
             if _ast_stmt is None:
                 stmt = self._ast_batch.assign()
-                expr = with_src_position(stmt.expr.sp_sql, stmt)
+                expr = with_src_position(stmt.expr.sql, stmt)
                 expr.query = query
                 if params is not None:
                     for p in params:
@@ -3128,7 +3161,7 @@ class Session:
             if _emit_ast:
                 # Create AST statement.
                 stmt = self._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_write_pandas, stmt)  # noqa: F841
+                ast = with_src_position(stmt.expr.write_pandas, stmt)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
                 if chunk_size is not None and chunk_size != WRITE_PANDAS_CHUNK_SIZE:
@@ -3136,8 +3169,8 @@ class Session:
                 ast.compression = compression
                 ast.create_temp_table = create_temp_table
                 if isinstance(df, pandas.DataFrame):
-                    build_sp_table_name(
-                        ast.df.sp_dataframe_data__pandas.v.temp_table, table.table_name
+                    build_table_name(
+                        ast.df.dataframe_data__pandas.v.temp_table, table.table_name
                     )
                 else:
                     raise NotImplementedError(
@@ -3163,7 +3196,7 @@ class Session:
                         raise ValueError("Need to set schema when using database.")
                     table_location = [database] + table_location
 
-                build_sp_table_name(ast.table_name, table_location)
+                build_table_name(ast.table_name, table_location)
                 ast.table_type = table_type
 
                 table._ast_id = stmt.var_id.bitfield1
@@ -3299,6 +3332,7 @@ class Session:
                         auto_create_table=True,
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
+                        _emit_ast=False,
                     )
                     set_api_call_source(table, "Session.create_dataframe[arrow]")
                 else:
@@ -3311,18 +3345,19 @@ class Session:
                         auto_create_table=True,
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
+                        _emit_ast=False,
                     )
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
                     stmt = self._ast_batch.assign()
-                    ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+                    ast = with_src_position(stmt.expr.create_dataframe, stmt)
                     # Save temp table and schema of it in AST (dataframe).
-                    build_sp_table_name(
-                        ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
+                    build_table_name(
+                        ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                     )
                     build_proto_from_struct_type(
-                        table.schema, ast.schema.sp_dataframe_schema__struct.v
+                        table.schema, ast.schema.dataframe_schema__struct.v
                     )
                     table._ast_id = stmt.var_id.bitfield1
 
@@ -3487,6 +3522,8 @@ class Session:
                     converted_row.append(value)
                 elif isinstance(data_type, GeometryType):
                     converted_row.append(value)
+                elif isinstance(data_type, FileType):
+                    converted_row.append(value)
                 elif isinstance(data_type, VectorType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
@@ -3535,6 +3572,9 @@ class Session:
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
                 )
+            # TODO SNOW-1952256: Test file type in create_dataframe once it accepts full path
+            elif isinstance(field.datatype, FileType):
+                project_columns.append(to_file(column(name)).as_(name))
             else:
                 project_columns.append(column(name))
 
@@ -3577,14 +3617,14 @@ class Session:
 
             # AST.
             if _emit_ast:
-                ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+                ast = with_src_position(stmt.expr.create_dataframe, stmt)
 
                 # Save temp table and schema of it in AST (dataframe).
-                build_sp_table_name(
-                    ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
+                build_table_name(
+                    ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                 )
                 build_proto_from_struct_type(
-                    table.schema, ast.schema.sp_dataframe_schema__struct.v
+                    table.schema, ast.schema.dataframe_schema__struct.v
                 )
 
                 table._ast_id = stmt.var_id.bitfield1
@@ -3593,17 +3633,17 @@ class Session:
 
         # AST.
         if _emit_ast:
-            ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+            ast = with_src_position(stmt.expr.create_dataframe, stmt)
 
             if isinstance(origin_data, tuple):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        ast.data.sp_dataframe_data__tuple.vs.add(), row
+                        ast.data.dataframe_data__tuple.vs.add(), row
                     )
             elif isinstance(origin_data, list):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        ast.data.sp_dataframe_data__list.vs.add(), row
+                        ast.data.dataframe_data__list.vs.add(), row
                     )
             # Note: pandas.DataFrame handled above.
             else:
@@ -3614,10 +3654,10 @@ class Session:
             if schema is not None:
                 if isinstance(schema, list):
                     for name in schema:
-                        ast.schema.sp_dataframe_schema__list.vs.append(name)
+                        ast.schema.dataframe_schema__list.vs.append(name)
                 elif isinstance(schema, StructType):
                     build_proto_from_struct_type(
-                        schema, ast.schema.sp_dataframe_schema__struct.v
+                        schema, ast.schema.dataframe_schema__struct.v
                     )
 
             df._ast_id = stmt.var_id.bitfield1
@@ -3658,7 +3698,7 @@ class Session:
         stmt = None
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_range, stmt)
+            ast = with_src_position(stmt.expr.range, stmt)
             ast.start = start
             if end:
                 ast.end.value = end
@@ -4046,7 +4086,7 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
-            expr.fn.stored_procedure.name.name.sp_name_flat.name = sproc_name
+            expr.fn.stored_procedure.name.name.name_flat.name = sproc_name
             for arg in args:
                 build_expr_from_python_val(expr.pos_args.add(), arg)
             if statement_params is not None:
@@ -4055,10 +4095,15 @@ class Session:
                     entry._1 = k
                     build_expr_from_python_val(entry._2, statement_params[k])
             expr.fn.stored_procedure.log_on_exception.value = log_on_exception
+            self._ast_batch.eval(stmt)
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
-                sproc_name, *args, session=self, statement_params=statement_params
+                sproc_name,
+                *args,
+                session=self,
+                statement_params=statement_params,
+                _emit_ast=False,
             )
 
         validate_object_name(sproc_name)
@@ -4160,18 +4205,18 @@ class Session:
         stmt = None
         if _emit_ast:
             stmt = self._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_flatten, stmt)
+            expr = with_src_position(stmt.expr.flatten, stmt)
             build_expr_from_python_val(expr.input, input)
             if path is not None:
                 expr.path.value = path
             expr.outer = outer
             expr.recursive = recursive
             if mode.upper() == "OBJECT":
-                expr.mode.sp_flatten_mode_object = True
+                expr.mode.flatten_mode_object = True
             elif mode.upper() == "ARRAY":
-                expr.mode.sp_flatten_mode_array = True
+                expr.mode.flatten_mode_array = True
             else:
-                expr.mode.sp_flatten_mode_both = True
+                expr.mode.flatten_mode_both = True
 
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:
