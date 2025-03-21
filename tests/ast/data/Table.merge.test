@@ -85,7 +85,10 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 1
+    }
     expr {
       create_dataframe {
         data {
@@ -237,17 +240,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "source"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 2
+    }
     expr {
       table {
         name {
@@ -269,17 +273,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 3
+    }
     expr {
       table_merge {
         block: true
@@ -438,24 +443,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
   eval {
-    uid: 4
-    var_id {
+    bind_id {
       bitfield1: 3
     }
+    uid: 4
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 5
+    }
     expr {
       table {
         name {
@@ -477,17 +483,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 6
+    }
     expr {
       table_merge {
         block: true
@@ -658,24 +665,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
   eval {
-    uid: 7
-    var_id {
+    bind_id {
       bitfield1: 6
     }
+    uid: 7
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 8
+    }
     expr {
       table {
         name {
@@ -697,17 +705,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 9
+    }
     expr {
       table_merge {
         block: true
@@ -864,24 +873,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 9
-    var_id {
-      bitfield1: 9
-    }
   }
 }
 body {
   eval {
-    uid: 10
-    var_id {
+    bind_id {
       bitfield1: 9
     }
+    uid: 10
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 11
+    }
     expr {
       table {
         name {
@@ -903,17 +913,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 11
-    var_id {
-      bitfield1: 11
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 12
+    }
     expr {
       table_merge {
         block: true
@@ -1082,24 +1093,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 12
-    var_id {
-      bitfield1: 12
-    }
   }
 }
 body {
   eval {
-    uid: 13
-    var_id {
+    bind_id {
       bitfield1: 12
     }
+    uid: 13
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 14
+    }
     expr {
       table {
         name {
@@ -1121,17 +1133,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 14
-    var_id {
-      bitfield1: 14
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 15
+    }
     expr {
       table_merge {
         block: true
@@ -1211,24 +1224,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 15
-    var_id {
-      bitfield1: 15
-    }
   }
 }
 body {
   eval {
-    uid: 16
-    var_id {
+    bind_id {
       bitfield1: 15
     }
+    uid: 16
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 17
+    }
     expr {
       table {
         name {
@@ -1250,17 +1264,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 17
-    var_id {
-      bitfield1: 17
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 18
+    }
     expr {
       table_merge {
         clauses {
@@ -1434,24 +1449,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 18
-    var_id {
-      bitfield1: 18
-    }
   }
 }
 body {
   eval {
-    uid: 19
-    var_id {
+    bind_id {
       bitfield1: 18
     }
+    uid: 19
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 20
+    }
     expr {
       table {
         name {
@@ -1473,17 +1489,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 20
-    var_id {
-      bitfield1: 20
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 21
+    }
     expr {
       table_merge {
         df {
@@ -1562,20 +1579,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 21
-    var_id {
-      bitfield1: 21
-    }
   }
 }
 body {
   eval {
-    uid: 22
-    var_id {
+    bind_id {
       bitfield1: 21
     }
+    uid: 22
   }
 }
 client_ast_version: 1
@@ -1594,3 +1609,4 @@ client_version {
   minor: 29
   patch: 1
 }
+request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

@@ -2369,7 +2369,7 @@ class Session:
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.table, stmt)
             build_table_name(ast.name, name)
             ast.variant.session_table = True
@@ -2448,7 +2448,7 @@ class Session:
         stmt = None
         if _emit_ast:
             add_intermediate_stmt(self._ast_batch, func_name)
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.session_table_function, stmt)
             build_indirect_table_fn_apply(
                 ast.fn,
@@ -2470,7 +2470,7 @@ class Session:
                     _emit_ast=False,
                 )
                 if _emit_ast:
-                    ans._ast_id = stmt.var_id.bitfield1
+                    ans._ast_id = stmt.bind_id.bitfield1
                 return ans
             else:
                 # TODO: Implement table_function properly in local testing mode.
@@ -2560,7 +2560,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.generator, stmt)
             col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
                 *columns
@@ -2584,7 +2584,7 @@ class Session:
                 _emit_ast=False,
             )
             if _emit_ast:
-                ans._ast_id = stmt.var_id.bitfield1
+                ans._ast_id = stmt.bind_id.bitfield1
             return ans
 
         if isinstance(self._conn, MockServerConnection):
@@ -2630,7 +2630,7 @@ class Session:
         self,
         query: str,
         params: Optional[Sequence[Any]] = None,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -2664,7 +2664,7 @@ class Session:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._ast_batch.assign()
+                stmt = self._ast_batch.bind()
                 expr = with_src_position(stmt.expr.sql, stmt)
                 expr.query = query
                 if params is not None:
@@ -3162,7 +3162,7 @@ class Session:
             # AST.
             if _emit_ast:
                 # Create AST statement.
-                stmt = self._ast_batch.assign()
+                stmt = self._ast_batch.bind()
                 ast = with_src_position(stmt.expr.write_pandas, stmt)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
@@ -3201,7 +3201,7 @@ class Session:
                 build_table_name(ast.table_name, table_location)
                 ast.table_type = table_type
 
-                table._ast_id = stmt.var_id.bitfield1
+                table._ast_id = stmt.bind_id.bitfield1
 
             return table
         else:
@@ -3352,7 +3352,7 @@ class Session:
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
-                    stmt = self._ast_batch.assign()
+                    stmt = self._ast_batch.bind()
                     ast = with_src_position(stmt.expr.create_dataframe, stmt)
                     # Save temp table and schema of it in AST (dataframe).
                     build_table_name(
@@ -3361,7 +3361,7 @@ class Session:
                     build_proto_from_struct_type(
                         table.schema, ast.schema.dataframe_schema__struct.v
                     )
-                    table._ast_id = stmt.var_id.bitfield1
+                    table._ast_id = stmt.bind_id.bitfield1
 
                 return table
 
@@ -3581,7 +3581,7 @@ class Session:
                 project_columns.append(column(name))
 
         # Create AST statement.
-        stmt = self._ast_batch.assign() if _emit_ast else None
+        stmt = self._ast_batch.bind() if _emit_ast else None
 
         df = (
             DataFrame(
@@ -3605,7 +3605,7 @@ class Session:
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.bind_id.bitfield1
 
         if (
             installed_pandas
@@ -3627,7 +3627,7 @@ class Session:
                     table.schema, ast.schema.dataframe_schema__struct.v
                 )
 
-                table._ast_id = stmt.var_id.bitfield1
+                table._ast_id = stmt.bind_id.bitfield1
 
             return table
 
@@ -3660,7 +3660,7 @@ class Session:
                         schema, ast.schema.dataframe_schema__struct.v
                     )
 
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.bind_id.bitfield1
 
         return df
 
@@ -3697,7 +3697,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.range, stmt)
             ast.start = start
             if end:
@@ -4082,7 +4082,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
             expr.fn.stored_procedure.name.name.name_flat.name = sproc_name
             for arg in args:
@@ -4202,7 +4202,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             expr = with_src_position(stmt.expr.flatten, stmt)
             build_expr_from_python_val(expr.input, input)
             if path is not None:

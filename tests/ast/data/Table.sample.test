@@ -30,7 +30,10 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 1
+    }
     expr {
       table {
         name {
@@ -52,17 +55,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 2
+    }
     expr {
       table_sample {
         df {
@@ -87,17 +91,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df2"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 3
+    }
     expr {
       table_sample {
         df {
@@ -125,17 +130,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df3"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 4
+    }
     expr {
       table_sample {
         df {
@@ -160,13 +166,11 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df4"
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 client_ast_version: 1
@@ -185,3 +189,4 @@ client_version {
   minor: 29
   patch: 1
 }
+request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

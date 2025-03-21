@@ -81,7 +81,10 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 1
+    }
     expr {
       table {
         name {
@@ -103,17 +106,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "visits_df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 2
+    }
     expr {
       table {
         name {
@@ -135,17 +139,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "user_profiles_df"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 3
+    }
     expr {
       dataframe_filter {
         condition {
@@ -289,17 +294,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "filtered_visits_df"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 4
+    }
     expr {
       dataframe_filter {
         condition {
@@ -391,17 +397,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "filtered_profiles_df"
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 5
+    }
     expr {
       dataframe_with_column {
         col {
@@ -580,17 +587,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "filtered_profiles_df"
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 6
+    }
     expr {
       dataframe_join {
         join_expr {
@@ -631,17 +639,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "joined_df"
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 7
+    }
     expr {
       dataframe_with_column {
         col {
@@ -763,17 +772,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "joined_df"
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 8
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -843,17 +853,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "aggregated_df"
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 9
+    }
     expr {
       relational_grouped_dataframe_agg {
         exprs {
@@ -995,17 +1006,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "aggregated_df"
     }
     uid: 9
-    var_id {
-      bitfield1: 9
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 10
+    }
     expr {
       dataframe_sort {
         ascending {
@@ -1043,17 +1055,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "sorted_df"
     }
     uid: 10
-    var_id {
-      bitfield1: 10
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 11
+    }
     expr {
       dataframe_select {
         cols {
@@ -1196,13 +1209,11 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "result_df"
     }
     uid: 11
-    var_id {
-      bitfield1: 11
-    }
   }
 }
 client_ast_version: 1
@@ -1221,3 +1232,4 @@ client_version {
   minor: 29
   patch: 1
 }
+request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
