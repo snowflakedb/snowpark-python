@@ -352,8 +352,8 @@ class DataFrameWriter:
             self._dataframe, statement_params or self._dataframe._statement_params
         )
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteTable() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteTable() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(repr.expr.write_table)
             expr.writer.CopyFrom(self._ast)
 
@@ -608,8 +608,8 @@ class DataFrameWriter:
             self._dataframe, statement_params or self._dataframe._statement_params
         )
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteCopyIntoLocation() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteCopyIntoLocation() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(repr.expr.write_copy_into_location)
             expr.writer.CopyFrom(self._ast)
 
@@ -759,8 +759,8 @@ class DataFrameWriter:
 
         # AST.
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteSave() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteSave() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(repr.expr.write_save)
             expr.writer.CopyFrom(self._ast)
 
@@ -830,8 +830,8 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteCsv() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteCsv() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(repr.expr.write_csv)
             expr.writer.CopyFrom(self._ast)
 
@@ -902,8 +902,8 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteJson() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteJson() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(repr.expr.write_json)
             expr.writer.CopyFrom(self._ast)
 
@@ -974,8 +974,8 @@ class DataFrameWriter:
         """
         # AST.
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteParquet() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteParquet() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(repr.expr.write_parquet)
             expr.writer.CopyFrom(self._ast)
 
@@ -1047,8 +1047,8 @@ class DataFrameWriter:
             )
 
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteInsertInto() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteInsertInto() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(repr.expr.write_insert_into)
             expr.writer.CopyFrom(self._ast)
 

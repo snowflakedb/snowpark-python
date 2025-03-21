@@ -48,6 +48,11 @@ message Tuple_String_String {
   string _2 = 2;
 }
 
+// ast.ir:112
+message BindId {
+  uint64 bitfield1 = 1;
+}
+
 // fn.ir:25
 message Callable {
   int64 id = 1;
@@ -237,7 +242,7 @@ message JoinType {
   }
 }
 
-// ast.ir:17
+// ast.ir:18
 message Language {
   oneof sealed_value {
     JavaLanguage java_language = 1;
@@ -246,22 +251,22 @@ message Language {
   }
 }
 
-// ast.ir:18
+// ast.ir:19
 message PythonLanguage {
   Version version = 1;
 }
 
-// ast.ir:19
+// ast.ir:20
 message ScalaLanguage {
   Version version = 1;
 }
 
-// ast.ir:20
+// ast.ir:21
 message JavaLanguage {
   Version version = 1;
 }
 
-// ast.ir:115
+// ast.ir:117
 message Name {
   oneof sealed_value {
     NameFlat name_flat = 1;
@@ -269,12 +274,12 @@ message Name {
   }
 }
 
-// ast.ir:116
+// ast.ir:118
 message NameFlat {
   string name = 1;
 }
 
-// ast.ir:117
+// ast.ir:119
 message NameStructured {
   repeated string name = 1;
 }
@@ -355,12 +360,7 @@ message UdtfSchema_Names {
   repeated string schema = 1;
 }
 
-// ast.ir:110
-message VarId {
-  uint64 bitfield1 = 1;
-}
-
-// ast.ir:23
+// ast.ir:24
 message Version {
   string label = 1;
   int64 major = 2;
@@ -414,14 +414,6 @@ message ApplyExpr {
   SrcPosition src = 4;
 }
 
-// ast.ir:36
-message Assign {
-  Expr expr = 1;
-  google.protobuf.StringValue symbol = 2;
-  int64 uid = 3;
-  VarId var_id = 4;
-}
-
 // const.ir:31
 message BigDecimalVal {
   int64 scale = 1;
@@ -463,6 +455,15 @@ message BinOp {
 message BinaryVal {
   SrcPosition src = 1;
   bytes v = 2;
+}
+
+// ast.ir:37
+message Bind {
+  BindId bind_id = 1;
+  Expr expr = 2;
+  bytes first_request_id = 3;
+  google.protobuf.StringValue symbol = 4;
+  int64 uid = 5;
 }
 
 // op.ir:58
@@ -1073,7 +1074,7 @@ message DataframeReader {
 
 // dataframe.ir:4
 message DataframeRef {
-  VarId id = 1;
+  BindId id = 1;
   SrcPosition src = 2;
 }
 
@@ -1281,17 +1282,17 @@ message Error {
   }
 }
 
-// ast.ir:44
+// ast.ir:46
 message Eval {
-  int64 uid = 1;
-  VarId var_id = 2;
+  BindId bind_id = 1;
+  int64 uid = 2;
 }
 
-// ast.ir:60
+// ast.ir:62
 message EvalOk {
-  EvalResult data = 1;
-  int64 uid = 2;
-  VarId var_id = 3;
+  BindId bind_id = 1;
+  EvalResult data = 2;
+  int64 uid = 3;
 }
 
 message EvalResult {
@@ -1502,21 +1503,21 @@ message Expr {
   }
 }
 
-// ast.ir:125
+// ast.ir:127
 message ExprArgList {
   repeated Expr args = 1;
   bool variadic = 2;
 }
 
-// ast.ir:71
+// ast.ir:73
 message ExtensionError {
   repeated Tuple_String_Expr attrs = 1;
-  string kind = 2;
-  int64 uid = 3;
-  VarId var_id = 4;
+  BindId bind_id = 2;
+  string kind = 3;
+  int64 uid = 4;
 }
 
-// ast.ir:90
+// ast.ir:92
 message ExtensionEvalResult {
   repeated Tuple_String_Expr attrs = 1;
   string kind = 2;
@@ -1528,7 +1529,7 @@ message ExtensionExpr {
   }
 }
 
-// ast.ir:49
+// ast.ir:51
 message ExtensionStmt {
   repeated Tuple_String_Expr attrs = 1;
   string kind = 2;
@@ -1571,7 +1572,7 @@ message FnNameRefExpr {
 
 // fn.ir:19
 message FnRef {
-  VarId id = 1;
+  BindId id = 1;
   SrcPosition src = 2;
 }
 
@@ -1800,7 +1801,7 @@ message HasSrcPosition {
 
 // fn.ir:137
 message IndirectTableFnIdRef {
-  VarId id = 1;
+  BindId id = 1;
   SrcPosition src = 2;
 }
 
@@ -1871,7 +1872,7 @@ message Mul {
   SrcPosition src = 3;
 }
 
-// ast.ir:120
+// ast.ir:122
 message NameRef {
   Name name = 1;
   SrcPosition src = 2;
@@ -1904,7 +1905,7 @@ message NullVal {
 // expr.ir:25
 message ObjectGetItem {
   repeated Expr args = 1;
-  VarId obj = 2;
+  BindId obj = 2;
   SrcPosition src = 3;
 }
 
@@ -2070,7 +2071,7 @@ message RelationalGroupedDataframePivot {
 
 // dataframe-grouped.ir:2
 message RelationalGroupedDataframeRef {
-  VarId id = 1;
+  BindId id = 1;
   SrcPosition src = 2;
 }
 
@@ -2081,9 +2082,10 @@ message Request {
   int64 client_ast_version = 3;
   Language client_language = 4;
   Version client_version = 5;
+  bytes request_id = 6;
 }
 
-// ast.ir:12
+// ast.ir:13
 message Response {
   InternedValueTable interned_value_table = 1;
   repeated Result body = 2;
@@ -2111,10 +2113,10 @@ message SeqMapVal {
   SrcPosition src = 2;
 }
 
-// ast.ir:102
+// ast.ir:104
 message SessionResetRequiredError {
-  int64 uid = 1;
-  VarId var_id = 2;
+  BindId bind_id = 1;
+  int64 uid = 2;
 }
 
 // dataframe.ir:104
@@ -2123,12 +2125,12 @@ message SessionTableFunction {
   SrcPosition src = 2;
 }
 
-// ast.ir:80
+// ast.ir:82
 message SfQueryResult {
   string uuid = 1;
 }
 
-// ast.ir:86
+// ast.ir:88
 message ShowResult {
 }
 
@@ -2148,7 +2150,7 @@ message SqlExpr {
 
 message Stmt {
   oneof variant {
-    Assign assign = 1;
+    Bind bind = 1;
     Eval eval = 2;
     ExtensionStmt extension_stmt = 3;
   }

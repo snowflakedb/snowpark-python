@@ -145,7 +145,10 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 1
+    }
     expr {
       table {
         name {
@@ -167,17 +170,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 2
+    }
     expr {
       dataframe_select {
         cols {
@@ -247,17 +251,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 3
+    }
     expr {
       dataframe_select {
         cols {
@@ -327,17 +332,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 4
+    }
     expr {
       dataframe_select {
         cols {
@@ -407,17 +413,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 5
+    }
     expr {
       dataframe_select {
         cols {
@@ -487,17 +494,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 6
+    }
     expr {
       dataframe_select {
         cols {
@@ -570,17 +578,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 7
+    }
     expr {
       dataframe_select {
         cols {
@@ -650,17 +659,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 8
+    }
     expr {
       dataframe_select {
         cols {
@@ -730,17 +740,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 9
+    }
     expr {
       dataframe_select {
         cols {
@@ -810,17 +821,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 9
-    var_id {
-      bitfield1: 9
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 10
+    }
     expr {
       dataframe_select {
         cols {
@@ -890,17 +902,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 10
-    var_id {
-      bitfield1: 10
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 11
+    }
     expr {
       dataframe_select {
         cols {
@@ -970,17 +983,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 11
-    var_id {
-      bitfield1: 11
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 12
+    }
     expr {
       dataframe_select {
         cols {
@@ -1050,17 +1064,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 12
-    var_id {
-      bitfield1: 12
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 13
+    }
     expr {
       dataframe_select {
         cols {
@@ -1134,17 +1149,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 13
-    var_id {
-      bitfield1: 13
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 14
+    }
     expr {
       dataframe_select {
         cols {
@@ -1214,17 +1230,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 14
-    var_id {
-      bitfield1: 14
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 15
+    }
     expr {
       dataframe_select {
         cols {
@@ -1301,17 +1318,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 15
-    var_id {
-      bitfield1: 15
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 16
+    }
     expr {
       dataframe_select {
         cols {
@@ -1385,17 +1403,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 16
-    var_id {
-      bitfield1: 16
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 17
+    }
     expr {
       dataframe_select {
         cols {
@@ -1478,17 +1497,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 17
-    var_id {
-      bitfield1: 17
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 18
+    }
     expr {
       dataframe_select {
         cols {
@@ -1563,17 +1583,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 18
-    var_id {
-      bitfield1: 18
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 19
+    }
     expr {
       dataframe_select {
         cols {
@@ -1644,17 +1665,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 19
-    var_id {
-      bitfield1: 19
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 20
+    }
     expr {
       dataframe_select {
         cols {
@@ -1725,17 +1747,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 20
-    var_id {
-      bitfield1: 20
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 21
+    }
     expr {
       dataframe_select {
         cols {
@@ -1817,17 +1840,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 21
-    var_id {
-      bitfield1: 21
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 22
+    }
     expr {
       dataframe_select {
         cols {
@@ -1897,17 +1921,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 22
-    var_id {
-      bitfield1: 22
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 23
+    }
     expr {
       dataframe_select {
         cols {
@@ -1977,17 +2002,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 23
-    var_id {
-      bitfield1: 23
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 24
+    }
     expr {
       dataframe_select {
         cols {
@@ -2057,17 +2083,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 24
-    var_id {
-      bitfield1: 24
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 25
+    }
     expr {
       dataframe_select {
         cols {
@@ -2137,17 +2164,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 25
-    var_id {
-      bitfield1: 25
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 26
+    }
     expr {
       dataframe_select {
         cols {
@@ -2217,17 +2245,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 26
-    var_id {
-      bitfield1: 26
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 27
+    }
     expr {
       dataframe_select {
         cols {
@@ -2297,17 +2326,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 27
-    var_id {
-      bitfield1: 27
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 28
+    }
     expr {
       dataframe_select {
         cols {
@@ -2377,17 +2407,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 28
-    var_id {
-      bitfield1: 28
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 29
+    }
     expr {
       dataframe_select {
         cols {
@@ -2459,17 +2490,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 29
-    var_id {
-      bitfield1: 29
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 30
+    }
     expr {
       dataframe_select {
         cols {
@@ -2541,17 +2573,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 30
-    var_id {
-      bitfield1: 30
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 31
+    }
     expr {
       dataframe_select {
         cols {
@@ -2634,17 +2667,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 31
-    var_id {
-      bitfield1: 31
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 32
+    }
     expr {
       dataframe_select {
         cols {
@@ -2714,13 +2748,11 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 32
-    var_id {
-      bitfield1: 32
-    }
   }
 }
 client_ast_version: 1
@@ -2739,3 +2771,4 @@ client_version {
   minor: 29
   patch: 1
 }
+request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

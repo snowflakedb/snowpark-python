@@ -683,9 +683,9 @@ class UDAFRegistration:
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.udaf, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.bind_id.bitfield1
 
             return UserDefinedAggregateFunction(
                 handler,
@@ -723,9 +723,9 @@ class UDAFRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.udaf, stmt)
-            ast_id = stmt.var_id.bitfield1
+            ast_id = stmt.bind_id.bitfield1
             build_udaf(
                 ast,
                 handler,

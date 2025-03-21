@@ -76,7 +76,10 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 1
+    }
     expr {
       create_dataframe {
         data {
@@ -308,17 +311,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 2
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -352,16 +356,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 3
+    }
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "min"
@@ -396,16 +401,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 4
+    }
     expr {
       dataframe_collect {
         block: true
@@ -426,24 +432,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
   eval {
-    uid: 5
-    var_id {
+    bind_id {
       bitfield1: 4
     }
+    uid: 5
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 6
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -477,16 +484,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 7
+    }
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "max"
@@ -521,16 +529,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 8
+    }
     expr {
       dataframe_collect {
         block: true
@@ -551,24 +560,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
   eval {
-    uid: 9
-    var_id {
+    bind_id {
       bitfield1: 8
     }
+    uid: 9
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 10
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -602,16 +612,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 10
-    var_id {
-      bitfield1: 10
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 11
+    }
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "median"
@@ -646,16 +657,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 11
-    var_id {
-      bitfield1: 11
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 12
+    }
     expr {
       dataframe_collect {
         block: true
@@ -676,24 +688,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 12
-    var_id {
-      bitfield1: 12
-    }
   }
 }
 body {
   eval {
-    uid: 13
-    var_id {
+    bind_id {
       bitfield1: 12
     }
+    uid: 13
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 14
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -727,16 +740,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 14
-    var_id {
-      bitfield1: 14
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 15
+    }
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "avg"
@@ -771,16 +785,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 15
-    var_id {
-      bitfield1: 15
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 16
+    }
     expr {
       dataframe_collect {
         block: true
@@ -801,24 +816,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 16
-    var_id {
-      bitfield1: 16
-    }
   }
 }
 body {
   eval {
-    uid: 17
-    var_id {
+    bind_id {
       bitfield1: 16
     }
+    uid: 17
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 18
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -852,16 +868,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 18
-    var_id {
-      bitfield1: 18
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 19
+    }
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "count"
@@ -881,16 +898,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 19
-    var_id {
-      bitfield1: 19
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 20
+    }
     expr {
       create_dataframe {
         data {
@@ -1087,17 +1105,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 20
-    var_id {
-      bitfield1: 20
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 21
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -1131,16 +1150,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 21
-    var_id {
-      bitfield1: 21
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 22
+    }
     expr {
       udtf {
         handler {
@@ -1209,16 +1229,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 22
-    var_id {
-      bitfield1: 22
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 23
+    }
     expr {
       relational_grouped_dataframe_apply_in_pandas {
         func {
@@ -1362,16 +1383,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 23
-    var_id {
-      bitfield1: 23
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 24
+    }
     expr {
       dataframe_sort {
         cols {
@@ -1405,16 +1427,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 24
-    var_id {
-      bitfield1: 24
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 25
+    }
     expr {
       dataframe_collect {
         block: true
@@ -1435,24 +1458,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 25
-    var_id {
-      bitfield1: 25
-    }
   }
 }
 body {
   eval {
-    uid: 26
-    var_id {
+    bind_id {
       bitfield1: 25
     }
+    uid: 26
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 27
+    }
     expr {
       create_dataframe {
         data {
@@ -1653,17 +1677,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 27
-    var_id {
-      bitfield1: 27
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 28
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -1697,16 +1722,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 28
-    var_id {
-      bitfield1: 28
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 29
+    }
     expr {
       relational_grouped_dataframe_pivot {
         grouped_df {
@@ -1772,16 +1798,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 29
-    var_id {
-      bitfield1: 29
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 30
+    }
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "sum"
@@ -1816,16 +1843,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 30
-    var_id {
-      bitfield1: 30
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 31
+    }
     expr {
       dataframe_sort {
         cols {
@@ -1866,16 +1894,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 31
-    var_id {
-      bitfield1: 31
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 32
+    }
     expr {
       dataframe_show {
         df {
@@ -1895,24 +1924,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 32
-    var_id {
-      bitfield1: 32
-    }
   }
 }
 body {
   eval {
-    uid: 33
-    var_id {
+    bind_id {
       bitfield1: 32
     }
+    uid: 33
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 34
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -1946,16 +1976,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 34
-    var_id {
-      bitfield1: 34
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 35
+    }
     expr {
       relational_grouped_dataframe_pivot {
         grouped_df {
@@ -2021,16 +2052,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 35
-    var_id {
-      bitfield1: 35
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 36
+    }
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "sum"
@@ -2065,16 +2097,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 36
-    var_id {
-      bitfield1: 36
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 37
+    }
     expr {
       dataframe_show {
         df {
@@ -2094,24 +2127,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 37
-    var_id {
-      bitfield1: 37
-    }
   }
 }
 body {
   eval {
-    uid: 38
-    var_id {
+    bind_id {
       bitfield1: 37
     }
+    uid: 38
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 39
+    }
     expr {
       dataframe_group_by {
         cols {
@@ -2156,16 +2190,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 39
-    var_id {
-      bitfield1: 39
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 40
+    }
     expr {
       relational_grouped_dataframe_pivot {
         grouped_df {
@@ -2207,16 +2242,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 40
-    var_id {
-      bitfield1: 40
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 41
+    }
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "sum"
@@ -2251,16 +2287,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 41
-    var_id {
-      bitfield1: 41
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 42
+    }
     expr {
       dataframe_sort {
         cols {
@@ -2306,16 +2343,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 42
-    var_id {
-      bitfield1: 42
-    }
   }
 }
 body {
-  assign {
+  bind {
+    bind_id {
+      bitfield1: 43
+    }
     expr {
       dataframe_show {
         df {
@@ -2335,20 +2373,18 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 43
-    var_id {
-      bitfield1: 43
-    }
   }
 }
 body {
   eval {
-    uid: 44
-    var_id {
+    bind_id {
       bitfield1: 43
     }
+    uid: 44
   }
 }
 client_ast_version: 1
@@ -2367,3 +2403,4 @@ client_version {
   minor: 29
   patch: 1
 }
+request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
