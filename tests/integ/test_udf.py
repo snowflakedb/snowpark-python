@@ -11,6 +11,7 @@ import math
 import os
 import re
 import sys
+from textwrap import dedent
 from typing import Callable
 
 import pytest
@@ -2873,3 +2874,69 @@ def test_register_artifact_repository_negative(session):
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
             artifact_repository_packages=["urllib3==2.1.0", "requests"],
         )
+
+    try:
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex)
+        )
+
+    with pytest.raises(Exception, match="Unknown resource constraint key"):
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"cpu": "x86"},
+        )
+
+    with pytest.raises(
+        Exception, match="Unknown value 'risc-v' for key 'architecture'"
+    ):
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "risc-v"},
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udf_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import urllib3
+    def test_urllib() -> str:
+        import urllib3
+
+        return str(urllib3.exceptions.HTTPError("test"))
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_udf.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    ar_udf = session.udf.register_from_file(
+        file_path,
+        "test_urllib",
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+    df = session.create_dataframe([1]).to_df(["a"])
+    Utils.check_answer(df.select(ar_udf()), [Row("test")])

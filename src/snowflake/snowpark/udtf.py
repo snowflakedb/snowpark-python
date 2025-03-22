@@ -752,6 +752,7 @@ class UDTFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -886,6 +887,7 @@ class UDTFRegistration:
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udtf(
@@ -1074,6 +1076,7 @@ class UDTFRegistration:
                 runtime_version=runtime_version_from_requirement,
                 artifact_repository=kwargs.get("artifact_repository"),
                 artifact_repository_packages=kwargs.get("artifact_repository_packages"),
+                resource_constraint=kwargs.get("resource_constraint"),
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

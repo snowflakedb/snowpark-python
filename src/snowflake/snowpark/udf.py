@@ -705,6 +705,7 @@ class UDFRegistration:
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -838,6 +839,7 @@ class UDFRegistration:
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udf(
@@ -1012,6 +1014,7 @@ class UDFRegistration:
                 runtime_version=runtime_version_from_requirement,
                 artifact_repository=kwargs.get("artifact_repository"),
                 artifact_repository_packages=kwargs.get("artifact_repository_packages"),
+                resource_constraint=kwargs.get("resource_constraint"),
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

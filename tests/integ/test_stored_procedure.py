@@ -11,6 +11,7 @@ import re
 import sys
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
+from textwrap import dedent
 
 import pytest
 
@@ -1949,6 +1950,52 @@ def test_sproc_artifact_repository(session):
         artifact_repo_test,
         session=session,
         return_type=StringType(),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+    assert artifact_repo_sproc(session=session) == "test"
+
+    try:
+        artifact_repo_sproc = sproc(
+            artifact_repo_test,
+            session=session,
+            return_type=StringType(),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex)
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_sproc_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import snowflake
+    import urllib3
+    from snowflake.snowpark import Session
+    def artifact_repo_test(session: snowflake.snowpark.Session) -> str:
+        return str(urllib3.exceptions.HTTPError("test"))
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_sproc.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    artifact_repo_sproc = session.sproc.register_from_file(
+        file_path,
+        "artifact_repo_test",
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
         artifact_repository_packages=["urllib3", "requests"],
     )

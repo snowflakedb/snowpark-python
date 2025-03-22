@@ -4,7 +4,9 @@
 
 import datetime
 import decimal
+import os
 import sys
+from textwrap import dedent
 from typing import Dict, List, Tuple
 
 import pytest
@@ -1359,7 +1361,7 @@ def test_udtf_external_access_integration(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
 )
-@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+# @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 @pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
@@ -1372,6 +1374,60 @@ def test_udtf_artifact_repository(session, resources_path):
 
     ar_udtf = session.udtf.register(
         ArtifactRepositoryUDTF,
+        output_schema=StructType([StructField("a", StringType())]),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+
+    Utils.check_answer(
+        session.table_function(ar_udtf()),
+        [
+            Row(
+                "test",
+            )
+        ],
+    )
+
+    try:
+        ar_udtf = session.udtf.register(
+            ArtifactRepositoryUDTF,
+            output_schema=StructType([StructField("a", StringType())]),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex)
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udtf_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import urllib3
+    from typing import Iterable, Tuple
+    class ArtifactRepositoryUDTF:
+        def process(self) -> Iterable[Tuple[str]]:
+            return [(str(urllib3.exceptions.HTTPError("test")),)]
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_udtf.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    ar_udtf = session.udtf.register_from_file(
+        file_path,
+        "ArtifactRepositoryUDTF",
         output_schema=StructType([StructField("a", StringType())]),
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
         artifact_repository_packages=["urllib3", "requests"],
