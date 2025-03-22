@@ -33,7 +33,6 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     build_proto_from_callable,
-    build_proto_from_pivot_values,
     build_proto_from_struct_type,
     debug_check_missing_ast,
     with_src_position,
@@ -591,7 +590,7 @@ class RelationalGroupedDataFrame:
             if default_on_null is not None:
                 build_expr_from_python_val(ast.default_on_null, default_on_null)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
-            build_proto_from_pivot_values(ast.values, values)
+            build_expr_from_python_val(ast.values, values)
             self._set_ast_ref(ast.grouped_df)
 
             # Update self's id.
@@ -707,6 +706,5 @@ class RelationalGroupedDataFrame:
         """
         Given a field builder expression of the AST type Expr, points the builder to reference this RelationalGroupedDataFrame.
         """
-        # TODO: remove the None guard below once we generate the correct AST.
         debug_check_missing_ast(self._ast_id, self._dataframe._session, self._dataframe)
         expr_builder.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id

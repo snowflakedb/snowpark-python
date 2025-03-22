@@ -90,14 +90,22 @@ class DataFrameWriter:
     def __init__(
         self,
         dataframe: "snowflake.snowpark.dataframe.DataFrame",
-        _ast_stmt: Optional[proto.Assign] = None,
+        _emit_ast: bool = True,
     ) -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
         self._partition_by: Optional[ColumnOrSqlExpr] = None
         self._cur_options: Dict[str, Any] = {}
         self.__format: Optional[str] = None
-        self._ast_stmt = _ast_stmt
+
+        # AST.
+        self._ast = None
+        if _emit_ast:
+            debug_check_missing_ast(dataframe._ast_id, dataframe._session, dataframe)
+            writer = proto.Expr()
+            with_src_position(writer.dataframe_writer)
+            self._ast = writer
+            dataframe._set_ast_ref(self._ast.dataframe_writer.df)
 
     @staticmethod
     def _track_data_source_statement_params(
@@ -147,11 +155,8 @@ class DataFrameWriter:
         )
 
         # Update AST if it exists.
-        if _emit_ast:
-            if self._ast_stmt is not None:
-                fill_save_mode(
-                    self._ast_stmt.expr.dataframe_write.save_mode, self._save_mode
-                )
+        if _emit_ast and self._ast is not None:
+            fill_save_mode(self._ast.dataframe_writer.save_mode, self._save_mode)
 
         return self
 
@@ -165,11 +170,10 @@ class DataFrameWriter:
         self._partition_by = expr
 
         # Update AST if it exists.
-        if _emit_ast:
-            if self._ast_stmt is not None:
-                build_expr_from_snowpark_column_or_sql_str(
-                    self._ast_stmt.expr.dataframe_write.partition_by, expr
-                )
+        if _emit_ast and self._ast is not None:
+            build_expr_from_snowpark_column_or_sql_str(
+                self._ast.dataframe_writer.partition_by, expr
+            )
 
         return self
 
@@ -182,11 +186,10 @@ class DataFrameWriter:
         self._cur_options[aliased_key] = value
 
         # Update AST if it exists.
-        if _emit_ast:
-            if self._ast_stmt is not None:
-                t = self._ast_stmt.expr.dataframe_write.options.add()
-                t._1 = aliased_key
-                build_expr_from_snowpark_column_or_python_val(t._2, value)
+        if _emit_ast and self._ast is not None:
+            t = self._ast.dataframe_writer.options.add()
+            t._1 = aliased_key
+            build_expr_from_snowpark_column_or_python_val(t._2, value)
 
         return self
 
@@ -225,6 +228,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         _emit_ast: bool = True,
+        _flush_ast: bool = False,
     ) -> None:
         ...  # pragma: no cover
 
@@ -242,6 +246,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
         _emit_ast: bool = True,
+        _flush_ast: bool = False,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -266,6 +271,7 @@ class DataFrameWriter:
         copy_grants: bool = False,
         iceberg_config: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
+        _flush_ast: bool = False,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
@@ -345,14 +351,11 @@ class DataFrameWriter:
         statement_params = self._track_data_source_statement_params(
             self._dataframe, statement_params or self._dataframe._statement_params
         )
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             # Add an Assign node that applies WriteTable() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_table)
-            debug_check_missing_ast(
-                self._ast_stmt, self._dataframe._session, self._dataframe
-            )
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr.writer.CopyFrom(self._ast)
 
             # Function signature:
             # table_name: Union[str, Iterable[str]],
@@ -415,6 +418,7 @@ class DataFrameWriter:
 
             self._dataframe._session._ast_batch.eval(repr)
 
+        if _emit_ast or _flush_ast:
             # Flush the AST and encode it as part of the query.
             (
                 _,
@@ -517,6 +521,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[True] = True,
         _emit_ast: bool = True,
+        _flush_ast: bool = False,
         **copy_options: Optional[Dict[str, Any]],
     ) -> List[Row]:
         ...  # pragma: no cover
@@ -535,6 +540,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[False] = False,
         _emit_ast: bool = True,
+        _flush_ast: bool = False,
         **copy_options: Optional[Dict[str, Any]],
     ) -> AsyncJob:
         ...  # pragma: no cover
@@ -552,6 +558,7 @@ class DataFrameWriter:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         _emit_ast: bool = True,
+        _flush_ast: bool = False,
         **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
@@ -600,14 +607,11 @@ class DataFrameWriter:
         statement_params = self._track_data_source_statement_params(
             self._dataframe, statement_params or self._dataframe._statement_params
         )
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             # Add an Assign node that applies WriteCopyIntoLocation() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_copy_into_location)
-            debug_check_missing_ast(
-                self._ast_stmt, self._dataframe._session, self._dataframe
-            )
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr.writer.CopyFrom(self._ast)
 
             fill_write_file(
                 expr,
@@ -628,6 +632,7 @@ class DataFrameWriter:
 
             self._dataframe._session._ast_batch.eval(repr)
 
+        if _emit_ast or _flush_ast:
             # Flush the AST and encode it as part of the query.
             (
                 _,
@@ -695,15 +700,21 @@ class DataFrameWriter:
 
         self.__format = canon_file_format_name
 
+    @publicapi
     def format(
-        self, file_format_name: Literal["csv", "json", "parquet"]
+        self,
+        file_format_name: Literal["csv", "json", "parquet"],
+        _emit_ast: bool = True,
     ) -> "DataFrameWriter":
         """Specifies the file format type to use for unloading data from the table. Allowed values are "csv", "json", and "parquet".
         The file format name can be case insensitive and will be used when calling :meth:`save`.
         """
         self._format = file_format_name
+        if _emit_ast and self._ast is not None:
+            self._ast.dataframe_writer.format.value = self._format
         return self
 
+    @publicapi
     def save(
         self,
         location: str,
@@ -713,6 +724,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
         **copy_options: Optional[str],
     ) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a file in a stage or external stage.
@@ -745,6 +757,27 @@ class DataFrameWriter:
                 "File format type is not specified. Call `format` before calling `save`."
             )
 
+        # AST.
+        if _emit_ast and self._ast is not None:
+            # Add an Assign node that applies WriteSave() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.write_save)
+            expr.writer.CopyFrom(self._ast)
+
+            fill_write_file(
+                expr,
+                location,
+                partition_by=partition_by,
+                format_type_options=format_type_options,
+                header=header,
+                statement_params=statement_params,
+                block=block,
+                **copy_options,
+            )
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        # copy_into_location will flush AST.
         return self.copy_into_location(
             location,
             file_format_type=self._format,
@@ -753,6 +786,8 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            _emit_ast=False,
+            _flush_ast=_emit_ast,
             **copy_options,
         )
 
@@ -794,14 +829,11 @@ class DataFrameWriter:
             3
         """
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             # Add an Assign node that applies WriteCsv() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_csv)
-            debug_check_missing_ast(
-                self._ast_stmt, self._dataframe._session, self._dataframe
-            )
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr.writer.CopyFrom(self._ast)
 
             fill_write_file(
                 expr,
@@ -826,6 +858,7 @@ class DataFrameWriter:
             statement_params=statement_params,
             block=block,
             _emit_ast=False,
+            _flush_ast=_emit_ast,
             **copy_options,
         )
 
@@ -868,14 +901,11 @@ class DataFrameWriter:
             1
         """
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             # Add an Assign node that applies WriteJson() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_json)
-            debug_check_missing_ast(
-                self._ast_stmt, self._dataframe._session, self._dataframe
-            )
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr.writer.CopyFrom(self._ast)
 
             fill_write_file(
                 expr,
@@ -900,6 +930,7 @@ class DataFrameWriter:
             statement_params=statement_params,
             block=block,
             _emit_ast=False,
+            _flush_ast=_emit_ast,
             **copy_options,
         )
 
@@ -942,14 +973,11 @@ class DataFrameWriter:
             3
         """
         # AST.
-        if _emit_ast:
+        if _emit_ast and self._ast is not None:
             # Add an Assign node that applies WriteParquet() to the input, followed by its Eval.
             repr = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(repr.expr.write_parquet)
-            debug_check_missing_ast(
-                self._ast_stmt, self._dataframe._session, self._dataframe
-            )
-            expr.id.bitfield1 = self._ast_stmt.var_id.bitfield1
+            expr.writer.CopyFrom(self._ast)
 
             fill_write_file(
                 expr,
@@ -974,12 +1002,16 @@ class DataFrameWriter:
             statement_params=statement_params,
             block=block,
             _emit_ast=False,
+            _flush_ast=_emit_ast,
             **copy_options,
         )
 
     @publicapi
     def insert_into(
-        self, table_name: Union[str, Iterable[str]], overwrite: bool = False
+        self,
+        table_name: Union[str, Iterable[str]],
+        overwrite: bool = False,
+        _emit_ast: bool = True,
     ) -> None:
         """
         Inserts the content of the DataFrame to the specified table.
@@ -1014,8 +1046,26 @@ class DataFrameWriter:
                 f"Table {full_table_name} does not exist or not authorized."
             )
 
+        if _emit_ast and self._ast is not None:
+            # Add an Assign node that applies WriteInsertInto() to the input, followed by its Eval.
+            repr = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(repr.expr.write_insert_into)
+            expr.writer.CopyFrom(self._ast)
+
+            # Function signature:
+            # table_name: Union[str, Iterable[str]],
+            # overwrite: bool = False
+            build_table_name(expr.table_name, table_name)
+            expr.overwrite = overwrite
+
+            self._dataframe._session._ast_batch.eval(repr)
+
+        # save_as_table will flush AST.
         self.save_as_table(
-            qualified_table_name, mode="truncate" if overwrite else "append"
+            qualified_table_name,
+            mode="truncate" if overwrite else "append",
+            _emit_ast=False,
+            _flush_ast=_emit_ast,
         )
 
     insertInto = insert_into

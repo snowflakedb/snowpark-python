@@ -83,8 +83,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 20
@@ -116,8 +120,12 @@ body {
     expr {
       dataframe_collect {
         case_sensitive: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 31
@@ -150,8 +158,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 67
@@ -186,8 +198,12 @@ body {
   assign {
     expr {
       dataframe_collect {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         log_on_exception: true
         src {
@@ -224,8 +240,12 @@ body {
     expr {
       dataframe_collect {
         case_sensitive: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         no_wait: true
         src {
@@ -258,8 +278,12 @@ body {
     expr {
       dataframe_collect {
         case_sensitive: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         no_wait: true
         src {
@@ -295,8 +319,12 @@ body {
   assign {
     expr {
       dataframe_collect {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         log_on_exception: true
         no_wait: true

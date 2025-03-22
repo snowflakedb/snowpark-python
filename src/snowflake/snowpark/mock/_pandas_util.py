@@ -241,15 +241,15 @@ def _extract_schema_and_data_from_pandas_df(
 
 
 def _convert_dataframe_to_table(
-    data: "DataFrame", table_name: str, session: "Session", _emit_ast: bool = False
+    data: "DataFrame", table_name: str, session: "Session"
 ) -> Table:
     """
     used by create_dataframe from a pandas dataframe to convert a mocking dataframe into a table
     """
     df_select_statement, df_plan = data._select_statement, data._plan
-    table = Table(table_name, session, _emit_ast=_emit_ast)
+    table = Table(table_name, session, _emit_ast=False)
     # the original _select_statement & plan of Table is query table name
     # replace the table._select_statement & plan with the df mocking one
     table._select_statement, table._plan = df_select_statement, df_plan
-    table.write.save_as_table(table_name, _emit_ast=_emit_ast)
+    table.write.save_as_table(table_name, _emit_ast=False)
     return table

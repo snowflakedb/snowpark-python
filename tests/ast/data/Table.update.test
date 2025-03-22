@@ -86,8 +86,12 @@ body {
     expr {
       table_update {
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 21
@@ -133,8 +137,12 @@ body {
           }
         }
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 27
@@ -203,8 +211,12 @@ body {
           }
         }
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 40
@@ -293,8 +305,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 43
@@ -469,8 +485,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         source {
           dataframe_ref {
@@ -572,8 +592,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         source {
           dataframe_ref {
@@ -675,8 +699,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         source {
           dataframe_ref {
