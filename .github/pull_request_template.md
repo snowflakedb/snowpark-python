@@ -25,6 +25,7 @@ Please answer these questions before creating your pull request. Thanks!
    - [ ] I am adding a new dependency
    - [ ] If this is a new feature/behavior, I'm adding the Local Testing parity changes.
    - [ ] I acknowledge that I have ensured my changes to be thread-safe. Follow the link for more information: [Thread-safe Developer Guidelines](https://github.com/snowflakedb/snowpark-python/blob/main/CONTRIBUTING.md#thread-safe-development)
+   - [ ] If adding any arguments to public Snowpark APIs or creating new public Snowpark APIs, I acknowledge that I have ensured my changes include AST support, by completing the PR checklist for AST support found in the [Snowpark Python AST developer guide](https://docs.google.com/document/d/16K9jBv0pT6SkYbFTxNIQT9-bJjemE4niZTfc9mie6RQ/edit?tab=t.0).
 
 3. Please describe how your code solves the related issue.
 
