@@ -923,7 +923,11 @@ def _to_timestamp(
 
     import dateutil.parser
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    fmt = (
+        ColumnEmulator([fmt] * len(column), index=column.index)
+        if not isinstance(fmt, ColumnEmulator)
+        else fmt
+    )
 
     def convert_timestamp(row):
         _fmt = fmt[row.name]
