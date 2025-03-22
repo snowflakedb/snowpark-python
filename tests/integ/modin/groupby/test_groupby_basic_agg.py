@@ -505,6 +505,44 @@ def test_groupby_agg_on_groupby_columns(
     )
 
 
+@pytest.mark.parametrize("as_index", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@sql_count_checker(query_count=1)
+def test_groupby_agg_with_incorrect_func(as_index, sort) -> None:
+    basic_snowpark_pandas_df = pd.DataFrame(
+        data=8 * [range(3)], columns=["a", "b", "c"]
+    )
+    native_pandas = basic_snowpark_pandas_df.to_pandas()
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        native_pandas,
+        lambda df: df.groupby(by="a", sort=sort, as_index=as_index).agg(
+            {"b": sum, "c": "COUNT"}
+        ),
+        expect_exception=True,
+        expect_exception_match="'SeriesGroupBy' object has no attribute 'COUNT'",
+    )
+
+
+@pytest.mark.parametrize("as_index", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@sql_count_checker(query_count=1)
+def test_groupby_agg_with_multiple_incorrect_funcs(as_index, sort) -> None:
+    basic_snowpark_pandas_df = pd.DataFrame(
+        data=8 * [range(3)], columns=["a", "b", "c"]
+    )
+    native_pandas = basic_snowpark_pandas_df.to_pandas()
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        native_pandas,
+        lambda df: df.groupby(by="a", sort=sort, as_index=as_index).agg(
+            {"b": "COUNT", "c": "RANDOM_FUNC"}
+        ),
+        expect_exception=True,
+        expect_exception_match="'SeriesGroupBy' object has no attribute 'COUNT'",
+    )
+
+
 @pytest.mark.parametrize(
     "by", ["col1", ["col1", "col2", "col3"], ["col1", "col1", "col2"]]
 )

@@ -69,7 +69,12 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     ],
 )
 def test__is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) -> None:
-    assert _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis) is is_valid
+    (
+        is_supported,
+        unsupported_func,
+        unsupported_kwargs,
+    ) = _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis)
+    assert is_supported == is_valid
 
 
 @pytest.mark.parametrize(
@@ -114,7 +119,11 @@ def test__is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) 
 def test_check_aggregation_snowflake_execution_capability_by_args(
     agg_func, agg_kwargs, expected_result
 ):
-    can_be_distributed = check_is_aggregation_supported_in_snowflake(
+    (
+        can_be_distributed,
+        unsupported_arguments,
+        is_supported_kwargs,
+    ) = check_is_aggregation_supported_in_snowflake(
         agg_func=agg_func, agg_kwargs=agg_kwargs, axis=0
     )
     assert can_be_distributed == expected_result

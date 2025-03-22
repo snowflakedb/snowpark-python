@@ -125,15 +125,17 @@ def test_named_agg_passed_in_via_star_kwargs(basic_df_data):
 def test_named_agg_with_invalid_function_raises_not_implemented(
     basic_df_data,
 ):
-    with pytest.raises(
-        NotImplementedError,
-        match=re.escape(
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation new_label=(label, 'min'), new_label=(label, 'random_function')"
-        ),
-    ):
-        pd.DataFrame(basic_df_data).groupby("col1").agg(
+    basic_snowpark_pandas_df = pd.DataFrame(basic_df_data)
+    native_pandas = native_pd.DataFrame(basic_df_data)
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        native_pandas,
+        lambda df: df.groupby("col1").agg(
             c1=("col2", "min"), c2=("col2", "random_function")
-        )
+        ),
+        expect_exception=True,
+        expect_exception_match="'SeriesGroupBy' object has no attribute",
+    )
 
 
 @sql_count_checker(query_count=1)
@@ -162,4 +164,23 @@ def test_named_agg_size_on_series(size_func):
         snow_series,
         native_series,
         lambda series: series.groupby(level=0).agg(new_col=size_func),
+    )
+
+
+@pytest.mark.parametrize("as_index", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@sql_count_checker(query_count=1)
+def test_named_groupby_agg_with_incorrect_func(as_index, sort) -> None:
+    basic_snowpark_pandas_df = pd.DataFrame(
+        data=8 * [range(3)], columns=["a", "b", "c"]
+    )
+    basic_snowpark_pandas_df = basic_snowpark_pandas_df.groupby(["a", "b"]).sum()
+    native_pandas = basic_snowpark_pandas_df.to_pandas()
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        native_pandas,
+        lambda df: df.groupby(by="a", sort=sort, as_index=as_index).agg(
+            NEW_B=("b", "sum"), ACTIVE_DAYS=("c", "COUNT")
+        ),
+        expect_exception=True,
     )
