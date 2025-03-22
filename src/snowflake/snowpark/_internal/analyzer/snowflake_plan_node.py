@@ -25,6 +25,7 @@ else:
 
 if TYPE_CHECKING:
     from snowflake.snowpark import Session
+    from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 
 class LogicalPlan:
@@ -317,6 +318,7 @@ class ReadFileNode(LeafNode):
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
         use_user_schema: bool = False,
+        xml_reader_udtf: Optional["UserDefinedTableFunction"] = None,
     ) -> None:
         super().__init__()
         self.path = path
@@ -328,6 +330,7 @@ class ReadFileNode(LeafNode):
         self.metadata_project = metadata_project
         self.metadata_schema = metadata_schema
         self.use_user_schema = use_user_schema
+        self.xml_reader_udtf = xml_reader_udtf
 
     @classmethod
     def from_read_file_node(cls, read_file_node: "ReadFileNode"):

@@ -1337,6 +1337,7 @@ class Analyzer:
                 metadata_project=logical_plan.metadata_project,
                 metadata_schema=logical_plan.metadata_schema,
                 use_user_schema=logical_plan.use_user_schema,
+                xml_reader_udtf=logical_plan.xml_reader_udtf,
                 source_plan=logical_plan,
             )
 
