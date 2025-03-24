@@ -107,6 +107,8 @@ REGISTER_KWARGS_ALLOWLIST = {
     "resource_constraint",
 }
 
+ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}
+
 
 class UDFColumn(NamedTuple):
     datatype: DataType
@@ -539,13 +541,12 @@ def check_resource_constraint(constraint: Optional[Dict[str, str]]):
     if constraint is None:
         return
 
-    allowed_values = {"architecture": {"x86"}}
     errors = []
     for key, value in constraint.items():
-        if key not in allowed_values:
+        if key.lower() not in ALLOWED_CONSTRAINT_CONFIGURATION:
             errors.append(ValueError(f"Unknown resource constraint key '{key}'"))
             continue
-        if value not in allowed_values[key]:
+        if value.lower() not in ALLOWED_CONSTRAINT_CONFIGURATION[key]:
             errors.append(ValueError(f"Unknown value '{value}' for key '{key}'"))
 
     if errors:
