@@ -2314,15 +2314,11 @@ def calculate_expression(
         return result
     if isinstance(exp, Like):
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
-
-        pattern = convert_wildcard_to_regex(
-            str(
-                calculate_expression(
-                    exp.pattern, input_data, analyzer, expr_to_alias
-                ).iloc[0]
-            )
+        rhs = calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)
+        pattern = rhs.apply(lambda x: convert_wildcard_to_regex(str(x)))
+        result = pd.concat([lhs, pattern], axis=1).apply(
+            lambda x: re.match(x.iloc[1], str(x.iloc[0])) is not None, axis=1
         )
-        result = lhs.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, InExpression):
