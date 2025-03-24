@@ -7,11 +7,25 @@
 #### Improvements
 
 - Improved query generation for `Dataframe.stat.sample_by` to generate a single flat query that scales well with large `fractions` dictionary compared to older method of creating a UNION ALL subquery for each key in `fractions`. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
+- Improved performance of `DataFrameReader.dbapi` by enable vectorized option when copy parquet file into table.
+- Improved query generation for `DataFrame.random_split` in the following ways. They can be enabled by setting `session.conf.set("use_simplified_query_generation", True)`:
+  - Removed the need to `cache_result` in the internal implementation of the input dataframe resulting in a pure lazy dataframe operation.
+  - The `seed` argument now behaves as expected with repeatable results across multiple calls and sessions.
 - `DataFrame.fillna` and `DataFrame.replace` now both support fitting `int` and `float` into `Decimal` columns if `include_decimal` is set to True.
+
+#### Bug Fixes
+
+- Fixed a bug for the following functions that raised errors `.cast()` is applied to their output
+  - `from_json`
+  - `size`
 
 ### Snowpark Local Testing Updates
 
 #### New Features
+
+#### Bug Fixes
+
+- Fixed a bug in `Dataframe.except_` that would cause rows to be incorrectly dropped.
 
 ### Snowpark pandas API Updates
 

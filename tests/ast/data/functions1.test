@@ -298,6 +298,10 @@ df146 = df.select(to_utc_timestamp("A", lit(1234)), to_utc_timestamp(col("A"), c
 
 df147 = df.select(to_date("A"), to_date("A", col("A")), to_date(col("A"), None))
 
+df148 = df.select(system_reference("table", "table1"))
+
+df149 = df.select(to_boolean("A"), to_boolean(col("A")))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -388,7 +392,7 @@ df42 = df.select(kurtosis("A"))
 
 df43 = df.select(max("*"), max("A"), max(col("A")))
 
-df44 = df.select(avg("A"))
+df44 = df.select(mean("A"))
 
 df45 = df.select(median("A"))
 
@@ -410,7 +414,7 @@ df53 = df.select(sum_distinct("A"))
 
 df54 = df.select(variance("A"))
 
-df55 = df.select(variance("A"))
+df55 = df.select(var_samp("A"))
 
 df56 = df.select(var_pop("A"))
 
@@ -595,6 +599,10 @@ df145 = df111.select(from_utc_timestamp("A", lit(1234)), from_utc_timestamp(col(
 df146 = df111.select(to_utc_timestamp("A", lit(1234)), to_utc_timestamp(col("A"), col("B")))
 
 df147 = df111.select(to_date("A"), to_date("A", col("A")), to_date(col("A")))
+
+df148 = df111.select(system_reference("table", "table1", "CALL", []))
+
+df149 = df111.select(to_boolean("A"), to_boolean(col("A")))
 
 ## EXPECTED ENCODED AST
 
@@ -5575,7 +5583,7 @@ body {
                   name {
                     name {
                       name_flat {
-                        name: "avg"
+                        name: "mean"
                       }
                     }
                   }
@@ -6301,7 +6309,7 @@ body {
                   name {
                     name {
                       name_flat {
-                        name: "variance"
+                        name: "var_samp"
                       }
                     }
                   }
@@ -19360,6 +19368,229 @@ body {
     uid: 148
     var_id {
       bitfield1: 148
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "system_reference"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 61
+                    end_line: 323
+                    file: 2
+                    start_column: 26
+                    start_line: 323
+                  }
+                  v: "table"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 61
+                    end_line: 323
+                    file: 2
+                    start_column: 26
+                    start_line: 323
+                  }
+                  v: "table1"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 61
+                    end_line: 323
+                    file: 2
+                    start_column: 26
+                    start_line: 323
+                  }
+                  v: "CALL"
+                }
+              }
+              pos_args {
+                list_val {
+                  src {
+                    end_column: 61
+                    end_line: 323
+                    file: 2
+                    start_column: 26
+                    start_line: 323
+                  }
+                }
+              }
+              src {
+                end_column: 61
+                end_line: 323
+                file: 2
+                start_column: 26
+                start_line: 323
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 112
+            }
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 323
+          file: 2
+          start_column: 16
+          start_line: 323
+        }
+      }
+    }
+    symbol {
+      value: "df148"
+    }
+    uid: 149
+    var_id {
+      bitfield1: 149
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "to_boolean"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 41
+                    end_line: 325
+                    file: 2
+                    start_column: 26
+                    start_line: 325
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 41
+                end_line: 325
+                file: 2
+                start_column: 26
+                start_line: 325
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "to_boolean"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 62
+                        end_line: 325
+                        file: 2
+                        start_column: 54
+                        start_line: 325
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 62
+                    end_line: 325
+                    file: 2
+                    start_column: 54
+                    start_line: 325
+                  }
+                }
+              }
+              src {
+                end_column: 63
+                end_line: 325
+                file: 2
+                start_column: 43
+                start_line: 325
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 112
+            }
+          }
+        }
+        src {
+          end_column: 64
+          end_line: 325
+          file: 2
+          start_column: 16
+          start_line: 325
+        }
+      }
+    }
+    symbol {
+      value: "df149"
+    }
+    uid: 150
+    var_id {
+      bitfield1: 150
     }
   }
 }
