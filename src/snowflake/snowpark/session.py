@@ -283,9 +283,7 @@ _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
 _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION = (
     "PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION"
 )
-_PYTHON_SNOWPARK_CLIENT_AST_MODE = (
-    "PYTHON_SNOWPARK_CLIENT_AST_MODE"
-)
+_PYTHON_SNOWPARK_CLIENT_AST_MODE = "PYTHON_SNOWPARK_CLIENT_AST_MODE"
 _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
     "PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST"
 )
@@ -663,20 +661,22 @@ class Session:
             self._ast_mode = AstMode.SQL_AND_AST if ast_enabled else AstMode.SQL_ONLY
         else:
             if self._ast_mode == AstMode.AST_ONLY:
-                _logger.warning("Snowpark python client does not support dataframe requests, reverting to SQL_AND_AST.")
+                _logger.warning(
+                    "Snowpark python client does not support dataframe requests, downgrading to SQL_AND_AST."
+                )
                 self._ast_mode = AstMode.SQL_AND_AST
 
-            ast_enabled = (
-                self._ast_mode == AstMode.SQL_AND_AST
-            )
+            ast_enabled = self._ast_mode == AstMode.SQL_AND_AST
 
         sp_min_version_for_ast: int = self._conn._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
         )
         if sp_min_version_for_ast is not None and self._ast_mode != AstMode.SQL_ONLY:
-            sp_min_version = tuple(int(v) for v in sp_min_version_for_ast.split('.'))
+            sp_min_version = tuple(int(v) for v in sp_min_version_for_ast.split("."))
             if VERSION < sp_min_version:
-                _logger.warning(f"Server side dataframe support requires minimum snowpark-python client version {sp_min_version_for_ast}.")
+                _logger.warning(
+                    f"Server side dataframe support requires minimum snowpark-python client version {sp_min_version_for_ast}."
+                )
                 self._ast_mode = AstMode.SQL_ONLY
                 ast_enabled = False
 
