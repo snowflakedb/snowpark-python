@@ -23,6 +23,6 @@ else
   echo "Installing locally built Python Connector"
   echo "Python Connector path: ${snowflake_path}"
   ls -al ${snowflake_path}
-  python -m pip install ${snowflake_path}/snowflake_connector_python*cp38*.whl
+  python -m pip install ${snowflake_path}/snowflake_connector_python*cp39*.whl
   python -m pip install -U ${pip_options[@]}
 fi
