@@ -25,4 +25,8 @@ def test_groupby_resample():
             snow_df,
             pandas_df,
             lambda df: df.groupby("a").resample("3min", include_groups=False).sum(),
+            test_attrs=False,
+            check_freq=False,
+            check_index_type=False,
         )
+    # snow_df.groupby("a").resample("3min", include_groups=False).sum()

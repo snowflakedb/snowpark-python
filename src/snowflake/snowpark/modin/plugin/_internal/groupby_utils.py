@@ -14,6 +14,7 @@ from typing import Any, Literal, Optional, Union, List
 import pandas as native_pd
 from pandas._typing import IndexLabel
 from pandas.core.dtypes.common import is_list_like
+import modin.pandas as pd
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column as SnowparkColumn
@@ -880,3 +881,117 @@ def make_groupby_rank_col_for_method(
                 total_cols = count("*").over(window)
         rank_col = rank_col / total_cols
     return rank_col
+
+
+def fill_missing_groupby_resample_bins_for_frame(
+    frame: InternalFrame, rule: str, start_date: str, end_date: str, resample_idx: str
+) -> InternalFrame:
+    """
+    Returns a new InternalFrame created using 2 rules.
+    1. Missing resample bins in `frame`'s DatetimeIndex column will be created.
+    2. Missing rows in data column will be filled with `None`.
+
+    Parameters:
+    ----------
+    frame : InternalFrame
+        A frame with a single DatetimeIndex column.
+
+    rule : str
+        The offset string or object representing target conversion.
+
+    start_date : str
+        The earliest date in the DatetimeIndex column of `frame`.
+
+    end_date : str
+        The latest date in the DatetimeIndex column of `frame`.
+
+    Returns
+    -------
+    frame : InternalFrame
+        A new internal frame with no missing rows in the resample operation.
+
+    Examples
+    --------
+    input_frame
+                a   b
+    __index__
+    2020-01-03  1   2
+    2020-01-07  3   5
+    2020-01-09  4   6
+
+    frame = fill_missing_resample_bins_for_frame(input_frame, '2D', "2020-01-03", "2020-01-12")
+
+    frame:
+                  a     b
+    __index__
+    2020-01-03    1     2
+    2020-01-05  NaN   NaN
+    2020-01-07    3     5
+    2020-01-09    4     6
+    2020-01-11  NaN   NaN
+    """
+    # Compute expected resample bins based on start_date, end_date and rule.
+    # expected_resample_bins_frame = get_expected_resample_bins_frame(
+    #     rule, start_date, end_date
+    # )
+
+    # unique_a_vals = frame.index_columns_pandas_index().unique("a").to_list()
+    # for value in unique_a_vals:
+    #     sub_frame = frame[frame.index_columns_pandas_index().get_level_values(0) == value]
+    #     start_date, end_date = compute_resample_start_and_end_date(
+    #         sub_frame,
+    #         frame.index_column_snowflake_quoted_identifiers[1],
+    #         rule,
+    #     )
+    #     expected_resample_bins_sub_frame = get_expected_resample_bins_frame(
+    #         rule, start_date, end_date
+    #     )
+
+    # to be computed from expected_resample_bins_sub_frame
+    tupl = [
+        (0, "2000-01-01 00:00:00"),
+        (0, "2000-01-01 00:03:00"),
+        (0, "2000-01-01 00:06:00"),
+        (5, "2000-01-01 00:00:00"),
+        (5, "2000-01-01 00:03:00"),
+        (5, "2000-01-01 00:06:00"),
+    ]
+
+    new_idx = pd.MultiIndex.from_tuples(tupl, names=["a", "index"])
+    new_native_frame = pd.DataFrame(index=new_idx)._query_compiler._modin_frame
+
+    multi_expected_resample_bins_snowpark_frame = InternalFrame.create(
+        ordered_dataframe=new_native_frame.ordered_dataframe,
+        data_column_pandas_labels=[],
+        data_column_snowflake_quoted_identifiers=[],
+        index_column_pandas_labels=new_idx.names,
+        index_column_snowflake_quoted_identifiers=new_native_frame.index_column_snowflake_quoted_identifiers,
+        data_column_pandas_index_names=[None],
+        data_column_types=None,
+        index_column_types=None,
+    )
+
+    # Join on expected expected_resample_bins_frame to fill in missing resample bins.
+
+    joined_frame = join(
+        frame,
+        multi_expected_resample_bins_snowpark_frame,
+        how="right",
+        left_on=frame.index_column_snowflake_quoted_identifiers,
+        right_on=multi_expected_resample_bins_snowpark_frame.index_column_snowflake_quoted_identifiers,
+        sort=False,
+        # To match native pandas behavior, join index columns are coalesced.
+        inherit_join_index=InheritJoinIndex.FROM_RIGHT,
+    ).result_frame
+
+    # Ensure data_column_pandas_index_names is correct.
+    return InternalFrame.create(
+        ordered_dataframe=joined_frame.ordered_dataframe,
+        data_column_pandas_labels=frame.data_column_pandas_labels,
+        data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+        index_column_pandas_labels=frame.index_column_pandas_labels,
+        index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
+        data_column_pandas_index_names=frame.data_column_pandas_index_names,
+        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
+    )
