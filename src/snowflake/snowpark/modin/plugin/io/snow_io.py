@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 # this module houses classes for IO and interacting with Snowflake engine
@@ -212,12 +212,15 @@ class PandasOnSnowflakeIO(BaseIO):
         name_or_query: Union[str, Iterable[str]],
         index_col: Optional[Union[str, list[str]]] = None,
         columns: Optional[list[str]] = None,
+        relaxed_ordering: bool = False,
     ):
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
-        return cls.query_compiler_cls.from_snowflake(name_or_query, index_col, columns)
+        return cls.query_compiler_cls.from_snowflake(
+            name_or_query, index_col, columns, relaxed_ordering=relaxed_ordering
+        )
 
     @classmethod
     def to_snowflake(

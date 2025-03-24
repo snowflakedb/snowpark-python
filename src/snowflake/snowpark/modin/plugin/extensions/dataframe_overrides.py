@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -380,11 +380,6 @@ def to_xml(
     compression="infer",
     storage_options=None,
 ):
-    pass  # pragma: no cover
-
-
-@register_dataframe_not_implemented()
-def __delitem__(self, key):
     pass  # pragma: no cover
 
 
@@ -1019,27 +1014,19 @@ def groupby(
             (
                 (hashable(o) and (o in self))
                 or isinstance(o, Series)
+                or (isinstance(o, native_pd.Grouper) and o.key in self)
                 or (is_list_like(o) and len(o) == len(self.shape[axis]))
             )
             for o in by
         ):
-            # plit 'by's into those that belongs to the self (internal_by)
-            # and those that doesn't (external_by). For SnowSeries that belongs
-            # to current DataFrame, we convert it to labels for easy process.
-            internal_by, external_by = [], []
-
-            for current_by in by:
-                if hashable(current_by):
-                    internal_by.append(current_by)
-                elif isinstance(current_by, Series):
-                    if current_by._parent is self:
-                        internal_by.append(current_by.name)
-                    else:
-                        external_by.append(current_by)  # pragma: no cover
-                else:
-                    external_by.append(current_by)
-
-            by = internal_by + external_by
+            # OSS modin needs to determine which `by` keys come from self and which do not,
+            # but we defer this decision to a lower layer to preserve lazy evaluation semantics.
+            by = [
+                current_by.name
+                if isinstance(current_by, Series) and current_by._parent is self
+                else current_by
+                for current_by in by
+            ]
 
     return DataFrameGroupBy(
         self,

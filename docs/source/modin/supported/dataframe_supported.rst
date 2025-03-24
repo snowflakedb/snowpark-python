@@ -196,8 +196,15 @@ Methods
 | ``get``                     | Y                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``groupby``                 | P                               | ``observed`` is ignored since    | ``Y``, support ``axis == 0`` and ``by`` is column  |
-|                             |                                 | Categoricals are not implemented | label or Series from the current DataFrame;        |
-|                             |                                 | yet                              | otherwise ``N``;                                   |
+|                             |                                 | Categoricals are not implemented | label or Series from the current DataFrame, or a   |
+|                             |                                 | yet                              | ``pd.Grouper`` object; otherwise ``N``.            |
+|                             |                                 |                                  |                                                    |
+|                             |                                 |                                  | If a ``pd.Grouper`` object is passed, then only    |
+|                             |                                 |                                  | the default values of the ``sort``, ``closed``,    |
+|                             |                                 |                                  | ``label``, and ``convention`` arguments are        |
+|                             |                                 |                                  | supported. The ``origin`` argument currently       |
+|                             |                                 |                                  | supports ``"start_day"`` and ``"start"``.          |
+|                             |                                 |                                  |                                                    |
 |                             |                                 |                                  | Note that supported functions are agg, count,      |
 |                             |                                 |                                  | cumcount, cummax, cummin, cumsum, first, last,     |
 |                             |                                 |                                  | max, mean, median, min, quantile, shift, size,     |
@@ -305,13 +312,15 @@ Methods
 |                             |                                 |                                  | any ``argfunc`` is not "count", "mean", "min",     |
 |                             |                                 |                                  | "max", or "sum". N if ``index`` is None,           | 
 |                             |                                 |                                  | ``margins`` is True and ``aggfunc`` is "count"     |
-|                             |                                 |                                  | or "mean" or a dictionary. N if ``index`` is None  |
-|                             |                                 |                                  | and ``aggfunc`` is a dictionary containing         |
-|                             |                                 |                                  | lists of aggfuncs to apply.                        |
+|                             |                                 |                                  | or "mean" or a dictionary. ``N`` if ``index`` is   |
+|                             |                                 |                                  | None and ``aggfunc`` is a dictionary containing    |
+|                             |                                 |                                  | lists of aggfuncs to apply. ``N`` if ``aggfunc`` is|
+|                             |                                 |                                  | an `unsupported aggregation                        |
+|                             |                                 |                                  | function <agg_supp.html>`_  for pivot.             |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``plot``                    | D                               |                                  | Performed locally on the client                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``pop``                     | N                               |                                  |                                                    |
+| ``pop``                     | Y                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``pow``                     | P                               | ``level``                        |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+

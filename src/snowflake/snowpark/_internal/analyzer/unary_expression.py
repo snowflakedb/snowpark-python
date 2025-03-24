@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import AbstractSet, Dict, List, Optional
@@ -49,10 +49,19 @@ class Cast(UnaryExpression):
     sql_operator = "CAST"
     operator_first = True
 
-    def __init__(self, child: Expression, to: DataType, try_: bool = False) -> None:
+    def __init__(
+        self,
+        child: Expression,
+        to: DataType,
+        try_: bool = False,
+        is_rename: bool = False,
+        is_add: bool = False,
+    ) -> None:
         super().__init__(child)
         self.to = to
         self.try_ = try_
+        self.is_rename = is_rename
+        self.is_add = is_add
 
 
 class UnaryMinus(UnaryExpression):
@@ -95,6 +104,10 @@ class Alias(UnaryExpression, NamedExpression):
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         # do not add additional complexity for alias
         return {}
+
+
+class _InternalAlias(Alias):
+    pass
 
 
 class UnresolvedAlias(UnaryExpression, NamedExpression):

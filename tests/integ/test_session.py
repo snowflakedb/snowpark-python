@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import os
@@ -25,6 +25,7 @@ from snowflake.snowpark.exceptions import (
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED,
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
+    _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION,
     _active_sessions,
     _get_active_session,
     _get_active_sessions,
@@ -94,6 +95,56 @@ def test_update_query_tag(session):
             session.update_query_tag({"key2": "value2"})
     finally:
         session.query_tag = store_tag
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot alter session in SP")
+def test_collect_stacktrace_in_query_tag(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    original_collect_stacktrace_in_query_tag = session.conf.get(
+        "collect_stacktrace_in_query_tag"
+    )
+    try:
+        session.conf.set("collect_stacktrace_in_query_tag", False)
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = session.createDataFrame([[1, 2], [3, 4]], ["a", "b"])
+        with session.query_history() as history:
+            df.collect()
+        assert len(history.queries) == 4
+        assert history.queries[0].sql_text.startswith(
+            "CREATE  OR  REPLACE  SCOPED TEMPORARY"
+        )
+        assert history.queries[1].sql_text.startswith(
+            "INSERT  INTO SNOWPARK_TEMP_TABLE"
+        )
+        assert history.queries[2].sql_text.startswith('SELECT "A", "B" FROM')
+        assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+
+        session.conf.set("collect_stacktrace_in_query_tag", True)
+        with session.query_history() as history:
+            df.collect()
+        assert len(history.queries) == 6
+        assert history.queries[0].sql_text.startswith(
+            "CREATE  OR  REPLACE  SCOPED TEMPORARY"
+        )
+        assert history.queries[1].sql_text.startswith("alter session set query_tag")
+        assert history.queries[2].sql_text.startswith(
+            "INSERT  INTO SNOWPARK_TEMP_TABLE"
+        )
+        assert history.queries[3].sql_text.startswith("alter session unset query_tag")
+        assert history.queries[4].sql_text.startswith('SELECT "A", "B" FROM')
+        assert history.queries[5].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+        session.conf.set(
+            "collect_stacktrace_in_query_tag", original_collect_stacktrace_in_query_tag
+        )
 
 
 @pytest.mark.xfail(
@@ -706,13 +757,14 @@ def test_cte_optimization_enabled_on_session(session, db_parameters):
         new_session.cte_optimization_enabled = default_value
         assert new_session.cte_optimization_enabled is default_value
 
-    # TODO SNOW-1830248: add back the test when the parameter is available on the server side
-    # parameters = db_parameters.copy()
-    # parameters["session_parameters"] = {
-    #     _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: get_version() if default_value else ""
-    # }
-    # with Session.builder.configs(parameters).create() as new_session2:
-    #     assert new_session2.cte_optimization_enabled is not default_value
+    parameters = db_parameters.copy()
+    parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: get_version()
+        if default_value
+        else ""
+    }
+    with Session.builder.configs(parameters).create() as new_session2:
+        assert new_session2.cte_optimization_enabled is default_value
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")

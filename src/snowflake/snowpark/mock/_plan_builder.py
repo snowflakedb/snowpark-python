@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from typing import Dict, List, Optional, Tuple
 
@@ -33,6 +33,8 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         transformations: Optional[List[str]] = None,
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
+        use_user_schema: bool = False,
+        source_plan: Optional[LogicalPlan] = None,
     ) -> MockExecutionPlan:
         if format.lower() not in SUPPORT_READ_OPTIONS.keys():
             LocalTestOOBTelemetryService.get_instance().log_not_supported_error(

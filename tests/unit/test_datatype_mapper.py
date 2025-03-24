@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -128,7 +128,15 @@ def test_to_sql():
         to_sql([1, "2", 3.5], ArrayType()) == "PARSE_JSON('[1, \"2\", 3.5]') :: ARRAY"
     )
     assert (
+        to_sql([1, 2, 3], ArrayType(IntegerType(), structured=True))
+        == "PARSE_JSON('[1, 2, 3]') :: ARRAY(INT)"
+    )
+    assert (
         to_sql({"'": '"'}, MapType()) == 'PARSE_JSON(\'{"\'\'": "\\\\""}\') :: OBJECT'
+    )
+    assert (
+        to_sql({"'": '"'}, MapType(StringType(), structured=True))
+        == 'PARSE_JSON(\'{"\'\'": "\\\\""}\') :: MAP(STRING, STRING)'
     )
     assert to_sql([{1: 2}], ArrayType()) == "PARSE_JSON('[{\"1\": 2}]') :: ARRAY"
     assert to_sql({1: [2]}, MapType()) == "PARSE_JSON('{\"1\": [2]}') :: OBJECT"

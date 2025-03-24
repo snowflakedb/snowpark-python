@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import base64
 import decimal
@@ -29,6 +29,13 @@ SUPPRESS_AST_LISTENER_REENTRY = False
 VALIDATION_QUERY_RECORD = None
 
 
+class UnparserInvocationError(Exception):
+    def __init__(self, error_output: str) -> None:
+        super().__init__(
+            f"The unparser invocation failed. STDERR contents: \n{error_output}"
+        )
+
+
 def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> str:
     """Uses the unparser to render the AST."""
     assert (
@@ -38,22 +45,27 @@ def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> st
     if isinstance(ast_base64, str):
         ast_base64 = [ast_base64]
 
-    res = subprocess.run(
-        [
-            "java",
-            "-cp",
-            unparser_jar,
-            "com.snowflake.snowpark.unparser.UnparserCli",
-            ",".join(
-                ast_base64
-            ),  # base64 strings will not contain , so pass multiple batches comma-separated.
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    return res.stdout
+    try:
+        res = subprocess.run(
+            [
+                "java",
+                "-cp",
+                unparser_jar,
+                "com.snowflake.snowpark.unparser.UnparserCli",
+                ",".join(
+                    ast_base64
+                ),  # base64 strings will not contain , so pass multiple batches comma-separated.
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return res.stdout
+    except subprocess.CalledProcessError as e:
+        if e.stderr is not None:
+            raise UnparserInvocationError(e.stderr) from e
+        raise
+    return ""
 
 
 def generate_error_trace_info(python_text, exception=None):

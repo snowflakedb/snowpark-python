@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import re
 
 import modin.pandas as pd
@@ -42,13 +43,13 @@ def test_qcut_non_series(x, q):
     [
         (5, 1, 2),
         (100, 1, 2),
-        (1000, 1, 12),
+        (1000, 1, 8),
         (5, 10, 3),
         (100, 10, 3),
-        (1000, 10, 18),
+        (1000, 10, 12),
         (5, 47, 3),
         (100, 47, 3),
-        (1000, 47, 18),
+        (1000, 47, 12),
         # TODO: SNOW-1229442
         # qcut was significantly optimized with SNOW-1368640 and SNOW-1370365, but still
         # cannot compute 10k q values in a reasonable amount of time.

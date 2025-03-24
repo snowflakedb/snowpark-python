@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -77,7 +77,10 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
-from snowflake.snowpark._internal.utils import is_sql_select_statement
+from snowflake.snowpark._internal.utils import (
+    is_sql_select_statement,
+    ExprAliasUpdateDict,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -229,19 +232,47 @@ class Selectable(LogicalPlan, ABC):
         ] = None,  # Use Any because it's recursive.
     ) -> None:
         super().__init__()
-        self.analyzer = analyzer
+        # With multi-threading support, each thread has its own analyzer which can be
+        # accessed through session object. Therefore, we need to store the session in
+        # the Selectable object and use the session to access the appropriate analyzer
+        # for current thread.
+        self._session = analyzer.session
+        # We create this internal object to be used for setting query generator during
+        # the optimization stage
+        self._analyzer = None
         self.pre_actions: Optional[List["Query"]] = None
         self.post_actions: Optional[List["Query"]] = None
         self.flatten_disabled: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
-        self.expr_to_alias = {}
-        self.df_aliased_col_name_to_real_col_name: DefaultDict[
-            str, Dict[str, str]
-        ] = defaultdict(dict)
+        self.expr_to_alias = (
+            ExprAliasUpdateDict() if self._session._join_alias_fix else {}
+        )
+        self.df_aliased_col_name_to_real_col_name = (
+            defaultdict(ExprAliasUpdateDict)
+            if self._session._join_alias_fix
+            else defaultdict(dict)
+        )
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         self._encoded_node_id_with_query: Optional[str] = None
+
+    @property
+    def analyzer(self) -> "Analyzer":
+        """Get the analyzer for used for the current thread"""
+        return self._analyzer or self._session._analyzer
+
+    @analyzer.setter
+    def analyzer(self, value: "Analyzer") -> None:
+        """For query optimization stage, we need to replace the analyzer with a query generator which
+        is aware of schema for the final plan and can compile WithQueryBlocks. Therefore we update the
+        setter to allow the analyzer to be set externally."""
+        if not self._is_valid_for_replacement:
+            raise ValueError(
+                "Cannot set analyzer for a Selectable that is not valid for replacement"
+            )
+
+        self._analyzer = value
 
     @property
     @abstractmethod
@@ -258,7 +289,7 @@ class Selectable(LogicalPlan, ABC):
         two selectable node with same queries. This is currently used by repeated subquery
         elimination to detect two nodes with same query, please use it with careful.
         """
-        with self.analyzer.session._plan_lock:
+        with self._session._plan_lock:
             if self._encoded_node_id_with_query is None:
                 self._encoded_node_id_with_query = encode_node_id_with_query(self)
             return self._encoded_node_id_with_query
@@ -310,7 +341,7 @@ class Selectable(LogicalPlan, ABC):
                 queries,
                 schema_query,
                 post_actions=self.post_actions,
-                session=self.analyzer.session,
+                session=self._session,
                 expr_to_alias=self.expr_to_alias,
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
@@ -328,7 +359,7 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        with self.analyzer.session._plan_lock:
+        with self._session._plan_lock:
             if self._cumulative_node_complexity is None:
                 self._cumulative_node_complexity = sum_node_complexities(
                     self.individual_node_complexity,
@@ -361,7 +392,7 @@ class Selectable(LogicalPlan, ABC):
         Refer to class ColumnStateDict.
         """
         if self._column_states is None:
-            if self.analyzer.session.reduce_describe_query_enabled:
+            if self._session.reduce_describe_query_enabled:
                 # data types are not needed in SQL simplifier, so we
                 # just create dummy data types here.
                 column_attrs = [
@@ -512,7 +543,7 @@ class SelectSQL(Selectable):
                 self.pre_actions[0].query_id_place_holder
             )
             self._schema_query = analyzer_utils.schema_value_statement(
-                analyze_attributes(sql, self.analyzer.session)
+                analyze_attributes(sql, self._session)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
             self._query_param = None
         else:
@@ -588,9 +619,7 @@ class SelectSnowflakePlan(Selectable):
             else analyzer.resolve(snowflake_plan)
         )
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
-        self.df_aliased_col_name_to_real_col_name.update(
-            self._snowflake_plan.df_aliased_col_name_to_real_col_name
-        )
+        self.df_aliased_col_name_to_real_col_name.update(self._snowflake_plan.df_aliased_col_name_to_real_col_name)  # type: ignore
 
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
@@ -665,6 +694,7 @@ class SelectStatement(Selectable):
         offset: Optional[int] = None,
         analyzer: "Analyzer",
         schema_query: Optional[str] = None,
+        distinct: bool = False,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -677,6 +707,7 @@ class SelectStatement(Selectable):
         self.post_actions = self.from_.post_actions
         self._sql_query = None
         self._schema_query = schema_query
+        self.distinct_: bool = distinct
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
@@ -717,6 +748,7 @@ class SelectStatement(Selectable):
             offset=self.offset,
             analyzer=self.analyzer,
             schema_query=self.schema_query,
+            distinct=self.distinct_,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
@@ -746,6 +778,7 @@ class SelectStatement(Selectable):
             analyzer=self.analyzer,
             # directly copy the current schema fields
             schema_query=self._schema_query,
+            distinct=self.distinct_,
         )
 
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
@@ -790,7 +823,9 @@ class SelectStatement(Selectable):
 
     @property
     def has_clause(self) -> bool:
-        return self.has_clause_using_columns or self.limit_ is not None
+        return (
+            self.has_clause_using_columns or self.limit_ is not None or self.distinct_
+        )
 
     @property
     def projection_in_str(self) -> str:
@@ -833,12 +868,30 @@ class SelectStatement(Selectable):
             if self.offset
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
-        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        distinct_clause = (
+            analyzer_utils.DISTINCT
+            if self.distinct_
+            else snowflake.snowpark._internal.utils.EMPTY_STRING
+        )
+        self._sql_query = (
+            f"{analyzer_utils.SELECT}{distinct_clause}{self.projection_in_str}{analyzer_utils.FROM}"
+            f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        )
         return self._sql_query
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self.from_.query_params
+
+    @property
+    def attributes(self) -> Optional[List[Attribute]]:
+        return self._attributes
+
+    @attributes.setter
+    def attributes(self, value: Optional[List[Attribute]]):
+        self._attributes = value
+        if self._session.reduce_describe_query_enabled and value is not None:
+            self._schema_query = analyzer_utils.schema_value_statement(value)
 
     @property
     def schema_query(self) -> str:
@@ -895,6 +948,13 @@ class SelectStatement(Selectable):
         complexity = (
             sum_node_complexities(complexity, {PlanNodeCategory.LOW_IMPACT: 1})
             if self.offset
+            else complexity
+        )
+
+        # distinct component
+        complexity = (
+            sum_node_complexities(complexity, {PlanNodeCategory.DISTINCT: 1})
+            if self.distinct_
             else complexity
         )
         return complexity
@@ -1094,6 +1154,9 @@ class SelectStatement(Selectable):
             )
         ):
             can_be_flattened = False
+        elif self.distinct_:
+            # .distinct().select() != .select().distinct() therefore we cannot flatten
+            can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
                 self.column_states, new_column_states
@@ -1165,8 +1228,8 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
-        if self.analyzer.session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+        if self._session.reduce_describe_query_enabled:
+            new.attributes = self.attributes
 
         return new
 
@@ -1200,9 +1263,43 @@ class SelectStatement(Selectable):
                 order_by=cols,
                 analyzer=self.analyzer,
             )
-        if self.analyzer.session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+        if self._session.reduce_describe_query_enabled:
+            new.attributes = self.attributes
 
+        return new
+
+    def distinct(self) -> "SelectStatement":
+        can_be_flattened = (
+            (not self.flatten_disabled)
+            # .distinct().limit() and .limit().distinct() can cause big performance
+            # difference, because limit can stop table scanning whenever the
+            # number of record is satisfied.
+            # Therefore, disallow sql simplification when the current SelectStatement
+            # has a limit clause to avoid moving distinct in front of limit.
+            and (not self.limit_)
+            and (not self.offset)
+            # .order_by(col1).select(col2).distinct() cannot be flattened because
+            # SELECT DISTINCT B FROM TABLE ORDER BY A is not valid SQL
+            and (not (self.order_by and self.projection))
+            and not has_data_generator_exp(self.projection)
+        )
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = self.from_.pre_actions
+            new.post_actions = self.from_.post_actions
+            new.distinct_ = True
+            new.column_states = self.column_states
+            new._merge_projection_complexity_with_subquery = False
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                distinct=True,
+                analyzer=self.analyzer,
+            )
+
+        if self._session.reduce_describe_query_enabled:
+            new.attributes = self.attributes
         return new
 
     def set_operator(
@@ -1284,8 +1381,8 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
-        if self.analyzer.session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+        if self._session.reduce_describe_query_enabled:
+            new.attributes = self.attributes
 
         return new
 
@@ -1470,7 +1567,9 @@ class DeriveColumnDependencyError(Exception):
 def parse_column_name(
     column: Expression,
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
 ) -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
@@ -1604,7 +1703,7 @@ def can_select_projection_complexity_be_merged(
             on top of subquery.
         subquery: the subquery where the current select is performed on top of
     """
-    if not subquery.analyzer.session._large_query_breakdown_enabled:
+    if not subquery._session._large_query_breakdown_enabled:
         return False
 
     # only merge of nested select statement is supported, and subquery must be
@@ -1657,7 +1756,9 @@ def can_select_projection_complexity_be_merged(
 def initiate_column_states(
     column_attrs: List[Attribute],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:

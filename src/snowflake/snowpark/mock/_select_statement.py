@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from abc import ABC
 from collections import defaultdict
@@ -64,7 +64,7 @@ class MockSelectable(LogicalPlan, ABC):
         analyzer: "Analyzer",
     ) -> None:
         super().__init__()
-        self.analyzer = analyzer
+        self._session = analyzer.session
         self.pre_actions = None
         self.post_actions = None
         self.flatten_disabled: bool = False
@@ -75,6 +75,10 @@ class MockSelectable(LogicalPlan, ABC):
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
+
+    @property
+    def analyzer(self) -> "Analyzer":
+        return self._session._analyzer
 
     @property
     def sql_query(self) -> str:
@@ -97,7 +101,7 @@ class MockSelectable(LogicalPlan, ABC):
         from snowflake.snowpark.mock._plan import MockExecutionPlan
 
         if self._execution_plan is None:
-            self._execution_plan = MockExecutionPlan(self, self.analyzer.session)
+            self._execution_plan = MockExecutionPlan(self, self._session)
         return self._execution_plan
 
     @property
@@ -198,6 +202,7 @@ class MockSelectStatement(MockSelectable):
         order_by: Optional[List[Expression]] = None,
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
+        distinct: bool = False,
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
@@ -207,6 +212,7 @@ class MockSelectStatement(MockSelectable):
         self.order_by: Optional[List[Expression]] = order_by
         self.limit_: Optional[int] = limit_
         self.offset = offset
+        self.distinct_: bool = distinct
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
@@ -228,6 +234,7 @@ class MockSelectStatement(MockSelectable):
             order_by=self.order_by,
             limit_=self.limit_,
             offset=self.offset,
+            distinct=self.distinct_,
             analyzer=self.analyzer,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
@@ -273,7 +280,9 @@ class MockSelectStatement(MockSelectable):
 
     @property
     def has_clause(self) -> bool:
-        return self.has_clause_using_columns or self.limit_ is not None
+        return (
+            self.has_clause_using_columns or self.limit_ is not None or self.distinct_
+        )
 
     @property
     def projection_in_str(self) -> str:
@@ -321,6 +330,8 @@ class MockSelectStatement(MockSelectable):
             can_be_flattened = False
             disable_next_level_flatten = True
         elif self.flatten_disabled or self.has_clause_using_columns:
+            can_be_flattened = False
+        elif self.distinct_:
             can_be_flattened = False
         else:
             can_be_flattened = True
@@ -401,7 +412,7 @@ class MockSelectStatement(MockSelectable):
             )
         return new
 
-    def sort(self, cols: List[Expression]) -> "SelectStatement":
+    def sort(self, cols: List[Expression]) -> "MockSelectStatement":
         if self.flatten_disabled:
             can_be_flattened = False
         else:
@@ -419,6 +430,23 @@ class MockSelectStatement(MockSelectable):
         else:
             new = MockSelectStatement(
                 from_=self.to_subqueryable(), order_by=cols, analyzer=self.analyzer
+            )
+        return new
+
+    def distinct(self) -> "MockSelectStatement":
+        can_be_flattened = (
+            not self.flatten_disabled and not self.limit_ and not self.offset
+        )
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            new.distinct_ = True
+            new._column_states = self._column_states
+        else:
+            new = MockSelectStatement(
+                from_=self.to_subqueryable(), distinct=True, analyzer=self.analyzer
             )
         return new
 

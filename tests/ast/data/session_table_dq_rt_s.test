@@ -7,28 +7,39 @@ df = df.select("num")
 
 df = session.table("\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\"")
 
-df = df.select(col("num"))
+df = df.select("num")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "\"the#qui.ck#bro.wn#\"\"Fox\"\"won\'t#jump!\""
+          name {
+            name_flat {
+              name: "\"the#qui.ck#bro.wn#\"\"Fox\"\"won\'t#jump!\""
+            }
           }
         }
         src {
           end_column: 54
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -44,41 +55,24 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  fn_name_flat {
-                    name: "col"
-                  }
-                }
+          args {
+            string_val {
+              src {
+                end_column: 29
+                end_line: 26
+                file: 2
+                start_column: 13
+                start_line: 26
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 29
-                  end_line: 26
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_column: 13
-                  start_line: 26
-                }
-                v: "num"
-              }
-            }
-            src {
-              end_column: 29
-              end_line: 26
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 13
-              start_line: 26
+              v: "num"
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -87,11 +81,10 @@ body {
         src {
           end_column: 29
           end_line: 26
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 26
         }
-        variadic: true
       }
     }
     symbol {
@@ -116,5 +109,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

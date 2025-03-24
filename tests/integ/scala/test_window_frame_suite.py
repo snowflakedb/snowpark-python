@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -19,6 +19,7 @@ from snowflake.snowpark.functions import (
     lag,
     last_value,
     lead,
+    lit,
     make_interval,
     min as min_,
     sum as sum_,
@@ -593,6 +594,16 @@ def test_range_between_date(
 )
 def test_range_between_negative(session):
     df = session.range(10)
+    window = Window.order_by("id").range_between(-make_interval(mins=1), 0)
+    with pytest.raises(
+        SnowparkSQLException,
+        match="numeric ORDER BY clause only allows numeric window frame boundaries",
+    ):
+        df.select(count("id").over(window)).collect()
+
+
+def test_range_between_negative_local_testing_compatible(session):
+    df = session.range(10).with_column("str", lit("string"))
 
     with pytest.raises(
         ValueError,
@@ -606,9 +617,131 @@ def test_range_between_negative(session):
     ):
         Window.order_by("id").range_between(0, 1.1)
 
-    window = Window.order_by("id").range_between(-make_interval(mins=1), 0)
-    with pytest.raises(
-        SnowparkSQLException,
-        match="numeric ORDER BY clause only allows numeric window frame boundaries",
-    ):
+    with pytest.raises(SnowparkSQLException):
+        window = Window.order_by("str").range_between(-1, 1)
         df.select(count("id").over(window)).collect()
+
+
+def test_rows_between_range_between_literal_offsets(session):
+    data = [
+        (1, 10),
+        (1, 20),
+        (1, 30),
+        (1, 40),
+        (1, 50),
+        (2, 1),
+        (2, 2),
+        (2, 3),
+        (2, 4),
+        (2, 5),
+    ]
+
+    df = session.create_dataframe(data, ["id", "value"])
+    window = Window.partition_by("id").order_by("value")
+
+    # Rows between does not differ for id 1 and 2 because it looks row presence only.
+    Utils.check_answer(
+        df.select(
+            "id",
+            "value",
+            count("value").over(window.rows_between(-1, 1)).alias("count"),
+        ),
+        [
+            Row(2, 5, 2),
+            Row(2, 4, 3),
+            Row(2, 3, 3),
+            Row(2, 2, 3),
+            Row(2, 1, 2),
+            Row(1, 50, 2),
+            Row(1, 40, 3),
+            Row(1, 30, 3),
+            Row(1, 20, 3),
+            Row(1, 10, 2),
+        ],
+    )
+    # Range between differs for id 1 and 2 because it looks at actual value ranges
+    Utils.check_answer(
+        df.select(
+            "id",
+            "value",
+            count("value").over(window.range_between(-1, 1)).alias("count"),
+        ),
+        [
+            Row(2, 1, 2),
+            Row(2, 2, 3),
+            Row(2, 3, 3),
+            Row(2, 4, 3),
+            Row(2, 5, 2),
+            Row(1, 10, 1),
+            Row(1, 20, 1),
+            Row(1, 30, 1),
+            Row(1, 40, 1),
+            Row(1, 50, 1),
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(
+            "id",
+            "value",
+            count("value")
+            .over(window.range_between(Window.unboundedPreceding, 10))
+            .alias("count"),
+        ),
+        [
+            Row(2, 1, 5),
+            Row(2, 2, 5),
+            Row(2, 3, 5),
+            Row(2, 4, 5),
+            Row(2, 5, 5),
+            Row(1, 10, 2),
+            Row(1, 20, 3),
+            Row(1, 30, 4),
+            Row(1, 40, 5),
+            Row(1, 50, 5),
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(
+            "id",
+            "value",
+            count("value")
+            .over(window.range_between(-10, Window.unboundedFollowing))
+            .alias("count"),
+        ),
+        [
+            Row(2, 1, 5),
+            Row(2, 2, 5),
+            Row(2, 3, 5),
+            Row(2, 4, 5),
+            Row(2, 5, 5),
+            Row(1, 10, 5),
+            Row(1, 20, 5),
+            Row(1, 30, 4),
+            Row(1, 40, 3),
+            Row(1, 50, 2),
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(
+            "id",
+            "value",
+            count("value")
+            .over(window.range_between(Window.currentRow, 5))
+            .alias("count"),
+        ),
+        [
+            Row(2, 1, 5),
+            Row(2, 2, 4),
+            Row(2, 3, 3),
+            Row(2, 4, 2),
+            Row(2, 5, 1),
+            Row(1, 10, 1),
+            Row(1, 20, 1),
+            Row(1, 30, 1),
+            Row(1, 40, 1),
+            Row(1, 50, 1),
+        ],
+    )

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import base64
 import binascii
@@ -636,6 +636,22 @@ def mock_current_time(column_index):
     now = datetime.datetime.now()
     return ColumnEmulator(
         data=[now.time()] * len(column_index), sf_type=ColumnType(TimeType(), False)
+    )
+
+
+@patch("hour")
+def mock_hour(expr):
+    return ColumnEmulator(
+        data=[None if value is None else value.hour for value in expr],
+        sf_type=ColumnType(LongType(), False),
+    )
+
+
+@patch("minute")
+def mock_minute(expr):
+    return ColumnEmulator(
+        data=[None if value is None else value.minute for value in expr],
+        sf_type=ColumnType(LongType(), False),
     )
 
 

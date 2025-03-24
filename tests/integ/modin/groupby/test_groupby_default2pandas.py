@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import re
@@ -125,11 +125,11 @@ def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     [[2, 1, 1, 2, 3, 3], [[2, 1, 1, 2, 3, 3], "a"]],
 )
 @sql_count_checker(query_count=1)
-def test_groupby_series_with_numpy_array(series_multi_numeric, by_list) -> None:
+def test_groupby_series_with_numpy_array(native_series_multi_numeric, by_list) -> None:
     with pytest.raises(
         NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
     ):
-        series_multi_numeric.groupby(by=by_list).max()
+        pd.Series(native_series_multi_numeric).groupby(by=by_list).max()
 
 
 def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
@@ -269,22 +269,6 @@ def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, agg_name, b
     msg = f"Snowpark pandas GroupBy.aggregate does not yet support the aggregation '{agg_name}' with the given arguments"
     with pytest.raises(NotImplementedError, match=msg):
         grp_agg(snowpark_pandas_group)
-
-
-@pytest.mark.parametrize(
-    "by, query_count",
-    [
-        (native_pd.Grouper(key="col1"), 0),
-        (["col5", native_pd.Grouper(key="col1")], 1),
-    ],
-)
-def test_grouper_unsupported(basic_snowpark_pandas_df, by, query_count):
-    with SqlCounter(query_count=query_count):
-        snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-        with pytest.raises(
-            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
-        ):
-            snowpark_pandas_group.max()
 
 
 @sql_count_checker(query_count=0)

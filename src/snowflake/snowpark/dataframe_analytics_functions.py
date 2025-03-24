@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Callable, Dict, List, Tuple, Union
@@ -346,7 +346,7 @@ class DataFrameAnalyticsFunctions:
         ast = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
+            ast = with_src_position(stmt.expr.dataframe_analytics_moving_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
@@ -457,9 +457,7 @@ class DataFrameAnalyticsFunctions:
         ast = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(
-                stmt.expr.sp_dataframe_analytics_cumulative_agg, stmt
-            )
+            ast = with_src_position(stmt.expr.dataframe_analytics_cumulative_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
@@ -557,7 +555,7 @@ class DataFrameAnalyticsFunctions:
         ast = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lag, stmt)
+            ast = with_src_position(stmt.expr.dataframe_analytics_compute_lag, stmt)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
             ast.lags.extend(lags)
@@ -643,7 +641,7 @@ class DataFrameAnalyticsFunctions:
         ast = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
+            ast = with_src_position(stmt.expr.dataframe_analytics_compute_lead, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
@@ -757,9 +755,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(
-                stmt.expr.sp_dataframe_analytics_time_series_agg, stmt
-            )
+            ast = with_src_position(stmt.expr.dataframe_analytics_time_series_agg, stmt)
             ast.time_col = time_col
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()

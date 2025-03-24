@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 
@@ -160,6 +160,7 @@ def test_lineage_trace(session):
     session.sql(f"GRANT select on VIEW {db}.{schema}.V5 TO ROLE {test_role}").collect()
     session.sql(f"GRANT CREATE VIEW ON schema {schema} TO ROLE {test_role}").collect()
     session.sql(f"USE ROLE {test_role}").collect()
+    session.sql("USE SECONDARY ROLES NONE").collect()
     session.sql(
         f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
     ).collect()

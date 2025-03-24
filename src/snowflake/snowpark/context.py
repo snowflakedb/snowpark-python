@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """Context module for Snowpark."""
 from typing import Callable, Optional
 
 import snowflake.snowpark
+import threading
 
 _use_scoped_temp_objects = True
 
@@ -21,8 +22,19 @@ _is_execution_environment_sandboxed_for_client: bool = False
 _should_continue_registration: Optional[Callable[..., bool]] = None
 
 
-# Global flag that determines if structured type semantics should be used
-_should_use_structured_type_semantics = False
+# Internal-only global flag that determines if structured type semantics should be used
+_use_structured_type_semantics = False
+_use_structured_type_semantics_lock = threading.RLock()
+
+# This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
+_is_snowpark_connect_compatible_mode = False
+
+
+def _should_use_structured_type_semantics():
+    global _use_structured_type_semantics
+    global _use_structured_type_semantics_lock
+    with _use_structured_type_semantics_lock:
+        return _use_structured_type_semantics
 
 
 def get_active_session() -> "snowflake.snowpark.Session":

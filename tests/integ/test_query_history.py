@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import threading
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
@@ -92,7 +92,7 @@ def test_query_history_multiple_actions(session):
         df = df.filter(df.a == 1)
         df.collect()
 
-    if session.sql_simplifier_enabled:
+    if session.sql_simplifier_enabled and not session.reduce_describe_query_enabled:
         assert len(query_history.queries) == 3
         assert query_history.queries[0].is_describe
         assert query_history.queries[1].is_describe
@@ -143,14 +143,12 @@ def test_query_history_executemany(session, use_scoped_temp_objects):
             f"CREATE  OR  REPLACE  {'SCOPED TEMPORARY' if use_scoped_temp_objects else 'TEMPORARY'}"
             in queries[0].sql_text
         )
-        assert "alter session set query_tag" in queries[1].sql_text
         assert (
-            "INSERT  INTO" in queries[2].sql_text
-            and "VALUES (?)" in queries[2].sql_text
+            "INSERT  INTO" in queries[1].sql_text
+            and "VALUES (?)" in queries[1].sql_text
         )
-        assert "alter session unset query_tag" in queries[3].sql_text
-        assert 'SELECT "A" FROM' in queries[4].sql_text
-        assert "DROP  TABLE  If  EXISTS" in queries[5].sql_text  # post action
+        assert 'SELECT "A" FROM' in queries[2].sql_text
+        assert "DROP  TABLE  If  EXISTS" in queries[3].sql_text  # post action
     finally:
         session._use_scoped_temp_objects = origin_use_scoped_temp_objects_setting
 

@@ -13,7 +13,7 @@ df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
+df = session.create_dataframe(pandas.DataFrame(<not shown>), schema=StructType(fields=[StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
 
 df.count()
 
@@ -23,25 +23,36 @@ df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
             }
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
                 column_identifier {
-                  name: "\"A\""
+                  column_name {
+                    name: "\"A\""
+                  }
                 }
                 data_type {
-                  sp_string_type {
+                  string_type {
                     length {
                       value: 16777216
                     }
@@ -51,10 +62,12 @@ body {
               }
               fields {
                 column_identifier {
-                  name: "\"B\""
+                  column_name {
+                    name: "\"B\""
+                  }
                 }
                 data_type {
-                  sp_long_type: true
+                  long_type: true
                 }
                 nullable: true
               }
@@ -64,7 +77,7 @@ body {
         src {
           end_column: 111
           end_line: 28
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 28
         }
@@ -82,7 +95,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         block: true
         id {
           bitfield1: 1
@@ -90,7 +103,7 @@ body {
         src {
           end_column: 18
           end_line: 30
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 30
         }
@@ -115,14 +128,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         id {
           bitfield1: 1
         }
         src {
           end_column: 29
           end_line: 32
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 32
         }
@@ -147,14 +160,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_count {
+      dataframe_count {
         id {
           bitfield1: 1
         }
         src {
           end_column: 78
           end_line: 34
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 34
         }
@@ -193,5 +206,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

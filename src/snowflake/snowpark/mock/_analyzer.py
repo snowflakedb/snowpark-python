@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from collections import Counter, defaultdict
 from typing import DefaultDict, Dict, List, Optional, Union
@@ -82,6 +82,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
     Range,
+    ReadFileNode,
     SnowflakeCreateTable,
     SnowflakeTable,
     SnowflakeValues,
@@ -121,6 +122,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Project,
     Rename,
     Sample,
+    SampleBy,
     Sort,
     Unpivot,
 )
@@ -837,6 +839,9 @@ class MockAnalyzer:
         if isinstance(logical_plan, Sample):
             return MockExecutionPlan(logical_plan, self.session)
 
+        if isinstance(logical_plan, SampleBy):
+            return MockExecutionPlan(logical_plan, self.session)
+
         if isinstance(logical_plan, Join):
             left = self.do_resolve(logical_plan.children[0])
             right = self.do_resolve(logical_plan.children[1])
@@ -925,6 +930,20 @@ class MockAnalyzer:
 
         if isinstance(logical_plan, CreateViewCommand):
             return MockExecutionPlan(logical_plan, self.session)
+
+        if isinstance(logical_plan, ReadFileNode):
+            return self.plan_builder.read_file(
+                path=logical_plan.path,
+                format=logical_plan.format,
+                options=logical_plan.options,
+                schema=logical_plan.schema,
+                schema_to_cast=logical_plan.schema_to_cast,
+                transformations=logical_plan.transformations,
+                metadata_project=logical_plan.metadata_project,
+                metadata_schema=logical_plan.metadata_schema,
+                use_user_schema=logical_plan.use_user_schema,
+                source_plan=logical_plan,
+            )
 
         if isinstance(logical_plan, CopyIntoTableNode):
             self._conn.log_not_supported_error(

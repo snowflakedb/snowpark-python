@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -10,11 +10,12 @@ import platform
 import random
 import string
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, NamedTuple, Optional, Union
+from threading import Thread
+from unittest import mock
 
 import pytest
 import pytz
@@ -94,6 +95,7 @@ if RUNNING_ON_JENKINS:
 STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
 STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_FDN_TABLES",
     "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
     "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
     "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
@@ -121,7 +123,8 @@ def iceberg_supported(session, local_testing_mode):
 def structured_types_enabled_session(session):
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session set {param}=true").collect()
-    yield session
+    with mock.patch("snowflake.snowpark.context._use_structured_type_semantics", True):
+        yield session
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session unset {param}").collect()
 
@@ -138,17 +141,17 @@ def running_on_jenkins() -> bool:
 
 def multithreaded_run(num_threads: int = 5) -> None:
     """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
-    from tests.conftest import MULTITHREADING_TEST_MODE_ENABLED
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if MULTITHREADING_TEST_MODE_ENABLED:
-                with ThreadPoolExecutor(max_workers=num_threads) as executor:
-                    for _ in range(num_threads):
-                        executor.submit(func, *args, **kwargs)
-            else:
-                func(*args, **kwargs)
+            all_threads = []
+            for _ in range(num_threads):
+                job = Thread(target=func, args=args, kwargs=kwargs)
+                all_threads.append(job)
+                job.start()
+            for thread in all_threads:
+                thread.join()
 
         return wrapper
 
@@ -414,7 +417,12 @@ class Utils:
             Utils.assert_rows(actual_rows, expected_rows, float_equality_threshold)
 
     @staticmethod
-    def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
+    def verify_schema(
+        sql: str,
+        expected_schema: StructType,
+        session: Session,
+        max_string_size: int = None,
+    ) -> None:
         session._run_query(sql)
         result_meta = session._conn._cursor.description
 
@@ -425,16 +433,17 @@ class Utils:
                 == field.column_identifier.quoted_name
             )
             assert meta.is_nullable == field.nullable
-            assert (
-                convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[meta.type_code],
-                    meta.precision,
-                    meta.scale,
-                    meta.internal_size,
-                    session._conn.max_string_size,
-                )
-                == field.datatype
+
+            sp_type = convert_sf_to_sp_type(
+                FIELD_ID_TO_NAME[meta.type_code],
+                meta.precision,
+                meta.scale,
+                meta.internal_size,
+                max_string_size or session._conn.max_string_size,
             )
+            assert (
+                sp_type == field.datatype
+            ), f"{sp_type=} is not equal to {field.datatype=}"
 
     @staticmethod
     def is_active_transaction(session: Session) -> bool:
@@ -626,6 +635,15 @@ class TestData:
                 schema=["flo", "int", "boo", "str"],
             )
         )
+
+    @classmethod
+    def null_data4(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                [Decimal(1), None],
+                [None, Decimal(2)],
+            ]
+        ).to_df(["a", "b"])
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
@@ -1376,6 +1394,10 @@ class TestFiles:
     @functools.cached_property
     def test_file_csv_special_format(self):
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
+
+    @property
+    def test_file_csv_timestamps(self):
+        return os.path.join(self.resources_path, "testCSVformattedTime.csv")
 
     @property
     def test_file_excel(self):

@@ -25,24 +25,35 @@ df = df.select_expr(["COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT 
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 41
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -58,23 +69,37 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
+      dataframe_select {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 33
+                end_line: 27
+                file: 2
+                start_column: 13
+                start_line: 27
+              }
+              v: "$1"
+            }
+          }
+          variadic: true
+        }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
-        exprs: "$1"
+        expr_variant: true
         src {
           end_column: 33
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -89,19 +114,33 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
+      dataframe_select {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 29
+                file: 2
+                start_column: 13
+                start_line: 29
+              }
+              v: "$1"
+            }
+          }
+        }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
           }
         }
-        exprs: "$1"
+        expr_variant: true
         src {
           end_column: 35
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 29
         }
@@ -119,28 +158,97 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
+      dataframe_select {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "COUNT $1"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "SUM $2"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "AVG $3"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "MIN $4"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "MAX $5"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "COUNT DISTINCT $6"
+            }
+          }
+          variadic: true
+        }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
           }
         }
-        exprs: "COUNT $1"
-        exprs: "SUM $2"
-        exprs: "AVG $3"
-        exprs: "MIN $4"
-        exprs: "MAX $5"
-        exprs: "COUNT DISTINCT $6"
+        expr_variant: true
         src {
           end_column: 100
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
@@ -155,24 +263,93 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__exprs {
+      dataframe_select {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "COUNT $1"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "SUM $2"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "AVG $3"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "MIN $4"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "MAX $5"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "COUNT DISTINCT $6"
+            }
+          }
+        }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 4
             }
           }
         }
-        exprs: "COUNT $1"
-        exprs: "SUM $2"
-        exprs: "AVG $3"
-        exprs: "MIN $4"
-        exprs: "MAX $5"
-        exprs: "COUNT DISTINCT $6"
+        expr_variant: true
         src {
           end_column: 102
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 33
         }
@@ -200,5 +377,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

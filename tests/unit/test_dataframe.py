@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import re
 from unittest import mock
@@ -22,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBu
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
 from snowflake.snowpark.session import Session
@@ -74,6 +75,7 @@ def test_dataframe_method_alias():
     # assert aliases for user code migration
     assert DataFrame.createOrReplaceTempView == DataFrame.create_or_replace_temp_view
     assert DataFrame.createOrReplaceView == DataFrame.create_or_replace_view
+    assert DataFrame.createTempView == DataFrame.create_temp_view
     assert DataFrame.crossJoin == DataFrame.cross_join
     assert DataFrame.dropDuplicates == DataFrame.drop_duplicates
     assert DataFrame.groupBy == DataFrame.group_by
@@ -119,8 +121,9 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
     fake_session._cte_optimization_enabled = False
     fake_session._query_compilation_stage_enabled = False
+    fake_session._join_alias_fix = False
     fake_session._conn = mock.create_autospec(ServerConnection)
-    fake_session._conn._thread_safe_session_enabled = False
+    fake_session._conn._thread_safe_session_enabled = True
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
     fake_session._use_scoped_temp_objects = True
@@ -141,10 +144,12 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
 
 
 def test_select_negative():
+    AST_ENABLED = False
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
+    fake_session.ast_enabled = AST_ENABLED
     fake_session._analyzer = mock.MagicMock()
     fake_session._ast_batch = mock.create_autospec(AstBatch)
-    fake_session.ast_enabled = False
     df = DataFrame(fake_session)
     with pytest.raises(TypeError) as exc_info:
         df.select(123)

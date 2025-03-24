@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 # Licensed to Modin Development Team under one or more contributor license agreements.
@@ -22,6 +22,7 @@
 """Implement GroupBy public API as pandas does."""
 
 from collections.abc import Hashable
+from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Sequence, Union
 
 import modin.pandas as pd
@@ -130,6 +131,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             "group_keys": group_keys,
         }
         self._kwargs.update(kwargs)
+        if "apply_op" not in self._kwargs:
+            # Can be "apply", "transform", "filter" or "aggregate"
+            self._kwargs.update({"apply_op": "apply"})
 
     def _override(self, **kwargs):
         """
@@ -192,9 +196,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         return self._iter.__iter__()
 
-    # TODO: since python 3.9:
-    # @cached_property
-    @property
+    @cached_property
     def groups(self) -> PrettyDict[Hashable, "pd.Index"]:
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         return self._query_compiler.groupby_groups(
@@ -238,7 +240,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     # Function application
     ###########################################################################
 
-    def apply(self, func, *args, **kwargs):
+    def apply(self, func, *args, include_groups=True, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         # TODO: SNOW-1244717: Explore whether window function are performant and can be used
         #       whenever `func` is an aggregation function.
@@ -253,6 +255,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
                 agg_args=args,
                 agg_kwargs=kwargs,
                 series_groupby=False,
+                include_groups=include_groups,
             )
         )
         if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
@@ -380,6 +383,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             dropna=False,
             sort=self._sort,
         )
+        groupby_obj._kwargs["apply_op"] = "transform"
 
         # Apply the transform function to each group.
         res = groupby_obj.apply(
@@ -1082,11 +1086,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="dtypes", class_="GroupBy")
 
-    _internal_by_cache = no_default
-
-    # TODO: since python 3.9:
-    # @cached_property
-    @property
+    @cached_property
     def _internal_by(self):
         """
         Get only those components of 'by' that are column labels of the source frame.
@@ -1096,17 +1096,14 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         tuple of labels
         """
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        if self._internal_by_cache is not no_default:
-            return self._internal_by_cache
-
         by_list = self._by if is_list_like(self._by) else [self._by]
 
-        internal_by = tuple(
-            by for by in by_list if hashable(by) and by in self._columns
-        )
-
-        self._internal_by_cache = internal_by
-        return internal_by
+        internal_by = []
+        for by in by_list:
+            by = by.key if isinstance(by, pandas.Grouper) else by
+            if hashable(by) and by in self._columns:
+                internal_by.append(by)
+        return tuple(internal_by)
 
     def __getitem__(self, key):
         """
@@ -1445,7 +1442,7 @@ class SeriesGroupBy(DataFrameGroupBy):
     # Function application
     ###########################################################################
 
-    def apply(self, func, *args, **kwargs):
+    def apply(self, func, *args, include_groups=True, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
         if not callable(func):
             raise NotImplementedError("No support for non-callable `func`")
@@ -1457,6 +1454,7 @@ class SeriesGroupBy(DataFrameGroupBy):
                 groupby_kwargs=self._kwargs,
                 agg_args=args,
                 agg_kwargs=kwargs,
+                include_groups=include_groups,
                 # TODO(https://github.com/modin-project/modin/issues/7096):
                 # upstream the series_groupby param to Modin
                 series_groupby=True,

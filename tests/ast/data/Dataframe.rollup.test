@@ -40,24 +40,35 @@ df9 = df1.rollup([col("num"), "str"])
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 42
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -73,12 +84,12 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -87,7 +98,7 @@ body {
         src {
           end_column: 26
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 27
         }
@@ -105,14 +116,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             string_val {
               src {
                 end_column: 31
                 end_line: 29
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 29
               }
@@ -122,7 +133,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -131,7 +142,7 @@ body {
         src {
           end_column: 31
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
@@ -149,14 +160,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             string_val {
               src {
                 end_column: 33
                 end_line: 31
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 31
               }
@@ -165,7 +176,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -174,7 +185,7 @@ body {
         src {
           end_column: 33
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 31
         }
@@ -192,14 +203,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             string_val {
               src {
                 end_column: 40
                 end_line: 33
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 33
               }
@@ -211,7 +222,7 @@ body {
               src {
                 end_column: 40
                 end_line: 33
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 33
               }
@@ -220,7 +231,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -229,7 +240,7 @@ body {
         src {
           end_column: 40
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 33
         }
@@ -247,15 +258,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "col"
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
@@ -265,7 +278,7 @@ body {
                   src {
                     end_column: 35
                     end_line: 35
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 25
                     start_line: 35
                   }
@@ -275,7 +288,7 @@ body {
               src {
                 end_column: 35
                 end_line: 35
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 25
                 start_line: 35
               }
@@ -284,7 +297,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -293,7 +306,7 @@ body {
         src {
           end_column: 36
           end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 35
         }
@@ -311,15 +324,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "col"
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
@@ -329,7 +344,7 @@ body {
                   src {
                     end_column: 36
                     end_line: 37
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 26
                     start_line: 37
                   }
@@ -339,7 +354,7 @@ body {
               src {
                 end_column: 36
                 end_line: 37
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 26
                 start_line: 37
               }
@@ -347,7 +362,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -356,7 +371,7 @@ body {
         src {
           end_column: 38
           end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 37
         }
@@ -374,15 +389,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "col"
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
@@ -392,7 +409,7 @@ body {
                   src {
                     end_column: 35
                     end_line: 39
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 25
                     start_line: 39
                   }
@@ -402,7 +419,7 @@ body {
               src {
                 end_column: 35
                 end_line: 39
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 25
                 start_line: 39
               }
@@ -413,7 +430,7 @@ body {
               src {
                 end_column: 43
                 end_line: 39
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 39
               }
@@ -423,7 +440,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -432,7 +449,7 @@ body {
         src {
           end_column: 43
           end_line: 39
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 39
         }
@@ -450,15 +467,17 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "col"
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
@@ -468,7 +487,7 @@ body {
                   src {
                     end_column: 36
                     end_line: 41
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 26
                     start_line: 41
                   }
@@ -478,7 +497,7 @@ body {
               src {
                 end_column: 36
                 end_line: 41
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 26
                 start_line: 41
               }
@@ -489,7 +508,7 @@ body {
               src {
                 end_column: 45
                 end_line: 41
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 41
               }
@@ -498,7 +517,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -507,7 +526,7 @@ body {
         src {
           end_column: 45
           end_line: 41
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 41
         }
@@ -535,5 +554,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

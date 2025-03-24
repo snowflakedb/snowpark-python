@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This package contains all Snowpark client-side exceptions."""
@@ -34,6 +34,9 @@ class SnowparkClientException(Exception):
 
     def __str__(self):
         return self._pretty_msg
+
+    def __reduce__(self):
+        return (self.__class__, (self.message,), {"error_code": self.error_code})
 
 
 class _SnowparkInternalException(SnowparkClientException):

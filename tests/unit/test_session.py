@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import json
 import logging
@@ -190,7 +190,7 @@ def test_resolve_package_current_database(has_current_database):
     def mock_get_current_parameter(param: str, quoted: bool = True) -> Optional[str]:
         return "db" if has_current_database else None
 
-    def mock_get_information_schema_packages(table_name: str):
+    def mock_get_information_schema_packages(table_name: str, _emit_ast: bool = True):
         if has_current_database:
             assert table_name == "information_schema.packages"
         else:
@@ -203,8 +203,8 @@ def test_resolve_package_current_database(has_current_database):
         return result
 
     fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
     fake_connection._thread_safe_session_enabled = True
+    fake_connection._conn = mock.Mock()
     fake_connection._get_current_parameter = mock_get_current_parameter
     session = Session(fake_connection)
     session.table = MagicMock(name="session.table")
@@ -218,7 +218,7 @@ def test_resolve_package_current_database(has_current_database):
 def test_resolve_package_terms_not_accepted(mock_server_connection):
     session = Session(mock_server_connection)
 
-    def get_information_schema_packages(table_name: str):
+    def get_information_schema_packages(table_name: str, _emit_ast: bool = True):
         if table_name == "information_schema.packages":
             result = MagicMock()
             result.filter().group_by().agg()._internal_collect_with_tag.return_value = (
@@ -249,7 +249,7 @@ def test_resolve_package_terms_not_accepted(mock_server_connection):
 def test_resolve_packages_side_effect(mock_server_connection):
     """Python stored procedure depends on this behavior to add packages to the session."""
 
-    def mock_get_information_schema_packages(table_name: str):
+    def mock_get_information_schema_packages(table_name: str, _emit_ast: bool = True):
         result = MagicMock()
         result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
             ("random_package_name", json.dumps(["1.0.0"]))

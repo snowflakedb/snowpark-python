@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from unittest import mock
@@ -39,10 +39,15 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 from snowflake.snowpark._internal.compiler.large_query_breakdown import (
     LargeQueryBreakdown,
 )
+from snowflake.snowpark.session import Session
 
+dummy_session = mock.create_autospec(Session)
+dummy_session._join_alias_fix = False
+dummy_analyzer = mock.create_autospec(Analyzer)
+dummy_analyzer.session = dummy_session
 empty_logical_plan = LogicalPlan()
 empty_expression = Expression()
-empty_selectable = SelectSQL("dummy_query", analyzer=mock.create_autospec(Analyzer))
+empty_selectable = SelectSQL("dummy_query", analyzer=dummy_analyzer)
 
 
 @pytest.mark.parametrize(

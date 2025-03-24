@@ -1,12 +1,17 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark._internal.ast.utils import build_expr_from_python_val
+from snowflake.snowpark._internal.ast.utils import (
+    build_expr_from_python_val,
+    build_table_name,
+    build_view_name,
+    build_name,
+)
 from snowflake.snowpark._internal.proto.generated import ast_pb2 as proto
 
 
@@ -45,3 +50,38 @@ def test_build_expr_from_python_val_tuple():
     assert expr.tuple_val.vs[0].int64_val.v == 1
     assert expr.tuple_val.vs[1].int64_val.v == 2
     assert expr.tuple_val.vs[2].int64_val.v == 3
+
+
+def test_build_name():
+    expr = proto.Name()
+    build_name("foo", expr)
+    assert expr.HasField("name_flat")
+    assert expr.name_flat.name == "foo"
+    expr = proto.Name()
+    build_name(["foo", "bar", "baz"], expr)
+    assert expr.HasField("name_structured")
+    assert expr.name_structured.name == ["foo", "bar", "baz"]
+    try:
+        expr = proto.Name()
+        build_name(123, expr)
+        raise AssertionError("Expected the previous call to raise an exception")
+    except ValueError:
+        pass
+
+
+def test_build_table_name_error():
+    try:
+        expr = proto.NameRef()
+        build_table_name(expr, 42)
+        raise AssertionError("Expected the previous call to raise an exception")
+    except ValueError as e:
+        assert "Invalid table name" in str(e)
+
+
+def test_build_view_name_error():
+    try:
+        expr = proto.NameRef()
+        build_view_name(expr, 42)
+        raise AssertionError("Expected the previous call to raise an exception")
+    except ValueError as e:
+        assert "Invalid view name" in str(e)

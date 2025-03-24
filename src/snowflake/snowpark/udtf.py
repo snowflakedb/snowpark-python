@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined table functions (UDTFs) in Snowpark. Please see `Python UDTF <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udtfs>`_ for details.
@@ -106,6 +106,7 @@ class UserDefinedTableFunction:
         self._ast = _ast
         self._ast_id = _ast_id
 
+    @publicapi
     def __call__(
         self,
         *arguments: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -969,6 +970,10 @@ class UDTFRegistration:
             output_schema=output_schema,
         )
 
+        # Structured Struct is interpreted as Object by function registration
+        # Force unstructured to ensure Table return type.
+        output_schema.structured = False
+
         # Capture original parameters.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
@@ -1067,6 +1072,8 @@ class UDTFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
+                artifact_repository=kwargs.get("artifact_repository"),
+                artifact_repository_packages=kwargs.get("artifact_repository_packages"),
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

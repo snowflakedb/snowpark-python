@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -269,7 +270,7 @@ def test_sort_values_invalid_na_position_negative(native_df_simple):
 
 @pytest.mark.parametrize("ascending", [True, False])
 @pytest.mark.parametrize("kind", ["stable", "mergesort"])
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_sort_values_stable(ascending, kind):
     cola_data = [3] * 100 + [2] * 100 + [1] * 100
     colb_data = list(np.arange(100)) * 3

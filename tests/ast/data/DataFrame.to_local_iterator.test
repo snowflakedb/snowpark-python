@@ -23,38 +23,45 @@ df.to_local_iterator()
 
 df.to_local_iterator(block=False)
 
-rows = df.select("*")
-
-rows.to_local_iterator()
+df.select("*").to_local_iterator()
 
 df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
-rows = df.filter(df["num"] > 1)
-
-rows.to_local_iterator(block=False)
+df.filter(df["num"] > 1).to_local_iterator(block=False)
 
 df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 41
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -70,7 +77,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         block: true
         case_sensitive: true
         id {
@@ -79,7 +86,7 @@ body {
         src {
           end_column: 53
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 27
         }
@@ -104,7 +111,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         case_sensitive: true
         id {
           bitfield1: 1
@@ -112,7 +119,7 @@ body {
         src {
           end_column: 64
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 29
         }
@@ -137,21 +144,24 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_sql_expr {
-            sql: "*"
-            src {
-              end_column: 45
-              end_line: 31
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 31
-              start_line: 31
+          args {
+            sql_expr {
+              sql: "*"
+              src {
+                end_column: 45
+                end_line: 31
+                file: 2
+                start_column: 31
+                start_line: 31
+              }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -160,15 +170,13 @@ body {
         src {
           end_column: 45
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
-      value: "rows"
     }
     uid: 6
     var_id {
@@ -179,7 +187,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         block: true
         case_sensitive: true
         id {
@@ -188,7 +196,7 @@ body {
         src {
           end_column: 65
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 31
         }
@@ -213,7 +221,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         block: true
         case_sensitive: true
         id {
@@ -222,7 +230,7 @@ body {
         src {
           end_column: 100
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 33
         }
@@ -251,14 +259,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_filter {
+      dataframe_filter {
         condition {
           gt {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -267,7 +275,7 @@ body {
                 src {
                   end_column: 50
                   end_line: 35
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 41
                   start_line: 35
                 }
@@ -278,7 +286,7 @@ body {
                 src {
                   end_column: 54
                   end_line: 35
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 41
                   start_line: 35
                 }
@@ -288,14 +296,14 @@ body {
             src {
               end_column: 54
               end_line: 35
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 41
               start_line: 35
             }
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -304,14 +312,13 @@ body {
         src {
           end_column: 55
           end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 35
         }
       }
     }
     symbol {
-      value: "rows"
     }
     uid: 11
     var_id {
@@ -322,7 +329,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         case_sensitive: true
         id {
           bitfield1: 11
@@ -330,7 +337,7 @@ body {
         src {
           end_column: 86
           end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 35
         }
@@ -355,7 +362,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_to_local_iterator {
+      dataframe_to_local_iterator {
         block: true
         id {
           bitfield1: 1
@@ -363,7 +370,7 @@ body {
         src {
           end_column: 122
           end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 37
         }
@@ -402,5 +409,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

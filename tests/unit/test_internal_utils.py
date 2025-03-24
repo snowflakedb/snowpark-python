@@ -1,10 +1,16 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import concurrent.futures
+import random
 import pytest
+from snowflake.connector.options import MissingPandas
 
 from snowflake.snowpark._internal import utils
+from snowflake.snowpark._internal.utils import (
+    _pandas_importer,
+    generate_random_alphanumeric,
+)
 
 
 @pytest.mark.parametrize(
@@ -60,8 +66,38 @@ def test_split_path(path: str, expected_dir: str, expected_file: str) -> None:
             False,
             "'snow://domain/test_entity/versions/test_version/file.txt'",
         ),
+        ("/some/file.yml", False, "'/some/file.yml'"),
+        ("'/some/file.yml'", False, "'/some/file.yml'"),
     ],
 )
 def test_normalize_path(path: str, is_local: bool, expected: str) -> None:
     actual = utils.normalize_path(path, is_local)
     assert expected == actual
+
+
+def test__pandas_importer():
+    imported_pandas = _pandas_importer()
+    try:
+        import pandas
+
+        assert imported_pandas == pandas
+    except ImportError:
+        assert isinstance(imported_pandas, MissingPandas)
+
+
+def test_generate_random_alphanumeric():
+    random.seed(42)
+    random_string1 = generate_random_alphanumeric()
+    random.seed(42)
+    random_string2 = generate_random_alphanumeric()
+    assert (
+        isinstance(random_string1, str)
+        and isinstance(random_string2, str)
+        and random_string1 != random_string2
+    )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        # Submit tasks to the pool and get future objects
+        futures = [executor.submit(generate_random_alphanumeric) for _ in range(5)]
+        res = [f.result() for f in futures]
+        assert len(set(res)) == 5  # no duplicate string

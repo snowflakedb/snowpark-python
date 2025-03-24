@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -18,18 +18,13 @@ from tests.integ.modin.series.test_apply_and_map import (
     create_func_with_return_type_hint,
 )
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
+from tests.utils import RUNNING_ON_GH
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
@@ -358,6 +353,7 @@ def test_axis_0_return_list():
     )
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 @pytest.mark.parametrize(
     "apply_func",
     [
@@ -386,6 +382,7 @@ def test_axis_0_multi_index_column_labels(apply_func):
     )
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 @sql_count_checker(
     query_count=21,
     join_count=7,
@@ -508,6 +505,7 @@ def test_axis_0_raw():
     )
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 def test_axis_0_apply_args_kwargs():
     def f(x, y, z=1) -> int:
         return x.sum() + y + z
@@ -661,6 +659,7 @@ def test_apply_nested_series_negative():
 import scipy.stats  # noqa: E402
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [

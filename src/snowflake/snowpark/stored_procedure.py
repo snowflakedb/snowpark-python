@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """Stored procedures in Snowpark. Refer to :class:`~snowflake.snowpark.stored_procedure.StoredProcedure` for details and sample code."""
@@ -872,7 +872,7 @@ class StoredProcedureRegistration:
                 func,
                 return_type=return_type,
                 input_types=input_types,
-                sp_name=sp_name,
+                name=sp_name,
                 stage_location=stage_location,
                 imports=imports,
                 packages=packages,
@@ -986,6 +986,10 @@ class StoredProcedureRegistration:
                     native_app_params=native_app_params,
                     copy_grants=copy_grants,
                     runtime_version=runtime_version_from_requirement,
+                    artifact_repository=kwargs.get("artifact_repository"),
+                    artifact_repository_packages=kwargs.get(
+                        "artifact_repository_packages"
+                    ),
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

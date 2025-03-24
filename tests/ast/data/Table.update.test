@@ -40,24 +40,35 @@ df.update({"b": 5}, condition=(df["num"] == source_df["a"]), source=source_df, s
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 42
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
@@ -73,7 +84,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         block: true
         id {
           bitfield1: 1
@@ -81,7 +92,7 @@ body {
         src {
           end_column: 21
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 27
         }
@@ -106,7 +117,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -114,7 +125,7 @@ body {
               src {
                 end_column: 27
                 end_line: 29
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 29
               }
@@ -128,7 +139,7 @@ body {
         src {
           end_column: 27
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 29
         }
@@ -153,7 +164,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -161,7 +172,7 @@ body {
               src {
                 end_column: 40
                 end_line: 31
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 31
               }
@@ -172,10 +183,10 @@ body {
         assignments {
           _1: "c"
           _2 {
-            sp_dataframe_col {
+            dataframe_col {
               col_name: "num"
               df {
-                sp_dataframe_ref {
+                dataframe_ref {
                   id {
                     bitfield1: 1
                   }
@@ -184,7 +195,7 @@ body {
               src {
                 end_column: 38
                 end_line: 31
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 32
                 start_line: 31
               }
@@ -198,7 +209,7 @@ body {
         src {
           end_column: 40
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 31
         }
@@ -223,7 +234,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -231,7 +242,7 @@ body {
               src {
                 end_column: 43
                 end_line: 33
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 33
               }
@@ -243,10 +254,10 @@ body {
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -255,7 +266,7 @@ body {
                 src {
                   end_column: 37
                   end_line: 33
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 28
                   start_line: 33
                 }
@@ -266,7 +277,7 @@ body {
                 src {
                   end_column: 42
                   end_line: 33
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 28
                   start_line: 33
                 }
@@ -276,7 +287,7 @@ body {
             src {
               end_column: 42
               end_line: 33
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 28
               start_line: 33
             }
@@ -288,7 +299,7 @@ body {
         src {
           end_column: 43
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 33
         }
@@ -313,15 +324,15 @@ body {
 body {
   assign {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
                   end_column: 72
                   end_line: 35
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 20
                   start_line: 35
                 }
@@ -333,7 +344,7 @@ body {
                 src {
                   end_column: 72
                   end_line: 35
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 20
                   start_line: 35
                 }
@@ -345,7 +356,7 @@ body {
                 src {
                   end_column: 72
                   end_line: 35
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 20
                   start_line: 35
                 }
@@ -357,7 +368,7 @@ body {
                 src {
                   end_column: 72
                   end_line: 35
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 20
                   start_line: 35
                 }
@@ -367,14 +378,14 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
         src {
           end_column: 72
           end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 20
           start_line: 35
         }
@@ -392,7 +403,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -400,7 +411,7 @@ body {
               src {
                 end_column: 64
                 end_line: 37
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 37
               }
@@ -412,10 +423,10 @@ body {
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -424,17 +435,17 @@ body {
                 src {
                   end_column: 37
                   end_line: 37
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 28
                   start_line: 37
                 }
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 10
                     }
@@ -443,7 +454,7 @@ body {
                 src {
                   end_column: 52
                   end_line: 37
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 41
                   start_line: 37
                 }
@@ -452,7 +463,7 @@ body {
             src {
               end_column: 52
               end_line: 37
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 28
               start_line: 37
             }
@@ -462,7 +473,7 @@ body {
           bitfield1: 1
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 10
             }
@@ -471,7 +482,7 @@ body {
         src {
           end_column: 64
           end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 37
         }
@@ -496,7 +507,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -504,7 +515,7 @@ body {
               src {
                 end_column: 80
                 end_line: 39
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 39
               }
@@ -515,10 +526,10 @@ body {
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -527,17 +538,17 @@ body {
                 src {
                   end_column: 37
                   end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 28
                   start_line: 39
                 }
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 10
                     }
@@ -546,7 +557,7 @@ body {
                 src {
                   end_column: 55
                   end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 41
                   start_line: 39
                 }
@@ -555,7 +566,7 @@ body {
             src {
               end_column: 55
               end_line: 39
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 28
               start_line: 39
             }
@@ -565,7 +576,7 @@ body {
           bitfield1: 1
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 10
             }
@@ -574,7 +585,7 @@ body {
         src {
           end_column: 80
           end_line: 39
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 39
         }
@@ -599,7 +610,7 @@ body {
 body {
   assign {
     expr {
-      sp_table_update {
+      table_update {
         assignments {
           _1: "b"
           _2 {
@@ -607,7 +618,7 @@ body {
               src {
                 end_column: 129
                 end_line: 41
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 41
               }
@@ -618,10 +629,10 @@ body {
         condition {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 1
                     }
@@ -630,17 +641,17 @@ body {
                 src {
                   end_column: 37
                   end_line: 41
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 28
                   start_line: 41
                 }
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "a"
                 df {
-                  sp_dataframe_ref {
+                  dataframe_ref {
                     id {
                       bitfield1: 10
                     }
@@ -649,7 +660,7 @@ body {
                 src {
                   end_column: 55
                   end_line: 41
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 41
                   start_line: 41
                 }
@@ -658,7 +669,7 @@ body {
             src {
               end_column: 55
               end_line: 41
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 28
               start_line: 41
             }
@@ -668,7 +679,7 @@ body {
           bitfield1: 1
         }
         source {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 10
             }
@@ -677,7 +688,7 @@ body {
         src {
           end_column: 129
           end_line: 41
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 41
         }
@@ -716,5 +727,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

@@ -1,7 +1,6 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 
 import string
 
@@ -114,7 +113,7 @@ def test_fillna_method(test_fillna_series, method):
     ],
     ids=["ends_with_nan", "starts_with_nan"],
 )
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_fillna_method_long_series(method, data):
     native_ser = native_pd.Series(data)
     snow_ser = pd.Series(native_ser)

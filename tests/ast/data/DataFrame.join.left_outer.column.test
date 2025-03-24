@@ -18,24 +18,35 @@ df3 = df3.select("*")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 42
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -51,21 +62,23 @@ body {
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 42
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 27
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -81,7 +94,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_join {
+      dataframe_join {
         join_expr {
           list_val {
             vs {
@@ -89,7 +102,7 @@ body {
                 src {
                   end_column: 51
                   end_line: 29
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 14
                   start_line: 29
                 }
@@ -101,7 +114,7 @@ body {
                 src {
                   end_column: 51
                   end_line: 29
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 14
                   start_line: 29
                 }
@@ -111,17 +124,17 @@ body {
           }
         }
         join_type {
-          sp_join_type__left_outer: true
+          join_type__left_outer: true
         }
         lhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         rhs {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -130,7 +143,7 @@ body {
         src {
           end_column: 51
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
@@ -148,21 +161,24 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_sql_expr {
-            sql: "*"
-            src {
-              end_column: 63
-              end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 29
+          args {
+            sql_expr {
+              sql: "*"
+              src {
+                end_column: 63
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 3
             }
@@ -171,11 +187,10 @@ body {
         src {
           end_column: 63
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
-        variadic: true
       }
     }
     symbol {
@@ -200,5 +215,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

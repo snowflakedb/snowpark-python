@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import re
@@ -11,41 +11,19 @@ import pytest
 from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.utils import (
-    assert_snowpark_pandas_equal_to_pandas,
-    eval_snowpark_pandas_result,
-)
+from tests.integ.modin.utils import eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("by", ["a", ["b"], ["a", "b"]])
-@sql_count_checker(query_count=2)
-def test_groupby_sort_multiindex_series(series_multi_numeric, agg_method, by):
-    native_mseries_group = series_multi_numeric.to_pandas().groupby(by=by, sort=True)
-    mseries_group = series_multi_numeric.groupby(by=by, sort=True)
+@pytest.mark.parametrize("sort", [True, False])
+@sql_count_checker(query_count=1)
+def test_groupby_sort_multiindex_series(
+    native_series_multi_numeric, agg_method, by, sort
+):
+    native_mseries_group = native_series_multi_numeric.groupby(by=by, sort=sort)
+    mseries_group = pd.Series(native_series_multi_numeric).groupby(by=by, sort=sort)
     eval_snowpark_pandas_result(mseries_group, native_mseries_group, agg_method)
-
-
-@sql_count_checker(query_count=3)
-def test_groupby_sort_false_multiindex_series(series_multi_numeric):
-    # it is known that groupby sort=False is buggy with multiIndex, it is always
-    # sorting when only part of the level is used.
-    # https://github.com/pandas-dev/pandas/issues/17537
-    # The bug is fixed in 2.0.0, our behavior aligns with the fixed behavior.
-    # Once updated to 2.0.0.
-    # test_groupby_sort_false_multiindex_series is added to test the correct sort=False
-    # behavior, once updated to 2.0.0, we can merge this with test_groupby_sort_multiindex_series
-    # TODO (SNOW-890686): merge test_groupby_sort_false_multiindex_series and test_groupby_sort_multiindex_series
-    #       once Snowpark pandas is updated to align with pandas 2.0.x
-    result = series_multi_numeric.groupby("b", sort=False).max()
-    expected = native_pd.Series([1, 5], index=native_pd.Index([2, 1], name="b"))
-    assert_snowpark_pandas_equal_to_pandas(result, expected, check_dtype=False)
-
-    eval_snowpark_pandas_result(
-        series_multi_numeric,
-        series_multi_numeric.to_pandas(),
-        lambda df: df.groupby(["a", "b"]).max(),
-    )
 
 
 @sql_count_checker(query_count=2)
@@ -172,12 +150,12 @@ def test_groupby_series_numeric_only(series_str, numeric_only):
 
 
 @pytest.mark.parametrize("level", [0, 1, [1, 0], "b", [1, 1], [0, "b"], [-1]])
-@sql_count_checker(query_count=2)
-def test_groupby_sort_multiindex_series_level(series_multi_numeric, level):
-    native_series = series_multi_numeric.to_pandas()
-
+@sql_count_checker(query_count=1)
+def test_groupby_sort_multiindex_series_level(native_series_multi_numeric, level):
     eval_snowpark_pandas_result(
-        series_multi_numeric, native_series, lambda ser: ser.groupby(level=level).sum()
+        pd.Series(native_series_multi_numeric),
+        native_series_multi_numeric,
+        lambda ser: ser.groupby(level=level).sum(),
     )
 
 

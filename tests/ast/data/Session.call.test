@@ -17,14 +17,23 @@ my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(
 
 df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
 
-my_sproc_sp(1, "two", {"param1": 10, "param2": "twenty"}, True)
+df
 
 df2 = session.call("my_sproc", 2, "one", {}, False)
 
-my_sproc_sp(2, "one", {}, False)
+df2
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -36,50 +45,52 @@ body {
         func {
           name: "my_sproc"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\""
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\""
+              }
             }
           }
         }
         input_types {
-          list {
-            sp_long_type: true
-          }
-          list {
-            sp_string_type {
-              length {
-              }
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
             }
-          }
-          list {
-            sp_map_type {
-              key_ty {
-                sp_string_type {
-                  length {
-                  }
-                }
-              }
-              value_ty {
-                sp_string_type {
-                  length {
-                  }
-                }
-              }
-            }
-          }
-          list {
-            sp_boolean_type: true
           }
         }
+        input_types {
+          map_type {
+            key_ty {
+              string_type {
+                length {
+                }
+              }
+            }
+            value_ty {
+              string_type {
+                length {
+                }
+              }
+            }
+          }
+        }
+        input_types {
+          boolean_type: true
+        }
         name {
-          fn_name_flat {
-            name: "my_sproc"
+          name {
+            name_flat {
+              name: "my_sproc"
+            }
           }
         }
         parallel: 4
         replace: true
         return_type {
-          sp_string_type {
+          string_type {
             length {
             }
           }
@@ -88,7 +99,7 @@ body {
         src {
           end_column: 124
           end_line: 30
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 22
           start_line: 30
         }
@@ -112,8 +123,10 @@ body {
             log_on_exception {
             }
             name {
-              fn_name_flat {
-                name: "my_sproc"
+              name {
+                name_flat {
+                  name: "my_sproc"
+                }
               }
             }
           }
@@ -123,7 +136,7 @@ body {
             src {
               end_column: 89
               end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 13
               start_line: 32
             }
@@ -135,7 +148,7 @@ body {
             src {
               end_column: 89
               end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 13
               start_line: 32
             }
@@ -150,7 +163,7 @@ body {
                   src {
                     end_column: 89
                     end_line: 32
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 13
                     start_line: 32
                   }
@@ -162,7 +175,7 @@ body {
                   src {
                     end_column: 89
                     end_line: 32
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 13
                     start_line: 32
                   }
@@ -176,7 +189,7 @@ body {
                   src {
                     end_column: 89
                     end_line: 32
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 13
                     start_line: 32
                   }
@@ -188,7 +201,7 @@ body {
                   src {
                     end_column: 89
                     end_line: 32
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 13
                     start_line: 32
                   }
@@ -199,7 +212,7 @@ body {
             src {
               end_column: 89
               end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 13
               start_line: 32
             }
@@ -210,7 +223,7 @@ body {
             src {
               end_column: 89
               end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 13
               start_line: 32
             }
@@ -220,7 +233,7 @@ body {
         src {
           end_column: 89
           end_line: 32
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 32
         }
@@ -236,137 +249,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          sp_fn_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        pos_args {
-          int64_val {
-            src {
-              end_column: 89
-              end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 13
-              start_line: 32
-            }
-            v: 1
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              end_column: 89
-              end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 13
-              start_line: 32
-            }
-            v: "two"
-          }
-        }
-        pos_args {
-          seq_map_val {
-            kvs {
-              vs {
-                string_val {
-                  src {
-                    end_column: 89
-                    end_line: 32
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_column: 13
-                    start_line: 32
-                  }
-                  v: "param1"
-                }
-              }
-              vs {
-                int64_val {
-                  src {
-                    end_column: 89
-                    end_line: 32
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_column: 13
-                    start_line: 32
-                  }
-                  v: 10
-                }
-              }
-            }
-            kvs {
-              vs {
-                string_val {
-                  src {
-                    end_column: 89
-                    end_line: 32
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_column: 13
-                    start_line: 32
-                  }
-                  v: "param2"
-                }
-              }
-              vs {
-                string_val {
-                  src {
-                    end_column: 89
-                    end_line: 32
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_column: 13
-                    start_line: 32
-                  }
-                  v: "twenty"
-                }
-              }
-            }
-            src {
-              end_column: 89
-              end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 13
-              start_line: 32
-            }
-          }
-        }
-        pos_args {
-          bool_val {
-            src {
-              end_column: 89
-              end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 13
-              start_line: 32
-            }
-            v: true
-          }
-        }
-        src {
-          end_column: 89
-          end_line: 32
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
-          start_line: 32
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 3
     var_id {
-      bitfield1: 3
-    }
-  }
-}
-body {
-  eval {
-    uid: 4
-    var_id {
-      bitfield1: 3
+      bitfield1: 2
     }
   }
 }
@@ -379,8 +265,10 @@ body {
             log_on_exception {
             }
             name {
-              fn_name_flat {
-                name: "my_sproc"
+              name {
+                name_flat {
+                  name: "my_sproc"
+                }
               }
             }
           }
@@ -390,7 +278,7 @@ body {
             src {
               end_column: 63
               end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 34
             }
@@ -402,7 +290,7 @@ body {
             src {
               end_column: 63
               end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 34
             }
@@ -414,7 +302,7 @@ body {
             src {
               end_column: 63
               end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 34
             }
@@ -425,7 +313,7 @@ body {
             src {
               end_column: 63
               end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 34
             }
@@ -434,7 +322,7 @@ body {
         src {
           end_column: 63
           end_line: 34
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 34
         }
@@ -443,91 +331,17 @@ body {
     symbol {
       value: "df2"
     }
-    uid: 5
+    uid: 4
     var_id {
-      bitfield1: 5
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          sp_fn_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        pos_args {
-          int64_val {
-            src {
-              end_column: 63
-              end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 34
-            }
-            v: 2
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              end_column: 63
-              end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 34
-            }
-            v: "one"
-          }
-        }
-        pos_args {
-          seq_map_val {
-            src {
-              end_column: 63
-              end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 34
-            }
-          }
-        }
-        pos_args {
-          bool_val {
-            src {
-              end_column: 63
-              end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 34
-            }
-          }
-        }
-        src {
-          end_column: 63
-          end_line: 34
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 34
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 6
-    var_id {
-      bitfield1: 6
+      bitfield1: 4
     }
   }
 }
 body {
   eval {
-    uid: 7
+    uid: 5
     var_id {
-      bitfield1: 6
+      bitfield1: 4
     }
   }
 }
@@ -544,5 +358,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

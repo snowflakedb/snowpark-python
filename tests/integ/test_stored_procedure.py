@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
-import decimal
+import pkg_resources
 import logging
 import os
 import re
+import sys
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
@@ -45,34 +46,20 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
-    ArrayType,
     DateType,
     DoubleType,
-    Geography,
-    Geometry,
     IntegerType,
-    LongType,
-    MapType,
     StringType,
     StructField,
     StructType,
-    Variant,
-    VectorType,
 )
 
-# flake8: noqa
-from tests.integ.scala.test_datatype_suite import (
-    structured_type_session,
-    structured_type_support,
-)
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
     TempObjectType,
     TestFiles,
     Utils,
-    structured_types_enabled_session,
-    structured_types_supported,
 )
 
 pytestmark = [
@@ -359,68 +346,6 @@ def test_call_named_stored_procedure(
         finally:
             new_session.close()
             # restore active session
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Structured types are not supported in Local Testing",
-)
-def test_stored_procedure_with_structured_returns(
-    structured_type_session, structured_type_support
-):
-    if not structured_type_support:
-        pytest.skip("Structured types not enabled in this account.")
-    expected_dtypes = [
-        ("VEC", "vector<int,5>"),
-        ("MAP", "map<string(16777216),bigint>"),
-        ("OBJ", "struct<string(16777216),double>"),
-        ("ARR", "array<double>"),
-    ]
-    expected_schema = StructType(
-        [
-            StructField("VEC", VectorType(int, 5), nullable=True),
-            StructField(
-                "MAP",
-                MapType(StringType(16777216), LongType(), structured=True),
-                nullable=True,
-            ),
-            StructField(
-                "OBJ",
-                StructType(
-                    [
-                        StructField("a", StringType(16777216), nullable=True),
-                        StructField("b", DoubleType(), nullable=True),
-                    ],
-                    structured=True,
-                ),
-                nullable=True,
-            ),
-            StructField("ARR", ArrayType(DoubleType(), structured=True), nullable=True),
-        ]
-    )
-
-    sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
-
-    def test_sproc(_session: Session) -> DataFrame:
-        return _session.sql(
-            """
-        select
-          [1,2,3,4,5] :: vector(int, 5) as vec,
-          object_construct('k1', 1) :: map(varchar, int) as map,
-          object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float) as obj,
-          [1.0, 3.1, 4.5] :: array(float) as arr
-         ;
-        """
-        )
-
-    structured_type_session.sproc.register(
-        test_sproc,
-        name=sproc_name,
-        replace=True,
-    )
-    df = structured_type_session.call(sproc_name)
-    assert df.schema == expected_schema
-    assert df.dtypes == expected_dtypes
 
 
 @pytest.mark.skipif(
@@ -906,6 +831,9 @@ def return_datetime(_: Session) -> datetime.datetime:
 )
 @pytest.mark.parametrize("register_from_file", [True, False])
 def test_register_sp_with_optional_args(session: Session, tmpdir, register_from_file):
+    import decimal  # noqa: F401
+    from snowflake.snowpark.types import Variant, Geometry, Geography  # noqa: F401
+
     import_body = """
 import datetime
 import decimal
@@ -1979,7 +1907,7 @@ def test_register_sproc_after_switch_schema(session):
 
     databases = []
     try:
-        for i in range(2):
+        for _ in range(2):
             new_database = f"db_{Utils.random_alphanumeric_str(10)}"
             databases.append(new_database)
             new_schema = f"{new_database}.test"
@@ -2001,3 +1929,131 @@ def test_register_sproc_after_switch_schema(session):
             Utils.drop_database(session, db)
         session.use_database(current_database)
         session.use_schema(current_schema)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_sproc_artifact_repository(session):
+    def artifact_repo_test(_):
+        import urllib3
+
+        return str(urllib3.exceptions.HTTPError("test"))
+
+    artifact_repo_sproc = sproc(
+        artifact_repo_test,
+        session=session,
+        return_type=StringType(),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+    assert artifact_repo_sproc(session=session) == "test"
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="packages unavailable in stored proc",
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Packaging processing is a NOOP in Local Testing",
+    run=False,
+)
+@pytest.mark.parametrize(
+    "version_override, expect_warning",
+    [
+        ("1.27.1", False),  # Bugfix version - no warning
+        ("999.999.999", True),  # Major version change - expect warning
+    ],
+)
+def test_snowpark_python_bugfix_version_warning(
+    session, caplog, version_override, expect_warning
+):
+    def mock_get_distribution(version_override):
+        """Returns a function that mocks pkg_resources.get_distribution."""
+        original_get_distribution = (
+            pkg_resources.get_distribution
+        )  # Store original function
+
+        def _mock(package_name):
+            if package_name == "snowflake-snowpark-python":
+
+                class FakeDistribution:
+                    version = version_override  # Override only this package
+
+                return FakeDistribution()
+            return original_get_distribution(package_name)
+
+        return _mock
+
+    def run_test_case(caplog, version_override, expect_warning):
+        """Runs a test case with a given package version override and expected warning presence."""
+
+        def plus1(session_, x):
+            return x + 1
+
+        with patch(
+            "pkg_resources.get_distribution",
+            side_effect=mock_get_distribution(version_override),
+        ), caplog.at_level(logging.WARNING):
+            plus1_sp = sproc(
+                plus1,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+                packages=["snowflake-snowpark-python==1.27.0"],
+            )
+            assert plus1_sp(lit(6)) == 7
+
+        assert (
+            "The version of package 'snowflake-snowpark-python' in the local"
+            in caplog.text
+        ) == expect_warning
+        caplog.clear()
+
+    run_test_case(caplog, version_override, expect_warning)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="data source is not supported in local testing",
+    run=False,
+)
+def test_datasource_put_file_and_copy_into_in_sproc(session):
+    # The tests session.file.put API as well as the COPY INTO sql executed inside stored proc
+    def upload_and_copy_into(session_):
+        from snowflake.snowpark._internal.utils import (
+            random_name_for_temp_object,
+            TempObjectType,
+        )
+
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+        session_.sql(f"CREATE TEMPORARY TABLE {table_name} (col INT)").collect()
+        session_.sql(f"CREATE TEMPORARY STAGE {stage_name}").collect()
+
+        file_name = "data.csv"
+        csv_filename = f"/tmp/{file_name}"
+        with open(csv_filename, "w") as file:
+            file.write("42\n")  # Sample data
+
+        session_.file.put(
+            csv_filename,
+            f"@{stage_name}",
+            overwrite=True,
+        )
+        session_.sql(
+            f"COPY INTO {table_name} FROM @{stage_name}/{file_name} FILE_FORMAT = (TYPE = CSV)"
+        ).collect()
+        if session_.table(table_name).collect() == [(42,)]:
+            return "success"
+        else:
+            return "failure"
+
+    # sproc execution
+    ingestion = sproc(upload_and_copy_into, return_type=StringType())
+    assert ingestion() == "success"

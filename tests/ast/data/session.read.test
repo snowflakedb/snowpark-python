@@ -20,6 +20,8 @@ user_schema = StructType([StructField("a", IntegerType()), StructField("b", Stri
 
 df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(user_schema).csv("@testCSVheader.csv")
 
+df10 = session.read.table(tables.table1)
+
 ## EXPECTED UNPARSER OUTPUT
 
 df1 = session.read.csv("@resources/iris.csv")
@@ -38,21 +40,32 @@ df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv
 
 df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("@testCSVheader.csv")
 
-df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True), StructField("c", FloatType(), nullable=True)], structured=False)).csv("@testCSVheader.csv")
+df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(StructType(fields=[StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True), StructField("c", FloatType(), nullable=True)], structured=False)).csv("@testCSVheader.csv")
+
+df10 = session.read.table("table1")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_read_csv {
+      read_csv {
         path: "@resources/iris.csv"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 25
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 25
             }
@@ -61,7 +74,7 @@ body {
         src {
           end_column: 53
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 25
         }
@@ -79,14 +92,14 @@ body {
 body {
   assign {
     expr {
-      sp_read_json {
+      read_json {
         path: "@resources/testJson.json"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 27
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 27
             }
@@ -95,7 +108,7 @@ body {
         src {
           end_column: 59
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 27
         }
@@ -113,14 +126,14 @@ body {
 body {
   assign {
     expr {
-      sp_read_avro {
+      read_avro {
         path: "@resources/test.avro"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 29
             }
@@ -129,7 +142,7 @@ body {
         src {
           end_column: 55
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
@@ -147,14 +160,14 @@ body {
 body {
   assign {
     expr {
-      sp_read_parquet {
+      read_parquet {
         path: "@resources/test.parquet"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 31
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 31
             }
@@ -163,7 +176,7 @@ body {
         src {
           end_column: 61
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 31
         }
@@ -181,14 +194,14 @@ body {
 body {
   assign {
     expr {
-      sp_read_xml {
+      read_xml {
         path: "@resources/test.xml"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 33
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 33
             }
@@ -197,7 +210,7 @@ body {
         src {
           end_column: 53
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 33
         }
@@ -215,14 +228,14 @@ body {
 body {
   assign {
     expr {
-      sp_read_orc {
+      read_orc {
         path: "@resources/test.orc"
         reader {
-          sp_dataframe_reader_init {
+          dataframe_reader_init {
             src {
               end_column: 26
               end_line: 35
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 35
             }
@@ -231,7 +244,7 @@ body {
         src {
           end_column: 53
           end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 35
         }
@@ -249,20 +262,20 @@ body {
 body {
   assign {
     expr {
-      sp_read_csv {
+      read_csv {
         path: "@testCSVheader.csv"
         reader {
-          sp_dataframe_reader_option {
+          dataframe_reader_option {
             key: "PARSE_HEADER"
             reader {
-              sp_dataframe_reader_option {
+              dataframe_reader_option {
                 key: "INFER_SCHEMA"
                 reader {
-                  sp_dataframe_reader_init {
+                  dataframe_reader_init {
                     src {
                       end_column: 26
                       end_line: 37
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 14
                       start_line: 37
                     }
@@ -271,7 +284,7 @@ body {
                 src {
                   end_column: 55
                   end_line: 37
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 14
                   start_line: 37
                 }
@@ -280,7 +293,7 @@ body {
                     src {
                       end_column: 55
                       end_line: 37
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 14
                       start_line: 37
                     }
@@ -292,7 +305,7 @@ body {
             src {
               end_column: 84
               end_line: 37
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 37
             }
@@ -301,7 +314,7 @@ body {
                 src {
                   end_column: 84
                   end_line: 37
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 14
                   start_line: 37
                 }
@@ -313,7 +326,7 @@ body {
         src {
           end_column: 110
           end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 37
         }
@@ -331,10 +344,10 @@ body {
 body {
   assign {
     expr {
-      sp_read_csv {
+      read_csv {
         path: "@testCSVheader.csv"
         reader {
-          sp_dataframe_reader_options {
+          dataframe_reader_options {
             configs {
               _1: "INFER_SCHEMA"
               _2 {
@@ -342,7 +355,7 @@ body {
                   src {
                     end_column: 80
                     end_line: 39
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 14
                     start_line: 39
                   }
@@ -357,7 +370,7 @@ body {
                   src {
                     end_column: 80
                     end_line: 39
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 14
                     start_line: 39
                   }
@@ -366,11 +379,11 @@ body {
               }
             }
             reader {
-              sp_dataframe_reader_init {
+              dataframe_reader_init {
                 src {
                   end_column: 26
                   end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 14
                   start_line: 39
                 }
@@ -379,7 +392,7 @@ body {
             src {
               end_column: 80
               end_line: 39
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 39
             }
@@ -388,7 +401,7 @@ body {
         src {
           end_column: 106
           end_line: 39
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 39
         }
@@ -406,20 +419,22 @@ body {
 body {
   assign {
     expr {
-      sp_read_csv {
+      read_csv {
         path: "@testCSVheader.csv"
         reader {
-          sp_dataframe_reader_schema {
+          dataframe_reader_schema {
             reader {
-              sp_dataframe_reader_with_metadata {
+              dataframe_reader_with_metadata {
                 metadata_columns {
                   args {
                     apply_expr {
                       fn {
                         builtin_fn {
                           name {
-                            fn_name_flat {
-                              name: "col"
+                            name {
+                              name_flat {
+                                name: "col"
+                              }
                             }
                           }
                         }
@@ -429,7 +444,7 @@ body {
                           src {
                             end_column: 72
                             end_line: 43
-                            file: "SRC_POSITION_TEST_MODE"
+                            file: 2
                             start_column: 41
                             start_line: 43
                           }
@@ -439,7 +454,7 @@ body {
                       src {
                         end_column: 72
                         end_line: 43
-                        file: "SRC_POSITION_TEST_MODE"
+                        file: 2
                         start_column: 41
                         start_line: 43
                       }
@@ -450,7 +465,7 @@ body {
                       src {
                         end_column: 104
                         end_line: 43
-                        file: "SRC_POSITION_TEST_MODE"
+                        file: 2
                         start_column: 14
                         start_line: 43
                       }
@@ -460,11 +475,11 @@ body {
                   variadic: true
                 }
                 reader {
-                  sp_dataframe_reader_init {
+                  dataframe_reader_init {
                     src {
                       end_column: 26
                       end_line: 43
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 14
                       start_line: 43
                     }
@@ -473,7 +488,7 @@ body {
                 src {
                   end_column: 104
                   end_line: 43
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 14
                   start_line: 43
                 }
@@ -482,19 +497,23 @@ body {
             schema {
               fields {
                 column_identifier {
-                  name: "a"
+                  column_name {
+                    name: "a"
+                  }
                 }
                 data_type {
-                  sp_integer_type: true
+                  integer_type: true
                 }
                 nullable: true
               }
               fields {
                 column_identifier {
-                  name: "b"
+                  column_name {
+                    name: "b"
+                  }
                 }
                 data_type {
-                  sp_string_type {
+                  string_type {
                     length {
                     }
                   }
@@ -503,10 +522,12 @@ body {
               }
               fields {
                 column_identifier {
-                  name: "c"
+                  column_name {
+                    name: "c"
+                  }
                 }
                 data_type {
-                  sp_float_type: true
+                  float_type: true
                 }
                 nullable: true
               }
@@ -514,7 +535,7 @@ body {
             src {
               end_column: 124
               end_line: 43
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 43
             }
@@ -523,7 +544,7 @@ body {
         src {
           end_column: 150
           end_line: 43
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 43
         }
@@ -535,6 +556,46 @@ body {
     uid: 9
     var_id {
       bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader_init {
+            src {
+              end_column: 27
+              end_line: 45
+              file: 2
+              start_column: 15
+              start_line: 45
+            }
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 45
+          file: 2
+          start_column: 15
+          start_line: 45
+        }
+      }
+    }
+    symbol {
+      value: "df10"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
     }
   }
 }
@@ -551,5 +612,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

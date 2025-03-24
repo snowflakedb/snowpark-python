@@ -36,13 +36,13 @@ rgdf2 = df1.group_by("str")
 
 df3 = rgdf2.agg()
 
-df4 = rgdf2.agg(sum(col("num")))
+df4 = rgdf2.agg(sum("num"))
 
-df5 = rgdf2.agg([max(col("num"))])
+df5 = rgdf2.agg([max("num")])
 
-df6 = rgdf2.agg(sum(col("num")), max(col("num")))
+df6 = rgdf2.agg(sum("num"), max("num"))
 
-df7 = rgdf2.agg([sum(col("num")), max(col("num"))])
+df7 = rgdf2.agg([sum("num"), max("num")])
 
 df8 = rgdf2.agg(["num", "max"])
 
@@ -50,7 +50,7 @@ df9 = rgdf2.agg([col("num"), "max"])
 
 df10 = rgdf2.agg([("num", "max"), [col("num"), "sum"]])
 
-df11 = rgdf2.agg(sum(col("num")), ("num", "max"), max(col("num")), [col("num"), "sum"])
+df11 = rgdf2.agg(sum("num"), ("num", "max"), max("num"), [col("num"), "sum"])
 
 df12 = rgdf2.agg({})
 
@@ -60,24 +60,35 @@ df14 = rgdf2.agg({"num": "max", "str": "sum"})
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 42
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -93,14 +104,14 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_group_by {
+      dataframe_group_by {
         cols {
           args {
             string_val {
               src {
                 end_column: 35
                 end_line: 27
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 16
                 start_line: 27
               }
@@ -110,7 +121,7 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -119,7 +130,7 @@ body {
         src {
           end_column: 35
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 16
           start_line: 27
         }
@@ -137,12 +148,12 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -151,7 +162,7 @@ body {
         src {
           end_column: 25
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
@@ -169,55 +180,37 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "sum"
+                    name {
+                      name_flat {
+                        name: "sum"
+                      }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 31
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 24
-                        start_line: 31
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 31
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 24
                     start_line: 31
                   }
+                  v: "num"
                 }
               }
               src {
                 end_column: 34
                 end_line: 31
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 24
                 start_line: 31
               }
@@ -226,7 +219,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -235,7 +228,7 @@ body {
         src {
           end_column: 35
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 31
         }
@@ -253,55 +246,37 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "max"
+                    name {
+                      name_flat {
+                        name: "max"
+                      }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 33
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 25
-                        start_line: 33
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 33
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 25
                     start_line: 33
                   }
+                  v: "num"
                 }
               }
               src {
                 end_column: 35
                 end_line: 33
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 25
                 start_line: 33
               }
@@ -309,7 +284,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -318,7 +293,7 @@ body {
         src {
           end_column: 37
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 33
         }
@@ -336,55 +311,37 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "sum"
+                    name {
+                      name_flat {
+                        name: "sum"
+                      }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 34
-                        end_line: 35
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 24
-                        start_line: 35
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 34
                     end_line: 35
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 24
                     start_line: 35
                   }
+                  v: "num"
                 }
               }
               src {
                 end_column: 34
                 end_line: 35
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 24
                 start_line: 35
               }
@@ -395,48 +352,30 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "max"
+                    name {
+                      name_flat {
+                        name: "max"
+                      }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 46
-                        end_line: 35
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 36
-                        start_line: 35
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 46
                     end_line: 35
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 36
                     start_line: 35
                   }
+                  v: "num"
                 }
               }
               src {
                 end_column: 46
                 end_line: 35
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 36
                 start_line: 35
               }
@@ -445,7 +384,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -454,7 +393,7 @@ body {
         src {
           end_column: 47
           end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 35
         }
@@ -472,55 +411,37 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "sum"
+                    name {
+                      name_flat {
+                        name: "sum"
+                      }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 37
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 25
-                        start_line: 37
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 37
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 25
                     start_line: 37
                   }
+                  v: "num"
                 }
               }
               src {
                 end_column: 35
                 end_line: 37
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 25
                 start_line: 37
               }
@@ -531,48 +452,30 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "max"
+                    name {
+                      name_flat {
+                        name: "max"
+                      }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 47
-                        end_line: 37
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 37
-                        start_line: 37
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 47
                     end_line: 37
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 37
                     start_line: 37
                   }
+                  v: "num"
                 }
               }
               src {
                 end_column: 47
                 end_line: 37
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 37
                 start_line: 37
               }
@@ -580,7 +483,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -589,7 +492,7 @@ body {
         src {
           end_column: 49
           end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 37
         }
@@ -607,14 +510,14 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             list_val {
               src {
                 end_column: 37
                 end_line: 39
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 39
               }
@@ -623,7 +526,7 @@ body {
                   src {
                     end_column: 37
                     end_line: 39
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 14
                     start_line: 39
                   }
@@ -635,7 +538,7 @@ body {
                   src {
                     end_column: 37
                     end_line: 39
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 14
                     start_line: 39
                   }
@@ -647,7 +550,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -656,7 +559,7 @@ body {
         src {
           end_column: 37
           end_line: 39
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 39
         }
@@ -674,14 +577,14 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             list_val {
               src {
                 end_column: 42
                 end_line: 41
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 41
               }
@@ -690,8 +593,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        fn_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
@@ -701,7 +606,7 @@ body {
                       src {
                         end_column: 34
                         end_line: 41
-                        file: "SRC_POSITION_TEST_MODE"
+                        file: 2
                         start_column: 24
                         start_line: 41
                       }
@@ -711,7 +616,7 @@ body {
                   src {
                     end_column: 34
                     end_line: 41
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 24
                     start_line: 41
                   }
@@ -722,7 +627,7 @@ body {
                   src {
                     end_column: 42
                     end_line: 41
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 14
                     start_line: 41
                   }
@@ -734,7 +639,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -743,7 +648,7 @@ body {
         src {
           end_column: 42
           end_line: 41
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 41
         }
@@ -761,14 +666,14 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             tuple_val {
               src {
                 end_column: 63
                 end_line: 43
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 15
                 start_line: 43
               }
@@ -777,7 +682,7 @@ body {
                   src {
                     end_column: 63
                     end_line: 43
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 15
                     start_line: 43
                   }
@@ -789,7 +694,7 @@ body {
                   src {
                     end_column: 63
                     end_line: 43
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 15
                     start_line: 43
                   }
@@ -803,7 +708,7 @@ body {
               src {
                 end_column: 63
                 end_line: 43
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 15
                 start_line: 43
               }
@@ -812,8 +717,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        fn_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
@@ -823,7 +730,7 @@ body {
                       src {
                         end_column: 53
                         end_line: 43
-                        file: "SRC_POSITION_TEST_MODE"
+                        file: 2
                         start_column: 43
                         start_line: 43
                       }
@@ -833,7 +740,7 @@ body {
                   src {
                     end_column: 53
                     end_line: 43
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 43
                     start_line: 43
                   }
@@ -844,7 +751,7 @@ body {
                   src {
                     end_column: 63
                     end_line: 43
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 15
                     start_line: 43
                   }
@@ -855,7 +762,7 @@ body {
           }
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -864,7 +771,7 @@ body {
         src {
           end_column: 63
           end_line: 43
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 15
           start_line: 43
         }
@@ -882,55 +789,37 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             apply_expr {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "sum"
+                    name {
+                      name_flat {
+                        name: "sum"
+                      }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 35
-                        end_line: 45
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 25
-                        start_line: 45
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 35
                     end_line: 45
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 25
                     start_line: 45
                   }
+                  v: "num"
                 }
               }
               src {
                 end_column: 35
                 end_line: 45
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 25
                 start_line: 45
               }
@@ -941,7 +830,7 @@ body {
               src {
                 end_column: 85
                 end_line: 45
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 15
                 start_line: 45
               }
@@ -950,7 +839,7 @@ body {
                   src {
                     end_column: 85
                     end_line: 45
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 15
                     start_line: 45
                   }
@@ -962,7 +851,7 @@ body {
                   src {
                     end_column: 85
                     end_line: 45
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 15
                     start_line: 45
                   }
@@ -976,48 +865,30 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "max"
+                    name {
+                      name_flat {
+                        name: "max"
+                      }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 63
-                        end_line: 45
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 53
-                        start_line: 45
-                      }
-                      v: "num"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 63
                     end_line: 45
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 53
                     start_line: 45
                   }
+                  v: "num"
                 }
               }
               src {
                 end_column: 63
                 end_line: 45
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 53
                 start_line: 45
               }
@@ -1028,7 +899,7 @@ body {
               src {
                 end_column: 85
                 end_line: 45
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 15
                 start_line: 45
               }
@@ -1037,8 +908,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        fn_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
@@ -1048,7 +921,7 @@ body {
                       src {
                         end_column: 76
                         end_line: 45
-                        file: "SRC_POSITION_TEST_MODE"
+                        file: 2
                         start_column: 66
                         start_line: 45
                       }
@@ -1058,7 +931,7 @@ body {
                   src {
                     end_column: 76
                     end_line: 45
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 66
                     start_line: 45
                   }
@@ -1069,7 +942,7 @@ body {
                   src {
                     end_column: 85
                     end_line: 45
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 15
                     start_line: 45
                   }
@@ -1081,7 +954,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1090,7 +963,7 @@ body {
         src {
           end_column: 85
           end_line: 45
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 15
           start_line: 45
         }
@@ -1108,14 +981,14 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
               src {
                 end_column: 28
                 end_line: 47
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 15
                 start_line: 47
               }
@@ -1124,7 +997,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1133,7 +1006,7 @@ body {
         src {
           end_column: 28
           end_line: 47
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 15
           start_line: 47
         }
@@ -1151,7 +1024,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
@@ -1161,7 +1034,7 @@ body {
                     src {
                       end_column: 40
                       end_line: 49
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 15
                       start_line: 49
                     }
@@ -1173,7 +1046,7 @@ body {
                     src {
                       end_column: 40
                       end_line: 49
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 15
                       start_line: 49
                     }
@@ -1184,7 +1057,7 @@ body {
               src {
                 end_column: 40
                 end_line: 49
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 15
                 start_line: 49
               }
@@ -1193,7 +1066,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1202,7 +1075,7 @@ body {
         src {
           end_column: 40
           end_line: 49
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 15
           start_line: 49
         }
@@ -1220,7 +1093,7 @@ body {
 body {
   assign {
     expr {
-      sp_relational_grouped_dataframe_agg {
+      relational_grouped_dataframe_agg {
         exprs {
           args {
             seq_map_val {
@@ -1230,7 +1103,7 @@ body {
                     src {
                       end_column: 54
                       end_line: 51
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 15
                       start_line: 51
                     }
@@ -1242,7 +1115,7 @@ body {
                     src {
                       end_column: 54
                       end_line: 51
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 15
                       start_line: 51
                     }
@@ -1256,7 +1129,7 @@ body {
                     src {
                       end_column: 54
                       end_line: 51
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 15
                       start_line: 51
                     }
@@ -1268,7 +1141,7 @@ body {
                     src {
                       end_column: 54
                       end_line: 51
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 15
                       start_line: 51
                     }
@@ -1279,7 +1152,7 @@ body {
               src {
                 end_column: 54
                 end_line: 51
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 15
                 start_line: 51
               }
@@ -1288,7 +1161,7 @@ body {
           variadic: true
         }
         grouped_df {
-          sp_relational_grouped_dataframe_ref {
+          relational_grouped_dataframe_ref {
             id {
               bitfield1: 2
             }
@@ -1297,7 +1170,7 @@ body {
         src {
           end_column: 54
           end_line: 51
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 15
           start_line: 51
         }
@@ -1325,5 +1198,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

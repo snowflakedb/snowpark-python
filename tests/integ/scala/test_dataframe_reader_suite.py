@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -52,6 +52,7 @@ test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_header = "testCSVheader.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_csv_quotes_special = "testCSVquotesSpecial.csv"
+test_file_csv_timestamps = "testCSVformattedTime.csv"
 test_file_json = "testJson.json"
 test_file_json_same_schema = "testJsonSameSchema.json"
 test_file_json_new_schema = "testJsonNewSchema.json"
@@ -168,6 +169,12 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_csv_header,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_csv_timestamps,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -1086,10 +1093,6 @@ def test_read_json_with_no_schema(session, mode, resources_path):
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
 
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).json(json_path)
-
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("FILE_EXTENSION", "json").json(json_path)
     assert df2.collect() == [
@@ -1116,10 +1119,6 @@ def test_read_json_with_no_schema(session, mode, resources_path):
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
 
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).json(json_path)
-
     # assert local directory is invalid
     with pytest.raises(
         ValueError, match="DataFrameReader can only read files from stage locations."
@@ -1138,10 +1137,6 @@ def test_read_json_with_infer_schema(session, mode):
     # query_test
     res = df1.where(col('"color"') == lit("Red")).collect()
     assert res == [Row(color="Red", fruit="Apple", size="Large")]
-
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).json(json_path)
 
     # user can input customized formatTypeOptions
     df2 = (
@@ -1777,3 +1772,151 @@ def test_filepath_with_single_quote(session):
     )
 
     assert result1 == result2
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="read json not supported in localtesting",
+)
+def test_read_json_user_input_schema(session):
+    test_file = f"@{tmp_stage_name1}/{test_file_json}"
+
+    schema = StructType(
+        [
+            StructField("fruit", StringType(), True),
+            StructField("size", StringType(), True),
+            StructField("color", StringType(), True),
+        ]
+    )
+
+    df = session.read.schema(schema).json(test_file)
+    Utils.check_answer(df, [Row(fruit="Apple", size="Large", color="Red")])
+
+    # schema that have part of column in file and column not in the file
+    schema = StructType(
+        [
+            StructField("fruit", StringType(), True),
+            StructField("size", StringType(), True),
+            StructField("not_included_column", StringType(), True),
+        ]
+    )
+
+    df = session.read.schema(schema).json(test_file)
+    Utils.check_answer(df, [Row(fruit="Apple", size="Large", not_included_column=None)])
+
+    # schema that have extra column
+    schema = StructType(
+        [
+            StructField("fruit", StringType(), True),
+            StructField("size", StringType(), True),
+            StructField("color", StringType(), True),
+            StructField("extra_column", StringType(), True),
+        ]
+    )
+
+    df = session.read.schema(schema).json(test_file)
+    Utils.check_answer(
+        df, [Row(fruit="Apple", size="Large", color="Red", extra_column=None)]
+    )
+
+    # schema that have false datatype
+    schema = StructType(
+        [
+            StructField("fruit", StringType(), True),
+            StructField("size", StringType(), True),
+            StructField("color", IntegerType(), True),
+        ]
+    )
+    with pytest.raises(SnowparkSQLException, match="Failed to cast variant value"):
+        session.read.schema(schema).json(test_file).collect()
+
+
+def test_read_csv_nulls(session):
+    # Test that a csv read with NULLVALUE set loads the configured representation as None
+    reader = get_reader(session, "select")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = (
+        reader.option("NULLVALUE", ["one", "two"])
+        .schema(user_schema)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(df, [Row(A=1, B=None, C=1.2), Row(A=2, B=None, C=2.2)])
+
+
+def test_read_csv_alternate_time_formats(session):
+    # Test that a csv read with NULLVALUE set loads the configured representation as None
+    reader = get_reader(session, "copy")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_timestamps}"
+
+    time_format = "HH12.MI.SS.FF3"
+    date_format = "YYYYMONDD"
+    timestamp_format = f"{date_format}-{time_format}"
+
+    schema = StructType(
+        [
+            StructField("date", DateType()),
+            StructField("timestamp", TimestampType()),
+            StructField("time", TimeType()),
+        ]
+    )
+
+    df = (
+        reader.option("DATE_FORMAT", date_format)
+        .option("TIME_FORMAT", time_format)
+        .option("TIMESTAMP_FORMAT", timestamp_format)
+        .option("PARSE_HEADER", False)
+        .schema(schema)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                datetime.date(2024, 1, 1),
+                datetime.datetime(2025, 1, 1, 0, 0, 1),
+                datetime.time(0, 0, 1),
+            ),
+            Row(
+                datetime.date(2022, 2, 3),
+                datetime.datetime(2022, 2, 3, 1, 2, 3, 456),
+                datetime.time(1, 2, 3, 456),
+            ),
+            Row(
+                datetime.date(2025, 2, 13),
+                datetime.datetime(2025, 2, 13, 6, 33, 36, 348925),
+                datetime.time(6, 33, 36, 348925),
+            ),
+        ],
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+def test_read_multiple_csvs(session):
+    reader = get_reader(session, "copy")
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    user_schema = StructType(
+        [
+            StructField("A", LongType()),
+            StructField("B", StringType()),
+            StructField("C", DoubleType()),
+        ]
+    )
+    test_file_on_stage = f"@{tmp_stage_name1}/"
+    try:
+        Utils.create_table(session, table_name, "A float, B string, C double")
+        df = reader.schema(user_schema).csv(test_file_on_stage)
+        df.copy_into_table(table_name, files=[test_file_csv, test_file2_csv])
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(3.0, "three", 3.3),
+                Row(4.0, "four", 4.4),
+                Row(1.0, "one", 1.2),
+                Row(2.0, "two", 2.2),
+            ],
+        )
+    finally:
+        Utils.drop_table(session, table_name)

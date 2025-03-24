@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import tempfile
@@ -15,6 +15,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectStatement,
     SelectTableFunction,
+    SelectableEntity,
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -28,6 +29,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeCreateTable,
     TableCreationSource,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableDelete,
@@ -98,8 +100,8 @@ def resolve_and_update_snowflake_plan(
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
     node._output_dict = new_snowflake_plan._output_dict
-    node.df_aliased_col_name_to_real_col_name.update(
-        new_snowflake_plan.df_aliased_col_name_to_real_col_name
+    node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+        new_snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
     )
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
@@ -281,8 +283,8 @@ def update_resolvable_node(
 
         if isinstance(node, SelectSnowflakePlan):
             node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
-            node.df_aliased_col_name_to_real_col_name.update(
-                node._snowflake_plan.df_aliased_col_name_to_real_col_name
+            node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+                node._snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
             )
             node._query_params = []
             for query in node._snowflake_plan.queries:
@@ -354,6 +356,34 @@ def is_active_transaction(session):
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
 
 
+def extract_child_from_with_query_block(child: LogicalPlan) -> TreeNode:
+    """Given a WithQueryBlock node, or a node that contains a WithQueryBlock node, this method
+    extracts the child node from the WithQueryBlock node and returns it."""
+    if isinstance(child, WithQueryBlock):
+        return child.children[0]
+    if isinstance(child, SnowflakePlan) and child.source_plan is not None:
+        return extract_child_from_with_query_block(child.source_plan)
+    if isinstance(child, SelectSnowflakePlan):
+        return extract_child_from_with_query_block(child.snowflake_plan)
+
+    raise ValueError(
+        f"Invalid node type {type(child)} for partitioning."
+    )  # pragma: no cover
+
+
+def is_with_query_block(node: LogicalPlan) -> bool:
+    """Given a node, this method checks if the node is a WithQueryBlock node or contains a
+    WithQueryBlock node."""
+    if isinstance(node, WithQueryBlock):
+        return True
+    if isinstance(node, SnowflakePlan) and node.source_plan is not None:
+        return is_with_query_block(node.source_plan)
+    if isinstance(node, SelectSnowflakePlan):
+        return is_with_query_block(node.snowflake_plan)
+
+    return False
+
+
 def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     """A helper function to plot the query plan tree using graphviz useful for debugging.
     It plots the plan if the environment variable ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING
@@ -381,15 +411,29 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     ):
         return
 
+    if int(
+        os.environ.get("SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD", 0)
+    ) > get_complexity_score(root):
+        return
+
     import graphviz  # pyright: ignore[reportMissingImports]
 
     def get_stat(node: LogicalPlan):
-        def get_name(node: Optional[LogicalPlan]) -> str:
+        def get_name(node: Optional[LogicalPlan]) -> str:  # pragma: no cover
             if node is None:
                 return "EMPTY_SOURCE_PLAN"  # pragma: no cover
             addr = hex(id(node))
             name = str(type(node)).split(".")[-1].split("'")[0]
-            return f"{name}({addr})"
+            suffix = ""
+            if isinstance(node, SnowflakeCreateTable):
+                # get the table name from the full qualified name
+                table_name = node.table_name[-1].split(".")[-1]  # pyright: ignore
+                suffix = f" :: {table_name}"
+            if isinstance(node, WithQueryBlock):
+                # get the CTE identifier excluding SNOWPARK_TEMP_CTE_
+                suffix = f" :: {node.name[18:]}"
+
+            return f"{name}({addr}){suffix}"
 
         name = get_name(node)
         if isinstance(node, SnowflakePlan):
@@ -411,20 +455,34 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             if node.offset:
                 properties.append("Offset")  # pragma: no cover
             name = f"{name} :: ({'| '.join(properties)})"
+        elif isinstance(node, SelectableEntity):
+            # get the table name from the full qualified name
+            name = f"{name} :: ({node.entity.name.split('.')[-1]})"
+
+        def get_sql_text(node: LogicalPlan) -> str:  # pragma: no cover
+            if isinstance(node, Selectable):
+                return node.sql_query
+            if isinstance(node, SnowflakePlan):
+                return node.queries[-1].sql
+            return ""
 
         score = get_complexity_score(node)
-        num_ref_ctes = "nil"
-        if isinstance(node, (SnowflakePlan, Selectable)):
-            num_ref_ctes = len(node.referenced_ctes)
-        sql_text = ""
-        if isinstance(node, Selectable):
-            sql_text = node.sql_query
-        elif isinstance(node, SnowflakePlan):
-            sql_text = node.queries[-1].sql
+        sql_text = get_sql_text(node)
         sql_size = len(sql_text)
+        ref_ctes = None
+        if isinstance(node, (SnowflakePlan, Selectable)):
+            ref_ctes = list(
+                map(
+                    lambda node, cnt: f"{node.name[18:]}:{cnt}",
+                    node.referenced_ctes.keys(),
+                    node.referenced_ctes.values(),
+                )
+            )
+            for with_query_block in node.referenced_ctes:  # pragma: no cover
+                sql_size += len(get_sql_text(with_query_block.children[0]))
         sql_preview = sql_text[:50]
 
-        return f"{name=}\n{score=}, {num_ref_ctes=}, {sql_size=}\n{sql_preview=}"
+        return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}"
 
     g = graphviz.Graph(format="png")
 
@@ -435,11 +493,18 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         for node in curr_level:
             node_id = hex(id(node))
             color = "lightblue" if node._is_valid_for_replacement else "red"
-            g.node(node_id, get_stat(node), color=color)
+            fillcolor = "lightgray" if is_with_query_block(node) else "white"
+            g.node(
+                node_id,
+                get_stat(node),
+                color=color,
+                style="filled",
+                fillcolor=fillcolor,
+            )
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:
-                children = node.children
+                children = node.children  # pragma: no cover
             for child in children:
                 child_id = hex(id(child))
                 edges.add((node_id, child_id))

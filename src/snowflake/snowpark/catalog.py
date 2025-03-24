@@ -1,18 +1,23 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import re
 from typing import List, Optional, Union
 
-from snowflake.core import Root  # type: ignore
-from snowflake.core.database import Database  # type: ignore
-from snowflake.core.exceptions import NotFoundError
-from snowflake.core.procedure import Procedure
-from snowflake.core.schema import Schema  # type: ignore
-from snowflake.core.table import Table, TableColumn
-from snowflake.core.user_defined_function import UserDefinedFunction
-from snowflake.core.view import View
+try:
+    from snowflake.core import Root  # type: ignore
+    from snowflake.core.database import Database  # type: ignore
+    from snowflake.core.exceptions import NotFoundError
+    from snowflake.core.procedure import Procedure
+    from snowflake.core.schema import Schema  # type: ignore
+    from snowflake.core.table import Table, TableColumn
+    from snowflake.core.user_defined_function import UserDefinedFunction
+    from snowflake.core.view import View
+except ImportError as e:
+    raise ImportError(
+        "Missing optional dependency: 'snowflake.core'."
+    ) from e  # pragma: no cover
 
 
 import snowflake.snowpark
@@ -44,11 +49,11 @@ class Catalog:
             assert db_name is not None  # pyright
             return db_name
 
-        if isinstance(database, str):
+        if isinstance(database, str) and database:
             return database
         if isinstance(database, Database):
             return database.name
-        if database is None:
+        if not database:
             current_database = self._session.get_current_database()
             if current_database is None:
                 raise ValueError(
@@ -71,11 +76,11 @@ class Catalog:
             assert schema_name is not None  # pyright
             return schema_name
 
-        if isinstance(schema, str):
+        if isinstance(schema, str) and schema:
             return schema
         if isinstance(schema, Schema):
             return schema.name
-        if schema is None:
+        if not schema:
             current_schema = self._session.get_current_schema()
             if current_schema is None:
                 raise ValueError(

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import random
@@ -82,7 +82,7 @@ def test_basic_filter_single_column(key):
         ),
     ],
 )
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_filtering_with_self(func):
     data = _generate_data()
     snow_df = pd.DataFrame(data)

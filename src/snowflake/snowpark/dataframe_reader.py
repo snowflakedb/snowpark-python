@@ -1,12 +1,28 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import functools
+import os
+import tempfile
+import time
+from concurrent.futures import (
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+    as_completed,
+)
+
 
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+import queue
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
+
+from snowflake.snowpark._internal.data_source.datasource_partitioner import (
+    DataSourcePartitioner,
+)
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import ReadFileNode
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_file_format_statement,
@@ -19,12 +35,25 @@ from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_proto_from_struct_type,
-    build_sp_table_name,
+    build_table_name,
     with_src_position,
+)
+from snowflake.snowpark._internal.data_source.datasource_typing import Connection
+from snowflake.snowpark._internal.data_source.utils import (
+    _upload_and_copy_into_table_with_retry,
+    _task_fetch_data_from_source_with_retry,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    DATA_SOURCE_SQL_COMMENT,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    add_unseen_files_to_process_queue,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import (
+    ColumnOrName,
+    convert_sf_to_sp_type,
+    convert_sp_to_sf_type,
+)
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
@@ -33,15 +62,23 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     parse_positional_args_to_list_variadic,
     publicapi,
+    get_temp_type_for_object,
+    private_preview,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.exceptions import (
+    SnowparkSessionException,
+    SnowparkDataframeReaderException,
+)
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
-from snowflake.snowpark.types import StructType, VariantType
+from snowflake.snowpark.types import (
+    StructType,
+    VariantType,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -67,6 +104,8 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+
+_MAX_RETRY_TIME = 3
 
 
 def _validate_stage_path(path: str) -> str:
@@ -343,8 +382,8 @@ class DataFrameReader:
 
         self._ast = None
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            with_src_position(reader.sp_dataframe_reader_init)
+            reader = proto.Expr()
+            with_src_position(reader.dataframe_reader_init)
             self._ast = reader
 
     @property
@@ -401,11 +440,11 @@ class DataFrameReader:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_table, stmt)
+            ast = with_src_position(stmt.expr.read_table, stmt)
             ast.reader.CopyFrom(self._ast)
-            build_sp_table_name(ast.name, name)
+            build_table_name(ast.name, name)
 
-        table = self._session.table(name)
+        table = self._session.table(name, _emit_ast=False)
 
         if _emit_ast:
             table._ast_id = stmt.var_id.bitfield1
@@ -425,8 +464,8 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            ast = with_src_position(reader.sp_dataframe_reader_schema)
+            reader = proto.Expr()
+            ast = with_src_position(reader.dataframe_reader_schema)
             ast.reader.CopyFrom(self._ast)
             build_proto_from_struct_type(schema, ast.schema)
             self._ast = reader
@@ -454,8 +493,8 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            ast = with_src_position(reader.sp_dataframe_reader_with_metadata)
+            reader = proto.Expr()
+            ast = with_src_position(reader.dataframe_reader_with_metadata)
             ast.reader.CopyFrom(self._ast)
             col_names, is_variadic = parse_positional_args_to_list_variadic(
                 *metadata_cols
@@ -478,7 +517,7 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -499,11 +538,12 @@ class DataFrameReader:
         self._format = format
         return self
 
-    def load(self, path: str) -> DataFrame:
+    def load(self, path: Optional[str] = None) -> DataFrame:
         """Specify the path of the file(s) to load.
 
         Args:
             path: The stage location of a file, or a stage location that has files.
+             This parameter is required for all formats except dbapi.
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
@@ -512,6 +552,18 @@ class DataFrameReader:
             raise ValueError(
                 "Please specify the format of the file(s) to load using the format() method."
             )
+
+        format_str = self._format.lower()
+        if format_str == "dbapi" and path is not None:
+            raise ValueError(
+                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+            )
+        if format_str != "dbapi" and path is None:
+            raise TypeError(
+                "DataFrameReader.load() missing 1 required positional argument: 'path'"
+            )
+        if format_str == "dbapi":
+            return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
 
         loader = getattr(self, self._format, None)
         if loader is not None:
@@ -560,7 +612,7 @@ class DataFrameReader:
                 if isinstance(exception, FileNotFoundError):
                     raise exception
                 # if infer schema query fails, use $1, VariantType as schema
-                logger.warn(
+                logger.warning(
                     f"Could not infer csv schema due to exception: {exception}. "
                     "\nUsing schema (C1, VariantType()) instead. Please use DataFrameReader.schema() "
                     "to specify user schema for the file."
@@ -579,7 +631,7 @@ class DataFrameReader:
                 self._session,
                 self._session._analyzer.create_select_statement(
                     from_=self._session._analyzer.create_select_snowflake_plan(
-                        self._session._analyzer.plan_builder.read_file(
+                        ReadFileNode(
                             path,
                             self._file_type,
                             self._cur_options,
@@ -597,7 +649,7 @@ class DataFrameReader:
         else:
             df = DataFrame(
                 self._session,
-                self._session._plan_builder.read_file(
+                ReadFileNode(
                     path,
                     self._file_type,
                     self._cur_options,
@@ -614,7 +666,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_csv, stmt)
+            ast = with_src_position(stmt.expr.read_csv, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -639,7 +691,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_json, stmt)
+            ast = with_src_position(stmt.expr.read_json, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -667,7 +719,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_avro, stmt)
+            ast = with_src_position(stmt.expr.read_avro, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -696,7 +748,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_parquet, stmt)
+            ast = with_src_position(stmt.expr.read_parquet, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -724,7 +776,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_orc, stmt)
+            ast = with_src_position(stmt.expr.read_orc, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -746,7 +798,7 @@ class DataFrameReader:
         # AST.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_read_xml, stmt)
+            ast = with_src_position(stmt.expr.read_xml, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.var_id.bitfield1
@@ -771,8 +823,8 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            ast = with_src_position(reader.sp_dataframe_reader_option)
+            reader = proto.Expr()
+            ast = with_src_position(reader.dataframe_reader_option)
             ast.reader.CopyFrom(self._ast)
             ast.key = key
             build_expr_from_python_val(ast.value, value)
@@ -805,8 +857,8 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast:
-            reader = proto.SpDataframeReader()
-            ast = with_src_position(reader.sp_dataframe_reader_options)
+            reader = proto.Expr()
+            ast = with_src_position(reader.dataframe_reader_options)
             ast.reader.CopyFrom(self._ast)
             for k, v in configs.items():
                 t = ast.configs.add()
@@ -907,6 +959,31 @@ class DataFrameReader:
 
         return new_schema, schema_to_cast, read_file_transformations, None
 
+    def _get_schema_from_user_input(
+        self, user_schema: StructType
+    ) -> Tuple[List, List, List]:
+        """This function accept a user input structtype and return schemas needed for reading semi-structured file"""
+        schema_to_cast = []
+        transformations = []
+        new_schema = []
+        for field in user_schema.fields:
+            name = quote_name_without_upper_casing(field._name)
+            new_schema.append(
+                Attribute(
+                    name,
+                    field.datatype,
+                    field.nullable,
+                )
+            )
+            identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
+            schema_to_cast.append((identifier, field._name))
+            transformations.append(sql_expr(identifier))
+        self._user_schema = StructType._from_attributes(new_schema)
+        self._infer_schema_transformations = transformations
+        self._infer_schema_target_columns = self._user_schema.names
+        read_file_transformations = [t._expression.sql for t in transformations]
+        return new_schema, schema_to_cast, read_file_transformations
+
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
@@ -922,7 +999,7 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema:
+        if self._user_schema and format.lower() != "json":
             raise ValueError(f"Read {format} does not support user schema")
         path = _validate_stage_path(path)
         self._file_path = path
@@ -931,7 +1008,19 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
-        if self._infer_schema:
+        use_user_schema = False
+
+        if self._user_schema:
+            (
+                new_schema,
+                schema_to_cast,
+                read_file_transformations,
+            ) = self._get_schema_from_user_input(self._user_schema)
+            schema = new_schema
+            self._cur_options["INFER_SCHEMA"] = False
+            use_user_schema = True
+
+        elif self._infer_schema:
             (
                 new_schema,
                 schema_to_cast,
@@ -948,7 +1037,7 @@ class DataFrameReader:
                 self._session,
                 self._session._analyzer.create_select_statement(
                     from_=self._session._analyzer.create_select_snowflake_plan(
-                        self._session._plan_builder.read_file(
+                        ReadFileNode(
                             path,
                             format,
                             self._cur_options,
@@ -957,6 +1046,7 @@ class DataFrameReader:
                             transformations=read_file_transformations,
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
+                            use_user_schema=use_user_schema,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -966,7 +1056,7 @@ class DataFrameReader:
         else:
             df = DataFrame(
                 self._session,
-                self._session._plan_builder.read_file(
+                ReadFileNode(
                     path,
                     format,
                     self._cur_options,
@@ -975,8 +1065,256 @@ class DataFrameReader:
                     transformations=read_file_transformations,
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
+                    use_user_schema=use_user_schema,
                 ),
             )
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+    @private_preview(version="1.29.0")
+    @publicapi
+    def dbapi(
+        self,
+        create_connection: Callable[[], "Connection"],
+        *,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        max_workers: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 0,
+        custom_schema: Optional[Union[str, StructType]] = None,
+        predicates: Optional[List[str]] = None,
+        session_init_statement: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """
+        Reads data from a database table or query into a DataFrame using a DBAPI connection,
+        with support for optional partitioning, parallel processing, and query customization.
+
+        There are multiple methods to partition data and accelerate ingestion.
+        These methods can be combined to achieve optimal performance:
+
+        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
+        These must all be specified together, otherwise error will be raised.
+        2.Set max_workers to a proper positive integer.
+        This defines the maximum number of processes and threads used for parallel execution.
+        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+        4.Use predicates to defining WHERE conditions for partitions,
+        predicates will be ignored if column is specified to generate partition.
+        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
+        column name with table in external data source.
+
+        Args:
+            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
+                The callable must be picklable, as it will be passed to and executed in child processes.
+            table: The name of the table in the external data source.
+                This parameter cannot be used together with the `query` parameter.
+            query: A valid SQL query to be used as the data source in the FROM clause.
+                This parameter cannot be used together with the `table` parameter.
+            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
+                The column must be of a numeric type (e.g., int or float) or a date type.
+                When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
+            lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+                It must be provided when `column` is specified.
+            max_workers: number of processes and threads used for parallelism.
+            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
+                the query will never time out. The timeout behavior can also be configured within
+                the `create_connection` method when establishing the database connection, depending on the capabilities
+                of the DBMS and its driver.
+            fetch_size: The number of rows to fetch per batch from the external data source.
+                This determines how many rows are retrieved in each round trip,
+                which can improve performance for drivers with a low default fetch size.
+            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source. This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING", or StructType, for example: StructType([StructField("ID", IntegerType(), False)])
+            predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
+                Partitions will be retrieved in parallel.
+                If both `column` and `predicates` are specified, `column` takes precedence.
+            session_init_statement: A SQL statement executed before fetching data from the external data source.
+                This can be used for session initialization tasks such as setting configurations.
+                For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
+                to avoid row locks and improve read performance.
+                The `session_init_statement` is executed only once at the beginning of each partition read.
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                df = session.read.dbapi(create_oracledb_connection, table=...)
+        """
+        if (not table and not query) or (table and query):
+            raise SnowparkDataframeReaderException(
+                "Either 'table' or 'query' must be provided, but not both."
+            )
+        table_or_query = table or query
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+        start_time = time.perf_counter()
+
+        partitioner = DataSourcePartitioner(
+            create_connection,
+            table_or_query,
+            column,
+            lower_bound,
+            upper_bound,
+            num_partitions,
+            query_timeout,
+            fetch_size,
+            custom_schema,
+            predicates,
+            session_init_statement,
+        )
+        struct_schema = partitioner.schema
+        partitioned_queries = partitioner.partitions
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # create temp table
+            snowflake_table_type = "TEMPORARY"
+            snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+            create_table_sql = (
+                "CREATE "
+                f"{snowflake_table_type} "
+                "TABLE "
+                f"identifier(?) "
+                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""{DATA_SOURCE_SQL_COMMENT}"""
+            )
+            params = (snowflake_table_name,)
+            logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
+            self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
+                statement_params=statements_params_for_telemetry, _emit_ast=False
+            )
+            # create temp stage
+            snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+            sql_create_temp_stage = (
+                f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
+                f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+            )
+            self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                statement_params=statements_params_for_telemetry, _emit_ast=False
+            )
+
+            try:
+                with ProcessPoolExecutor(
+                    max_workers=max_workers
+                ) as process_executor, ThreadPoolExecutor(
+                    max_workers=max_workers
+                ) as thread_executor:
+                    thread_pool_futures, process_pool_futures = [], []
+
+                    def ingestion_thread_cleanup_callback(parquet_file_path, _):
+                        # clean the local temp file after ingestion to avoid consuming too much temp disk space
+                        os.remove(parquet_file_path)
+
+                    # whether each partition should have its own reader is still under discussion
+                    logger.debug("Starting to fetch data from the data source.")
+                    for partition_idx, query in enumerate(partitioned_queries):
+                        process_future = process_executor.submit(
+                            _task_fetch_data_from_source_with_retry,
+                            partitioner.reader(),
+                            query,
+                            partition_idx,
+                            tmp_dir,
+                        )
+                        process_pool_futures.append(process_future)
+                    # Monitor queue while tasks are running
+                    parquet_file_queue = (
+                        queue.Queue()
+                    )  # maintain the queue of parquet files to process
+                    set_of_files_already_added_in_queue = (
+                        set()
+                    )  # maintain file names we have already put into queue
+                    while True:
+                        try:
+                            # each process and per fetch will create a parquet with a unique file name
+                            # we add unseen files to process queue
+                            add_unseen_files_to_process_queue(
+                                tmp_dir,
+                                set_of_files_already_added_in_queue,
+                                parquet_file_queue,
+                            )
+                            file = parquet_file_queue.get_nowait()
+                            logger.debug(f"Retrieved file from parquet queue: {file}")
+                            thread_future = thread_executor.submit(
+                                _upload_and_copy_into_table_with_retry,
+                                self._session,
+                                file,
+                                snowflake_stage_name,
+                                snowflake_table_name,
+                                "abort_statement",
+                                statements_params_for_telemetry,
+                            )
+                            thread_future.add_done_callback(
+                                functools.partial(
+                                    ingestion_thread_cleanup_callback, file
+                                )
+                            )
+                            thread_pool_futures.append(thread_future)
+                            logger.debug(
+                                f"Submitted file {file} to thread executor for ingestion."
+                            )
+                        except queue.Empty:
+                            all_job_done = True
+                            unfinished_process_pool_futures = []
+                            logger.debug(
+                                "Parquet queue is empty, checking unfinished process pool futures."
+                            )
+                            for future in process_pool_futures:
+                                if future.done():
+                                    future.result()  # Throw error if the process failed
+                                    logger.debug(
+                                        "A process future completed successfully."
+                                    )
+                                else:
+                                    unfinished_process_pool_futures.append(future)
+                                    all_job_done = False
+                            if (
+                                all_job_done
+                                and parquet_file_queue.empty()
+                                and len(os.listdir(tmp_dir)) == 0
+                            ):
+                                # we finished all the fetch work based on the following 3 conditions:
+                                # 1. all jod is done
+                                # 2. parquet file queue is empty
+                                # 3. no files in the temp work dir as they are all removed in thread future callback
+                                # now we just need to wait for all ingestion threads to complete
+                                logger.debug(
+                                    "All jobs are done, and the parquet file queue is empty. Fetching work is complete."
+                                )
+                                break
+                            process_pool_futures = unfinished_process_pool_futures
+                            time.sleep(0.5)
+
+                    for future in as_completed(thread_pool_futures):
+                        future.result()  # Throw error if the thread failed
+                        logger.debug("A thread future completed successfully.")
+
+            except BaseException:
+                # graceful shutdown
+                process_executor.shutdown(wait=True)
+                thread_executor.shutdown(wait=True)
+                raise
+
+            logger.debug(
+                "All data has been successfully loaded into the Snowflake table."
+            )
+            self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+                DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
+            )
+            # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
+            # with the new name for the temporary table into which the external db data was ingressed.
+            # Leaving this functionality as client-side only means capturing an AST specifically for
+            # this API in a new entity is not valuable from a server-side execution or AST perspective.
+            res_df = self.table(snowflake_table_name, _emit_ast=_emit_ast)
+            set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
+            return res_df

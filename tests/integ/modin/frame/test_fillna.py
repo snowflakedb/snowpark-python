@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import re
@@ -538,7 +538,7 @@ class TestFillNAMethod:
 
 
 @pytest.mark.parametrize("method", ["ffill", "pad", "bfill", "backfill"])
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_df_fillna_method_tall_df(method):
     first_row = [native_pd.DataFrame([[1, 2, 3, 4]], columns=["A", "B", "C", "D"])]
     first_middle_rows = [

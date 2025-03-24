@@ -48,34 +48,41 @@ df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"
 
 df3 = df.cache_result()
 
-df3 = df.write
-
 df4 = df.cache_result(statement_params={"foo": "bar"})
 
-df4 = df.write
-
-res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite"])
+res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 41
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
@@ -91,24 +98,30 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         comment {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
-        name: "test_db"
-        name: "test_schema"
-        name: "test_view"
+        name {
+          name {
+            name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "test_view"
+            }
+          }
+        }
         src {
           end_column: 89
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 27
         }
@@ -125,19 +138,25 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
-        name: "test_view"
+        name {
+          name {
+            name_flat {
+              name: "test_view"
+            }
+          }
+        }
         src {
           end_column: 79
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 29
         }
@@ -158,25 +177,31 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         comment {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         is_temp: true
-        name: "test_db"
-        name: "test_schema"
-        name: "test_view"
+        name {
+          name {
+            name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "test_view"
+            }
+          }
+        }
         src {
           end_column: 94
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 31
         }
@@ -193,20 +218,26 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_create_or_replace_view {
+      dataframe_create_or_replace_view {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
         is_temp: true
-        name: "test_view"
+        name {
+          name {
+            name_flat {
+              name: "test_view"
+            }
+          }
+        }
         src {
           end_column: 84
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 33
         }
@@ -227,7 +258,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_copy_into_table {
+      dataframe_copy_into_table {
         copy_options {
           _1: "force"
           _2 {
@@ -235,7 +266,7 @@ body {
               src {
                 end_column: 9
                 end_line: 49
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 39
               }
@@ -244,7 +275,7 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -259,7 +290,7 @@ body {
               src {
                 end_column: 9
                 end_line: 49
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 39
               }
@@ -274,7 +305,7 @@ body {
               src {
                 end_column: 9
                 end_line: 49
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 8
                 start_line: 39
               }
@@ -288,7 +319,7 @@ body {
         src {
           end_column: 9
           end_line: 49
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 39
         }
@@ -296,9 +327,15 @@ body {
           _1: "foo"
           _2: "bar"
         }
-        table_name: "test_db"
-        table_name: "test_schema"
-        table_name: "table2"
+        table_name {
+          name {
+            name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "table2"
+            }
+          }
+        }
         target_columns: "n"
         target_columns: "str"
         transformations {
@@ -308,8 +345,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -319,7 +358,7 @@ body {
                     src {
                       end_column: 37
                       end_line: 45
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 29
                       start_line: 45
                     }
@@ -329,7 +368,7 @@ body {
                 src {
                   end_column: 37
                   end_line: 45
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 29
                   start_line: 45
                 }
@@ -340,7 +379,7 @@ body {
                 src {
                   end_column: 42
                   end_line: 45
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 29
                   start_line: 45
                 }
@@ -350,7 +389,7 @@ body {
             src {
               end_column: 42
               end_line: 45
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 29
               start_line: 45
             }
@@ -361,8 +400,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -372,7 +413,7 @@ body {
                 src {
                   end_column: 54
                   end_line: 45
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 44
                   start_line: 45
                 }
@@ -382,7 +423,7 @@ body {
             src {
               end_column: 54
               end_line: 45
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 44
               start_line: 45
             }
@@ -412,18 +453,25 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_cache_result {
+      dataframe_cache_result {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
+            }
+          }
+        }
+        object_name {
+          name {
+            name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_TABLE_xxx\""
             }
           }
         }
         src {
           end_column: 31
           end_line: 51
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 51
         }
@@ -441,47 +489,25 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
+      dataframe_cache_result {
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
           }
         }
-        src {
-          end_column: 31
-          end_line: 51
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 51
-        }
-      }
-    }
-    symbol {
-      value: "df3"
-    }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_dataframe_cache_result {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
+        object_name {
+          name {
+            name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_TABLE_xxx\""
             }
           }
         }
         src {
           end_column: 62
           end_line: 53
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 53
         }
@@ -494,50 +520,21 @@ body {
     symbol {
       value: "df4"
     }
-    uid: 10
+    uid: 9
     var_id {
-      bitfield1: 10
+      bitfield1: 9
     }
   }
 }
 body {
   assign {
     expr {
-      sp_dataframe_write {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          end_column: 62
-          end_line: 53
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 53
-        }
-      }
-    }
-    symbol {
-      value: "df4"
-    }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_dataframe_create_or_replace_dynamic_table {
+      dataframe_create_or_replace_dynamic_table {
         comment {
           value: "foo"
         }
         df {
-          sp_dataframe_ref {
+          dataframe_ref {
             id {
               bitfield1: 1
             }
@@ -545,13 +542,19 @@ body {
         }
         lag: "1 hour"
         mode {
-          sp_save_mode_overwrite: true
+          save_mode_overwrite: true
         }
-        name: "test_dyn_table"
+        name {
+          name {
+            name_flat {
+              name: "test_dyn_table"
+            }
+          }
+        }
         src {
           end_column: 110
           end_line: 55
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 55
         }
@@ -560,9 +563,9 @@ body {
     }
     symbol {
     }
-    uid: 12
+    uid: 10
     var_id {
-      bitfield1: 12
+      bitfield1: 10
     }
   }
 }
@@ -579,5 +582,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 29
+  patch: 1
 }

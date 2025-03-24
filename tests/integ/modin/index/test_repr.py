@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -48,7 +48,7 @@ def test_repr(native_index):
 
 
 def test_repr_high_qc():
-    with SqlCounter(query_count=6):
+    with SqlCounter(query_count=4):
         native_index = native_pd.Index(native_pd.Index(list(range(300))))
         snow_index = pd.Index(native_index)
         native_str = repr(native_index)

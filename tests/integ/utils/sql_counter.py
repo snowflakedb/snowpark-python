@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import functools
 import inspect
@@ -35,6 +35,7 @@ WITH = "WITH "
 CREATE_TEMP_TABLE = "CREATE  TEMPORARY  TABLE"
 UNION = " UNION "
 WINDOW = " OVER "
+WITH_SNOWPARK_TEMP_CTE = "WITH SNOWPARK_TEMP_CTE_"
 
 NO_CHECK = "no_check"
 
@@ -82,6 +83,8 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # These cases should be excluded in our query counts.
 # 6. Unused temp tables to be dropped to temp table cleaner may happen any time when garbage collection kicks in,
 # so we should not count it
+# 7. SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION ... is to validate at the beginning of the session
+# that this parameter is unset, as currently required by Snowpark pandas.
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
@@ -89,12 +92,14 @@ FILTER_OUT_QUERIES = [
     ['SELECT "PACKAGE_NAME"', 'array_agg("VERSION")'],
     ["drop table if exists", "TESTTABLENAME"],
     ["drop table if exists", "/* internal query to drop unused temp table */"],
+    ["SHOW PARAMETERS LIKE", "QUOTED_IDENTIFIERS_IGNORE_CASE"],
 ]
 
 # define global at module-level
 sql_count_records = {}
 
 sql_counter_state = threading.local()
+sql_counter_lock = threading.RLock()
 
 
 class SqlCounter(QueryListener):
@@ -133,6 +138,9 @@ class SqlCounter(QueryListener):
         from tests.conftest import SKIP_SQL_COUNT_CHECK
 
         self._queries: list[QueryRecord] = []
+
+        # Track the thread id to ensure we only count queries from the current thread.
+        self._current_thread_id = threading.get_ident()
 
         # Bypassing sql counter since
         #   1. it is an unnecessary metric for tests running in stored procedures
@@ -174,6 +182,10 @@ class SqlCounter(QueryListener):
     def include_describe(self) -> bool:
         return True
 
+    @property
+    def include_thread_id(self) -> bool:
+        return True
+
     @staticmethod
     def set_record_mode(record_mode):
         """Record mode means the SqlCounter does not assert any results, but rather collects them so they can
@@ -202,7 +214,8 @@ class SqlCounter(QueryListener):
 
     def _notify(self, query_record: QueryRecord, **kwargs: dict):
         if not is_suppress_sql_counter_listener():
-            self._queries.append(query_record)
+            if query_record.thread_id == self._current_thread_id:
+                self._queries.append(query_record)
 
     def expects(self, **kwargs):
         """
@@ -341,7 +354,8 @@ class SqlCounter(QueryListener):
 
     def actual_udtf_count(self):
         return self._count_by_query_substr(
-            [SELECT, INSERT, CREATE_TEMP_TABLE], [TEMP_TABLE_FUNCTION]
+            [SELECT, INSERT, CREATE_TEMP_TABLE, WITH_SNOWPARK_TEMP_CTE],
+            [TEMP_TABLE_FUNCTION],
         )
 
     def actual_udf_count(self):
@@ -653,16 +667,18 @@ def generate_sql_count_report(request, counter):
 
 
 def mark_sql_counter_called():
-    threading.current_thread().__dict__[SQL_COUNTER_CALLED] = True
+    with sql_counter_lock:
+        threading.main_thread().__dict__[SQL_COUNTER_CALLED] = True
 
 
 def clear_sql_counter_called():
-    threading.current_thread().__dict__[SQL_COUNTER_CALLED] = False
+    with sql_counter_lock:
+        threading.main_thread().__dict__[SQL_COUNTER_CALLED] = False
 
 
 def is_sql_counter_called():
-    if SQL_COUNTER_CALLED in threading.current_thread().__dict__:
-        return threading.current_thread().__dict__.get(SQL_COUNTER_CALLED)
+    with sql_counter_lock:
+        return threading.main_thread().__dict__.get(SQL_COUNTER_CALLED, False)
     return False
 
 

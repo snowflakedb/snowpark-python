@@ -1,7 +1,8 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import copy
 import math
 import os
@@ -796,7 +797,9 @@ def test_df_stat_crosstab(session):
     )
 
 
-def test_df_stat_sampleBy(session):
+@pytest.mark.parametrize("use_simplified_query_gen", [True, False])
+def test_df_stat_sampleBy(session, use_simplified_query_gen):
+    session.conf.set("use_simplified_query_generation", use_simplified_query_gen)
     sample_by = (
         TestData.monthly_sales(session)
         .stat.sample_by(col("empid"), {1: 0.0, 2: 1.0})
@@ -835,6 +838,36 @@ def test_df_stat_sampleBy(session):
         and schema_names[2] == "MONTH"
     )
     assert len(sample_by_3.collect()) == 0
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in local testing",
+)
+@pytest.mark.parametrize("use_simplified_query_gen", [True, False])
+def test_df_stat_sampleBy_seed(session, caplog, use_simplified_query_gen):
+    session.conf.set("use_simplified_query_generation", use_simplified_query_gen)
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    TestData.monthly_sales(session).write.save_as_table(
+        temp_table_name, table_type="temp", mode="overwrite"
+    )
+    df = session.table(temp_table_name)
+
+    # with seed, the result is deterministic and should be the same
+    sample_by_action = (
+        lambda df: df.stat.sample_by(col("empid"), {1: 0.5, 2: 0.5}, seed=1)
+        .sort(df.columns)
+        .collect()
+    )
+    result = sample_by_action(df)
+    for _ in range(3):
+        Utils.check_answer(sample_by_action(df), result)
+
+    # DataFrame doesn't work with seed
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        sample_by_action(TestData.monthly_sales(session))
+    assert "`seed` argument is ignored on `DataFrame` object" in caplog.text
 
 
 @pytest.mark.skipif(
@@ -1431,17 +1464,19 @@ def test_groupby(session):
     ).to_df(["country", "state", "value"])
 
     # group_by without column
-    assert df.group_by().agg(max(col("value"))).collect() == [Row(100)]
-    assert df.group_by([]).agg(sum_(col("value"))).collect() == [Row(330)]
-    assert df.group_by().agg([sum_(col("value"))]).collect() == [Row(330)]
+    Utils.check_answer(df.group_by().agg(max(col("value"))), [Row(100)])
+    Utils.check_answer(df.group_by([]).agg(sum_(col("value"))), [Row(330)])
+    Utils.check_answer(df.group_by().agg([sum_(col("value"))]), [Row(330)])
 
     # group_by() on 1 column
     expected_res = [Row("country A", 110), Row("country B", 220)]
-    assert df.group_by("country").agg(sum_(col("value"))).collect() == expected_res
-    assert df.group_by(["country"]).agg(sum_(col("value"))).collect() == expected_res
-    assert df.group_by(col("country")).agg(sum_(col("value"))).collect() == expected_res
-    assert (
-        df.group_by([col("country")]).agg(sum_(col("value"))).collect() == expected_res
+    Utils.check_answer(df.group_by("country").agg(sum_(col("value"))), expected_res)
+    Utils.check_answer(df.group_by(["country"]).agg(sum_(col("value"))), expected_res)
+    Utils.check_answer(
+        df.group_by(col("country")).agg(sum_(col("value"))), expected_res
+    )
+    Utils.check_answer(
+        df.group_by([col("country")]).agg(sum_(col("value"))), expected_res
     )
 
     # group_by() on 2 columns
@@ -1615,7 +1650,6 @@ def test_flatten(session, local_testing_mode):
     Utils.check_answer(
         df2.union(df3).select(col("value")),
         [Row("1"), Row("2"), Row("1"), Row("2")],
-        sort=False,
     )
 
 
@@ -1661,7 +1695,6 @@ def test_flatten_in_session(session):
     Utils.check_answer(
         df1.union(df2).select("path"),
         [Row("[0]"), Row("[1]"), Row("a[0]"), Row("a[1]")],
-        sort=False,
     )
 
     # join
@@ -1670,7 +1703,6 @@ def test_flatten_in_session(session):
             df1["path"].as_("path1"), df2["path"].as_("path2")
         ),
         [Row("[0]", "a[0]"), Row("[1]", "a[1]")],
-        sort=False,
     )
 
 
@@ -2079,6 +2111,18 @@ def test_create_or_replace_temporary_view(session, db_parameters, local_testing_
             with pytest.raises(SnowparkSQLException) as ex_info:
                 session2.table(view_name).collect()
                 assert "does not exist or not authorized" in str(ex_info)
+
+
+def test_create_temp_view(session):
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
+    df.create_temp_view(view_name)
+    Utils.check_answer(session.table(view_name), [Row(1), Row(2), Row(3)])
+
+    # create again will fail
+    with pytest.raises(SnowparkSQLException, match="already exists"):
+        df.create_temp_view(view_name)
 
 
 def test_createDataFrame_with_schema_inference(session):

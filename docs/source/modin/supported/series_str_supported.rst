@@ -15,7 +15,9 @@ the method in the left column.
 | (Series.str)                |                                 |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``__getitem__``             | P                               | ``N`` if the `key` parameter is set to a non-int   |
-|                             |                                 |  scalar value.                                     |
+|                             |                                 |  scalar value. Only string and list data values are|
+|                             |                                 |  supported. All column values must be of the same  |
+|                             |                                 |  type.                                             |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``capitalize``              | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
@@ -48,8 +50,9 @@ the method in the left column.
 | ``fullmatch``               | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``get``                     | P                               | ``N`` if the `i` parameter is set to a non-int     |
-|                             |                                 |  value. Also non-string data values such as list   |
-|                             |                                 |  and dict are not yet supported.                   |
+|                             |                                 |  value. Only string and list data values are       |
+|                             |                                 |  supported. All column values must be of the same  |
+|                             |                                 |  type.                                             |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``get_dummies``             | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
@@ -114,12 +117,14 @@ the method in the left column.
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``rstrip``                  | P                               | ``N`` if `to_strip` is non-string.                 |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``slice``                   | Y                               |                                                    |
+| ``slice``                   | P                               | Only string and list data values are supported.    |
+|                             |                                 | All column values must be of the same type.        |
+|                             |                                 | ``N`` if list data values and `step != 1`.         |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``slice_replace``           | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``split``                   | P                               |  ``N`` if `pat` is non-string, `n` is non-numeric, |
-|                             |                                 |  `expand` is set, or `regex` is set.               |
+|                             |                                 |  or `regex` is set.                                |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``startswith``              | P                               |  ``N`` if the `na` parameter is set to a non-bool  |
 |                             |                                 |  value.                                            |

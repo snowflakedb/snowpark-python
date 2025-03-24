@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional
+from typing import Optional, Set
 
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
@@ -60,11 +60,23 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
-        col_name: str, all_columns: str
+        left_columns: Set[str],
+        right_columns: Set[str],
     ) -> SnowparkColumnException:
+        verb = "are" if len(left_columns) > 1 else "is"
+        left_str = (
+            f" ({', '.join(left_columns)}) {verb} in the right hand side, but not the left."
+            if left_columns
+            else ""
+        )
+        verb = "are" if len(right_columns) > 1 else "is"
+        right_str = (
+            f" ({', '.join(right_columns)}) {verb} in the left hand side, but not the right."
+            if right_columns
+            else ""
+        )
         return SnowparkColumnException(
-            f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
-            f"not a column in the other DataFrame ({all_columns}).",
+            f"Cannot union the DataFrames by column names.{left_str}{right_str}",
             error_code="1102",
         )
 
@@ -126,6 +138,14 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkDataframeException:
+        return SnowparkDataframeException(
+            "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
+            "returned by the pivot() method unless the pivot is applied with a groupby clause.",
+            error_code="1109",
+        )
+
+    @staticmethod
     def DF_DATAFRAME_IS_NOT_QUALIFIED_FOR_SCALAR_QUERY(
         count: int, columns: str
     ) -> SnowparkDataframeException:
@@ -133,14 +153,6 @@ class SnowparkClientExceptionMessages:
             f"The DataFrame passed in to this function must have only one output column. "
             f"This DataFrame has {count} output columns: {columns}",
             error_code="1108",
-        )
-
-    @staticmethod
-    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkDataframeException:
-        return SnowparkDataframeException(
-            "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
-            "returned by the pivot() method.",
-            error_code="1109",
         )
 
     @staticmethod

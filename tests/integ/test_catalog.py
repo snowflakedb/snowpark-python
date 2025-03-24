@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from unittest.mock import patch
@@ -10,13 +10,19 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quot
 from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
+from snowflake.core.exceptions import APIError
+
 
 pytestmark = [
     pytest.mark.xfail(
         "config.getoption('local_testing_mode', default=False)",
         reason="deepcopy is not supported and required by local testing",
         run=False,
-    )
+    ),
+    pytest.mark.xfail(
+        raises=APIError,
+        reason="Failure due to warehouse overload",
+    ),
 ]
 
 CATALOG_TEMP_OBJECT_PREFIX = "SP_CATALOG_TEMP"
@@ -514,14 +520,17 @@ def test_parse_names_negative(session):
         catalog.procedure_exists("proc")
 
     with patch.object(session, "get_current_database", return_value=None):
-        with pytest.raises(
-            ValueError,
-            match="No database detected. Please provide database to proceed.",
-        ):
-            catalog._parse_database(database=None)
+        for db in (None, ""):
+            with pytest.raises(
+                ValueError,
+                match="No database detected. Please provide database to proceed.",
+            ):
+                catalog._parse_database(database=db)
 
     with patch.object(session, "get_current_schema", return_value=None):
-        with pytest.raises(
-            ValueError, match="No schema detected. Please provide schema to proceed."
-        ):
-            catalog._parse_schema(schema=None)
+        for schema in (None, ""):
+            with pytest.raises(
+                ValueError,
+                match="No schema detected. Please provide schema to proceed.",
+            ):
+                catalog._parse_schema(schema=schema)

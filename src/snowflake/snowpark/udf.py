@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined functions (UDFs) in Snowpark. Please see `Python UDFs <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs>`_ for details.
@@ -102,6 +102,7 @@ class UserDefinedFunction:
         self._ast = _ast
         self._ast_id = _ast_id
 
+    @publicapi
     def __call__(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> Column:
@@ -257,6 +258,7 @@ class UDFRegistration:
     ``dict``                                       :class:`~snowflake.snowpark.types.MapType`              OBJECT
     Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`          VARIANT
     ``dict``                                       :class:`~snowflake.snowpark.types.GeographyType`        GEOGRAPHY
+    ``dict``                                       :class:`~snowflake.snowpark.types.FileType`             FILE
     ``pandas.Series``                              :class:`~snowflake.snowpark.types.PandasSeriesType`     No SQL type
     ``pandas.DataFrame``                           :class:`~snowflake.snowpark.types.PandasDataFrameType`  No SQL type
     =============================================  ======================================================= ============
@@ -286,6 +288,10 @@ class UDFRegistration:
         TIMESTAMP_TZ), use :class:`~snowflake.snowpark.types.Timestamp` with
         :class:`~snowflake.snowpark.types.NTZ`, :class:`~snowflake.snowpark.types.LTZ`,
         :class:`~snowflake.snowpark.types.TZ` (e.g., ``Timestamp[NTZ]``).
+
+        5. Data with the FILE SQL type will be converted to a Python ``dict`` inside a UDF, with the
+        the `metadata <https://docs.snowflake.com/LIMITEDACCESS/sql-reference/data-types-unstructured#file-data-type>`_
+        related to the file.
 
     Example 1
         Create a temporary UDF from a lambda and apply it to a dataframe::
@@ -1004,6 +1010,8 @@ class UDFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
+                artifact_repository=kwargs.get("artifact_repository"),
+                artifact_repository_packages=kwargs.get("artifact_repository_packages"),
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

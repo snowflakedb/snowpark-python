@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from unittest import mock
@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.compiler.cte_utils import (
 )
 
 
-def test_case1():
+def create_test_case1():
     nodes = [mock.create_autospec(SnowflakePlan) for _ in range(7)]
     for i, node in enumerate(nodes):
         node.encoded_node_id_with_query = f"{i}_{i}"
@@ -44,7 +44,7 @@ def test_case1():
     return nodes[0], expected_duplicate_subtree_ids, expected_repeated_node_complexity
 
 
-def test_case2():
+def create_test_case2():
     nodes = [mock.create_autospec(SnowflakePlan) for _ in range(7)]
     for i, node in enumerate(nodes):
         node.encoded_node_id_with_query = f"{i}_{i}"
@@ -70,7 +70,7 @@ def test_case2():
     return nodes[0], expected_duplicate_subtree_ids, expected_repeated_node_complexity
 
 
-@pytest.mark.parametrize("test_case", [test_case1(), test_case2()])
+@pytest.mark.parametrize("test_case", [create_test_case1(), create_test_case2()])
 def test_find_duplicate_subtrees(test_case):
     plan, expected_duplicate_subtree_ids, expected_repeated_node_complexity = test_case
     duplicate_subtrees_ids, repeated_node_complexity = find_duplicate_subtrees(plan)
@@ -84,7 +84,7 @@ def test_find_duplicate_subtrees(test_case):
     assert repeated_node_complexity == expected_repeated_node_complexity
 
 
-def test_encode_node_id_with_query_select_sql(mock_analyzer):
+def test_encode_node_id_with_query_select_sql(mock_session, mock_analyzer):
     sql_text = "select 1 as a, 2 as b"
     select_sql_node = SelectSQL(
         sql=sql_text,

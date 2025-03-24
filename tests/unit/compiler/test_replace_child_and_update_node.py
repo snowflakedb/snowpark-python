@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -87,6 +87,7 @@ def mock_query_generator(mock_session) -> QueryGenerator:
     fake_query_generator.to_selectable = partial(
         QueryGenerator.to_selectable, fake_query_generator
     )
+    fake_query_generator._to_selectable_memo_dict = {}
     return fake_query_generator
 
 
@@ -454,7 +455,8 @@ def test_select_statement(
     new_replaced_plan = plan.children_plan_nodes[0]
     assert isinstance(new_replaced_plan, SelectSnowflakePlan)
     assert new_replaced_plan._snowflake_plan.source_plan == new_plan
-    assert new_replaced_plan.analyzer == mock_query_generator
+    # new_replaced_plan is created with QueryGenerator.to_selectable
+    assert new_replaced_plan.analyzer == mock_analyzer
 
     post_actions = [Query("drop table if exists table_name")]
     new_replaced_plan.post_actions = post_actions

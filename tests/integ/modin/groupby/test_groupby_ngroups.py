@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -17,11 +17,11 @@ def assert_ngroups_equal(snow_res, pd_res):
 
 
 @pytest.mark.parametrize("by", ["a", "b", ["a", "b"]])
-@sql_count_checker(query_count=2)
-def test_groupby_sort_multiindex_series(series_multi_numeric, by):
+@sql_count_checker(query_count=1)
+def test_groupby_sort_multiindex_series(native_series_multi_numeric, by):
 
-    snow_ser = series_multi_numeric
-    native_ser = series_multi_numeric.to_pandas()
+    snow_ser = pd.Series(native_series_multi_numeric)
+    native_ser = native_series_multi_numeric
     eval_snowpark_pandas_result(
         snow_ser,
         native_ser,
