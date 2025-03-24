@@ -102,6 +102,7 @@ class UserDefinedFunction:
         self._ast = _ast
         self._ast_id = _ast_id
 
+    @publicapi
     def __call__(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> Column:

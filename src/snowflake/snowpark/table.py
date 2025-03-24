@@ -708,6 +708,7 @@ class Table(DataFrame):
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def merge(
         self,
         source: DataFrame,

@@ -138,6 +138,14 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkDataframeException:
+        return SnowparkDataframeException(
+            "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
+            "returned by the pivot() method unless the pivot is applied with a groupby clause.",
+            error_code="1109",
+        )
+
+    @staticmethod
     def DF_DATAFRAME_IS_NOT_QUALIFIED_FOR_SCALAR_QUERY(
         count: int, columns: str
     ) -> SnowparkDataframeException:
