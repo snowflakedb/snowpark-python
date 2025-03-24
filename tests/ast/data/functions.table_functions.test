@@ -9,7 +9,7 @@ df1 = session.create_dataframe(
 )
 df2 = df1.select(df1.idx, explode(df1.lists)).sort(col("idx"))
 
-df3 = df1.select(explode("maps").as_("primo", "secundo")).sort(col("primo"))
+df3 = df1.select(explode_outer("maps").as_("primo", "secundo")).sort(col("primo"))
 
 df4 = session.create_dataframe(
     [
@@ -39,6 +39,10 @@ df7 = (
     .sort("strs", "value")
 )
 
+df8 = df1.select(df1.idx, explode(df1.lists).over(partition_by="idx", order_by="idx"))
+
+df9 = df1.select(df1.idx, explode_outer(df1.maps).over(partition_by=["idx"], order_by=["idx"]))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df1 = session.create_dataframe([[1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"], [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"]], schema=["idx", "lists", "maps", "strs"])
@@ -47,7 +51,7 @@ df2 = df1.select(df1["idx"], (explode(df1["lists"])))
 
 df2 = df2.sort(col("idx"))
 
-df3 = df1.select((explode("maps").alias("primo", "secundo")))
+df3 = df1.select((explode_outer("maps").alias("primo", "secundo")))
 
 df3 = df3.sort(col("primo"))
 
@@ -58,6 +62,10 @@ res6 = df4.select(df4["idx"], (flatten(df4["lists"], "", True, False, "both"))).
 res11 = df4.select(df4["strs"], (flatten(df4["maps"], "", False, True, "both"))).select("strs", "key", "value").filter("key is not NULL").sort("strs")
 
 res16 = df4.select(df4["strs"], (flatten(df4["maps"], "", False, True, "both"))).select("strs", "key", "value").filter("key is NULL").sort("strs", "value")
+
+df8 = df1.select(df1["idx"], (explode(df1["lists"]).over(partition_by="idx", order_by="idx")))
+
+df9 = df1.select(df1["idx"], (explode_outer(df1["maps"]).over(partition_by=["idx"], order_by=["idx"])))
 
 ## EXPECTED ENCODED AST
 
@@ -524,7 +532,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 64
+                end_column: 70
                 end_line: 34
                 file: 2
                 start_column: 25
@@ -536,7 +544,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 64
+                end_column: 70
                 end_line: 34
                 file: 2
                 start_column: 25
@@ -554,7 +562,7 @@ body {
                 name {
                   name {
                     name_flat {
-                      name: "explode"
+                      name: "explode_outer"
                     }
                   }
                 }
@@ -563,7 +571,7 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 40
+                  end_column: 46
                   end_line: 34
                   file: 2
                   start_column: 25
@@ -573,7 +581,7 @@ body {
               }
             }
             src {
-              end_column: 40
+              end_column: 46
               end_line: 34
               file: 2
               start_column: 25
@@ -582,7 +590,7 @@ body {
           }
         }
         src {
-          end_column: 64
+          end_column: 70
           end_line: 34
           file: 2
           start_column: 25
@@ -613,7 +621,7 @@ body {
                 }
               }
               src {
-                end_column: 65
+                end_column: 71
                 end_line: 34
                 file: 2
                 start_column: 14
@@ -631,7 +639,7 @@ body {
           }
         }
         src {
-          end_column: 65
+          end_column: 71
           end_line: 34
           file: 2
           start_column: 14
@@ -669,20 +677,20 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 83
+                    end_column: 89
                     end_line: 34
                     file: 2
-                    start_column: 71
+                    start_column: 77
                     start_line: 34
                   }
                   v: "primo"
                 }
               }
               src {
-                end_column: 83
+                end_column: 89
                 end_line: 34
                 file: 2
-                start_column: 71
+                start_column: 77
                 start_line: 34
               }
             }
@@ -697,7 +705,7 @@ body {
           }
         }
         src {
-          end_column: 84
+          end_column: 90
           end_line: 34
           file: 2
           start_column: 14
@@ -1967,6 +1975,326 @@ body {
     uid: 22
     var_id {
       bitfield1: 22
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      table_fn_call_over {
+        lhs {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "explode"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              dataframe_col {
+                col_name: "lists"
+                df {
+                  dataframe_ref {
+                    id {
+                      bitfield1: 1
+                    }
+                  }
+                }
+                src {
+                  end_column: 51
+                  end_line: 64
+                  file: 2
+                  start_column: 42
+                  start_line: 64
+                }
+              }
+            }
+            src {
+              end_column: 52
+              end_line: 64
+              file: 2
+              start_column: 34
+              start_line: 64
+            }
+          }
+        }
+        order_by {
+          args {
+            string_val {
+              src {
+                end_column: 93
+                end_line: 64
+                file: 2
+                start_column: 34
+                start_line: 64
+              }
+              v: "idx"
+            }
+          }
+          variadic: true
+        }
+        partition_by {
+          args {
+            string_val {
+              src {
+                end_column: 93
+                end_line: 64
+                file: 2
+                start_column: 34
+                start_line: 64
+              }
+              v: "idx"
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 93
+          end_line: 64
+          file: 2
+          start_column: 34
+          start_line: 64
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 23
+    var_id {
+      bitfield1: 23
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            dataframe_col {
+              col_name: "idx"
+              df {
+                dataframe_ref {
+                  id {
+                    bitfield1: 1
+                  }
+                }
+              }
+              src {
+                end_column: 32
+                end_line: 64
+                file: 2
+                start_column: 25
+                start_line: 64
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                indirect_table_fn_id_ref {
+                  id {
+                    bitfield1: 23
+                  }
+                }
+              }
+              src {
+                end_column: 94
+                end_line: 64
+                file: 2
+                start_column: 14
+                start_line: 64
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 94
+          end_line: 64
+          file: 2
+          start_column: 14
+          start_line: 64
+        }
+      }
+    }
+    symbol {
+      value: "df8"
+    }
+    uid: 24
+    var_id {
+      bitfield1: 24
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      table_fn_call_over {
+        lhs {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "explode_outer"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              dataframe_col {
+                col_name: "maps"
+                df {
+                  dataframe_ref {
+                    id {
+                      bitfield1: 1
+                    }
+                  }
+                }
+                src {
+                  end_column: 56
+                  end_line: 66
+                  file: 2
+                  start_column: 48
+                  start_line: 66
+                }
+              }
+            }
+            src {
+              end_column: 57
+              end_line: 66
+              file: 2
+              start_column: 34
+              start_line: 66
+            }
+          }
+        }
+        order_by {
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 66
+                file: 2
+                start_column: 34
+                start_line: 66
+              }
+              v: "idx"
+            }
+          }
+        }
+        partition_by {
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 66
+                file: 2
+                start_column: 34
+                start_line: 66
+              }
+              v: "idx"
+            }
+          }
+        }
+        src {
+          end_column: 102
+          end_line: 66
+          file: 2
+          start_column: 34
+          start_line: 66
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 25
+    var_id {
+      bitfield1: 25
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            dataframe_col {
+              col_name: "idx"
+              df {
+                dataframe_ref {
+                  id {
+                    bitfield1: 1
+                  }
+                }
+              }
+              src {
+                end_column: 32
+                end_line: 66
+                file: 2
+                start_column: 25
+                start_line: 66
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                indirect_table_fn_id_ref {
+                  id {
+                    bitfield1: 25
+                  }
+                }
+              }
+              src {
+                end_column: 103
+                end_line: 66
+                file: 2
+                start_column: 14
+                start_line: 66
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 103
+          end_line: 66
+          file: 2
+          start_column: 14
+          start_line: 66
+        }
+      }
+    }
+    symbol {
+      value: "df9"
+    }
+    uid: 26
+    var_id {
+      bitfield1: 26
     }
   }
 }

@@ -223,7 +223,7 @@ message FlattenMode {
   }
 }
 
-// dataframe.ir:230
+// dataframe.ir:232
 message JoinType {
   oneof variant {
     bool join_type__asof = 1;
@@ -741,14 +741,14 @@ message CreateDataframe {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:163
+// dataframe.ir:165
 message DataframeAgg {
   Expr df = 1;
   ExprArgList exprs = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:168
+// dataframe.ir:170
 message DataframeAlias {
   Expr df = 1;
   string name = 2;
@@ -811,11 +811,12 @@ message DataframeAnalyticsTimeSeriesAgg {
   repeated string windows = 8;
 }
 
-// dataframe-io.ir:183
+// dataframe.ir:348
 message DataframeCacheResult {
   Expr df = 1;
-  SrcPosition src = 2;
-  repeated Tuple_String_String statement_params = 3;
+  NameRef object_name = 2;
+  SrcPosition src = 3;
+  repeated Tuple_String_String statement_params = 4;
 }
 
 // column.ir:1
@@ -888,7 +889,7 @@ message DataframeCreateOrReplaceView {
   repeated Tuple_String_String statement_params = 6;
 }
 
-// dataframe.ir:173
+// dataframe.ir:175
 message DataframeCrossJoin {
   Expr lhs = 1;
   google.protobuf.StringValue lsuffix = 2;
@@ -904,48 +905,48 @@ message DataframeCube {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:180
+// dataframe.ir:182
 message DataframeDescribe {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:185
+// dataframe.ir:187
 message DataframeDistinct {
   Expr df = 1;
   SrcPosition src = 2;
 }
 
-// dataframe.ir:189
+// dataframe.ir:191
 message DataframeDrop {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:194
+// dataframe.ir:196
 message DataframeDropDuplicates {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:199
+// dataframe.ir:201
 message DataframeExcept {
   Expr df = 1;
   Expr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:204
+// dataframe.ir:206
 message DataframeFilter {
   Expr condition = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:218
+// dataframe.ir:220
 message DataframeFirst {
   bool block = 1;
   Expr df = 2;
@@ -954,7 +955,7 @@ message DataframeFirst {
   repeated Tuple_String_String statement_params = 5;
 }
 
-// dataframe.ir:209
+// dataframe.ir:211
 message DataframeFlatten {
   Expr df = 1;
   Expr input = 2;
@@ -979,14 +980,14 @@ message DataframeGroupByGroupingSets {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:225
+// dataframe.ir:227
 message DataframeIntersect {
   Expr df = 1;
   Expr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:241
+// dataframe.ir:243
 message DataframeJoin {
   Expr join_expr = 1;
   JoinType join_type = 2;
@@ -998,14 +999,14 @@ message DataframeJoin {
   SrcPosition src = 8;
 }
 
-// dataframe.ir:251
+// dataframe.ir:253
 message DataframeJoinTableFunction {
   Expr fn = 1;
   Expr lhs = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:256
+// dataframe.ir:258
 message DataframeLimit {
   Expr df = 1;
   int64 n = 2;
@@ -1033,25 +1034,27 @@ message DataframeNaDrop_Scala {
 // dataframe.ir:142
 message DataframeNaFill {
   Expr df = 1;
-  SrcPosition src = 2;
-  ExprArgList subset = 3;
-  Expr value = 4;
-  repeated Tuple_String_Expr value_map = 5;
-}
-
-// dataframe.ir:149
-message DataframeNaReplace {
-  Expr df = 1;
-  repeated Tuple_Expr_Expr replacement_map = 2;
+  bool include_decimal = 2;
   SrcPosition src = 3;
   ExprArgList subset = 4;
-  repeated Expr to_replace_list = 5;
-  Expr to_replace_value = 6;
-  Expr value = 7;
-  repeated Expr values = 8;
+  Expr value = 5;
+  repeated Tuple_String_Expr value_map = 6;
 }
 
-// dataframe.ir:262
+// dataframe.ir:150
+message DataframeNaReplace {
+  Expr df = 1;
+  bool include_decimal = 2;
+  repeated Tuple_Expr_Expr replacement_map = 3;
+  SrcPosition src = 4;
+  ExprArgList subset = 5;
+  repeated Expr to_replace_list = 6;
+  Expr to_replace_value = 7;
+  Expr value = 8;
+  repeated Expr values = 9;
+}
+
+// dataframe.ir:264
 message DataframeNaturalJoin {
   JoinType join_type = 1;
   Expr lhs = 2;
@@ -1068,7 +1071,7 @@ message DataframePivot {
   PivotValue values = 5;
 }
 
-// dataframe.ir:276
+// dataframe.ir:278
 message DataframeRandomSplit {
   Expr df = 1;
   google.protobuf.Int64Value seed = 2;
@@ -1117,7 +1120,7 @@ message DataframeRef {
   SrcPosition src = 2;
 }
 
-// dataframe.ir:283
+// dataframe.ir:285
 message DataframeRename {
   Expr col_or_mapper = 1;
   Expr df = 2;
@@ -1132,7 +1135,7 @@ message DataframeRollup {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:289
+// dataframe.ir:291
 message DataframeSample {
   Expr df = 1;
   google.protobuf.Int64Value num = 2;
@@ -1141,7 +1144,7 @@ message DataframeSample {
   SrcPosition src = 5;
 }
 
-// dataframe.ir:296
+// dataframe.ir:298
 message DataframeSelect {
   ExprArgList cols = 1;
   Expr df = 2;
@@ -1156,7 +1159,7 @@ message DataframeShow {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:303
+// dataframe.ir:305
 message DataframeSort {
   Expr ascending = 1;
   ExprArgList cols = 2;
@@ -1240,7 +1243,7 @@ message DataframeToPandasBatches {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe.ir:309
+// dataframe.ir:311
 message DataframeUnion {
   bool all = 1;
   bool allow_missing_columns = 2;
@@ -1250,7 +1253,7 @@ message DataframeUnion {
   SrcPosition src = 6;
 }
 
-// dataframe.ir:268
+// dataframe.ir:270
 message DataframeUnpivot {
   repeated Expr column_list = 1;
   Expr df = 2;
@@ -1260,7 +1263,7 @@ message DataframeUnpivot {
   string value_column = 6;
 }
 
-// dataframe.ir:317
+// dataframe.ir:319
 message DataframeWithColumn {
   Expr col = 1;
   string col_name = 2;
@@ -1268,7 +1271,7 @@ message DataframeWithColumn {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:323
+// dataframe.ir:325
 message DataframeWithColumnRenamed {
   Expr col = 1;
   Expr df = 2;
@@ -1276,7 +1279,7 @@ message DataframeWithColumnRenamed {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:329
+// dataframe.ir:331
 message DataframeWithColumns {
   repeated string col_names = 1;
   Expr df = 2;
@@ -1629,7 +1632,7 @@ message Geq {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:335
+// dataframe.ir:337
 message GroupingSets {
   ExprArgList sets = 1;
   SrcPosition src = 2;
@@ -2246,8 +2249,8 @@ message TableFnCallAlias {
 // fn.ir:151
 message TableFnCallOver {
   Expr lhs = 1;
-  repeated Expr order_by = 2;
-  repeated Expr partition_by = 3;
+  ExprArgList order_by = 2;
+  ExprArgList partition_by = 3;
   SrcPosition src = 4;
 }
 
@@ -2283,7 +2286,7 @@ message TableUpdate {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe.ir:339
+// dataframe.ir:341
 message ToSnowparkPandas {
   repeated string columns = 1;
   Expr df = 2;

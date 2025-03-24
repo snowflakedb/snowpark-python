@@ -5,6 +5,7 @@
 
 import copy
 import itertools
+import random
 import re
 import sys
 from collections import Counter
@@ -28,6 +29,7 @@ from typing import (
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
+
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -116,6 +118,7 @@ from snowflake.snowpark._internal.ast.utils import (
     DATAFRAME_AST_PARAMETER,
     build_view_name,
     build_table_name,
+    build_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -174,11 +177,12 @@ from snowflake.snowpark.functions import (
     abs as abs_,
     col,
     count,
+    hash as hash_,
     lit,
     max as max_,
     mean,
     min as min_,
-    random,
+    random as random_,
     row_number,
     sql_expr,
     stddev,
@@ -2213,7 +2217,7 @@ class DataFrame:
                 for c in col_list:
                     build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-                expr.df.dataframe_ref.id.bitfield1 = self._ast_id
+                self._set_ast_ref(expr.df)
             else:
                 stmt = _ast_stmt
 
@@ -5816,6 +5820,10 @@ class DataFrame:
         with open_telemetry_context_manager(self.cache_result, self):
             from snowflake.snowpark.mock._connection import MockServerConnection
 
+        temp_table_name = self._session.get_fully_qualified_name_if_possible(
+            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
+        )
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -5825,11 +5833,12 @@ class DataFrame:
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
 
-        temp_table_name = self._session.get_fully_qualified_name_if_possible(
-            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
-        )
-
-        # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
+            # We do not treat cache_result() (alias: cache()) as eval. Instead, in AST given it returns a
+            # Dataframe we follow a similar model to other APIs. However, this API will materialize the data before in
+            # a temporary table. We store a reference to this entity as part of the AST.
+            build_name(
+                temp_table_name, stmt.expr.dataframe_cache_result.object_name.name
+            )
 
         if isinstance(self._session._conn, MockServerConnection):
             ast_id = self._ast_id
@@ -5876,7 +5885,6 @@ class DataFrame:
             cached_df._ast_id = stmt.var_id.bitfield1
         return cached_df
 
-    @df_collect_api_telemetry
     @publicapi
     def random_split(
         self,
@@ -5941,27 +5949,61 @@ class DataFrame:
                     raise ValueError("weights must be positive numbers")
 
             temp_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
-            cached_df = self.with_column(
-                temp_column_name,
-                abs_(random(seed)) % _ONE_MILLION,
-                _emit_ast=False,
-            ).cache_result(statement_params=statement_params, _emit_ast=False)
-            sum_weights = sum(weights)
-            normalized_cum_weights = [0] + [
-                int(w * _ONE_MILLION)
-                for w in list(itertools.accumulate([w / sum_weights for w in weights]))
-            ]
-            normalized_boundaries = zip(
-                normalized_cum_weights[:-1], normalized_cum_weights[1:]
-            )
-            res_dfs = [
-                cached_df.where(
-                    (col(temp_column_name) >= lower_bound)
-                    & (col(temp_column_name) < upper_bound),
-                    _emit_ast=False,
-                ).drop(temp_column_name, _emit_ast=False)
-                for lower_bound, upper_bound in normalized_boundaries
-            ]
+            with ResourceUsageCollector() as resource_usage_collector:
+                if self._session.conf.get("use_simplified_query_generation"):
+                    api_name = "DataFrame.random_split[hash]"
+                    if seed is not None:
+                        local_random = random.Random(seed)
+                        python_seed = local_random.random()
+                    else:
+                        python_seed = random.random()
+                    intermediate_df = self.with_column(
+                        temp_column_name,
+                        abs_(
+                            hash_(
+                                "*", lit(python_seed, _emit_ast=False), _emit_ast=False
+                            ),
+                            _emit_ast=False,
+                        )
+                        % _ONE_MILLION,
+                        _emit_ast=False,
+                    )
+                else:
+                    api_name = "DataFrame.random_split[cache_result]"
+                    intermediate_df = self.with_column(
+                        temp_column_name,
+                        abs_(random_(seed, _emit_ast=False), _emit_ast=False)
+                        % _ONE_MILLION,
+                        _emit_ast=False,
+                    ).cache_result(statement_params=statement_params, _emit_ast=False)
+                sum_weights = sum(weights)
+                normalized_cum_weights = [0] + [
+                    int(w * _ONE_MILLION)
+                    for w in list(
+                        itertools.accumulate([w / sum_weights for w in weights])
+                    )
+                ]
+                normalized_boundaries = zip(
+                    normalized_cum_weights[:-1], normalized_cum_weights[1:]
+                )
+                res_dfs = [
+                    intermediate_df.where(
+                        (col(temp_column_name) >= lower_bound)
+                        & (col(temp_column_name) < upper_bound),
+                        _emit_ast=False,
+                    ).drop(temp_column_name, _emit_ast=False)
+                    for lower_bound, upper_bound in normalized_boundaries
+                ]
+
+            for df in res_dfs:
+                # adjust for .with_column().where().drop()
+                adjust_api_subcalls(
+                    df,
+                    api_name,
+                    precalls=self._plan.api_calls,
+                    subcalls=df._plan.api_calls[-3:],
+                    resource_usage=resource_usage_collector.get_resource_usage(),
+                )
 
             if _emit_ast:
                 # Assign each Dataframe in res_dfs a __getitem__ from random_split.
