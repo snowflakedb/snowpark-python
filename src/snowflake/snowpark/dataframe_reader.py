@@ -903,7 +903,8 @@ class DataFrameReader:
                     drop_file_format_if_exists_statement(file_format_name)
                 )
             # SNOW-1628625: Schema inference should be done lazily
-            results = self._session._conn.run_query(infer_schema_query)["data"]
+            wufan_tmp = self._session._conn.run_query(infer_schema_query)
+            results = wufan_tmp["data"]
             if len(results) == 0:
                 raise FileNotFoundError(
                     f"Given path: '{path}' could not be found or is empty."
