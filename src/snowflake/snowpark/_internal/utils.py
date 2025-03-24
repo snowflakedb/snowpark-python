@@ -873,6 +873,15 @@ def create_rlock(
 
 
 @unique
+class AstMode(IntEnum):
+    """
+    Describes the ast modes that instruct the client to send sql and/or dataframe AST to snowflake server.
+    """
+    SQL_ONLY = 0
+    SQL_AND_AST = 1
+    AST_ONLY = 2
+
+@unique
 class AstFlagSource(IntEnum):
     """
     Describes the source of the AST feature flag value. This is not just an annotation!
