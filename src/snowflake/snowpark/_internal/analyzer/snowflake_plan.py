@@ -1105,10 +1105,16 @@ class SnowflakePlanBuilder:
         default_on_null: Optional[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        should_alias_column_with_agg: bool,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: pivot_statement(
-                pivot_column, pivot_values, aggregate, default_on_null, x
+                pivot_column,
+                pivot_values,
+                aggregate,
+                default_on_null,
+                x,
+                should_alias_column_with_agg,
             ),
             child,
             source_plan,

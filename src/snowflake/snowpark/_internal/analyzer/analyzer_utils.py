@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     quote_name,
     random_name_for_temp_object,
+    unwrap_single_quote,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
@@ -63,6 +64,7 @@ RIGHT_PARENTHESIS = ")"
 LEFT_BRACKET = "["
 RIGHT_BRACKET = "]"
 AS = " AS "
+EXCLUDE = " EXCLUDE "
 AND = " AND "
 OR = " OR "
 NOT = " NOT "
@@ -1248,7 +1250,9 @@ def pivot_statement(
     aggregate: str,
     default_on_null: Optional[str],
     child: str,
+    should_alias_column_with_agg: bool,
 ) -> str:
+    select_str = STAR
     if isinstance(pivot_values, str):
         # The subexpression in this case already includes parenthesis.
         values_str = pivot_values
@@ -1258,10 +1262,24 @@ def pivot_statement(
             + (ANY if pivot_values is None else COMMA.join(pivot_values))
             + RIGHT_PARENTHESIS
         )
+        if pivot_values is not None and should_alias_column_with_agg:
+            quoted_names = [quote_name(value) for value in pivot_values]
+            # unwrap_single_quote on the value to match the output closer to what spark generates
+            aliased_names = [
+                quote_name(f"{unwrap_single_quote(value)}_{aggregate}")
+                for value in pivot_values
+            ]
+            aliased_string = [
+                f"{quoted_name}{AS}{aliased_name}"
+                for aliased_name, quoted_name in zip(aliased_names, quoted_names)
+            ]
+            exclude_str = COMMA.join(quoted_names)
+            aliased_str = COMMA.join(aliased_string)
+            select_str = f"{STAR}{EXCLUDE}{LEFT_PARENTHESIS}{exclude_str}{RIGHT_PARENTHESIS}, {aliased_str}"
 
     return (
         SELECT
-        + STAR
+        + select_str
         + FROM
         + LEFT_PARENTHESIS
         + child
