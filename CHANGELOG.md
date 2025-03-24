@@ -39,6 +39,7 @@
 - Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
 - Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources.
 - Improved how a missing `index_label` in `DataFrame.to_snowflake` and `Series.to_snowflake` is handled when `index=True`. Instead of raising a `ValueError`, system-defined labels are used for the index columns.
+- Improved error message for `groupby.agg` when the function name is not supported.
 
 ## 1.29.1 (2025-03-12)
 
@@ -98,7 +99,6 @@
 
 - Improved version validation warnings for `snowflake-snowpark-python` package compatibility when registering stored procedures. Now, warnings are only triggered if the major or minor version does not match, while bugfix version differences no longer generate warnings.
 - Bumped cloudpickle dependency to also support `cloudpickle==3.0.0` in addition to previous versions.
-- Improved error message for `groupby.agg` when the function name is not supported.
 
 ### Snowpark Local Testing Updates
 

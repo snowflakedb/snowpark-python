@@ -12,6 +12,7 @@ import snowflake.snowpark.modin.plugin._internal.aggregation_utils as aggregatio
 from snowflake.snowpark.functions import greatest, sum as sum_
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     SnowflakeAggFunc,
+    _are_all_agg_funcs_supported_by_snowflake,
     _is_supported_snowflake_agg_func,
     _SnowparkPandasAggregation,
     check_is_aggregation_supported_in_snowflake,
@@ -74,6 +75,29 @@ def test__is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) 
         unsupported_func,
         unsupported_kwargs,
     ) = _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis)
+    assert is_supported == is_valid
+
+
+@pytest.mark.parametrize(
+    "agg_func, agg_kwargs, axis, is_valid",
+    [
+        ([np.sum, np.mean], {}, 0, True),
+        ([np.max, np.median], {}, 1, False),
+        ([np.max, np.min], {}, 0, True),
+        (["median", "max", "count"], {}, 0, True),
+        (["size", "max", "sum"], {}, 0, True),
+        (["test", "max", "sum"], {}, 0, False),
+        (["std", "max", "sum"], {"ddof": 0}, 0, True),
+    ],
+)
+def test__are_all_agg_funcs_supported_by_snowflake(
+    agg_func, agg_kwargs, axis, is_valid
+):
+    (
+        is_supported,
+        unsupported_func,
+        unsupported_kwargs,
+    ) = _are_all_agg_funcs_supported_by_snowflake(agg_func, agg_kwargs, axis)
     assert is_supported == is_valid
 
 
