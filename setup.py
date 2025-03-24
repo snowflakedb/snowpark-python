@@ -30,10 +30,10 @@ INSTALL_REQ_LIST = [
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
-REQUIRED_PYTHON_VERSION = ">=3.8, <3.13"
+REQUIRED_PYTHON_VERSION = ">=3.9, <3.13"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
-    REQUIRED_PYTHON_VERSION = ">=3.8"
+    REQUIRED_PYTHON_VERSION = ">=3.9"
 
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
@@ -99,7 +99,7 @@ if protoc_gen_mypy is None:
 # Protobuf files need to compile
 PROTOS = ("src/snowflake/snowpark/_internal/proto/ast.proto",)
 
-_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+_ROOT_DIR = os.path.dirname(__file__)
 
 
 def generate_proto(source):
@@ -232,7 +232,6 @@ setup(
         "Operating System :: OS Independent",
         "Programming Language :: SQL",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",

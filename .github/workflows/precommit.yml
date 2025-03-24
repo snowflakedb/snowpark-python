@@ -230,12 +230,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: [ "3.8", "3.9", "3.10", "3.11", "3.12" ]
+        python-version: ["3.9", "3.10", "3.11", "3.12" ]
         cloud-provider: [aws]
         exclude:
           # only run each version on one os
           # daily-precommit does full matrix
-          # macos runs 3.8 and 3.9
+          # macos runs 3.10
           - os: macos-latest
             python-version: "3.12"
           - os: macos-latest
@@ -247,8 +247,6 @@ jobs:
             python-version: "3.12"
           - os: windows-latest
             python-version: "3.10"
-          - os: windows-latest
-            python-version: "3.8"
           # ubuntu runs 3.12
           - os: ubuntu-latest
             python-version: "3.11"
@@ -256,8 +254,6 @@ jobs:
             python-version: "3.10"
           - os: ubuntu-latest
             python-version: "3.9"
-          - os: ubuntu-latest
-            python-version: "3.8"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -323,8 +319,8 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
         # TODO SNOW-1763185 use py39 by default
-        # Protobuf encoding differs per python version, use 3.8 by default.
-        python-version: [ "3.8"]
+        # Protobuf encoding differs per python version, use 3.9 by default.
+        python-version: [ "3.9" ]
         cloud-provider: [aws]
         protobuf-version: ["3.20.1"]
     steps:
