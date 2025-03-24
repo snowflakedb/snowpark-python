@@ -104,7 +104,10 @@ REGISTER_KWARGS_ALLOWLIST = {
     "_registered_object_name",  # object name within Snowflake (post registration)
     "artifact_repository",
     "artifact_repository_packages",
+    "resource_constraint",
 }
+
+ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}
 
 
 class UDFColumn(NamedTuple):
@@ -532,6 +535,22 @@ def check_python_runtime_version(runtime_version_from_requirement: Optional[str]
             f"Your system version is {system_version} while your requirements have specified version "
             f"{runtime_version_from_requirement}!"
         )
+
+
+def check_resource_constraint(constraint: Optional[Dict[str, str]]):
+    if constraint is None:
+        return
+
+    errors = []
+    for key, value in constraint.items():
+        if key.lower() not in ALLOWED_CONSTRAINT_CONFIGURATION:
+            errors.append(ValueError(f"Unknown resource constraint key '{key}'"))
+            continue
+        if value.lower() not in ALLOWED_CONSTRAINT_CONFIGURATION[key]:
+            errors.append(ValueError(f"Unknown value '{value}' for key '{key}'"))
+
+    if errors:
+        raise Exception(errors)
 
 
 def process_file_path(file_path: str) -> str:
@@ -1261,8 +1280,10 @@ def create_python_udf_or_sp(
     runtime_version: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
 ) -> None:
     runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
+    check_resource_constraint(resource_constraint)
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
@@ -1296,6 +1317,17 @@ def create_python_udf_or_sp(
     artifact_repository_packages_in_sql = (
         f"ARTIFACT_REPOSITORY_PACKAGES=('{artifact_repository_packages_str}')"
         if artifact_repository_packages
+        else ""
+    )
+
+    resource_constraint_fmt = (
+        ""
+        if resource_constraint is None
+        else ",".join(f"{k}='{v}'" for k, v in resource_constraint.items())
+    )
+    resource_constraint_sql = (
+        f"RESOURCE_CONSTRAINT=({resource_constraint_fmt})"
+        if resource_constraint_fmt
         else ""
     )
     if artifact_repository_in_sql or artifact_repository_packages_in_sql:
@@ -1383,6 +1415,7 @@ RUNTIME_VERSION={runtime_version}
 {artifact_repository_in_sql}
 {artifact_repository_packages_in_sql}
 {external_access_integrations_in_sql}
+{resource_constraint_sql}
 {secrets_in_sql}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
