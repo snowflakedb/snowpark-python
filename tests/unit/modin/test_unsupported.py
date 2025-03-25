@@ -116,6 +116,7 @@ def test_unsupported_general(general_method, kwargs):
 )
 def test_unsupported_df(df_method, kwargs):
     mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
+    mock_query_compiler.get_backend.return_value = "Snowflake"
     mock_query_compiler.columnarize.return_value = mock_query_compiler
     mock_df = DataFrame(query_compiler=mock_query_compiler)
 
@@ -187,6 +188,7 @@ def test_unsupported_df(df_method, kwargs):
 def test_unsupported_series(series_method, kwargs):
     mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
     mock_query_compiler.columnarize.return_value = mock_query_compiler
+    mock_query_compiler.get_backend.return_value = "Snowflake"
     mock_df = Series(query_compiler=mock_query_compiler)
 
     with pytest.raises(NotImplementedError):
