@@ -12020,7 +12020,8 @@ def ai_filter(
         |False   |False     |False            |True               |
         -----------------------------------------------------------
         <BLANKLINE>
-        >>>     df.filter(ai_filter("Is the country in Asia?", col("country"))).show()  # doctest: +SKIP
+        >>> if "gcp" not in session.connection.host.split("."):
+        ...    df.filter(ai_filter("Is the country in Asia?", col("country"))).show()  # doctest: +SKIP
         -------------
         |"COUNTRY"  |
         -------------
