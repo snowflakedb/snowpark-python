@@ -241,7 +241,12 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
         res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
-            return ColumnEmulator(data=[None], sf_type=column.sf_type)
+            # If original column had na values then na is an expected output
+            column_has_na = (
+                column[column.apply(lambda x: x is not None)].isna().values.any()
+            )
+            if not column_has_na:
+                return ColumnEmulator(data=[None], sf_type=column.sf_type)
         return ColumnEmulator(data=res, sf_type=column.sf_type)
     except TypeError:  # math.isnan throws TypeError if res[0] is not a number
         return ColumnEmulator(data=res, sf_type=column.sf_type)
@@ -255,7 +260,12 @@ def mock_max(column: ColumnEmulator) -> ColumnEmulator:
         res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
-            return ColumnEmulator(data=[None], sf_type=column.sf_type)
+            # If original column had na values then na is an expected output
+            column_has_na = (
+                column[column.apply(lambda x: x is not None)].isna().values.any()
+            )
+            if not column_has_na:
+                return ColumnEmulator(data=[None], sf_type=column.sf_type)
         return ColumnEmulator(data=res, sf_type=column.sf_type)
     except TypeError:
         return ColumnEmulator(data=res, sf_type=column.sf_type)

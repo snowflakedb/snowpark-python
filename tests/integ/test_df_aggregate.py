@@ -569,16 +569,10 @@ def test_agg(session, local_testing_mode):
         pytest.skip("mock implementation does not apply to live code")
 
     registry = snowpark_mock_functions.MockedFunctionRegistry.get_or_create()
-    registry.unregister("stddev")
     registry.unregister("stddev_pop")
 
     with pytest.raises(NotImplementedError):
         origin_df.select(stddev("n"), stddev_pop("m")).collect()
-
-    @snowpark_mock_functions.patch("stddev")
-    def mock_stddev(column: ColumnEmulator):
-        assert column.tolist() == [11.0, 22.0, 9.0, 9.0, 35.0, 99.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
 
     # stddev_pop is not implemented yet
     with pytest.raises(NotImplementedError):
@@ -590,7 +584,9 @@ def test_agg(session, local_testing_mode):
         return ColumnEmulator(data=456, sf_type=ColumnType(DoubleType(), False))
 
     Utils.check_answer(
-        origin_df.select(stddev("n"), stddev_pop("m")).collect(), Row(123.0, 456.0)
+        origin_df.select(stddev("n"), stddev_pop("m")).collect(),
+        Row(34.89, 456.0),
+        float_equality_threshold=0.1,
     )
 
 
