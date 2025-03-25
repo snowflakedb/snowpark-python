@@ -30,8 +30,9 @@ def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: 
     BasePandasDataset
         The result of the ufunc applied to the `BasePandasDataset`.
     """
-    from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import \
-        numpy_to_pandas_func_map
+    from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+        numpy_to_pandas_func_map,
+    )
 
     if func.__name__ in numpy_to_pandas_func_map:
         return numpy_to_pandas_func_map[func.__name__](*args, **kwargs)
