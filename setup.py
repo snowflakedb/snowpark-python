@@ -39,7 +39,7 @@ PANDAS_REQUIREMENTS = [
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
-    "modin @ git+https://github.com/sfc-gh-mvashishtha/modin.git@7472/feat/register-series-and-dataframe-accessors-with-backend",
+    "modin @ git+https://github.com/modin-project/modin.git@main",  # Point to the main branch of modin
 ]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
