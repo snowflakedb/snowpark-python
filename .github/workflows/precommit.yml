@@ -319,8 +319,8 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
         # TODO SNOW-1763185 use py39 by default
-        # Protobuf encoding differs per python version, use 3.9 by default.
-        python-version: [ "3.9" ]
+        # Protobuf encoding differs per python version, use 3.8 by default.
+        python-version: [ "3.8" ]
         cloud-provider: [aws]
         protobuf-version: ["3.20.1"]
     steps:

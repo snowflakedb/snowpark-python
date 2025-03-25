@@ -99,7 +99,7 @@ if protoc_gen_mypy is None:
 # Protobuf files need to compile
 PROTOS = ("src/snowflake/snowpark/_internal/proto/ast.proto",)
 
-_ROOT_DIR = os.path.dirname(__file__)
+_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def generate_proto(source):
