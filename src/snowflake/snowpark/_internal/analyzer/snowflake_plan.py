@@ -1306,7 +1306,7 @@ class SnowflakePlanBuilder:
 
         # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
         # Currently it's capped at 16.
-        file_size = int(self.session.sql(f"ls {file_path}").collect()[0]["size"])
+        file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect()[0]["size"])  # type: ignore
         num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
 
         # Create a range from 0 to N-1
@@ -1329,7 +1329,7 @@ class SnowflakePlanBuilder:
         df = df.select(
             worker_column_name,
             xml_row_number_column_name,
-            flatten(df[XML_ROW_DATA_COLUMN_NAME]),
+            flatten(XML_ROW_DATA_COLUMN_NAME),
         ).select(worker_column_name, xml_row_number_column_name, "key", "value")
 
         # Apply dynamic pivot to get the flat table with dynamic schema
