@@ -54,6 +54,7 @@
 
 - Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
 - Improved how a missing `index_label` in `DataFrame.to_snowflake` and `Series.to_snowflake` is handled when `index=True`. Instead of raising a `ValueError`, system-defined labels are used for the index columns.
+- Improved error message for `groupby or DataFrame or Series.agg` when the function name is not supported.
 
 ## 1.29.1 (2025-03-12)
 
@@ -107,7 +108,7 @@
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
 - Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
 - Fixed a bug where `df.order_by(A).select(B).distinct()` would generate invalid SQL when simplified query generation was enabled using `session.conf.set("use_simplified_query_generation", True)`.
-  - Disabled simplified query generation by default.
+- Disabled simplified query generation by default.
 
 #### Improvements
 
