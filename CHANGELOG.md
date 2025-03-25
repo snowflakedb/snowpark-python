@@ -39,6 +39,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug in aggregation that caused empty groups to still produce rows.
 - Fixed a bug in `Dataframe.except_` that would cause rows to be incorrectly dropped.
 
 ### Snowpark pandas API Updates
