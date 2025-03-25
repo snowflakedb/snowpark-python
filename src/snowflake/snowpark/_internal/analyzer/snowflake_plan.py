@@ -1289,44 +1289,56 @@ class SnowflakePlanBuilder:
         return new_options
 
     def _create_xml_query(
-        self, udtf: "UserDefinedTableFunction", file_path: str, options: Dict[str, str]
+        self,
+        xml_reader_udtf: "UserDefinedTableFunction",
+        file_path: str,
+        options: Dict[str, str],
     ) -> str:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
         """
         from snowflake.snowpark.functions import lit, col, seq8, flatten
+        from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
 
-        default_num_workers = 16
         worker_column_name = "WORKER"
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]
 
+        # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
+        # Currently it's capped at 16.
+        file_size = self.session.sql(f"ls {file_path}").collect()[0]["size"]
+        num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
+
         # Create a range from 0 to N-1
-        df = self.session.range(default_num_workers).to_df(worker_column_name)
+        df = self.session.range(num_workers).to_df(worker_column_name)
+
         # Apply UDTF to the XML file and get each XML record as a Variant data,
         # and append a unique row number to each record.
         df = df.select(
             worker_column_name,
             seq8().as_(xml_row_number_column_name),
-            udtf(
+            xml_reader_udtf(
                 lit(file_path),
-                lit(default_num_workers),
+                lit(num_workers),
                 lit(row_tag),
                 col(worker_column_name),
             ),
         )
+
         # Flatten the Variant data to get the key-value pairs
         df = df.select(
             worker_column_name,
             xml_row_number_column_name,
             flatten(df[XML_ROW_DATA_COLUMN_NAME]),
         ).select(worker_column_name, xml_row_number_column_name, "key", "value")
+
         # Apply dynamic pivot to get the flat table with dynamic schema
         df = (
             df.pivot("key")
             .max("value")
             .sort(worker_column_name, xml_row_number_column_name)
         )
+
         # Exclude the worker and row number columns
         return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
 

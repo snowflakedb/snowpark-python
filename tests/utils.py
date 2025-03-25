@@ -1537,6 +1537,10 @@ class TestFiles:
     def test_house_xml(self):
         return os.path.join(self.resources_path, "fias_house.xml")
 
+    @property
+    def test_xxe_xml(self):
+        return os.path.join(self.resources_path, "xxe.xml")
+
 
 class TypeMap(NamedTuple):
     col_name: str

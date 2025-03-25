@@ -65,6 +65,7 @@ test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
 test_file_books_xml = "books.xml"
 test_file_house_xml = "fias_house.xml"
+test_file_xxe_xml = "xxe.xml"
 
 
 # In the tests below, we test both scenarios: SELECT & COPY
@@ -244,6 +245,9 @@ def setup(session, resources_path, local_testing_mode):
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_house_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_xxe_xml, compress=False
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name2, test_files.test_file_csv, compress=False
@@ -1945,3 +1949,14 @@ def test_read_xml_row_tag(
     result = df.collect()
     assert len(result) == expected_row_count
     assert len(result[0]) == expected_column_count
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+def test_read_xml_no_xxe(session):
+    row_tag = "bar"
+    stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
+    df = session.read.option("_ROW_TAG", row_tag).xml(stage_file_path)
+    Utils.check_answer(df, [Row("null")])

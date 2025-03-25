@@ -32,6 +32,9 @@ def replace_entity(match: re.Match) -> str:
     if entity in predefined:
         # Leave these untouched.
         return match.group(0)
+    elif entity == "xxe":
+        # Replace 'xxe' with an empty string.
+        return ""
     elif entity in html.entities.name2codepoint:
         # Replace with the actual character.
         return chr(html.entities.name2codepoint[entity])
@@ -116,8 +119,10 @@ def find_next_closing_tag_pos(
 
         # Prepare overlap for the next iteration.
         overlap = data[-overlap_size:] if len(data) >= overlap_size else data
+
         # Rewind file pointer to ensure we do not skip data that may contain a split tag.
         file_obj.seek(-len(overlap), 1)
+
         # Check that progress is being made to avoid infinite loops.
         if file_obj.tell() <= pos_before:
             raise EOFError("No progress made while searching for closing tag")
@@ -194,14 +199,12 @@ def find_next_opening_tag_pos(
         # Update the overlap from the end of the combined data.
         overlap = data[-overlap_size:] if len(data) >= overlap_size else data
 
-        # If the file pointer is now at (or beyond) the end limit, no tag exists in this range.
-        if file_obj.tell() >= end_limit:
-            raise EOFError("No opening tag found before reaching end limit")
+        # Otherwise, rewind by the length of the overlap so that a tag spanning the boundary isn’t missed.
+        file_obj.seek(-len(overlap), 1)
+
         # Check that progress is being made to avoid infinite loops.
         if file_obj.tell() <= pos_before:
             raise EOFError("No progress made while searching for opening tag")
-        # Otherwise, rewind by the length of the overlap so that a tag spanning the boundary isn’t missed.
-        file_obj.seek(-len(overlap), 1)
 
 
 def element_to_dict(
