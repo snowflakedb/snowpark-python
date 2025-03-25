@@ -311,6 +311,7 @@ jobs:
             .tox/coverage.xml
 
   test-ast-encoding:
+    if: false  # SNOW-2005312: re-enable after addressing SNOW-1763185
     name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
