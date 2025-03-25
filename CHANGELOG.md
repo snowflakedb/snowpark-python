@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added Support for relaxed consistency and ordering guarantees in `Dataframe.to_snowpark_pandas` by introducing the new parameter `relaxed_ordering`.
+
 #### Improvements
 
 - Improved query generation for `Dataframe.stat.sample_by` to generate a single flat query that scales well with large `fractions` dictionary compared to older method of creating a UNION ALL subquery for each key in `fractions`. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
@@ -33,11 +37,11 @@
 
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
+- Added support for relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources by introducing the new parameter `relaxed_ordering`.
 
 #### Improvements
 
 - Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
-- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources.
 - Improved how a missing `index_label` in `DataFrame.to_snowflake` and `Series.to_snowflake` is handled when `index=True`. Instead of raising a `ValueError`, system-defined labels are used for the index columns.
 
 ## 1.29.1 (2025-03-12)

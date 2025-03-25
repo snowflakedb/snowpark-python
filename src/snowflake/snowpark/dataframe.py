@@ -1291,6 +1291,7 @@ class DataFrame:
         self,
         index_col: Optional[Union[str, List[str]]] = None,
         columns: Optional[List[str]] = None,
+        relaxed_ordering: bool = False,
         _emit_ast: bool = True,
     ) -> "modin.pandas.DataFrame":
         """
@@ -1300,6 +1301,10 @@ class DataFrame:
             index_col: A column name or a list of column names to use as index.
             columns: A list of column names for the columns to select from the Snowpark DataFrame. If not specified, select
                 all columns except ones configured in index_col.
+            relaxed_ordering: If True, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
+                DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
+                documentation of :func:`~modin.pandas.read_snowflake` for more details.
+
 
         Returns:
             :class:`~modin.pandas.DataFrame`
@@ -1382,23 +1387,36 @@ class DataFrame:
             if columns is not None:
                 ast.columns.extend(columns if isinstance(columns, list) else [columns])
 
-        # create a temporary table out of the current snowpark dataframe
-        temporary_table_name = random_name_for_temp_object(
-            TempObjectType.TABLE
-        )  # pragma: no cover
-        ast_id = self._ast_id
-        self._ast_id = None  # set the AST ID to None to prevent AST emission.
-        self.write.save_as_table(
-            temporary_table_name,
-            mode="errorifexists",
-            table_type="temporary",
-            _emit_ast=False,
-        )  # pragma: no cover
-        self._ast_id = ast_id  # reset the AST ID.
+        if not relaxed_ordering:
+            # create a temporary table out of the current snowpark dataframe
+            temporary_table_name = random_name_for_temp_object(
+                TempObjectType.TABLE
+            )  # pragma: no cover
+            ast_id = self._ast_id
+            self._ast_id = None  # set the AST ID to None to prevent AST emission.
+            self.write.save_as_table(
+                temporary_table_name,
+                mode="errorifexists",
+                table_type="temporary",
+                _emit_ast=False,
+            )  # pragma: no cover
+            self._ast_id = ast_id  # reset the AST ID.
 
-        snowpandas_df = pd.read_snowflake(
-            name_or_query=temporary_table_name, index_col=index_col, columns=columns
-        )  # pragma: no cover
+            snowpandas_df = pd.read_snowflake(
+                name_or_query=temporary_table_name, index_col=index_col, columns=columns
+            )  # pragma: no cover
+        else:
+            if len(self.queries["queries"]) > 1:
+                raise NotImplementedError(
+                    "Setting 'relaxed_ordering=True' in 'to_snowpark_pandas' is not supported when the input "
+                    "dataframe includes DDL or DML operations. Please use 'relaxed_ordering=False' instead."
+                )
+            snowpandas_df = pd.read_snowflake(
+                name_or_query=self.queries["queries"][0],
+                index_col=index_col,
+                columns=columns,
+                relaxed_ordering=True,
+            )  # pragma: no cover
 
         if _emit_ast:
             # Set the Snowpark DataFrame AST ID to the AST ID of this pandas query.
