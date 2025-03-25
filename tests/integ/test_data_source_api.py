@@ -473,18 +473,33 @@ def test_predicates():
 def test_session_init_statement(session):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
-        table_name, _, _, assert_data = sqlite3_db(dbpath)
+        table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
+
+        new_data1 = (5, 100) + (None,) * (len(columns) - 3) + ('"123"',)
+        new_data2 = (6, 101) + (None,) * (len(columns) - 3) + ('"456"',)
 
         df = session.read.dbapi(
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             table=table_name,
             custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
-            session_init_statement="SELECT 1;",
+            session_init_statement=f"insert into {table_name} (int_col, var_col) values (100, '123');",
         )
-        assert df.collect() == assert_data
+        assert df.collect() == assert_data + [new_data1]
+
+        df = session.read.dbapi(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            table=table_name,
+            custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+            session_init_statement=[
+                f"insert into {table_name} (int_col, var_col) values (100, '123');",
+                f"insert into {table_name} (int_col, var_col) values (101, '456');",
+            ],
+        )
+        assert df.collect() == assert_data + [new_data1, new_data2]
 
         with pytest.raises(
-            SnowparkDataframeReaderException, match='near "FROM": syntax error'
+            SnowparkDataframeReaderException,
+            match=r'Failed to execute session init statement: \'SELECT FROM NOTHING;\' due to exception \'OperationalError\(\'near "FROM": syntax error\'\)\'',
         ):
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
