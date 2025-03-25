@@ -408,6 +408,11 @@ def __rdivmod__(self, other):
     pass  # pragma: no cover
 
 
+@register_dataframe_not_implemented()
+def update(self, other) -> None:  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
 # The from_dict and from_records accessors are class methods and cannot be overridden via the
 # extensions module, as they need to be foisted onto the namespace directly because they are not
 # routed through getattr. To this end, we manually set DataFrame.from_dict to our new method.
