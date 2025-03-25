@@ -377,6 +377,11 @@ def to_timestamp(self, freq=None, how="start", copy=True):  # noqa: PR01, RT01, 
 
 
 @register_series_not_implemented()
+def update(self, other) -> None:  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_series_not_implemented()
 def view(self, dtype=None):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
