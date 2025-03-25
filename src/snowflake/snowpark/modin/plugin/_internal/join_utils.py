@@ -13,14 +13,22 @@ from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.functions import coalesce, to_variant
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
-    OrderedDataFrame, OrderingColumn)
-from snowflake.snowpark.modin.plugin._internal.type_utils import \
-    is_compatible_snowpark_types
+    OrderedDataFrame,
+    OrderingColumn,
+)
+from snowflake.snowpark.modin.plugin._internal.type_utils import (
+    is_compatible_snowpark_types,
+)
 from snowflake.snowpark.modin.plugin._internal.utils import (
-    ORDERING_COLUMN_LABEL, append_columns,
-    extract_pandas_label_from_snowflake_quoted_identifier)
-from snowflake.snowpark.modin.plugin._typing import (AlignSortLit,
-                                                     AlignTypeLit, JoinTypeLit)
+    ORDERING_COLUMN_LABEL,
+    append_columns,
+    extract_pandas_label_from_snowflake_quoted_identifier,
+)
+from snowflake.snowpark.modin.plugin._typing import (
+    AlignSortLit,
+    AlignTypeLit,
+    JoinTypeLit,
+)
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
 from snowflake.snowpark.types import VariantType
 
@@ -965,7 +973,6 @@ def _get_index_columns_to_join(
             3) the final pandas labels for index columns of the join result
     """
     is_left_multiindex = left.is_multiindex(axis=0)
-    breakpoint()
     is_right_multiindex = right.is_multiindex(axis=0)
     if (
         not is_left_multiindex
