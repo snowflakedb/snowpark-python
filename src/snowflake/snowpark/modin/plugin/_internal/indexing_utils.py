@@ -725,7 +725,6 @@ def get_valid_col_positions_from_col_labels(
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         SnowflakeQueryCompiler,
     )
-    import snowflake.snowpark.modin.plugin.extensions.index.Index
 
     is_column_multiindex = internal_frame.is_multiindex(axis=1)
     columns = internal_frame.data_columns_index
@@ -757,9 +756,7 @@ def get_valid_col_positions_from_col_labels(
                 )
             )
             col_loc = col_loc.index
-            if isinstance(
-                col_loc, snowflake.snowpark.modin.plugin.extensions.index.Index
-            ):
+            if isinstance(col_loc, pd.Index):
                 col_loc = col_loc.to_pandas()
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
