@@ -1396,6 +1396,19 @@ def test_to_timestamp(session):
         ],
     )
 
+    # Test filtered df works as expected
+    df = session.create_dataframe(
+        [1742423376, 1742423377, 1742423378, 1742423379, 1742423380], ["ts"]
+    )
+    Utils.check_answer(
+        df.filter((df.ts % 2) == 0).select(to_timestamp(df.ts)),
+        [
+            Row(datetime(2025, 3, 19, 22, 29, 36)),
+            Row(datetime(2025, 3, 19, 22, 29, 38)),
+            Row(datetime(2025, 3, 19, 22, 29, 40)),
+        ],
+    )
+
 
 def test_to_time(session, local_testing_mode):
     # basic string expr
