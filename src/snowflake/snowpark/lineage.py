@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.utils import private_preview
 from snowflake.snowpark.types import (
     IntegerType,
     StringType,
@@ -569,7 +568,6 @@ class Lineage:
             if not re.match(r'^"[^"]*"$|\w+', part):
                 raise ValueError(f"Invalid object name: {object_name}")
 
-    @private_preview(version="1.16.0")
     def trace(
         self,
         object_name: str,
