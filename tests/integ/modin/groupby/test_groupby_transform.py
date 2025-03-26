@@ -151,7 +151,6 @@ def test_dataframe_groupby_transform_conflicting_labels(session):
     operations in `create_udtf_for_groupby_apply`.
     This test is supposed to work correctly and match native pandas.
     """
-    join_count = 12 if session.sql_simplifier_enabled else 6
 
     def transform_helper(df):
         df["X_DATA"] = df["X"]
@@ -160,7 +159,7 @@ def test_dataframe_groupby_transform_conflicting_labels(session):
 
     with SqlCounter(
         query_count=7,
-        join_count=join_count,
+        join_count=12 if session.sql_simplifier_enabled else 6,
         udtf_count=1,
         high_count_expected=True,
         high_count_reason="performing two groupby transform operations that use UDTFs and compare "
