@@ -4751,7 +4751,7 @@ class DataFrame:
             elif isinstance(cell, bool):
                 res = "true" if cell else "false"
             elif isinstance(cell, bytes) or isinstance(cell, bytearray):
-                res = f"[{' '.join([str(b) for b in cell])}]"
+                res = f"[{' '.join([format(b, '02X') for b in cell])}]"
             elif isinstance(cell, list):
                 res = "[" + ", ".join([cell_to_str(v) for v in cell]) + "]"
             elif isinstance(cell, dict):
