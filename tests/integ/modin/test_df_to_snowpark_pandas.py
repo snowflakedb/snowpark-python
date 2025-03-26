@@ -141,6 +141,10 @@ def test_to_snowpark_pandas_with_operations(
 def test_to_snowpark_pandas_duplicated_columns_raises(
     session, tmp_table_basic, relaxed_ordering
 ) -> None:
+    sql_simplifier_enabled_original = session.sql_simplifier_enabled
+    # Error is raised only when SQL simplifier is enabled.
+    session.sql_simplifier_enabled = True
+
     snowpark_df = session.table(tmp_table_basic)
     snowpark_df = snowpark_df.select(
         Column("ID"),
@@ -156,6 +160,7 @@ def test_to_snowpark_pandas_duplicated_columns_raises(
 
     with pytest.raises(SnowparkSQLException, match=pattern):
         snowpark_df.to_snowpark_pandas(relaxed_ordering=relaxed_ordering).head()
+    session.sql_simplifier_enabled = sql_simplifier_enabled_original
 
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
