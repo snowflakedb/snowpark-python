@@ -665,6 +665,7 @@ class StoredProcedureRegistration:
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure from a Python or zip file,
@@ -791,6 +792,7 @@ class StoredProcedureRegistration:
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_sp(
@@ -990,6 +992,7 @@ class StoredProcedureRegistration:
                     artifact_repository_packages=kwargs.get(
                         "artifact_repository_packages"
                     ),
+                    resource_constraint=kwargs.get("resource_constraint"),
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

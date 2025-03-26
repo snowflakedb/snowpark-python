@@ -91,6 +91,7 @@ class UserDefinedAggregateFunction:
         self._ast = _ast
         self._ast_id = _ast_id
 
+    @publicapi
     def __call__(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -334,7 +335,8 @@ class UDAFRegistration:
         """
         func_args = [convert_sp_to_sf_type(t) for t in udaf_obj._input_types]
         return self._session.sql(
-            f"describe function {udaf_obj.name}({','.join(func_args)})"
+            f"describe function {udaf_obj.name}({','.join(func_args)})",
+            _emit_ast=False,
         )
 
     # TODO: Support strict/secure once the server side supports these keywords in Python UDAF
@@ -515,6 +517,7 @@ class UDAFRegistration:
         skip_upload_on_content_match: bool = False,
         immutable: bool = False,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedAggregateFunction:
         """
         Registers a Python class as a Snowflake Python UDAF from a Python or zip file,
@@ -649,6 +652,7 @@ class UDAFRegistration:
                 comment=comment,
                 copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udaf(
@@ -813,6 +817,7 @@ class UDAFRegistration:
                 runtime_version=runtime_version_from_requirement,
                 artifact_repository=kwargs.get("artifact_repository"),
                 artifact_repository_packages=kwargs.get("artifact_repository_packages"),
+                resource_constraint=kwargs.get("resource_constraint"),
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),

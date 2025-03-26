@@ -637,6 +637,15 @@ class TestData:
         )
 
     @classmethod
+    def null_data4(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                [Decimal(1), None],
+                [None, Decimal(2)],
+            ]
+        ).to_df(["a", "b"])
+
+    @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
         return session.create_dataframe([[1], [2], [3]]).to_df(["a"])
 

@@ -1060,14 +1060,15 @@ def execute_mock_plan(
                         )  # Rows that are all None/NaN in both sets
                     ]
                 elif operator == EXCEPT:
-                    res_df = res_df[
-                        ~(
-                            res_df.isin(cur_df.values.ravel()).all(axis=1)
-                        ).values  # NOT IS IN
-                        | (
-                            ~any_null_rows_in_cur_df & null_rows_in_res_df.values
-                        )  # Rows that are all None/NaN only in LEFT
-                    ]
+                    # A side-effect of Snowflake difference is that duplicates are removed from the left side
+                    res_df = res_df.drop_duplicates()
+                    sf_types = res_df.sf_types
+
+                    # Two copies of the right side ensures that all rows present there are dropped when keep=False
+                    res_df = pd.concat([res_df, cur_df, cur_df]).drop_duplicates(
+                        keep=False
+                    )
+                    res_df.sf_types = sf_types
 
                 # Compute drop duplicates
                 res_df = res_df.drop_duplicates()
@@ -1267,14 +1268,16 @@ def execute_mock_plan(
                 )
                 # and then append the calculated value
                 if isinstance(cal_exp_res, ColumnEmulator):
-                    values.append(cal_exp_res.iat[0])
+                    if cur_group.size > 0 or not source_plan.grouping_expressions:
+                        values.append(cal_exp_res.iat[0])
                     result_df_sf_Types[
                         columns[idx + len(column_exps)]
                     ] = result_df_sf_Types_by_col_idx[
                         idx + len(column_exps)
                     ] = cal_exp_res.sf_type
                 else:
-                    values.append(cal_exp_res)
+                    if cur_group.size > 0 or not source_plan.grouping_expressions:
+                        values.append(cal_exp_res)
                     result_df_sf_Types[
                         columns[idx + len(column_exps)]
                     ] = result_df_sf_Types_by_col_idx[

@@ -2,6 +2,10 @@
 
 df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
 
+df.group_by("a").min("b").collect()
+
+df.group_by("a").max("b").collect()
+
 df.group_by("a").median("b").collect()
 
 df.group_by("a").function("avg")("b").collect()
@@ -26,8 +30,7 @@ df.group_by("location").apply_in_pandas(convert,
 
 df = session.create_dataframe([(1, 'A', 10000, 'JAN'), (1, 'B', 400, 'JAN'), (1, 'B', 5000, 'FEB')], schema=['empid', 'team', 'amount', 'month'])
 
-# Does not work because __getitem__ is missing.
-# df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
+df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
 
 df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").show()
 
@@ -37,19 +40,25 @@ df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team"
 
 df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
 
+df.group_by("a").min("b").collect()
+
+df.group_by("a").max("b").collect()
+
 df.group_by("a").median("b").collect()
 
 df.group_by("a").avg("b").collect()
 
-res8 = df.group_by("a").count()
+res14 = df.group_by("a").count()
 
 df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)], schema=["location", "temp_c"])
 
-res10 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+res16 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.group_by("location").apply_in_pandas(convert, StructType(fields=[StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
 
 df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
+
+df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").sort(df["empid"]).show()
 
 df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").show()
 
@@ -355,12 +364,12 @@ body {
   assign {
     expr {
       relational_grouped_dataframe_builtin {
-        agg_name: "median"
+        agg_name: "min"
         cols {
           args {
             string_val {
               src {
-                end_column: 36
+                end_column: 33
                 end_line: 27
                 file: 2
                 start_column: 8
@@ -379,7 +388,7 @@ body {
           }
         }
         src {
-          end_column: 36
+          end_column: 33
           end_line: 27
           file: 2
           start_column: 8
@@ -405,7 +414,7 @@ body {
           bitfield1: 3
         }
         src {
-          end_column: 46
+          end_column: 43
           end_line: 27
           file: 2
           start_column: 8
@@ -476,12 +485,12 @@ body {
   assign {
     expr {
       relational_grouped_dataframe_builtin {
-        agg_name: "avg"
+        agg_name: "max"
         cols {
           args {
             string_val {
               src {
-                end_column: 45
+                end_column: 33
                 end_line: 29
                 file: 2
                 start_column: 8
@@ -500,7 +509,7 @@ body {
           }
         }
         src {
-          end_column: 45
+          end_column: 33
           end_line: 29
           file: 2
           start_column: 8
@@ -526,7 +535,7 @@ body {
           bitfield1: 7
         }
         src {
-          end_column: 55
+          end_column: 43
           end_line: 29
           file: 2
           start_column: 8
@@ -597,7 +606,22 @@ body {
   assign {
     expr {
       relational_grouped_dataframe_builtin {
-        agg_name: "count"
+        agg_name: "median"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 36
+                end_line: 31
+                file: 2
+                start_column: 8
+                start_line: 31
+              }
+              v: "b"
+            }
+          }
+          variadic: true
+        }
         grouped_df {
           relational_grouped_dataframe_ref {
             id {
@@ -606,7 +630,7 @@ body {
           }
         }
         src {
-          end_column: 32
+          end_column: 36
           end_line: 31
           file: 2
           start_column: 8
@@ -625,6 +649,233 @@ body {
 body {
   assign {
     expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 11
+        }
+        src {
+          end_column: 46
+          end_line: 31
+          file: 2
+          start_column: 8
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  eval {
+    uid: 13
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 24
+                end_line: 33
+                file: 2
+                start_column: 8
+                start_line: 33
+              }
+              v: "a"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 24
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 14
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      relational_grouped_dataframe_builtin {
+        agg_name: "avg"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 45
+                end_line: 33
+                file: 2
+                start_column: 8
+                start_line: 33
+              }
+              v: "b"
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 14
+            }
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 15
+    var_id {
+      bitfield1: 15
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 15
+        }
+        src {
+          end_column: 55
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 16
+    var_id {
+      bitfield1: 16
+    }
+  }
+}
+body {
+  eval {
+    uid: 17
+    var_id {
+      bitfield1: 16
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 24
+                end_line: 35
+                file: 2
+                start_column: 8
+                start_line: 35
+              }
+              v: "a"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 24
+          end_line: 35
+          file: 2
+          start_column: 8
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 18
+    var_id {
+      bitfield1: 18
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      relational_grouped_dataframe_builtin {
+        agg_name: "count"
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 18
+            }
+          }
+        }
+        src {
+          end_column: 32
+          end_line: 35
+          file: 2
+          start_column: 8
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 19
+    var_id {
+      bitfield1: 19
+    }
+  }
+}
+body {
+  assign {
+    expr {
       create_dataframe {
         data {
           dataframe_data__list {
@@ -632,19 +883,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "SF"
                   }
@@ -653,10 +904,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 21.0
                   }
@@ -667,19 +918,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "SF"
                   }
@@ -688,10 +939,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 17.5
                   }
@@ -702,19 +953,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "SF"
                   }
@@ -723,10 +974,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 24.0
                   }
@@ -737,19 +988,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "NY"
                   }
@@ -758,10 +1009,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 30.9
                   }
@@ -772,19 +1023,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "NY"
                   }
@@ -793,10 +1044,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 33.6
                   }
@@ -813,19 +1064,19 @@ body {
         }
         src {
           end_column: 46
-          end_line: 41
+          end_line: 45
           file: 2
           start_column: 13
-          start_line: 40
+          start_line: 44
         }
       }
     }
     symbol {
       value: "df"
     }
-    uid: 12
+    uid: 20
     var_id {
-      bitfield1: 12
+      bitfield1: 20
     }
   }
 }
@@ -838,10 +1089,10 @@ body {
             string_val {
               src {
                 end_column: 31
-                end_line: 43
+                end_line: 47
                 file: 2
                 start_column: 8
-                start_line: 43
+                start_line: 47
               }
               v: "location"
             }
@@ -851,24 +1102,24 @@ body {
         df {
           dataframe_ref {
             id {
-              bitfield1: 12
+              bitfield1: 20
             }
           }
         }
         src {
           end_column: 31
-          end_line: 43
+          end_line: 47
           file: 2
           start_column: 8
-          start_line: 43
+          start_line: 47
         }
       }
     }
     symbol {
     }
-    uid: 13
+    uid: 21
     var_id {
-      bitfield1: 13
+      bitfield1: 21
     }
   }
 }
@@ -901,10 +1152,10 @@ body {
             bool_val {
               src {
                 end_column: 75
-                end_line: 46
+                end_line: 50
                 file: 2
                 start_column: 8
-                start_line: 43
+                start_line: 47
               }
             }
           }
@@ -935,18 +1186,18 @@ body {
         parallel: 4
         src {
           end_column: 75
-          end_line: 46
+          end_line: 50
           file: 2
           start_column: 8
-          start_line: 43
+          start_line: 47
         }
       }
     }
     symbol {
     }
-    uid: 14
+    uid: 22
     var_id {
-      bitfield1: 14
+      bitfield1: 22
     }
   }
 }
@@ -961,7 +1212,7 @@ body {
         grouped_df {
           relational_grouped_dataframe_ref {
             id {
-              bitfield1: 13
+              bitfield1: 21
             }
           }
         }
@@ -971,10 +1222,10 @@ body {
             list_val {
               src {
                 end_column: 75
-                end_line: 46
+                end_line: 50
                 file: 2
                 start_column: 8
-                start_line: 43
+                start_line: 47
               }
               vs {
                 datatype_val {
@@ -986,10 +1237,10 @@ body {
                   }
                   src {
                     end_column: 75
-                    end_line: 46
+                    end_line: 50
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 47
                   }
                 }
               }
@@ -1000,10 +1251,10 @@ body {
                   }
                   src {
                     end_column: 75
-                    end_line: 46
+                    end_line: 50
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 47
                   }
                 }
               }
@@ -1016,19 +1267,19 @@ body {
             list_val {
               src {
                 end_column: 75
-                end_line: 46
+                end_line: 50
                 file: 2
                 start_column: 8
-                start_line: 43
+                start_line: 47
               }
               vs {
                 string_val {
                   src {
                     end_column: 75
-                    end_line: 46
+                    end_line: 50
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 47
                   }
                   v: "LOCATION"
                 }
@@ -1037,10 +1288,10 @@ body {
                 string_val {
                   src {
                     end_column: 75
-                    end_line: 46
+                    end_line: 50
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 47
                   }
                   v: "TEMP_C"
                 }
@@ -1088,18 +1339,18 @@ body {
         }
         src {
           end_column: 75
-          end_line: 46
+          end_line: 50
           file: 2
           start_column: 8
-          start_line: 43
+          start_line: 47
         }
       }
     }
     symbol {
     }
-    uid: 15
+    uid: 23
     var_id {
-      bitfield1: 15
+      bitfield1: 23
     }
   }
 }
@@ -1112,10 +1363,10 @@ body {
             string_val {
               src {
                 end_column: 94
-                end_line: 46
+                end_line: 50
                 file: 2
                 start_column: 76
-                start_line: 46
+                start_line: 50
               }
               v: "temp_c"
             }
@@ -1125,24 +1376,24 @@ body {
         df {
           dataframe_ref {
             id {
-              bitfield1: 15
+              bitfield1: 23
             }
           }
         }
         src {
           end_column: 94
-          end_line: 46
+          end_line: 50
           file: 2
           start_column: 76
-          start_line: 46
+          start_line: 50
         }
       }
     }
     symbol {
     }
-    uid: 16
+    uid: 24
     var_id {
-      bitfield1: 16
+      bitfield1: 24
     }
   }
 }
@@ -1153,30 +1404,30 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 16
+          bitfield1: 24
         }
         src {
           end_column: 104
-          end_line: 46
+          end_line: 50
           file: 2
           start_column: 95
-          start_line: 46
+          start_line: 50
         }
       }
     }
     symbol {
     }
-    uid: 17
+    uid: 25
     var_id {
-      bitfield1: 17
+      bitfield1: 25
     }
   }
 }
 body {
   eval {
-    uid: 18
+    uid: 26
     var_id {
-      bitfield1: 17
+      bitfield1: 25
     }
   }
 }
@@ -1190,19 +1441,19 @@ body {
               tuple_val {
                 src {
                   end_column: 153
-                  end_line: 49
+                  end_line: 53
                   file: 2
                   start_column: 13
-                  start_line: 49
+                  start_line: 53
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 1
                   }
@@ -1211,10 +1462,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "A"
                   }
@@ -1223,10 +1474,10 @@ body {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 10000
                   }
@@ -1235,10 +1486,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "JAN"
                   }
@@ -1249,19 +1500,19 @@ body {
               tuple_val {
                 src {
                   end_column: 153
-                  end_line: 49
+                  end_line: 53
                   file: 2
                   start_column: 13
-                  start_line: 49
+                  start_line: 53
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 1
                   }
@@ -1270,10 +1521,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "B"
                   }
@@ -1282,10 +1533,10 @@ body {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 400
                   }
@@ -1294,10 +1545,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "JAN"
                   }
@@ -1308,19 +1559,19 @@ body {
               tuple_val {
                 src {
                   end_column: 153
-                  end_line: 49
+                  end_line: 53
                   file: 2
                   start_column: 13
-                  start_line: 49
+                  start_line: 53
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 1
                   }
@@ -1329,10 +1580,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "B"
                   }
@@ -1341,10 +1592,10 @@ body {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 5000
                   }
@@ -1353,10 +1604,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "FEB"
                   }
@@ -1375,19 +1626,19 @@ body {
         }
         src {
           end_column: 153
-          end_line: 49
+          end_line: 53
           file: 2
           start_column: 13
-          start_line: 49
+          start_line: 53
         }
       }
     }
     symbol {
       value: "df"
     }
-    uid: 19
+    uid: 27
     var_id {
-      bitfield1: 19
+      bitfield1: 27
     }
   }
 }
@@ -1400,354 +1651,12 @@ body {
             string_val {
               src {
                 end_column: 28
-                end_line: 54
+                end_line: 55
                 file: 2
                 start_column: 8
-                start_line: 54
+                start_line: 55
               }
               v: "empid"
-            }
-          }
-          variadic: true
-        }
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 19
-            }
-          }
-        }
-        src {
-          end_column: 28
-          end_line: 54
-          file: 2
-          start_column: 8
-          start_line: 54
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 20
-    var_id {
-      bitfield1: 20
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      relational_grouped_dataframe_pivot {
-        grouped_df {
-          relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 20
-            }
-          }
-        }
-        pivot_col {
-          string_val {
-            src {
-              end_column: 59
-              end_line: 54
-              file: 2
-              start_column: 8
-              start_line: 54
-            }
-            v: "month"
-          }
-        }
-        src {
-          end_column: 59
-          end_line: 54
-          file: 2
-          start_column: 8
-          start_line: 54
-        }
-        values {
-          pivot_value__expr {
-            v {
-              list_val {
-                src {
-                  end_column: 59
-                  end_line: 54
-                  file: 2
-                  start_column: 8
-                  start_line: 54
-                }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 59
-                      end_line: 54
-                      file: 2
-                      start_column: 8
-                      start_line: 54
-                    }
-                    v: "JAN"
-                  }
-                }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 59
-                      end_line: 54
-                      file: 2
-                      start_column: 8
-                      start_line: 54
-                    }
-                    v: "FEB"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 21
-    var_id {
-      bitfield1: 21
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      relational_grouped_dataframe_builtin {
-        agg_name: "sum"
-        cols {
-          args {
-            string_val {
-              src {
-                end_column: 73
-                end_line: 54
-                file: 2
-                start_column: 8
-                start_line: 54
-              }
-              v: "amount"
-            }
-          }
-          variadic: true
-        }
-        grouped_df {
-          relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 21
-            }
-          }
-        }
-        src {
-          end_column: 73
-          end_line: 54
-          file: 2
-          start_column: 8
-          start_line: 54
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 22
-    var_id {
-      bitfield1: 22
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      dataframe_show {
-        id {
-          bitfield1: 22
-        }
-        n: 10
-      }
-    }
-    symbol {
-    }
-    uid: 23
-    var_id {
-      bitfield1: 23
-    }
-  }
-}
-body {
-  eval {
-    uid: 24
-    var_id {
-      bitfield1: 23
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      dataframe_group_by {
-        cols {
-          args {
-            string_val {
-              src {
-                end_column: 38
-                end_line: 56
-                file: 2
-                start_column: 8
-                start_line: 56
-              }
-              v: "empid"
-            }
-          }
-          args {
-            string_val {
-              src {
-                end_column: 38
-                end_line: 56
-                file: 2
-                start_column: 8
-                start_line: 56
-              }
-              v: "team"
-            }
-          }
-        }
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 19
-            }
-          }
-        }
-        src {
-          end_column: 38
-          end_line: 56
-          file: 2
-          start_column: 8
-          start_line: 56
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 25
-    var_id {
-      bitfield1: 25
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      relational_grouped_dataframe_pivot {
-        grouped_df {
-          relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 25
-            }
-          }
-        }
-        pivot_col {
-          string_val {
-            src {
-              end_column: 53
-              end_line: 56
-              file: 2
-              start_column: 8
-              start_line: 56
-            }
-            v: "month"
-          }
-        }
-        src {
-          end_column: 53
-          end_line: 56
-          file: 2
-          start_column: 8
-          start_line: 56
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 26
-    var_id {
-      bitfield1: 26
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      relational_grouped_dataframe_builtin {
-        agg_name: "sum"
-        cols {
-          args {
-            string_val {
-              src {
-                end_column: 67
-                end_line: 56
-                file: 2
-                start_column: 8
-                start_line: 56
-              }
-              v: "amount"
-            }
-          }
-          variadic: true
-        }
-        grouped_df {
-          relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 26
-            }
-          }
-        }
-        src {
-          end_column: 67
-          end_line: 56
-          file: 2
-          start_column: 8
-          start_line: 56
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 27
-    var_id {
-      bitfield1: 27
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      dataframe_sort {
-        cols {
-          args {
-            string_val {
-              src {
-                end_column: 89
-                end_line: 56
-                file: 2
-                start_column: 8
-                start_line: 56
-              }
-              v: "empid"
-            }
-          }
-          args {
-            string_val {
-              src {
-                end_column: 89
-                end_line: 56
-                file: 2
-                start_column: 8
-                start_line: 56
-              }
-              v: "team"
             }
           }
           variadic: true
@@ -1760,11 +1669,11 @@ body {
           }
         }
         src {
-          end_column: 89
-          end_line: 56
+          end_column: 28
+          end_line: 55
           file: 2
           start_column: 8
-          start_line: 56
+          start_line: 55
         }
       }
     }
@@ -1779,11 +1688,72 @@ body {
 body {
   assign {
     expr {
-      dataframe_show {
-        id {
-          bitfield1: 28
+      relational_grouped_dataframe_pivot {
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 28
+            }
+          }
         }
-        n: 10
+        pivot_col {
+          string_val {
+            src {
+              end_column: 59
+              end_line: 55
+              file: 2
+              start_column: 8
+              start_line: 55
+            }
+            v: "month"
+          }
+        }
+        src {
+          end_column: 59
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
+        values {
+          pivot_value__expr {
+            v {
+              list_val {
+                src {
+                  end_column: 59
+                  end_line: 55
+                  file: 2
+                  start_column: 8
+                  start_line: 55
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 59
+                      end_line: 55
+                      file: 2
+                      start_column: 8
+                      start_line: 55
+                    }
+                    v: "JAN"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 59
+                      end_line: 55
+                      file: 2
+                      start_column: 8
+                      start_line: 55
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
     symbol {
@@ -1795,10 +1765,533 @@ body {
   }
 }
 body {
-  eval {
+  assign {
+    expr {
+      relational_grouped_dataframe_builtin {
+        agg_name: "sum"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 73
+                end_line: 55
+                file: 2
+                start_column: 8
+                start_line: 55
+              }
+              v: "amount"
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 29
+            }
+          }
+        }
+        src {
+          end_column: 73
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
+      }
+    }
+    symbol {
+    }
     uid: 30
     var_id {
-      bitfield1: 29
+      bitfield1: 30
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_sort {
+        cols {
+          args {
+            dataframe_col {
+              col_name: "empid"
+              df {
+                dataframe_ref {
+                  id {
+                    bitfield1: 27
+                  }
+                }
+              }
+              src {
+                end_column: 90
+                end_line: 55
+                file: 2
+                start_column: 79
+                start_line: 55
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 30
+            }
+          }
+        }
+        src {
+          end_column: 91
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 31
+    var_id {
+      bitfield1: 31
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_show {
+        id {
+          bitfield1: 31
+        }
+        n: 10
+      }
+    }
+    symbol {
+    }
+    uid: 32
+    var_id {
+      bitfield1: 32
+    }
+  }
+}
+body {
+  eval {
+    uid: 33
+    var_id {
+      bitfield1: 32
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 28
+                end_line: 57
+                file: 2
+                start_column: 8
+                start_line: 57
+              }
+              v: "empid"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 27
+            }
+          }
+        }
+        src {
+          end_column: 28
+          end_line: 57
+          file: 2
+          start_column: 8
+          start_line: 57
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 34
+    var_id {
+      bitfield1: 34
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      relational_grouped_dataframe_pivot {
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 34
+            }
+          }
+        }
+        pivot_col {
+          string_val {
+            src {
+              end_column: 59
+              end_line: 57
+              file: 2
+              start_column: 8
+              start_line: 57
+            }
+            v: "month"
+          }
+        }
+        src {
+          end_column: 59
+          end_line: 57
+          file: 2
+          start_column: 8
+          start_line: 57
+        }
+        values {
+          pivot_value__expr {
+            v {
+              list_val {
+                src {
+                  end_column: 59
+                  end_line: 57
+                  file: 2
+                  start_column: 8
+                  start_line: 57
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 59
+                      end_line: 57
+                      file: 2
+                      start_column: 8
+                      start_line: 57
+                    }
+                    v: "JAN"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 59
+                      end_line: 57
+                      file: 2
+                      start_column: 8
+                      start_line: 57
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 35
+    var_id {
+      bitfield1: 35
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      relational_grouped_dataframe_builtin {
+        agg_name: "sum"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 73
+                end_line: 57
+                file: 2
+                start_column: 8
+                start_line: 57
+              }
+              v: "amount"
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 35
+            }
+          }
+        }
+        src {
+          end_column: 73
+          end_line: 57
+          file: 2
+          start_column: 8
+          start_line: 57
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 36
+    var_id {
+      bitfield1: 36
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_show {
+        id {
+          bitfield1: 36
+        }
+        n: 10
+      }
+    }
+    symbol {
+    }
+    uid: 37
+    var_id {
+      bitfield1: 37
+    }
+  }
+}
+body {
+  eval {
+    uid: 38
+    var_id {
+      bitfield1: 37
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 38
+                end_line: 59
+                file: 2
+                start_column: 8
+                start_line: 59
+              }
+              v: "empid"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 38
+                end_line: 59
+                file: 2
+                start_column: 8
+                start_line: 59
+              }
+              v: "team"
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 27
+            }
+          }
+        }
+        src {
+          end_column: 38
+          end_line: 59
+          file: 2
+          start_column: 8
+          start_line: 59
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 39
+    var_id {
+      bitfield1: 39
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      relational_grouped_dataframe_pivot {
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 39
+            }
+          }
+        }
+        pivot_col {
+          string_val {
+            src {
+              end_column: 53
+              end_line: 59
+              file: 2
+              start_column: 8
+              start_line: 59
+            }
+            v: "month"
+          }
+        }
+        src {
+          end_column: 53
+          end_line: 59
+          file: 2
+          start_column: 8
+          start_line: 59
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 40
+    var_id {
+      bitfield1: 40
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      relational_grouped_dataframe_builtin {
+        agg_name: "sum"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 67
+                end_line: 59
+                file: 2
+                start_column: 8
+                start_line: 59
+              }
+              v: "amount"
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 40
+            }
+          }
+        }
+        src {
+          end_column: 67
+          end_line: 59
+          file: 2
+          start_column: 8
+          start_line: 59
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 41
+    var_id {
+      bitfield1: 41
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_sort {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 59
+                file: 2
+                start_column: 8
+                start_line: 59
+              }
+              v: "empid"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 59
+                file: 2
+                start_column: 8
+                start_line: 59
+              }
+              v: "team"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 41
+            }
+          }
+        }
+        src {
+          end_column: 89
+          end_line: 59
+          file: 2
+          start_column: 8
+          start_line: 59
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 42
+    var_id {
+      bitfield1: 42
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      dataframe_show {
+        id {
+          bitfield1: 42
+        }
+        n: 10
+      }
+    }
+    symbol {
+    }
+    uid: 43
+    var_id {
+      bitfield1: 43
+    }
+  }
+}
+body {
+  eval {
+    uid: 44
+    var_id {
+      bitfield1: 43
     }
   }
 }

@@ -679,6 +679,62 @@ def test_count_api_calls(session):
     assert type_ == "snowpark_function_usage"
 
 
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_random_split(session, use_simplified_query_generation):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set(
+            "use_simplified_query_generation", use_simplified_query_generation
+        )
+        df = session.range(0, 50)
+        df1, df2 = df.random_split([0.6, 0.4], seed=1234)
+        # assert df1 and df2 have the same api_calls
+        compare_api_calls(df1._plan.api_calls, df2._plan.api_calls)
+
+        if use_simplified_query_generation:
+            expected_api_calls = [
+                {"name": "Session.range"},
+                {
+                    "name": "DataFrame.random_split[hash]",
+                    "subcalls": [
+                        {
+                            "name": "DataFrame.with_column",
+                            "subcalls": [
+                                {
+                                    "name": "DataFrame.with_columns",
+                                    "subcalls": [{"name": "DataFrame.select"}],
+                                }
+                            ],
+                        },
+                        {"name": "DataFrame.filter"},
+                        {
+                            "name": "DataFrame.drop",
+                            "subcalls": [{"name": "DataFrame.select"}],
+                        },
+                    ],
+                },
+            ]
+        else:
+            expected_api_calls = [
+                {"name": "Session.range"},
+                {
+                    "name": "DataFrame.random_split[cache_result]",
+                    "subcalls": [
+                        {"name": "Table.__init__"},
+                        {"name": "DataFrame.filter"},
+                        {
+                            "name": "DataFrame.drop",
+                            "subcalls": [{"name": "DataFrame.select"}],
+                        },
+                    ],
+                },
+            ]
+
+        compare_api_calls(df1._plan.api_calls, expected_api_calls)
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
+
+
 def test_with_column_variations_api_calls(session):
     df = session.create_dataframe([Row(1, 2, 3)]).to_df(["a", "b", "c"])
     compare_api_calls(
