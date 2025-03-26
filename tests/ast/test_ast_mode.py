@@ -88,7 +88,7 @@ def test_snowpark_python_ast_mode_and_version(
     )
     assert (
         any(
-            "Server side dataframe support requires minimum snowpark-python client version "
+            "Server side dataframe support requires minimum snowpark-python client version."
             in m
             for m in caplog.messages
         )

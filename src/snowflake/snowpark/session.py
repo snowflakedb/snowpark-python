@@ -668,17 +668,19 @@ class Session:
 
             ast_enabled = self._ast_mode == AstMode.SQL_AND_AST
 
-        sp_min_version_for_ast: int = self._conn._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
-        )
-        if sp_min_version_for_ast is not None and self._ast_mode != AstMode.SQL_ONLY:
-            sp_min_version = tuple(int(v) for v in sp_min_version_for_ast.split("."))
-            if VERSION < sp_min_version:
-                _logger.warning(
-                    f"Server side dataframe support requires minimum snowpark-python client version {sp_min_version_for_ast}."
+        if self._ast_mode != AstMode.SQL_ONLY:
+            if self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
+            ) is not None:
+                ast_supported_version: bool = self.is_feature_enabled_for_version(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST
                 )
-                self._ast_mode = AstMode.SQL_ONLY
-                ast_enabled = False
+                if not ast_supported_version:
+                    _logger.warning(
+                        f"Server side dataframe support requires minimum snowpark-python client version."
+                    )
+                    self._ast_mode = AstMode.SQL_ONLY
+                    ast_enabled = False
 
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
