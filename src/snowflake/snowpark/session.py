@@ -669,9 +669,12 @@ class Session:
             ast_enabled = self._ast_mode == AstMode.SQL_AND_AST
 
         if self._ast_mode != AstMode.SQL_ONLY:
-            if self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
-            ) is not None:
+            if (
+                self._conn._get_client_side_session_parameter(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
+                )
+                is not None
+            ):
                 ast_supported_version: bool = self.is_feature_enabled_for_version(
                     _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST
                 )
