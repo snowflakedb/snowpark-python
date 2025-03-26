@@ -33,14 +33,9 @@
 
 #### Bug Fixes
 
-- Fixed a bug that caused `to_timestamp` to fail when casting filtered columns.
-
-#### New Features
-
-#### Bug Fixes
-
 - Fixed a bug in aggregation that caused empty groups to still produce rows.
 - Fixed a bug in `Dataframe.except_` that would cause rows to be incorrectly dropped.
+- Fixed a bug that caused `to_timestamp` to fail when casting filtered columns.
 
 ### Snowpark pandas API Updates
 
