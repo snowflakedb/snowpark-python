@@ -27,7 +27,6 @@ from typing import (
 import cloudpickle
 
 import snowflake.snowpark
-from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal import code_generation, type_utils
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql, to_sql_no_cast
 from snowflake.snowpark._internal.telemetry import TelemetryField
@@ -57,12 +56,20 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
 
-if installed_pandas:
-    from snowflake.snowpark.types import (
-        PandasDataFrame,
-        PandasDataFrameType,
-        PandasSeriesType,
-    )
+imported_installed_pandas = None
+def lazy_import_pandas():
+    if imported_installed_pandas is None:
+        from snowflake.connector.options import installed_pandas, pandas
+        imported_installed_pandas = installed_pandas
+
+        if installed_pandas:
+            from snowflake.snowpark.types import (
+                PandasDataFrame,
+                PandasDataFrameType,
+                PandasSeriesType,
+            )
+
+    return imported_installed_pandas
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -238,7 +245,7 @@ def extract_return_type_from_udtf_type_hints(
     elif return_type_hint is None:
         return None
     else:
-        if installed_pandas:  # Vectorized UDTF
+        if lazy_import_pandas():  # Vectorized UDTF
             if typing.get_origin(return_type_hint) == PandasDataFrame:
                 return PandasDataFrameType(
                     col_types=[
@@ -588,7 +595,7 @@ def extract_return_input_types(
         return_type_from_type_hints,
         input_types_from_type_hints,
     ) = get_types_from_type_hints(func, object_type, output_schema)
-    if installed_pandas and return_type and return_type_from_type_hints:
+    if lazy_import_pandas() and return_type and return_type_from_type_hints:
         if isinstance(return_type_from_type_hints, PandasSeriesType):
             res_return_type = (
                 return_type.element_type

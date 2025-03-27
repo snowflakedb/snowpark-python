@@ -38,8 +38,6 @@ import pkg_resources
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.options import installed_pandas, pandas, pyarrow
-from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -220,6 +218,18 @@ from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+
+def lazy_import_pyarrow():
+    from snowflake.connector.options import pyarrow
+
+imported_installed_pandas = None
+def lazy_import_pandas():
+    if imported_installed_pandas is None:
+        lazy_import_pyarrow()
+        from snowflake.connector.options import installed_pandas, pandas
+        from snowflake.connector.pandas_tools import write_pandas
+        imported_installed_pandas = installed_pandas
+    return imported_installed_pandas
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -2832,6 +2842,7 @@ class Session:
                 set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
                 https://docs.snowflake.com/en/sql-reference/sql/create-file-format
         """
+        lazy_import_pyarrow()
         cursor = self._conn._conn.cursor()
 
         if quote_identifiers:
@@ -3062,6 +3073,7 @@ class Session:
             they will be converted to `TIMESTAMP_LTZ` in the output Snowflake table by default.
             If `TIMESTAMP_TZ` is needed for those columns instead, please manually create the table before loading data.
         """
+        lazy_import_pandas()
 
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
@@ -3289,9 +3301,9 @@ class Session:
             raise TypeError("create_dataframe() function does not accept a Row object.")
 
         if not isinstance(data, (list, tuple)) and (
-            not installed_pandas
+            not lazy_import_pandas()
             or (
-                installed_pandas
+                lazy_import_pandas()
                 and not isinstance(data, (pandas.DataFrame, pyarrow.Table))
             )
         ):
@@ -3302,9 +3314,9 @@ class Session:
         # If data is a pandas dataframe, the schema will be detected from the dataframe itself and schema ignored.
         # Warn user to acknowledge this.
         if (
-            installed_pandas
+            schema is not None
+            and lazy_import_pandas()
             and isinstance(data, (pandas.DataFrame, pyarrow.Table))
-            and schema is not None
         ):
             warnings.warn(
                 "data is a pandas DataFrame, parameter schema is ignored. To silence this warning pass schema=None.",
@@ -3315,7 +3327,7 @@ class Session:
         # check to see if it is a pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         origin_data = data
-        if installed_pandas and isinstance(data, (pandas.DataFrame, pyarrow.Table)):
+        if lazy_import_pandas() and isinstance(data, (pandas.DataFrame, pyarrow.Table)):
             temp_table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
@@ -3612,9 +3624,9 @@ class Session:
             df._ast_id = stmt.var_id.bitfield1
 
         if (
-            installed_pandas
+            isinstance(self._conn, MockServerConnection)
+            and lazy_import_pandas()
             and isinstance(origin_data, pandas.DataFrame)
-            and isinstance(self._conn, MockServerConnection)
         ):
             # MockServerConnection internally creates a table, and returns Table object (which inherits from Dataframe).
             table = _convert_dataframe_to_table(
