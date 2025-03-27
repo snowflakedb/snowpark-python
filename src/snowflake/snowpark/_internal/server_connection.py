@@ -30,7 +30,6 @@ from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
-from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -69,6 +68,9 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.row import Row
+
+def lazy_import_pandas():
+    from snowflake.connector.options import pandas
 
 if TYPE_CHECKING:
     try:
@@ -611,6 +613,8 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        if to_pandas:
+            lazy_import_pandas()
         if (
             is_in_stored_procedure()
             and not block
@@ -672,6 +676,9 @@ class ServerConnection:
         ],
         Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
+        if to_pandas:
+            lazy_import_pandas()
+
         action_id = plan.session._generate_new_action_id()
         plan_queries = plan.execution_queries
         result, result_meta = None, None
@@ -858,6 +865,8 @@ def _fix_pandas_df_fixed_type(
 
     We need to get rid of this workaround because this causes a performance hit.
     """
+    lazy_import_pandas()
+
     for column_metadata, pandas_dtype, pandas_col_name in zip(
         results_cursor.description, pd_df.dtypes, pd_df.columns
     ):
