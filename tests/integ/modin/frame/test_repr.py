@@ -15,7 +15,10 @@ from tests.integ.modin.conftest import IRIS_DF
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # expected_query_count is for test_repr_html paramterized SqlCounter test
-# an additional query + select may be incurred to eagerly retrieve the row count
+# if the input data would be retrieved by a simple select, an additional query + select is
+# incurred to eagerly retrieve the row count (larger data may avoid this because the CREATE TEMP
+# TABLE + batch INSERT + DROP TABLE queries are likely more expensive than the COUNT(*) OVER() window
+# function)
 _DATAFRAMES_TO_TEST = [
     (
         native_pd.DataFrame(
@@ -31,32 +34,39 @@ _DATAFRAMES_TO_TEST = [
             }
         ),
         2,
+        2,
     ),
     (
         native_pd.DataFrame([1, 2], index=[pd.Timedelta(1), pd.Timedelta(-1)]),
         2,
+        2,
     ),
     (
         IRIS_DF,
-        5,
+        4,
+        1,
     ),
     (
         native_pd.DataFrame(),
+        2,
         2,
     ),
     (
         native_pd.DataFrame(
             {"A": list(range(10000)), "B": np.random.normal(size=10000)}
         ),
-        5,
+        4,
+        1,
     ),
     (
         native_pd.DataFrame(columns=["A", "B", "C", "D", "C", "B", "A"]),
+        2,
         2,
     ),
     # one large dataframe to test many columns
     (
         native_pd.DataFrame(columns=[f"x{i}" for i in range(300)]),
+        2,
         2,
     ),
     # one large dataframe to test both columns/rows
@@ -64,26 +74,33 @@ _DATAFRAMES_TO_TEST = [
         native_pd.DataFrame(
             data=np.zeros(shape=(300, 300)), columns=[f"x{i}" for i in range(300)]
         ),
-        5,
+        4,
+        1,
     ),
 ]
 
 
-@pytest.mark.parametrize("native_df, expected_query_count", _DATAFRAMES_TO_TEST)
-def test_repr(native_df, expected_query_count):
+@pytest.mark.parametrize(
+    "native_df, expected_query_count, expected_select_count", _DATAFRAMES_TO_TEST
+)
+def test_repr(native_df, expected_query_count, expected_select_count):
     snow_df = pd.DataFrame(native_df)
 
     native_str = repr(native_df)
     # only measure select statements here, creation of dfs may yield a couple
     # CREATE TEMPORARY TABLE/INSERT INTO queries
-    with SqlCounter(query_count=expected_query_count, select_count=2):
+    with SqlCounter(
+        query_count=expected_query_count, select_count=expected_select_count
+    ):
         snow_str = repr(snow_df)
 
         assert native_str == snow_str
 
 
-@pytest.mark.parametrize("native_df, expected_query_count", _DATAFRAMES_TO_TEST)
-def test_repr_html(native_df, expected_query_count):
+@pytest.mark.parametrize(
+    "native_df, expected_query_count, expected_select_count", _DATAFRAMES_TO_TEST
+)
+def test_repr_html(native_df, expected_query_count, expected_select_count):
 
     # TODO: SNOW-916596 Test this with Jupyter notebooks.
     # joins due to temp table creation
@@ -98,7 +115,9 @@ def test_repr_html(native_df, expected_query_count):
     native_html = native_df._repr_html_()
 
     # 10 of these are related to stored procs, inserts, alter session query tag.
-    with SqlCounter(query_count=expected_query_count, select_count=1):
+    with SqlCounter(
+        query_count=expected_query_count, select_count=expected_select_count
+    ):
         snow_html = snow_df._repr_html_()
 
     assert native_html == snow_html
@@ -134,19 +153,23 @@ class ReprQueryListener(QueryListener):
         return [query.sql_text for query in self._queries]
 
 
-@pytest.mark.parametrize("native_df, expected_query_count", _DATAFRAMES_TO_TEST)
-def test_repr_and_repr_html_issue_same_query(native_df, expected_query_count):
-    """This test ensures that the same query is issued for both `repr` and `repr_html`
+def test_repr_and_repr_html_issue_same_query():
+    """
+    This test ensures that the same query is issued for both `repr` and `repr_html`
     in order to take advantage of Snowflake server side caching when both are called back
-    to back (as in the case with displaying a DataFrame in a Jupyter notebook)."""
+    to back (as in the case with displaying a DataFrame in a Jupyter notebook).
+
+    If the input frame was a simple projection that results in an additional COUNT() query,
+    it is not captured by the ReprQueryListener.
+    """
 
     native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     snow_df = pd.DataFrame(native_df)
 
     with ReprQueryListener(pd.session) as listener:
-        with SqlCounter(query_count=1, select_count=1):
+        with SqlCounter(query_count=2, select_count=2):
             repr_str = repr(snow_df)
-        with SqlCounter(query_count=1, select_count=1):
+        with SqlCounter(query_count=2, select_count=2):
             repr_html = snow_df._repr_html_()
 
     assert repr_str == repr(native_df)

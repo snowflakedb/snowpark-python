@@ -2046,9 +2046,16 @@ class OrderedDataFrame:
         # 1 API call in the plan - either `Session.sql` for DataFrames based off of I/O operations
         # e.g. `read_snowflake` or `read_csv`, or `Session.create_dataframe` for DataFrames created
         # out of Python objects.
+        # We must also ensure that the underlying compiled query plan is only a single query --
+        # for example, a simple select on pd.DataFrame([1] * 2000) would result in CREATE TEMP TABLE
+        # + batch INSERT + DROP TABLE queries, which introduce non-trivial overhead.
         snowpark_df = self._dataframe_ref.snowpark_dataframe
         snowpark_plan = snowpark_df._plan
-        return len(snowpark_plan.api_calls) == 1 and any(
-            accepted_api in snowpark_plan.api_calls[0]["name"]
-            for accepted_api in ["Session.sql", "Session.create_dataframe"]
+        return (
+            len(snowpark_plan.api_calls) == 1
+            and len(snowpark_plan.queries) == 1
+            and any(
+                accepted_api in snowpark_plan.api_calls[0]["name"]
+                for accepted_api in ["Session.sql", "Session.create_dataframe"]
+            )
         )
