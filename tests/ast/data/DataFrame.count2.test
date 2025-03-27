@@ -206,6 +206,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }
