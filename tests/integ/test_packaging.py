@@ -29,8 +29,6 @@ pytestmark = pytest.mark.xfail(
 )
 
 
-runtime_39_or_above = True
-
 try:
     import dateutil
 
@@ -470,9 +468,6 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
-)
-@pytest.mark.skipif(
-    not runtime_39_or_above, reason="arch is not available on python 3.8"
 )
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
     session.custom_package_usage_config = {"enabled": True, "force_push": True}
