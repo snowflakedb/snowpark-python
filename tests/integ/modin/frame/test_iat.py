@@ -7,29 +7,7 @@ import pytest
 from pandas.errors import IndexingError
 
 from tests.integ.modin.utils import eval_snowpark_pandas_result  # noqa: F401
-from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
-
-
-@pytest.mark.parametrize(
-    "key, expected_query_count",
-    [
-        ((0, 0), 1),
-        ((0, -7), 1),
-        ((-7, 0), 2),
-        ((-7, -7), 2),
-    ],
-)
-def test_iat_get_default_index_str_columns(
-    key,
-    expected_query_count,
-    default_index_snowpark_pandas_df,
-    default_index_native_df,
-):
-    with SqlCounter(query_count=expected_query_count):
-        assert (
-            default_index_snowpark_pandas_df.iat[key]
-            == default_index_native_df.iat[key]
-        )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -41,7 +19,25 @@ def test_iat_get_default_index_str_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1)
+def test_iat_get_default_index_str_columns(
+    key,
+    default_index_snowpark_pandas_df,
+    default_index_native_df,
+):
+    assert default_index_snowpark_pandas_df.iat[key] == default_index_native_df.iat[key]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        (0, 0),
+        (0, -7),
+        (-7, 0),
+        (-7, -7),
+    ],
+)
+@sql_count_checker(query_count=1, join_count=2)
 def test_iat_set_default_index_str_columns(
     key,
     default_index_snowpark_pandas_df,
@@ -59,22 +55,21 @@ def test_iat_set_default_index_str_columns(
 
 
 @pytest.mark.parametrize(
-    "key, expected_query_count",
+    "key",
     [
-        ((0, 0), 1),
-        ((0, -7), 1),
-        ((-7, 0), 2),
-        ((-7, -7), 2),
+        (0, 0),
+        (0, -7),
+        (-7, 0),
+        (-7, -7),
     ],
 )
+@sql_count_checker(query_count=1)
 def test_iat_get_str_index_str_columns(
     key,
-    expected_query_count,
     str_index_snowpark_pandas_df,
     str_index_native_df,
 ):
-    with SqlCounter(query_count=expected_query_count):
-        assert str_index_snowpark_pandas_df.iat[key] == str_index_native_df.iat[key]
+    assert str_index_snowpark_pandas_df.iat[key] == str_index_native_df.iat[key]
 
 
 @pytest.mark.parametrize(
@@ -86,7 +81,7 @@ def test_iat_get_str_index_str_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_iat_set_str_index_str_columns(
     key,
     str_index_snowpark_pandas_df,
@@ -101,22 +96,21 @@ def test_iat_set_str_index_str_columns(
 
 
 @pytest.mark.parametrize(
-    "key, expected_query_count",
+    "key",
     [
-        ((0, 0), 1),
-        ((0, -7), 1),
-        ((-7, 0), 2),
-        ((-7, -7), 2),
+        (0, 0),
+        (0, -7),
+        (-7, 0),
+        (-7, -7),
     ],
 )
+@sql_count_checker(query_count=1)
 def test_iat_get_time_index_time_columns(
     key,
-    expected_query_count,
     time_index_snowpark_pandas_df,
     time_index_native_df,
 ):
-    with SqlCounter(query_count=expected_query_count):
-        assert time_index_snowpark_pandas_df.iat[key] == time_index_native_df.iat[key]
+    assert time_index_snowpark_pandas_df.iat[key] == time_index_native_df.iat[key]
 
 
 @pytest.mark.parametrize(
@@ -128,7 +122,7 @@ def test_iat_get_time_index_time_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_iat_set_time_index_time_columns(
     key,
     time_index_snowpark_pandas_df,
@@ -146,24 +140,23 @@ def test_iat_set_time_index_time_columns(
 
 
 @pytest.mark.parametrize(
-    "key, expected_query_count",
+    "key",
     [
-        ((0, 0), 1),
-        ((0, -7), 1),
-        ((-7, 0), 2),
-        ((-7, -7), 2),
+        (0, 0),
+        (0, -7),
+        (-7, 0),
+        (-7, -7),
     ],
 )
+@sql_count_checker(query_count=1)
 def test_iat_get_multiindex_index_str_columns(
     key,
-    expected_query_count,
     default_index_native_df,
     multiindex_native,
 ):
-    with SqlCounter(query_count=expected_query_count):
-        native_df = default_index_native_df.set_index(multiindex_native)
-        snowpark_df = pd.DataFrame(native_df)
-        assert snowpark_df.iat[key] == native_df.iat[key]
+    native_df = default_index_native_df.set_index(multiindex_native)
+    snowpark_df = pd.DataFrame(native_df)
+    assert snowpark_df.iat[key] == native_df.iat[key]
 
 
 @pytest.mark.parametrize(
@@ -175,7 +168,7 @@ def test_iat_get_multiindex_index_str_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_iat_set_multiindex_index_str_columns(
     key,
     default_index_native_df,
@@ -190,23 +183,22 @@ def test_iat_set_multiindex_index_str_columns(
 
 
 @pytest.mark.parametrize(
-    "key, expected_query_count",
+    "key",
     [
-        ((0, 0), 1),
-        ((0, -7), 1),
-        ((-7, 0), 2),
-        ((-7, -7), 2),
+        (0, 0),
+        (0, -7),
+        (-7, 0),
+        (-7, -7),
     ],
 )
+@sql_count_checker(query_count=1)
 def test_iat_get_default_index_multiindex_columns(
     key,
-    expected_query_count,
     native_df_with_multiindex_columns,
 ):
-    with SqlCounter(query_count=expected_query_count):
-        native_df = native_df_with_multiindex_columns
-        snowpark_df = pd.DataFrame(native_df)
-        assert snowpark_df.iat[key] == native_df.iat[key]
+    native_df = native_df_with_multiindex_columns
+    snowpark_df = pd.DataFrame(native_df)
+    assert snowpark_df.iat[key] == native_df.iat[key]
 
 
 @pytest.mark.parametrize(
@@ -218,7 +210,7 @@ def test_iat_get_default_index_multiindex_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_iat_set_default_index_multiindex_columns(
     key,
     native_df_with_multiindex_columns,
@@ -232,24 +224,23 @@ def test_iat_set_default_index_multiindex_columns(
 
 
 @pytest.mark.parametrize(
-    "key, expected_query_count",
+    "key",
     [
-        ((0, 0), 1),
-        ((0, -7), 1),
-        ((-7, 0), 2),
-        ((-7, -7), 2),
+        (0, 0),
+        (0, -7),
+        (-7, 0),
+        (-7, -7),
     ],
 )
+@sql_count_checker(query_count=1)
 def test_iat_get_multiindex_index_multiindex_columns(
     key,
-    expected_query_count,
     native_df_with_multiindex_columns,
     multiindex_native,
 ):
-    with SqlCounter(query_count=expected_query_count):
-        native_df = native_df_with_multiindex_columns.set_index(multiindex_native)
-        snowpark_df = pd.DataFrame(native_df)
-        assert snowpark_df.iat[key] == native_df.iat[key]
+    native_df = native_df_with_multiindex_columns.set_index(multiindex_native)
+    snowpark_df = pd.DataFrame(native_df)
+    assert snowpark_df.iat[key] == native_df.iat[key]
 
 
 @pytest.mark.parametrize(
@@ -261,7 +252,7 @@ def test_iat_get_multiindex_index_multiindex_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_iat_set_multiindex_index_multiindex_columns(
     key,
     native_df_with_multiindex_columns,

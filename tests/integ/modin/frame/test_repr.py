@@ -15,6 +15,7 @@ from tests.integ.modin.conftest import IRIS_DF
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # expected_query_count is for test_repr_html paramterized SqlCounter test
+# an additional query + select may be incurred to eagerly retrieve the row count
 _DATAFRAMES_TO_TEST = [
     (
         native_pd.DataFrame(
@@ -29,41 +30,41 @@ _DATAFRAMES_TO_TEST = [
                 ],
             }
         ),
-        1,
+        2,
     ),
     (
         native_pd.DataFrame([1, 2], index=[pd.Timedelta(1), pd.Timedelta(-1)]),
-        1,
+        2,
     ),
     (
         IRIS_DF,
-        4,
+        5,
     ),
     (
         native_pd.DataFrame(),
-        1,
+        2,
     ),
     (
         native_pd.DataFrame(
             {"A": list(range(10000)), "B": np.random.normal(size=10000)}
         ),
-        4,
+        5,
     ),
     (
         native_pd.DataFrame(columns=["A", "B", "C", "D", "C", "B", "A"]),
-        1,
+        2,
     ),
     # one large dataframe to test many columns
     (
         native_pd.DataFrame(columns=[f"x{i}" for i in range(300)]),
-        1,
+        2,
     ),
     # one large dataframe to test both columns/rows
     (
         native_pd.DataFrame(
             data=np.zeros(shape=(300, 300)), columns=[f"x{i}" for i in range(300)]
         ),
-        4,
+        5,
     ),
 ]
 
@@ -75,7 +76,7 @@ def test_repr(native_df, expected_query_count):
     native_str = repr(native_df)
     # only measure select statements here, creation of dfs may yield a couple
     # CREATE TEMPORARY TABLE/INSERT INTO queries
-    with SqlCounter(query_count=expected_query_count, select_count=1):
+    with SqlCounter(query_count=expected_query_count, select_count=2):
         snow_str = repr(snow_df)
 
         assert native_str == snow_str

@@ -421,19 +421,11 @@ class OrderedDataFrame:
                 wrap_double_underscore=True,
             )[0]
         )
-        if not self.is_projection_of_table():
-            ordered_dataframe = self.select(
-                *self.projected_column_snowflake_quoted_identifiers,
-                count("*").over().as_(row_count_snowflake_quoted_identifier),
-            )
-        else:
-            from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
+        ordered_dataframe = self.select(
+            *self.projected_column_snowflake_quoted_identifiers,
+            count("*").over().as_(row_count_snowflake_quoted_identifier),
+        )
 
-            row_count = self._dataframe_ref.snowpark_dataframe.count()
-            ordered_dataframe = self.select(
-                *self.projected_column_snowflake_quoted_identifiers,
-                pandas_lit(row_count).as_(row_count_snowflake_quoted_identifier),
-            )
         # inplace update so dataframe_ref can be shared. Note that we keep
         # the original ordering columns.
         ordered_dataframe.row_count_snowflake_quoted_identifier = (

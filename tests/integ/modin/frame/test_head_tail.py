@@ -13,7 +13,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
-from tests.integ.utils.sql_counter import SqlCounter
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 def eval_result_and_query_with_no_join(
@@ -34,43 +34,41 @@ def eval_result_and_query_with_no_join(
     "n",
     [1, None, 0, -1, -10, 5, 10],
 )
+@sql_count_checker(query_count=2)
 def test_head_tail(n, default_index_snowpark_pandas_df, default_index_native_df):
-    expected_query_count = 2 if n == 0 else 3
-    with SqlCounter(query_count=expected_query_count):
-        eval_snowpark_pandas_result(
-            default_index_snowpark_pandas_df,
-            default_index_native_df,
-            lambda df: (df.head() if n is None else df.head(n)),
-            comparator=eval_result_and_query_with_no_join,
-        )
+    eval_snowpark_pandas_result(
+        default_index_snowpark_pandas_df,
+        default_index_native_df,
+        lambda df: (df.head() if n is None else df.head(n)),
+        comparator=eval_result_and_query_with_no_join,
+    )
 
-        eval_snowpark_pandas_result(
-            default_index_snowpark_pandas_df,
-            default_index_native_df,
-            lambda df: (df.tail() if n is None else df.tail(n)),
-            comparator=eval_result_and_query_with_no_join,
-        )
+    eval_snowpark_pandas_result(
+        default_index_snowpark_pandas_df,
+        default_index_native_df,
+        lambda df: (df.tail() if n is None else df.tail(n)),
+        comparator=eval_result_and_query_with_no_join,
+    )
 
 
 @pytest.mark.parametrize(
     "n",
     [1, None, 0, -1, -10, 5, 10],
 )
+@sql_count_checker(query_count=2)
 def test_empty_dataframe(n, empty_snowpark_pandas_df):
-    expected_query_count = 2 if n == 0 else 3
-    with SqlCounter(query_count=expected_query_count):
-        eval_snowpark_pandas_result(
-            empty_snowpark_pandas_df,
-            native_pd.DataFrame(),
-            lambda df: (df.head() if n is None else df.head(n)),
-            comparator=eval_result_and_query_with_no_join,
-            check_column_type=False,
-        )
+    eval_snowpark_pandas_result(
+        empty_snowpark_pandas_df,
+        native_pd.DataFrame(),
+        lambda df: (df.head() if n is None else df.head(n)),
+        comparator=eval_result_and_query_with_no_join,
+        check_column_type=False,
+    )
 
-        eval_snowpark_pandas_result(
-            empty_snowpark_pandas_df,
-            native_pd.DataFrame(),
-            lambda df: (df.tail() if n is None else df.tail(n)),
-            comparator=eval_result_and_query_with_no_join,
-            check_column_type=False,
-        )
+    eval_snowpark_pandas_result(
+        empty_snowpark_pandas_df,
+        native_pd.DataFrame(),
+        lambda df: (df.tail() if n is None else df.tail(n)),
+        comparator=eval_result_and_query_with_no_join,
+        check_column_type=False,
+    )

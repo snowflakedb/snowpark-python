@@ -66,7 +66,7 @@ def test_full_like():
     snow_df = pd.DataFrame(data)
     pandas_df = native_pd.DataFrame(data)
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         snow_result = np.full_like(snow_df, 1234)
         pandas_result = np.full_like(pandas_df, 1234)
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
@@ -232,7 +232,7 @@ def test_np_ufunc_unary_operators(np_ufunc):
 
 
 # The query count here is from the argument logging performed by numpy on error
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_np_ufunc_notimplemented():
     data = {
         "A": [1],
@@ -244,7 +244,7 @@ def test_np_ufunc_notimplemented():
 
 
 # The query count here is from the argument logging performed by numpy on error
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_np_ufunc_with_out_notimpl():
     data = {
         "A": [1],

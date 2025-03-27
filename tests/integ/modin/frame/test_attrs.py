@@ -68,7 +68,7 @@ def test_df_attrs_get_no_copy():
 
 # Tests that attrs is preserved across `take`, a unary operation that returns a Snowpark pandas object.
 # Other unary operators are checked by other tests in the `eval_snowpark_pandas_result` method.
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_attrs_take():
     def func(df):
         df.attrs = {"A": [1], "B": "check me"}
