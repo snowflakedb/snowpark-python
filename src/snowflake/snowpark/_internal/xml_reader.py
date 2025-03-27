@@ -207,6 +207,33 @@ def find_next_opening_tag_pos(
             raise EOFError("No progress made while searching for opening tag")
 
 
+def strip_namespaces(elem):
+    """
+    Recursively strip XML namespace information from an ElementTree element and its children.
+
+    This function removes the namespace portion (e.g. 'xmlns') from the element's tag and attribute keys.
+    After processing, all element tags and attribute keys will contain only their local names.
+    """
+    # Remove namespace from the element tag, if present
+    if "}" in elem.tag:
+        elem.tag = elem.tag.split("}", 1)[1]
+
+    # Process element attributes: remove namespace from keys, if any
+    new_attrib = {}
+    for key, value in elem.attrib.items():
+        if "}" in key:
+            new_key = key.split("}", 1)[1]
+        else:
+            new_key = key
+        new_attrib[new_key] = value
+    elem.attrib = new_attrib
+
+    # Recursively strip namespaces in child elements
+    for child in elem:
+        strip_namespaces(child)
+    return elem
+
+
 def element_to_dict(
     element: ET.Element, attribute_prefix: str = "_"
 ) -> Optional[Union[Dict[str, Any], str]]:
@@ -310,7 +337,7 @@ def process_xml_range(
 
             try:
                 element = ET.fromstring(record_str)
-                yield element_to_dict(element)
+                yield element_to_dict(strip_namespaces(element))
             except ET.ParseError as e:
                 logging.warning(
                     f"XML parse error at bytes {record_start}-{record_end}: {e}"

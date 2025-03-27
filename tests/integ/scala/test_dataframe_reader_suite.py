@@ -1960,3 +1960,17 @@ def test_read_xml_no_xxe(session):
     stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
     df = session.read.option("rowTag", row_tag).xml(stage_file_path)
     Utils.check_answer(df, [Row("null")])
+
+
+def test_dsd(session):
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        "/Users/jdu/Desktop/202113219349100901_public.xml",
+        compress=False,
+    )
+    stage_file_path = f"@{tmp_stage_name1}/202113219349100901_public.xml"
+    df = session.read.option("rowTag", "Return").xml(stage_file_path)
+    print(df.columns)
+    print()
+    df.show()

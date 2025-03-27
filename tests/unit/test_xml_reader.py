@@ -11,6 +11,7 @@ import pytest
 from snowflake.snowpark._internal.xml_reader import (
     replace_entity,
     element_to_dict,
+    strip_namespaces,
     find_next_closing_tag_pos,
     find_next_opening_tag_pos,
     SELF_CLOSING_TAG,
@@ -65,6 +66,91 @@ def test_element_to_dict_children():
     result = element_to_dict(root)
     expected = {"item": ["value1", "value2"], "note": "note1"}
     assert result == expected
+
+
+def test_default_namespace():
+    """
+    Test that a default namespace is correctly stripped from tags and attributes.
+    """
+    xml_data = """<Return xmlns="http://www.irs.gov/efile" returnVersion="2020v4.1">
+                      <Name>John Doe</Name>
+                  </Return>"""
+    root = ET.fromstring(xml_data)
+    root = strip_namespaces(root)
+    assert root.tag == "Return"
+    assert root.attrib.get("returnVersion") == "2020v4.1"
+    name_elem = root.find("Name")
+    assert name_elem is not None
+    assert name_elem.tag == "Name"
+    assert name_elem.text.strip() == "John Doe"
+
+
+def test_multiple_namespaces():
+    """
+    Test that multiple namespaces (including prefixed ones) are stripped properly.
+    """
+    xml_data = """
+        <Return xmlns="http://www.irs.gov/efile" xmlns:abc="http://example.com">
+            <Name>John Doe</Name>
+            <abc:Detail>Some detail</abc:Detail>
+        </Return>
+    """
+    root = ET.fromstring(xml_data)
+    root = strip_namespaces(root)
+    assert root.tag == "Return"
+    name_elem = root.find("Name")
+    assert name_elem is not None
+    assert name_elem.tag == "Name"
+    assert name_elem.text.strip() == "John Doe"
+    # The namespaced tag <abc:Detail> becomes 'Detail' after stripping
+    detail_elem = root.find("Detail")
+    assert detail_elem is not None
+    assert detail_elem.tag == "Detail"
+    assert detail_elem.text.strip() == "Some detail"
+
+
+def test_attributes_with_namespaces():
+    """
+    Test that attributes with namespaced keys are properly renamed to their local names.
+    """
+    xml_data = """
+        <Return xmlns="http://www.irs.gov/efile"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:schemaLocation="http://www.irs.gov/efile"
+                returnVersion="2020v4.1">
+            <Name>John Doe</Name>
+        </Return>
+    """
+    root = ET.fromstring(xml_data)
+    root = strip_namespaces(root)
+    assert root.tag == "Return"
+    # The namespaced attribute should be available with its local name.
+    assert root.attrib.get("schemaLocation") == "http://www.irs.gov/efile"
+    assert root.attrib.get("returnVersion") == "2020v4.1"
+
+
+def test_nested_elements():
+    """
+    Test that nested elements and their attributes are processed recursively.
+    """
+    xml_data = """
+        <Return xmlns="http://www.irs.gov/efile">
+            <Info>
+                <Detail returnVersion="v1">Data</Detail>
+            </Info>
+        </Return>
+    """
+    root = ET.fromstring(xml_data)
+    root = strip_namespaces(root)
+    assert root.tag == "Return"
+    info_elem = root.find("Info")
+    assert info_elem is not None
+    assert info_elem.tag == "Info"
+    detail_elem = info_elem.find("Detail")
+    assert detail_elem is not None
+    assert detail_elem.tag == "Detail"
+    assert detail_elem.attrib.get("returnVersion") == "v1"
+    assert detail_elem.text.strip() == "Data"
 
 
 @pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
