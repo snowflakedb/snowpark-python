@@ -68,6 +68,7 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     private_preview,
     random_name_for_temp_object,
+    warning,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1037,6 +1038,10 @@ class DataFrameReader:
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
+            warning(
+                "rowTag",
+                "rowTag for reading XML file is experimental. Do not use it in production",
+            )
             output_schema = StructType(
                 [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
             )

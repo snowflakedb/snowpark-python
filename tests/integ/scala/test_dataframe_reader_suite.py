@@ -1945,7 +1945,7 @@ def test_read_multiple_csvs(session):
 def test_read_xml_row_tag(
     session, file, row_tag, expected_row_count, expected_column_count
 ):
-    df = session.read.option("_ROW_TAG", row_tag).xml(f"@{tmp_stage_name1}/{file}")
+    df = session.read.option("rowTag", row_tag).xml(f"@{tmp_stage_name1}/{file}")
     result = df.collect()
     assert len(result) == expected_row_count
     assert len(result[0]) == expected_column_count
@@ -1958,5 +1958,5 @@ def test_read_xml_row_tag(
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
     stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
-    df = session.read.option("_ROW_TAG", row_tag).xml(stage_file_path)
+    df = session.read.option("rowTag", row_tag).xml(stage_file_path)
     Utils.check_answer(df, [Row("null")])

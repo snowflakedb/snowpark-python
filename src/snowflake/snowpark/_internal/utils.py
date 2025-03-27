@@ -197,7 +197,7 @@ NON_FORMAT_TYPE_OPTIONS = {
     "COPY_OPTIONS",
 }
 
-XML_ROW_TAG_STRING = "_ROW_TAG"
+XML_ROW_TAG_STRING = "ROWTAG"
 XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
 XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
 
