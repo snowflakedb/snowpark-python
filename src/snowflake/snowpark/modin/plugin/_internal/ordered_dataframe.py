@@ -441,6 +441,17 @@ class OrderedDataFrame:
         )
         return ordered_dataframe
 
+    def materialize_row_count(self) -> int:
+        """
+        Perform a query to retrieve the row count of this OrderedDataFrame.
+
+        Use this function in place of ensure_row_count_column() in scenarios where the extra
+        query is acceptable, and the embedded `COUNT(*) OVER()` window operation would be too expensive.
+        Performing a naked `COUNT(*)` and avoiding a potential window function or cross join is
+        more performance in these scenarios.
+        """
+        return self._dataframe_ref.snowpark_dataframe.count()
+
     def generate_snowflake_quoted_identifiers(
         self,
         *,
