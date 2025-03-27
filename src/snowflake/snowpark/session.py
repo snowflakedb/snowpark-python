@@ -650,7 +650,10 @@ class Session:
         ast_mode_value: int = self._conn._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_CLIENT_AST_MODE, None
         )
-        self._ast_mode = AstMode(ast_mode_value) if ast_mode_value is not None else None
+        if ast_mode_value is not None and isinstance(ast_mode_value, int):
+            self._ast_mode = AstMode(ast_mode_value)
+        else:
+            self._ast_mode = None
 
         # If PYTHON_SNOWPARK_AST_MODE is available, it has precedence over PYTHON_SNOWPARK_USE_AST.
         if self._ast_mode is None:
