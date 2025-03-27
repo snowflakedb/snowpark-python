@@ -218,7 +218,6 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
-from snowflake.snowpark.version import VERSION
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
@@ -680,7 +679,7 @@ class Session:
                 )
                 if not ast_supported_version:
                     _logger.warning(
-                        f"Server side dataframe support requires minimum snowpark-python client version."
+                        "Server side dataframe support requires minimum snowpark-python client version."
                     )
                     self._ast_mode = AstMode.SQL_ONLY
                     ast_enabled = False
