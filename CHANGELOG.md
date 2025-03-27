@@ -37,6 +37,8 @@
 
 #### New Features
 
+- Added support for Interval experssion to `Window.range_between`.
+
 #### Bug Fixes
 
 - Fixed a bug in aggregation that caused empty groups to still produce rows.
