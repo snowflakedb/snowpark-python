@@ -12,12 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 
 from snowflake.connector import ProgrammingError
 from snowflake.connector.cursor import SnowflakeCursor
-from snowflake.connector.options import pyarrow
-from snowflake.connector.pandas_tools import (
-    _create_temp_stage,
-    _create_temp_file_format,
-    build_location_helper,
-)
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Except,
@@ -1782,7 +1776,13 @@ def write_arrow(
     """
     # SNOW-1904593: This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
     # It should be pushed down into the connector, but would require a minimum required version bump.
+    import pyarrow
     import pyarrow.parquet  # type: ignore
+    from snowflake.connector.pandas_tools import (
+        _create_temp_stage,
+        _create_temp_file_format,
+        build_location_helper,
+    )
 
     if database is not None and schema is None:
         raise ProgrammingError(

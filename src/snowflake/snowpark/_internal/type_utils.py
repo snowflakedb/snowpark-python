@@ -35,7 +35,6 @@ import snowflake.snowpark.context as context
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
-from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
@@ -77,6 +76,30 @@ from snowflake.snowpark.types import (
     File,
 )
 
+imported_installed_pandas = None
+def lazy_import_pandas():
+    if imported_installed_pandas is None:
+        from snowflake.connector.options import installed_pandas, pandas
+        import numpy
+
+        imported_installed_pandas = installed_pandas
+
+        if installed_pandas:
+            from snowflake.snowpark.types import (
+                PandasDataFrame,
+                PandasDataFrameType,
+                PandasSeries,
+                PandasSeriesType,
+            )
+
+        PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
+            {
+                type(pandas.NaT): TimestampType,
+                numpy.float64: DecimalType,
+            }
+        )
+    return imported_installed_pandas
+
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
@@ -84,14 +107,6 @@ try:
     from typing import Iterable  # noqa: F401
 except ImportError:
     from collections.abc import Iterable  # noqa: F401
-
-if installed_pandas:
-    from snowflake.snowpark.types import (
-        PandasDataFrame,
-        PandasDataFrameType,
-        PandasSeries,
-        PandasSeriesType,
-    )
 
 if TYPE_CHECKING:
     import snowflake.snowpark.column
@@ -351,15 +366,6 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     datetime.time: TimeType,
     bytes: BinaryType,
 }
-if installed_pandas:
-    import numpy
-
-    PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
-        {
-            type(pandas.NaT): TimestampType,
-            numpy.float64: DecimalType,
-        }
-    )
 
 
 # TODO: these tuples of types can be used with isinstance, but not as a type-hints
@@ -629,9 +635,9 @@ def python_type_str_to_object(
     # pandas.DataFrame, so we return snowpark DataFrame.
     elif tp_str == "DataFrame" and is_return_type_for_sproc:
         return snowflake.snowpark.DataFrame
-    elif tp_str in ["Series", "pd.Series"] and installed_pandas:
+    elif tp_str in ["Series", "pd.Series"] and lazy_import_pandas():
         return pandas.Series
-    elif tp_str in ["DataFrame", "pd.DataFrame"] and installed_pandas:
+    elif tp_str in ["DataFrame", "pd.DataFrame"] and lazy_import_pandas():
         return pandas.DataFrame
     else:
         return eval(tp_str)
@@ -692,7 +698,7 @@ def python_type_to_snow_type(
         )
         return MapType(key_type, value_type), False
 
-    if installed_pandas:
+    if lazy_import_pandas():
         pandas_series_tps = [PandasSeries, pandas.Series]
         if tp in pandas_series_tps or (tp_origin and tp_origin in pandas_series_tps):
             return (
