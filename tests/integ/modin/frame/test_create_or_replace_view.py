@@ -37,13 +37,14 @@ def test_create_or_replace_view_basic(session, native_pandas_df_basic) -> None:
             "successfully created"
             in snow_dataframe.create_or_replace_view(name=view_name)[0]["status"]
         )
+
     finally:
         Utils.drop_view(session, view_name)
 
 
 @sql_count_checker(query_count=6)
 def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
-    session, native_pandas_df_basic
+    session,
 ) -> None:
     try:
         # create table
@@ -75,6 +76,7 @@ def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
         ):
             new_session.sql("select * from view_name").collect()
         new_session.close()
+
     finally:
         # cleanup
         Utils.drop_view(session, view_name)
@@ -83,9 +85,7 @@ def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
 
 
 @sql_count_checker(query_count=4)
-def test_create_or_replace_view_multiple_sessions_relaxed_ordering(
-    session, native_pandas_df_basic
-) -> None:
+def test_create_or_replace_view_multiple_sessions_relaxed_ordering(session) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -113,6 +113,7 @@ def test_create_or_replace_view_multiple_sessions_relaxed_ordering(
         res = new_session.sql(f"select * from {view_name}").collect()
         assert len(res) == 2
         new_session.close()
+
     finally:
         # cleanup
         Utils.drop_view(session, view_name)

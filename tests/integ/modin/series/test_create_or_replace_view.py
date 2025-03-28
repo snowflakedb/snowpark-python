@@ -68,14 +68,14 @@ def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
         ):
             new_session.sql("select * from view_name").collect()
         new_session.close()
+
     finally:
         # cleanup
         Utils.drop_view(session, view_name)
         Utils.drop_table(session, table_name)
-        pd.session = session
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=5)
 def test_create_or_replace_view_multiple_sessions_relaxed_ordering(session) -> None:
     try:
         # create table
@@ -103,9 +103,11 @@ def test_create_or_replace_view_multiple_sessions_relaxed_ordering(session) -> N
         # accessing the created view in another session succeeds when relaxed_ordering is enabled
         res = new_session.sql(f"select * from {view_name}").collect()
         assert len(res) == 2
+        new_session.close()
+
     finally:
         # cleanup
-        Utils.drop_view(new_session, view_name)
-        Utils.drop_table(new_session, table_name)
-        new_session.close()
+        Utils.drop_view(session, view_name)
+        Utils.drop_table(session, table_name)
+        session.close()
         pd.session = session
