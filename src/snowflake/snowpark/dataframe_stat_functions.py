@@ -98,9 +98,9 @@ class DataFrameStatFunctions:
 
         if _emit_ast:
             # Add an assign node that applies DataframeStatsApproxQuantile() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.dataframe_stat_approx_quantile, repr)
-            expr.id.bitfield1 = self._dataframe._ast_id
+            stmt = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.dataframe_stat_approx_quantile, stmt)
+            self._dataframe._set_ast_ref(expr.df)
 
             if isinstance(col, Iterable) and not isinstance(col, str):
                 expr.cols.variadic = False
@@ -124,7 +124,7 @@ class DataFrameStatFunctions:
                     t._1 = k
                     t._2 = v
 
-            self._dataframe._session._ast_batch.eval(repr)
+            self._dataframe._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
             (
@@ -208,9 +208,9 @@ class DataFrameStatFunctions:
 
         if _emit_ast:
             # Add an assign node that applies DataframeStatsCorr() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.dataframe_stat_corr, repr)
-            expr.id.bitfield1 = self._dataframe._ast_id
+            stmt = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.dataframe_stat_corr, stmt)
+            self._dataframe._set_ast_ref(expr.df)
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
             build_expr_from_snowpark_column_or_col_name(expr.col2, col2)
@@ -221,7 +221,7 @@ class DataFrameStatFunctions:
                     t._1 = k
                     t._2 = v
 
-            self._dataframe._session._ast_batch.eval(repr)
+            self._dataframe._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
             (
@@ -265,9 +265,9 @@ class DataFrameStatFunctions:
 
         if _emit_ast:
             # Add an assign node that applies DataframeStatsCov() to the input, followed by its Eval.
-            repr = self._dataframe._session._ast_batch.assign()
-            expr = with_src_position(repr.expr.dataframe_stat_cov, repr)
-            expr.id.bitfield1 = self._dataframe._ast_id
+            stmt = self._dataframe._session._ast_batch.assign()
+            expr = with_src_position(stmt.expr.dataframe_stat_cov, stmt)
+            self._dataframe._set_ast_ref(expr.df)
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
             build_expr_from_snowpark_column_or_col_name(expr.col2, col2)
@@ -278,7 +278,7 @@ class DataFrameStatFunctions:
                     t._1 = k
                     t._2 = v
 
-            self._dataframe._session._ast_batch.eval(repr)
+            self._dataframe._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
             (
@@ -337,7 +337,7 @@ class DataFrameStatFunctions:
             # Add an assign node that applies DataframeStatsCrossTab() to the input, followed by its Eval.
             stmt = self._dataframe._session._ast_batch.assign()
             expr = with_src_position(stmt.expr.dataframe_stat_cross_tab, stmt)
-            expr.id.bitfield1 = self._dataframe._ast_id
+            self._dataframe._set_ast_ref(expr.df)
 
             build_expr_from_snowpark_column_or_col_name(expr.col1, col1)
             build_expr_from_snowpark_column_or_col_name(expr.col2, col2)

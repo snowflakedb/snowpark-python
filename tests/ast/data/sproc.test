@@ -184,15 +184,15 @@ session.sql("call mul_sp(5, 6)").collect()
 
 sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
 
-res33 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res30 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res37 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res34 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res41 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res38 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
@@ -204,9 +204,9 @@ mod5_sp(3)
 
 range5_sproc = sproc("range5_sproc", return_type=StructType(structured=False), _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
-res48 = range5_sproc()
+res45 = range5_sproc()
 
-res49 = session.range(5, None, 1)
+res46 = session.range(5, None, 1)
 
 ## EXPECTED ENCODED AST
 
@@ -315,8 +315,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 2
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
         }
         src {
           end_column: 165
@@ -413,40 +417,9 @@ body {
 body {
   assign {
     expr {
-      dataframe_write {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 5
-            }
-          }
-        }
-        src {
-          end_column: 21
-          end_line: 47
-          file: 2
-          start_column: 8
-          start_line: 47
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
-  }
-}
-body {
-  assign {
-    expr {
       write_table {
         block: true
         column_order: "index"
-        id {
-          bitfield1: 6
-        }
         mode {
           save_mode_overwrite: true
         }
@@ -465,21 +438,39 @@ body {
           }
         }
         table_type: "temporary"
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id {
+                  bitfield1: 5
+                }
+              }
+            }
+            src {
+              end_column: 21
+              end_line: 47
+              file: 2
+              start_column: 8
+              start_line: 47
+            }
+          }
+        }
       }
     }
     symbol {
     }
-    uid: 7
+    uid: 6
     var_id {
-      bitfield1: 7
+      bitfield1: 6
     }
   }
 }
 body {
   eval {
-    uid: 8
+    uid: 7
     var_id {
-      bitfield1: 7
+      bitfield1: 6
     }
   }
 }
@@ -532,37 +523,9 @@ body {
     symbol {
       value: "to_df"
     }
-    uid: 9
+    uid: 8
     var_id {
-      bitfield1: 9
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      dataframe_write {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 9
-            }
-          }
-        }
-        src {
-          end_column: 19
-          end_line: 49
-          file: 2
-          start_column: 8
-          start_line: 49
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 10
-    var_id {
-      bitfield1: 10
+      bitfield1: 8
     }
   }
 }
@@ -572,9 +535,6 @@ body {
       write_table {
         block: true
         column_order: "index"
-        id {
-          bitfield1: 10
-        }
         mode {
           save_mode_overwrite: true
         }
@@ -593,21 +553,39 @@ body {
           }
         }
         table_type: "temporary"
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id {
+                  bitfield1: 8
+                }
+              }
+            }
+            src {
+              end_column: 19
+              end_line: 49
+              file: 2
+              start_column: 8
+              start_line: 49
+            }
+          }
+        }
       }
     }
     symbol {
     }
-    uid: 11
+    uid: 9
     var_id {
-      bitfield1: 11
+      bitfield1: 9
     }
   }
 }
 body {
   eval {
-    uid: 12
+    uid: 10
     var_id {
-      bitfield1: 11
+      bitfield1: 9
     }
   }
 }
@@ -627,9 +605,9 @@ body {
     }
     symbol {
     }
-    uid: 13
+    uid: 11
     var_id {
-      bitfield1: 13
+      bitfield1: 11
     }
   }
 }
@@ -639,8 +617,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 13
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 11
+            }
+          }
         }
         src {
           end_column: 76
@@ -653,17 +635,17 @@ body {
     }
     symbol {
     }
-    uid: 14
+    uid: 12
     var_id {
-      bitfield1: 14
+      bitfield1: 12
     }
   }
 }
 body {
   eval {
-    uid: 15
+    uid: 13
     var_id {
-      bitfield1: 14
+      bitfield1: 12
     }
   }
 }
@@ -692,9 +674,9 @@ body {
     }
     symbol {
     }
-    uid: 16
+    uid: 14
     var_id {
-      bitfield1: 16
+      bitfield1: 14
     }
   }
 }
@@ -703,8 +685,12 @@ body {
     expr {
       dataframe_count {
         block: true
-        id {
-          bitfield1: 16
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 14
+            }
+          }
         }
         src {
           end_column: 40
@@ -717,17 +703,17 @@ body {
     }
     symbol {
     }
-    uid: 17
+    uid: 15
     var_id {
-      bitfield1: 17
+      bitfield1: 15
     }
   }
 }
 body {
   eval {
-    uid: 18
+    uid: 16
     var_id {
-      bitfield1: 17
+      bitfield1: 15
     }
   }
 }
@@ -748,9 +734,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 19
+    uid: 17
     var_id {
-      bitfield1: 19
+      bitfield1: 17
     }
   }
 }
@@ -760,8 +746,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 19
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 17
+            }
+          }
         }
         src {
           end_column: 65
@@ -774,17 +764,17 @@ body {
     }
     symbol {
     }
-    uid: 20
+    uid: 18
     var_id {
-      bitfield1: 20
+      bitfield1: 18
     }
   }
 }
 body {
   eval {
-    uid: 21
+    uid: 19
     var_id {
-      bitfield1: 20
+      bitfield1: 18
     }
   }
 }
@@ -852,17 +842,17 @@ body {
     }
     symbol {
     }
-    uid: 22
+    uid: 20
     var_id {
-      bitfield1: 22
+      bitfield1: 20
     }
   }
 }
 body {
   eval {
-    uid: 23
+    uid: 21
     var_id {
-      bitfield1: 22
+      bitfield1: 20
     }
   }
 }
@@ -891,9 +881,9 @@ body {
     }
     symbol {
     }
-    uid: 24
+    uid: 22
     var_id {
-      bitfield1: 24
+      bitfield1: 22
     }
   }
 }
@@ -904,7 +894,7 @@ body {
         df {
           dataframe_ref {
             id {
-              bitfield1: 24
+              bitfield1: 22
             }
           }
         }
@@ -920,37 +910,9 @@ body {
     }
     symbol {
     }
-    uid: 25
+    uid: 23
     var_id {
-      bitfield1: 25
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      dataframe_write {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 25
-            }
-          }
-        }
-        src {
-          end_column: 56
-          end_line: 39
-          file: 2
-          start_column: 12
-          start_line: 39
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 26
-    var_id {
-      bitfield1: 26
+      bitfield1: 23
     }
   }
 }
@@ -960,9 +922,6 @@ body {
       write_table {
         block: true
         column_order: "index"
-        id {
-          bitfield1: 26
-        }
         mode {
           save_mode_overwrite: true
         }
@@ -981,21 +940,39 @@ body {
           }
         }
         table_type: "temporary"
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id {
+                  bitfield1: 23
+                }
+              }
+            }
+            src {
+              end_column: 56
+              end_line: 39
+              file: 2
+              start_column: 12
+              start_line: 39
+            }
+          }
+        }
       }
     }
     symbol {
     }
-    uid: 27
+    uid: 24
     var_id {
-      bitfield1: 27
+      bitfield1: 24
     }
   }
 }
 body {
   eval {
-    uid: 28
+    uid: 25
     var_id {
-      bitfield1: 27
+      bitfield1: 24
     }
   }
 }
@@ -1024,9 +1001,9 @@ body {
     }
     symbol {
     }
-    uid: 29
+    uid: 26
     var_id {
-      bitfield1: 29
+      bitfield1: 26
     }
   }
 }
@@ -1035,8 +1012,12 @@ body {
     expr {
       dataframe_count {
         block: true
-        id {
-          bitfield1: 29
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 26
+            }
+          }
         }
         src {
           end_column: 40
@@ -1049,17 +1030,17 @@ body {
     }
     symbol {
     }
-    uid: 30
+    uid: 27
     var_id {
-      bitfield1: 30
+      bitfield1: 27
     }
   }
 }
 body {
   eval {
-    uid: 31
+    uid: 28
     var_id {
-      bitfield1: 30
+      bitfield1: 27
     }
   }
 }
@@ -1099,9 +1080,9 @@ body {
     symbol {
       value: "add_one_sp"
     }
-    uid: 32
+    uid: 29
     var_id {
-      bitfield1: 32
+      bitfield1: 29
     }
   }
 }
@@ -1112,7 +1093,7 @@ body {
         fn {
           fn_ref {
             id {
-              bitfield1: 32
+              bitfield1: 29
             }
           }
         }
@@ -1139,9 +1120,9 @@ body {
     }
     symbol {
     }
-    uid: 33
+    uid: 30
     var_id {
-      bitfield1: 33
+      bitfield1: 30
     }
   }
 }
@@ -1161,9 +1142,9 @@ body {
     }
     symbol {
     }
-    uid: 34
+    uid: 31
     var_id {
-      bitfield1: 34
+      bitfield1: 31
     }
   }
 }
@@ -1173,8 +1154,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 34
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 31
+            }
+          }
         }
         src {
           end_column: 73
@@ -1187,25 +1172,25 @@ body {
     }
     symbol {
     }
-    uid: 35
+    uid: 32
     var_id {
-      bitfield1: 35
+      bitfield1: 32
     }
   }
 }
 body {
   eval {
-    uid: 36
+    uid: 33
     var_id {
-      bitfield1: 35
+      bitfield1: 32
     }
   }
 }
 body {
   eval {
-    uid: 37
+    uid: 34
     var_id {
-      bitfield1: 33
+      bitfield1: 30
     }
   }
 }
@@ -1225,9 +1210,9 @@ body {
     }
     symbol {
     }
-    uid: 38
+    uid: 35
     var_id {
-      bitfield1: 38
+      bitfield1: 35
     }
   }
 }
@@ -1237,8 +1222,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 38
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 35
+            }
+          }
         }
         src {
           end_column: 62
@@ -1251,17 +1240,17 @@ body {
     }
     symbol {
     }
-    uid: 39
+    uid: 36
     var_id {
-      bitfield1: 39
+      bitfield1: 36
     }
   }
 }
 body {
   eval {
-    uid: 40
+    uid: 37
     var_id {
-      bitfield1: 39
+      bitfield1: 36
     }
   }
 }
@@ -1282,9 +1271,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 41
+    uid: 38
     var_id {
-      bitfield1: 41
+      bitfield1: 38
     }
   }
 }
@@ -1294,8 +1283,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 41
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 38
+            }
+          }
         }
         src {
           end_column: 73
@@ -1308,17 +1301,17 @@ body {
     }
     symbol {
     }
-    uid: 42
+    uid: 39
     var_id {
-      bitfield1: 42
+      bitfield1: 39
     }
   }
 }
 body {
   eval {
-    uid: 43
+    uid: 40
     var_id {
-      bitfield1: 42
+      bitfield1: 39
     }
   }
 }
@@ -1371,9 +1364,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 44
+    uid: 41
     var_id {
-      bitfield1: 44
+      bitfield1: 41
     }
   }
 }
@@ -1393,9 +1386,9 @@ body {
     }
     symbol {
     }
-    uid: 45
+    uid: 42
     var_id {
-      bitfield1: 45
+      bitfield1: 42
     }
   }
 }
@@ -1405,8 +1398,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 45
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 42
+            }
+          }
         }
         src {
           end_column: 50
@@ -1419,17 +1416,17 @@ body {
     }
     symbol {
     }
-    uid: 46
+    uid: 43
     var_id {
-      bitfield1: 46
+      bitfield1: 43
     }
   }
 }
 body {
   eval {
-    uid: 47
+    uid: 44
     var_id {
-      bitfield1: 46
+      bitfield1: 43
     }
   }
 }
@@ -1482,9 +1479,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 48
+    uid: 45
     var_id {
-      bitfield1: 48
+      bitfield1: 45
     }
   }
 }
@@ -1504,9 +1501,9 @@ body {
     }
     symbol {
     }
-    uid: 49
+    uid: 46
     var_id {
-      bitfield1: 49
+      bitfield1: 46
     }
   }
 }
@@ -1516,8 +1513,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 49
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 46
+            }
+          }
         }
         src {
           end_column: 50
@@ -1530,17 +1531,17 @@ body {
     }
     symbol {
     }
-    uid: 50
+    uid: 47
     var_id {
-      bitfield1: 50
+      bitfield1: 47
     }
   }
 }
 body {
   eval {
-    uid: 51
+    uid: 48
     var_id {
-      bitfield1: 50
+      bitfield1: 47
     }
   }
 }
@@ -1603,9 +1604,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 52
+    uid: 49
     var_id {
-      bitfield1: 52
+      bitfield1: 49
     }
   }
 }
@@ -1625,9 +1626,9 @@ body {
     }
     symbol {
     }
-    uid: 53
+    uid: 50
     var_id {
-      bitfield1: 53
+      bitfield1: 50
     }
   }
 }
@@ -1637,8 +1638,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 53
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 50
+            }
+          }
         }
         src {
           end_column: 50
@@ -1651,17 +1656,17 @@ body {
     }
     symbol {
     }
-    uid: 54
+    uid: 51
     var_id {
-      bitfield1: 54
+      bitfield1: 51
     }
   }
 }
 body {
   eval {
-    uid: 55
+    uid: 52
     var_id {
-      bitfield1: 54
+      bitfield1: 51
     }
   }
 }
@@ -1706,9 +1711,9 @@ body {
     }
     symbol {
     }
-    uid: 56
+    uid: 53
     var_id {
-      bitfield1: 56
+      bitfield1: 53
     }
   }
 }
@@ -1719,7 +1724,7 @@ body {
         fn {
           fn_ref {
             id {
-              bitfield1: 56
+              bitfield1: 53
             }
           }
         }
@@ -1746,17 +1751,17 @@ body {
     }
     symbol {
     }
-    uid: 57
+    uid: 54
     var_id {
-      bitfield1: 57
+      bitfield1: 54
     }
   }
 }
 body {
   eval {
-    uid: 58
+    uid: 55
     var_id {
-      bitfield1: 57
+      bitfield1: 54
     }
   }
 }
@@ -1821,9 +1826,9 @@ body {
     }
     symbol {
     }
-    uid: 59
+    uid: 56
     var_id {
-      bitfield1: 59
+      bitfield1: 56
     }
   }
 }
@@ -1834,7 +1839,7 @@ body {
         fn {
           fn_ref {
             id {
-              bitfield1: 59
+              bitfield1: 56
             }
           }
         }
@@ -1873,9 +1878,9 @@ body {
     }
     symbol {
     }
-    uid: 60
+    uid: 57
     var_id {
-      bitfield1: 60
+      bitfield1: 57
     }
   }
 }
@@ -1895,9 +1900,9 @@ body {
     }
     symbol {
     }
-    uid: 61
+    uid: 58
     var_id {
-      bitfield1: 61
+      bitfield1: 58
     }
   }
 }
@@ -1905,25 +1910,36 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 61
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 58
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 30
+          end_line: 123
+          file: 2
+          start_column: 8
+          start_line: 123
+        }
       }
     }
     symbol {
     }
-    uid: 62
+    uid: 59
     var_id {
-      bitfield1: 62
+      bitfield1: 59
     }
   }
 }
 body {
   eval {
-    uid: 63
+    uid: 60
     var_id {
-      bitfield1: 62
+      bitfield1: 59
     }
   }
 }
@@ -1965,9 +1981,9 @@ body {
     }
     symbol {
     }
-    uid: 64
+    uid: 61
     var_id {
-      bitfield1: 64
+      bitfield1: 61
     }
   }
 }
@@ -1978,7 +1994,7 @@ body {
         fn {
           fn_ref {
             id {
-              bitfield1: 64
+              bitfield1: 61
             }
           }
         }
@@ -2017,9 +2033,9 @@ body {
     }
     symbol {
     }
-    uid: 65
+    uid: 62
     var_id {
-      bitfield1: 65
+      bitfield1: 62
     }
   }
 }
@@ -2039,9 +2055,9 @@ body {
     }
     symbol {
     }
-    uid: 66
+    uid: 63
     var_id {
-      bitfield1: 66
+      bitfield1: 63
     }
   }
 }
@@ -2049,25 +2065,36 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 66
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 63
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 30
+          end_line: 129
+          file: 2
+          start_column: 8
+          start_line: 129
+        }
       }
     }
     symbol {
     }
-    uid: 67
+    uid: 64
     var_id {
-      bitfield1: 67
+      bitfield1: 64
     }
   }
 }
 body {
   eval {
-    uid: 68
+    uid: 65
     var_id {
-      bitfield1: 67
+      bitfield1: 64
     }
   }
 }
@@ -2110,9 +2137,9 @@ body {
     }
     symbol {
     }
-    uid: 69
+    uid: 66
     var_id {
-      bitfield1: 69
+      bitfield1: 66
     }
   }
 }
@@ -2123,7 +2150,7 @@ body {
         fn {
           fn_ref {
             id {
-              bitfield1: 69
+              bitfield1: 66
             }
           }
         }
@@ -2162,9 +2189,9 @@ body {
     }
     symbol {
     }
-    uid: 70
+    uid: 67
     var_id {
-      bitfield1: 70
+      bitfield1: 67
     }
   }
 }
@@ -2184,9 +2211,9 @@ body {
     }
     symbol {
     }
-    uid: 71
+    uid: 68
     var_id {
-      bitfield1: 71
+      bitfield1: 68
     }
   }
 }
@@ -2194,25 +2221,36 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 71
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 68
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 30
+          end_line: 135
+          file: 2
+          start_column: 8
+          start_line: 135
+        }
       }
     }
     symbol {
     }
-    uid: 72
+    uid: 69
     var_id {
-      bitfield1: 72
+      bitfield1: 69
     }
   }
 }
 body {
   eval {
-    uid: 73
+    uid: 70
     var_id {
-      bitfield1: 72
+      bitfield1: 69
     }
   }
 }
@@ -2252,9 +2290,9 @@ body {
     symbol {
       value: "mod5_sp"
     }
-    uid: 74
+    uid: 71
     var_id {
-      bitfield1: 74
+      bitfield1: 71
     }
   }
 }
@@ -2265,7 +2303,7 @@ body {
         fn {
           fn_ref {
             id {
-              bitfield1: 74
+              bitfield1: 71
             }
           }
         }
@@ -2292,9 +2330,9 @@ body {
     }
     symbol {
     }
-    uid: 75
+    uid: 72
     var_id {
-      bitfield1: 75
+      bitfield1: 72
     }
   }
 }
@@ -2345,9 +2383,9 @@ body {
     }
     symbol {
     }
-    uid: 76
+    uid: 73
     var_id {
-      bitfield1: 76
+      bitfield1: 73
     }
   }
 }
@@ -2418,7 +2456,7 @@ body {
         df {
           dataframe_ref {
             id {
-              bitfield1: 76
+              bitfield1: 73
             }
           }
         }
@@ -2433,9 +2471,9 @@ body {
     }
     symbol {
     }
-    uid: 77
+    uid: 74
     var_id {
-      bitfield1: 77
+      bitfield1: 74
     }
   }
 }
@@ -2445,8 +2483,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 77
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 74
+            }
+          }
         }
         src {
           end_column: 18
@@ -2459,25 +2501,25 @@ body {
     }
     symbol {
     }
-    uid: 78
-    var_id {
-      bitfield1: 78
-    }
-  }
-}
-body {
-  eval {
-    uid: 79
-    var_id {
-      bitfield1: 78
-    }
-  }
-}
-body {
-  eval {
-    uid: 80
+    uid: 75
     var_id {
       bitfield1: 75
+    }
+  }
+}
+body {
+  eval {
+    uid: 76
+    var_id {
+      bitfield1: 75
+    }
+  }
+}
+body {
+  eval {
+    uid: 77
+    var_id {
+      bitfield1: 72
     }
   }
 }
@@ -2515,9 +2557,9 @@ body {
     symbol {
       value: "range5_sproc"
     }
-    uid: 81
+    uid: 78
     var_id {
-      bitfield1: 81
+      bitfield1: 78
     }
   }
 }
@@ -2528,7 +2570,7 @@ body {
         fn {
           fn_ref {
             id {
-              bitfield1: 81
+              bitfield1: 78
             }
           }
         }
@@ -2543,9 +2585,9 @@ body {
     }
     symbol {
     }
-    uid: 82
+    uid: 79
     var_id {
-      bitfield1: 82
+      bitfield1: 79
     }
   }
 }
@@ -2568,9 +2610,9 @@ body {
     }
     symbol {
     }
-    uid: 83
+    uid: 80
     var_id {
-      bitfield1: 83
+      bitfield1: 80
     }
   }
 }

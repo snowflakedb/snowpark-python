@@ -109,7 +109,7 @@ class TableFunctionCall:
         # End code for check.
 
         ast = None
-        if _emit_ast and self._ast:
+        if _emit_ast and self._ast is not None:
             ast = proto.Expr()
             expr = with_src_position(ast.table_fn_call_over)
             expr.lhs.CopyFrom(self._ast)

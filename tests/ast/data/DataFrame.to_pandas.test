@@ -70,8 +70,12 @@ body {
     expr {
       dataframe_to_pandas {
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 22
@@ -102,8 +106,12 @@ body {
   assign {
     expr {
       dataframe_to_pandas {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 33
@@ -135,8 +143,12 @@ body {
     expr {
       dataframe_to_pandas {
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 69
@@ -171,8 +183,12 @@ body {
   assign {
     expr {
       dataframe_to_pandas {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 82
