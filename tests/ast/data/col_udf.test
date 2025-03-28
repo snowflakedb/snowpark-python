@@ -298,8 +298,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 3
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
         }
         src {
           end_column: 57
@@ -495,8 +499,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 7
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 7
+            }
+          }
         }
         src {
           end_column: 71
@@ -969,8 +977,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 14
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 14
+            }
+          }
         }
         src {
           end_column: 57
@@ -1137,8 +1149,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 18
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 18
+            }
+          }
         }
         src {
           end_column: 71
@@ -1178,6 +1194,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }

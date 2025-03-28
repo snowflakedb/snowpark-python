@@ -448,9 +448,16 @@ body {
           start_line: 38
         }
         values {
-          pivot_value__expr {
-            v {
-              list_val {
+          list_val {
+            src {
+              end_column: 44
+              end_line: 38
+              file: 2
+              start_column: 14
+              start_line: 38
+            }
+            vs {
+              string_val {
                 src {
                   end_column: 44
                   end_line: 38
@@ -458,30 +465,19 @@ body {
                   start_column: 14
                   start_line: 38
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 44
-                      end_line: 38
-                      file: 2
-                      start_column: 14
-                      start_line: 38
-                    }
-                    v: "JAN"
-                  }
+                v: "JAN"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 44
+                  end_line: 38
+                  file: 2
+                  start_column: 14
+                  start_line: 38
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 44
-                      end_line: 38
-                      file: 2
-                      start_column: 14
-                      start_line: 38
-                    }
-                    v: "FEB"
-                  }
-                }
+                v: "FEB"
               }
             }
           }
@@ -629,9 +625,16 @@ body {
           start_line: 40
         }
         values {
-          pivot_value__expr {
-            v {
-              list_val {
+          list_val {
+            src {
+              end_column: 78
+              end_line: 40
+              file: 2
+              start_column: 14
+              start_line: 40
+            }
+            vs {
+              string_val {
                 src {
                   end_column: 78
                   end_line: 40
@@ -639,30 +642,19 @@ body {
                   start_column: 14
                   start_line: 40
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 78
-                      end_line: 40
-                      file: 2
-                      start_column: 14
-                      start_line: 40
-                    }
-                    v: "JAN"
-                  }
+                v: "JAN"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 78
+                  end_line: 40
+                  file: 2
+                  start_column: 14
+                  start_line: 40
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 78
-                      end_line: 40
-                      file: 2
-                      start_column: 14
-                      start_line: 40
-                    }
-                    v: "FEB"
-                  }
-                }
+                v: "FEB"
               }
             }
           }
@@ -780,6 +772,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }

@@ -94,8 +94,12 @@ body {
     expr {
       table_delete {
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 19
@@ -158,8 +162,12 @@ body {
   assign {
     expr {
       table_delete {
-        id {
-          bitfield1: 4
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 4
+            }
+          }
         }
         src {
           end_column: 30
@@ -222,8 +230,12 @@ body {
   assign {
     expr {
       table_delete {
-        id {
-          bitfield1: 7
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 7
+            }
+          }
         }
         src {
           end_column: 79
@@ -333,8 +345,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 10
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 10
+            }
+          }
         }
         src {
           end_column: 33
@@ -530,8 +546,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 13
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 13
+            }
+          }
         }
         source {
           dataframe_ref {
@@ -578,6 +598,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }

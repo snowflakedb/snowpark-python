@@ -130,8 +130,12 @@ body {
           }
           variadic: true
         }
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         percentile: 0.5
         src {
@@ -190,8 +194,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         percentile: 0.0
         percentile: 0.2
@@ -391,8 +399,12 @@ body {
             v: "b"
           }
         }
-        id {
-          bitfield1: 6
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
         }
         src {
           end_column: 35
@@ -448,8 +460,12 @@ body {
             v: "b"
           }
         }
-        id {
-          bitfield1: 6
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
         }
         src {
           end_column: 63
@@ -509,8 +525,12 @@ body {
             v: "b"
           }
         }
-        id {
-          bitfield1: 6
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
         }
         src {
           end_column: 36
@@ -566,8 +586,12 @@ body {
             v: "b"
           }
         }
-        id {
-          bitfield1: 6
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
         }
         src {
           end_column: 64
@@ -904,8 +928,12 @@ body {
             v: "value"
           }
         }
-        id {
-          bitfield1: 15
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 15
+            }
+          }
         }
         src {
           end_column: 45
@@ -953,8 +981,12 @@ body {
             v: "value"
           }
         }
-        id {
-          bitfield1: 15
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 15
+            }
+          }
         }
         src {
           end_column: 74
@@ -1234,6 +1266,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }

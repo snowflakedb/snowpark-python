@@ -62,7 +62,7 @@ df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").sort(df
 
 df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").show()
 
-df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team").show()
+df.group_by(["empid", "team"]).pivot("month", values=None).sum("amount").sort("empid", "team").show()
 
 ## EXPECTED ENCODED AST
 
@@ -410,8 +410,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 3
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
         }
         src {
           end_column: 43
@@ -531,8 +535,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 7
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 7
+            }
+          }
         }
         src {
           end_column: 43
@@ -652,8 +660,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 11
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 11
+            }
+          }
         }
         src {
           end_column: 46
@@ -773,8 +785,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 15
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 15
+            }
+          }
         }
         src {
           end_column: 55
@@ -1403,8 +1419,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 24
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 24
+            }
+          }
         }
         src {
           end_column: 104
@@ -1716,9 +1736,16 @@ body {
           start_line: 55
         }
         values {
-          pivot_value__expr {
-            v {
-              list_val {
+          list_val {
+            src {
+              end_column: 59
+              end_line: 55
+              file: 2
+              start_column: 8
+              start_line: 55
+            }
+            vs {
+              string_val {
                 src {
                   end_column: 59
                   end_line: 55
@@ -1726,30 +1753,19 @@ body {
                   start_column: 8
                   start_line: 55
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 59
-                      end_line: 55
-                      file: 2
-                      start_column: 8
-                      start_line: 55
-                    }
-                    v: "JAN"
-                  }
+                v: "JAN"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 59
+                  end_line: 55
+                  file: 2
+                  start_column: 8
+                  start_line: 55
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 59
-                      end_line: 55
-                      file: 2
-                      start_column: 8
-                      start_line: 55
-                    }
-                    v: "FEB"
-                  }
-                }
+                v: "FEB"
               }
             }
           }
@@ -1862,10 +1878,21 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 31
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 31
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 98
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
       }
     }
     symbol {
@@ -1958,9 +1985,16 @@ body {
           start_line: 57
         }
         values {
-          pivot_value__expr {
-            v {
-              list_val {
+          list_val {
+            src {
+              end_column: 59
+              end_line: 57
+              file: 2
+              start_column: 8
+              start_line: 57
+            }
+            vs {
+              string_val {
                 src {
                   end_column: 59
                   end_line: 57
@@ -1968,30 +2002,19 @@ body {
                   start_column: 8
                   start_line: 57
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 59
-                      end_line: 57
-                      file: 2
-                      start_column: 8
-                      start_line: 57
-                    }
-                    v: "JAN"
-                  }
+                v: "JAN"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 59
+                  end_line: 57
+                  file: 2
+                  start_column: 8
+                  start_line: 57
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 59
-                      end_line: 57
-                      file: 2
-                      start_column: 8
-                      start_line: 57
-                    }
-                    v: "FEB"
-                  }
-                }
+                v: "FEB"
               }
             }
           }
@@ -2054,10 +2077,21 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 36
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 36
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 80
+          end_line: 57
+          file: 2
+          start_column: 8
+          start_line: 57
+        }
       }
     }
     symbol {
@@ -2159,6 +2193,17 @@ body {
           file: 2
           start_column: 8
           start_line: 59
+        }
+        values {
+          null_val {
+            src {
+              end_column: 53
+              end_line: 59
+              file: 2
+              start_column: 8
+              start_line: 59
+            }
+          }
         }
       }
     }
@@ -2273,10 +2318,21 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 42
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 42
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 96
+          end_line: 59
+          file: 2
+          start_column: 8
+          start_line: 59
+        }
       }
     }
     symbol {
@@ -2308,6 +2364,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }
