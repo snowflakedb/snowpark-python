@@ -1758,7 +1758,7 @@ def groupby_apply_sort_method(
         sp_func.builtin("boolor_agg")(
             SnowparkColumn(original_row_position_quoted_identifier) == -1
         ).as_("is_transform")
-    ).collect()[0][0]
+    ).collect(statement_params=get_default_snowpark_pandas_statement_params())[0][0]
     return (
         GroupbyApplySortMethod.ORIGINAL_ROW_ORDER
         if is_transform

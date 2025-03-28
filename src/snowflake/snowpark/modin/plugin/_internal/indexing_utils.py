@@ -57,6 +57,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     ROW_COUNT_COLUMN_LABEL,
     ROW_POSITION_COLUMN_LABEL,
     append_columns,
+    get_default_snowpark_pandas_statement_params,
     pandas_lit,
     rindex,
 )
@@ -134,7 +135,9 @@ def get_valid_index_values(
     # Since first_valid_index and last_valid_index return a Scalar, we are always going to eagerly compute
     if first_or_last is ValidIndex.FIRST:
         valid_index_values = (
-            ordered_dataframe.select(index_quoted_identifier).limit(1).collect()
+            ordered_dataframe.select(index_quoted_identifier)
+            .limit(1)
+            .collect(statement_params=get_default_snowpark_pandas_statement_params())
         )
     else:
         assert first_or_last is ValidIndex.LAST, "first_or_last is not ValidIndex.LAST"
@@ -144,7 +147,7 @@ def get_valid_index_values(
             )
             .select(index_quoted_identifier)
             .limit(1)
-            .collect()
+            .collect(statement_params=get_default_snowpark_pandas_statement_params())
         )
 
     # If no valid indices, return None

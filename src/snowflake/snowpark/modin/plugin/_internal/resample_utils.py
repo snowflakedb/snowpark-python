@@ -30,7 +30,10 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     MatchComparator,
     join,
 )
-from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    get_default_snowpark_pandas_statement_params,
+    pandas_lit,
+)
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import DateType, TimestampType
 
@@ -396,7 +399,7 @@ def compute_resample_start_and_end_date(
             date_trunc(slice_unit, max_(datetime_index_col_identifier)).as_(
                 min_max_index_column_quoted_identifier[1]
             ),
-        ).collect()[0]
+        ).collect(statement_params=get_default_snowpark_pandas_statement_params())[0]
         if origin_is_start_day:
             # If this resample was called with origin=start_day, then manually compute the correct
             # bins that are an integer multiple of the slice width starting from midnight of the
@@ -449,7 +452,7 @@ def compute_resample_start_and_end_date(
                 ),
                 slice_unit,
             ).as_(min_max_index_column_quoted_identifier[1]),
-        ).collect()[0]
+        ).collect(statement_params=get_default_snowpark_pandas_statement_params())[0]
     return start_date, end_date
 
 

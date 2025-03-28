@@ -47,6 +47,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     extract_pandas_label_from_snowflake_quoted_identifier,
     fill_missing_levels_for_pandas_label,
     from_pandas_label,
+    get_default_snowpark_pandas_statement_params,
     get_distinct_rows,
     is_valid_snowflake_quoted_identifier,
     snowpark_to_pandas_helper,
@@ -761,7 +762,13 @@ class InternalFrame:
                 return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
                     (count_distinct(index_col) + iff(max_(index_col.is_null()), 1, 0))
                     == count("*")
-                ).collect()[0][0]
+                ).collect(
+                    statement_params=get_default_snowpark_pandas_statement_params()
+                )[
+                    0
+                ][
+                    0
+                ]
             else:
                 # Note: We can't use 'count_distinct' directly on columns because it
                 # ignores null values. As a workaround we first create an ARRAY and
@@ -771,7 +778,13 @@ class InternalFrame:
                         array_construct(*self.index_column_snowflake_quoted_identifiers)
                     )
                     == count("*"),
-                ).collect()[0][0]
+                ).collect(
+                    statement_params=get_default_snowpark_pandas_statement_params()
+                )[
+                    0
+                ][
+                    0
+                ]
 
     def validate_no_duplicated_data_columns_mapped_for_labels(
         self,

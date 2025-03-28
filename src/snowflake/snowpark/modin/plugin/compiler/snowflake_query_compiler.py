@@ -7409,7 +7409,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         .filter(col("count") > 1)
                         .limit(limit)
                         .select(snowflake_ids)
-                        .collect()
+                        .collect(
+                            statement_params=get_default_snowpark_pandas_statement_params()
+                        )
                     )
                     overlap = []
                     for row in rows:
@@ -17128,7 +17130,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 max_(
                     col(split_counts_frame.data_column_snowflake_quoted_identifiers[-1])
                 ).as_("max_count")
-            ).collect()
+            ).collect(statement_params=get_default_snowpark_pandas_statement_params())
 
             return max_count_rows[0][0]
 
@@ -17513,7 +17515,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         first_two_rows = (
             frame.ordered_dataframe.select(quantile_column_snowlake_identifier)
             .limit(2)
-            .collect()
+            .collect(statement_params=get_default_snowpark_pandas_statement_params())
         )
         # Array is returned as serialied json. Create list from serialized string.
         quantiles = json.loads(first_two_rows[0][0])
@@ -18838,7 +18840,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         }
 
         try:
-            rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect()
+            rows = join_result.result_frame.ordered_dataframe.agg(agg_exprs).collect(
+                statement_params=get_default_snowpark_pandas_statement_params()
+            )
         except SnowparkSQLException:
             return False
         # In case of empty table/dataframe booland_agg returns None. Add special case
@@ -20026,7 +20030,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         [min_val, max_val] = self._modin_frame.ordered_dataframe.agg(
             min_(hist_col).as_("min_value"),
             max_(hist_col).as_("max_value"),
-        ).collect()[0]
+        ).collect(statement_params=get_default_snowpark_pandas_statement_params())[0]
 
         bin_size = (max_val - min_val) / bins
 
