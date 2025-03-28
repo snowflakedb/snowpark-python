@@ -279,10 +279,21 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 23
+          end_line: 27
+          file: 2
+          start_column: 14
+          start_line: 27
+        }
       }
     }
     symbol {
@@ -305,10 +316,21 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         n: 1
+        src {
+          end_column: 24
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
       }
     }
     symbol {
@@ -331,10 +353,21 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 25
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
       }
     }
     symbol {
@@ -357,10 +390,21 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         n: -2
+        src {
+          end_column: 25
+          end_line: 33
+          file: 2
+          start_column: 14
+          start_line: 33
+        }
       }
     }
     symbol {
@@ -392,6 +436,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }

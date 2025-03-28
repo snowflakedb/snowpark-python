@@ -66,8 +66,12 @@ body {
     expr {
       dataframe_count {
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 18
@@ -98,8 +102,12 @@ body {
   assign {
     expr {
       dataframe_count {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 29
@@ -130,8 +138,12 @@ body {
   assign {
     expr {
       dataframe_count {
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
         }
         src {
           end_column: 78
@@ -175,6 +187,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }

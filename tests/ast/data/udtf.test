@@ -384,8 +384,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 3
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
         }
         src {
           end_column: 61
@@ -725,10 +729,21 @@ body {
   assign {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 9
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 9
+            }
+          }
         }
         n: 10
+        src {
+          end_column: 71
+          end_line: 58
+          file: 2
+          start_column: 8
+          start_line: 58
+        }
       }
     }
     symbol {
@@ -924,8 +939,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 14
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 14
+            }
+          }
         }
         src {
           end_column: 64
@@ -1491,8 +1510,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 22
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 22
+            }
+          }
         }
         src {
           end_column: 43
@@ -1721,8 +1744,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 27
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 27
+            }
+          }
         }
         src {
           end_column: 53
@@ -1906,8 +1933,12 @@ body {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 31
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 31
+            }
+          }
         }
         src {
           end_column: 81
@@ -2911,6 +2942,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
-  patch: 1
+  minor: 30
 }

@@ -334,10 +334,7 @@ def build_expr_from_python_val(
             build_expr_from_python_val(ast.vs.add(), v)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "vs"
     elif isinstance(obj, snowflake.snowpark.dataframe.DataFrame):
         ast = with_src_position(expr_builder.dataframe_ref)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "DataframeRef"; expected "Expr"
-        assert (
-            obj._ast_id is not None
-        ), "Dataframe object to encode as part of AST does not have an id assigned. Missing AST for object or previous operation?"
-        ast.id.bitfield1 = obj._ast_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "id"
+        obj._set_ast_ref(expr_builder)
     elif isinstance(obj, snowflake.snowpark.table_function.TableFunctionCall):
         raise NotImplementedError(
             "TODO SNOW-1629946: Implement TableFunctionCall with args."
@@ -1090,21 +1087,6 @@ def fill_write_file(
             t = expr.copy_options.add()  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "copy_options"
             t._1 = k
             build_expr_from_python_val(t._2, v)
-
-
-# TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def build_proto_from_pivot_values(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.PivotValue,
-    values: Optional[Union[Iterable["LiteralType"], "DataFrame"]],  # type: ignore[name-defined] # noqa: F821 # TODO(SNOW-1491199) # Name "LiteralType" is not defined, Name "DataFrame" is not defined
-):  # pragma: no cover
-    """Helper function to encode Snowpark pivot values that are used in various pivot operations to AST."""
-    if not values:
-        return
-
-    if isinstance(values, snowflake.snowpark.dataframe.DataFrame):
-        expr_builder.pivot_value__dataframe.v.id.bitfield1 = values._ast_id
-    else:
-        build_expr_from_python_val(expr_builder.pivot_value__expr.v, values)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.

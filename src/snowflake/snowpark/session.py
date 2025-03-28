@@ -2497,17 +2497,17 @@ class Session:
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.table_function")
-
-        if _emit_ast:
-            d._ast_id = stmt.var_id.bitfield1
-
         return d
 
     @publicapi
@@ -2701,6 +2701,7 @@ class Session:
                     analyzer=self._analyzer,
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
@@ -2709,6 +2710,7 @@ class Session:
                     query, source_plan=None, params=params
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -3617,9 +3619,7 @@ class Session:
             and isinstance(self._conn, MockServerConnection)
         ):
             # MockServerConnection internally creates a table, and returns Table object (which inherits from Dataframe).
-            table = _convert_dataframe_to_table(
-                df, temp_table_name, self, _emit_ast=False
-            )
+            table = _convert_dataframe_to_table(df, temp_table_name, self)
 
             # AST.
             if _emit_ast:
@@ -3719,14 +3719,12 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
-            df = DataFrame(self, range_plan)
+            df = DataFrame(self, range_plan, _ast_stmt=stmt, _emit_ast=_emit_ast)
         set_api_call_source(df, "Session.range")
-
-        if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
-
         return df
 
     def create_async_job(self, query_id: str) -> AsyncJob:
@@ -4240,6 +4238,7 @@ class Session:
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
             _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
         )
         set_api_call_source(df, "Session.flatten")
         return df
