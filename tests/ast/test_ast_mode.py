@@ -20,7 +20,7 @@ from snowflake.connector import SnowflakeConnection
 def snowflake_connection() -> SnowflakeConnection:
     curr_path = os.path.abspath(__file__)
     curr_path_parts = curr_path.split("/")
-    tests_path = "/".join(curr_path_parts[0 : -2])
+    tests_path = "/".join(curr_path_parts[0:-2])
 
     with open(f"{tests_path}/parameters.py", encoding="utf-8") as f:
         exec(f.read(), globals())
