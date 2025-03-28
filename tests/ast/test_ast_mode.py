@@ -16,16 +16,18 @@ from snowflake.snowpark.version import VERSION
 from snowflake.connector import SnowflakeConnection
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(autouse=True, scope="module")
 def snowflake_connection() -> SnowflakeConnection:
     curr_path = os.path.abspath(__file__)
     curr_path_parts = curr_path.split("/")
-    tests_path = "/".join(curr_path_parts[0 : (curr_path_parts.index("tests") + 1)])
+    tests_path = "/".join(curr_path_parts[0 : -2])
 
     with open(f"{tests_path}/parameters.py", encoding="utf-8") as f:
         exec(f.read(), globals())
 
-    return SnowflakeConnection(None, None, **globals()["CONNECTION_PARAMETERS"])
+    conn = SnowflakeConnection(None, None, **globals()["CONNECTION_PARAMETERS"])
+    yield conn
+    conn.close()
 
 
 @pytest.mark.parametrize(
