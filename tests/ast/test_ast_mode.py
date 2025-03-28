@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import os
 import pytest
 
 from snowflake.snowpark.session import (
