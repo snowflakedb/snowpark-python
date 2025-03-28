@@ -44,6 +44,7 @@ Series
     Series.to_snowflake
     Series.to_snowpark
     Series.cache_result
+    Series.create_or_replace_view
 
 .. rubric:: Conversion
 
