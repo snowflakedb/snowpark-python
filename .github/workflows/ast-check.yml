@@ -1,0 +1,51 @@
+name: AST Support Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled, edited]
+
+jobs:
+    check_ast_support:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Check for modified files
+              id: changed_files
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                    const pr = context.payload.pull_request;
+                    const { data: files } = await github.rest.pulls.listFiles({
+                      owner: pr.base.repo.owner.login,
+                      repo: pr.base.repo.name,
+                      pull_number: pr.number,
+                    });
+                    const changedFiles = JSON.stringify(files.map(file => file.filename));
+                    console.log(`Changed files: ${changedFiles}`);
+                    return changedFiles;
+
+            - name: Verify AST support acknowledgement
+              if: steps.changed_files.outputs.result != ''
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                    const changedFiles = JSON.parse(${{ steps.changed_files.outputs.result }});
+                    console.log(`changedFiles: ${changedFiles}`);
+                    const prBody = context.payload.pull_request.body;
+                    // Check if changed files are in snowpark/*.py. We only consider public Snowpark APIs in this check.
+                    if (changedFiles.some(file => file.match(/src\/snowflake\/snowpark\/[^/]+\.py/))) {
+                        console.log("Checking PR description for AST support acknowledgment...");
+                        if (!prBody.includes("[x] If adding any arguments to public Snowpark APIs or creating new public Snowpark APIs, I acknowledge that I have ensured my changes include AST support.")) {
+                            console.log("AST support acknowledgment not found in PR description.");
+                            console.log("Please acknowledge the AST support implications of your changes by adding '[x] If adding any arguments to public Snowpark APIs or creating new public Snowpark APIs, I acknowledge that I have ensured my changes include AST support.' to the PR description.");
+                            process.exit(1);
+                        } else {
+                            console.log("AST support acknowledgment found in PR description.");
+                        }
+                    } else {
+                        console.log("No critical files modified; skipping AST support check.");
+                    }

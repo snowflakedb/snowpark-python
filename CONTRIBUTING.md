@@ -104,6 +104,12 @@ Once you have decided that the new component being added with required protectio
 
 An example PR to make auto temp table cleaner thread-safe can be found [here](https://github.com/snowflakedb/snowpark-python/pull/2309).
 
+### AST (Abstract Syntax Tree) Support in Snowpark
+
+If you are an open-source developer modifying existing Snowpark APIs (such as by adding a parameter to a `Dataframe` API), or creating new Snowpark APIs in your PR, please request a review from the `snowpark-ir` [team](https://github.com/orgs/snowflakedb/teams/snowpark-ir) and add the `snowpark-ast` [label](https://github.com/snowflakedb/snowpark-python/labels/snowpark-ast). You can also raise an issue on our [issue tracker](https://github.com/snowflakedb/snowpark-python/issues) with the `snowpark-ast` label and assign it to the `snowpark-ir` team to request a review. We will add code to support detailed logging of the usage of your modified or newly created API if relevant to your PR. After we do so, we will also update your PR description by completing the required AST support acknowledgement checkbox.
+
+If you are an internal developer, please ensure you complete the PR checklist for AST support found in the [Snowpark Python AST developer guide](https://docs.google.com/document/d/16K9jBv0pT6SkYbFTxNIQT9-bJjemE4niZTfc9mie6RQ/edit?tab=t.0), before completing the AST support acknowledgement checkbox.
+
 ## Tests
 
 The [README under tests folder](tests/README.md) tells you how to set up to run tests.

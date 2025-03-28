@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDri
 from snowflake.snowpark._internal.utils import (
     get_sorted_key_for_version,
 )
+from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
 from snowflake.connector.options import pandas as pd
 import logging
@@ -26,7 +27,7 @@ class DataSourceReader:
         schema: StructType,
         fetch_size: Optional[int] = 0,
         query_timeout: Optional[int] = 0,
-        session_init_statement: Optional[str] = None,
+        session_init_statement: Optional[List[str]] = None,
     ) -> None:
         self.driver = driver_class(create_connection)
         self.schema = schema
@@ -41,7 +42,13 @@ class DataSourceReader:
         cursor = conn.cursor()
         try:
             if self.session_init_statement:
-                cursor.execute(self.session_init_statement)
+                for statement in self.session_init_statement:
+                    try:
+                        cursor.execute(statement)
+                    except BaseException as exc:
+                        raise SnowparkDataframeReaderException(
+                            f"Failed to execute session init statement: '{statement}' due to exception '{exc!r}'"
+                        )
             if self.fetch_size == 0:
                 cursor.execute(partition)
                 result = cursor.fetchall()

@@ -37,7 +37,8 @@ def tmp_table_basic(session):
         Utils.drop_table(session, table_name)
 
 
-def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
+@pytest.mark.parametrize("relaxed_ordering", [True, False])
+def test_to_snowpark_pandas_no_modin(session, tmp_table_basic, relaxed_ordering):
     snowpark_df = session.table(tmp_table_basic)
     # Check if modin is installed (if so, we're running in Snowpark pandas; if not, we're just in Snowpark Python)
     try:
@@ -56,6 +57,8 @@ def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
                 match="Modin is not installed.",
             )
         with ctx:
-            snowpark_df.to_snowpark_pandas()
+            snowpark_df.to_snowpark_pandas(relaxed_ordering=relaxed_ordering)
     else:
-        snowpark_df.to_snowpark_pandas()  # should have no errors
+        snowpark_df.to_snowpark_pandas(
+            relaxed_ordering=relaxed_ordering
+        )  # should have no errors
