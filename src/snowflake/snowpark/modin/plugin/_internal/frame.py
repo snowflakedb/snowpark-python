@@ -758,7 +758,7 @@ class InternalFrame:
                 # COUNT(DISTINCT) ignores NULL values, so if there is a NULL value in the column,
                 # we include it via IFF(MAX(<col> IS NULL), 1, 0) which will return 1 if there is
                 # at least one NULL contained within a column, and 0 if there are no NULL values.
-                return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                return self.ordered_dataframe.select(
                     (count_distinct(index_col) + iff(max_(index_col.is_null()), 1, 0))
                     == count("*")
                 ).collect()[0][0]
@@ -766,7 +766,7 @@ class InternalFrame:
                 # Note: We can't use 'count_distinct' directly on columns because it
                 # ignores null values. As a workaround we first create an ARRAY and
                 # call 'count_distinct' on ARRAY column.
-                return self.ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                return self.ordered_dataframe.select(
                     count_distinct(
                         array_construct(*self.index_column_snowflake_quoted_identifiers)
                     )
