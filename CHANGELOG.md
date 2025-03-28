@@ -41,6 +41,7 @@
 
 - Fixed a bug in aggregation that caused empty groups to still produce rows.
 - Fixed a bug in `Dataframe.except_` that would cause rows to be incorrectly dropped.
+- Fixed a bug in local testing that created incorrect result for `Column.like` calls.
 
 ### Snowpark pandas API Updates
 
