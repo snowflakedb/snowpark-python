@@ -45,6 +45,7 @@ def test_create_or_replace_view_basic(session, native_pandas_df_basic) -> None:
 @sql_count_checker(query_count=6)
 def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
     session,
+    db_parameters,
 ) -> None:
     try:
         # create table
@@ -66,7 +67,7 @@ def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
         )
 
         # another session
-        new_session = Session.builder.create()
+        new_session = Session.builder.configs(db_parameters).create()
         pd.session = session
 
         # accessing the created view in another session fails when relaxed_ordering is disabled
@@ -85,7 +86,10 @@ def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
 
 
 @sql_count_checker(query_count=4)
-def test_create_or_replace_view_multiple_sessions_relaxed_ordering(session) -> None:
+def test_create_or_replace_view_multiple_sessions_relaxed_ordering(
+    session,
+    db_parameters,
+) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -106,7 +110,7 @@ def test_create_or_replace_view_multiple_sessions_relaxed_ordering(session) -> N
         )
 
         # another session
-        new_session = Session.builder.create()
+        new_session = Session.builder.configs(db_parameters).create()
         pd.session = new_session
 
         # accessing the created view in another session succeeds when relaxed_ordering is enabled
