@@ -14,7 +14,6 @@ from typing import Any, Literal, Optional, Union, List
 import pandas as native_pd
 from pandas._typing import IndexLabel
 from pandas.core.dtypes.common import is_list_like
-import modin.pandas as pd
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column as SnowparkColumn
@@ -884,7 +883,7 @@ def make_groupby_rank_col_for_method(
 
 
 def fill_missing_groupby_resample_bins_for_frame(
-    frame: InternalFrame, rule: str, start_date: str, end_date: str, resample_idx: str
+    frame: InternalFrame, rule: str, by_list: list
 ) -> InternalFrame:
     """
     Returns a new InternalFrame created using 2 rules.
@@ -930,49 +929,47 @@ def fill_missing_groupby_resample_bins_for_frame(
     2020-01-09    4     6
     2020-01-11  NaN   NaN
     """
-    # Compute expected resample bins based on start_date, end_date and rule.
-    # expected_resample_bins_frame = get_expected_resample_bins_frame(
-    #     rule, start_date, end_date
-    # )
-
-    # unique_a_vals = frame.index_columns_pandas_index().unique("a").to_list()
-    # for value in unique_a_vals:
-    #     sub_frame = frame[frame.index_columns_pandas_index().get_level_values(0) == value]
-    #     start_date, end_date = compute_resample_start_and_end_date(
-    #         sub_frame,
-    #         frame.index_column_snowflake_quoted_identifiers[1],
-    #         rule,
-    #     )
-    #     expected_resample_bins_sub_frame = get_expected_resample_bins_frame(
-    #         rule, start_date, end_date
-    #     )
-
-    # to be computed from expected_resample_bins_sub_frame
-    tupl = [
-        (0, "2000-01-01 00:00:00"),
-        (0, "2000-01-01 00:03:00"),
-        (0, "2000-01-01 00:06:00"),
-        (5, "2000-01-01 00:00:00"),
-        (5, "2000-01-01 00:03:00"),
-        (5, "2000-01-01 00:06:00"),
-    ]
-
-    new_idx = pd.MultiIndex.from_tuples(tupl, names=["a", "index"])
-    new_native_frame = pd.DataFrame(index=new_idx)._query_compiler._modin_frame
-
-    multi_expected_resample_bins_snowpark_frame = InternalFrame.create(
-        ordered_dataframe=new_native_frame.ordered_dataframe,
-        data_column_pandas_labels=[],
-        data_column_snowflake_quoted_identifiers=[],
-        index_column_pandas_labels=new_idx.names,
-        index_column_snowflake_quoted_identifiers=new_native_frame.index_column_snowflake_quoted_identifiers,
-        data_column_pandas_index_names=[None],
-        data_column_types=None,
-        index_column_types=None,
+    # Compute expected resample bins based on start_date, end_date and rule for each groupby col value.
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
     )
 
-    # Join on expected expected_resample_bins_frame to fill in missing resample bins.
+    by_labels = by_list[0]
+    unique_by_vals = frame.index_columns_pandas_index().unique(by_labels).to_list()
+    subframes = {}
+    sub_qcs = []
+    for value in unique_by_vals:
+        subframes[value] = frame.filter(
+            f"{frame.index_column_snowflake_quoted_identifiers[0]} = {value}"
+        )
+        start_date, end_date = compute_resample_start_and_end_date(
+            subframes[value],
+            frame.index_column_snowflake_quoted_identifiers[1],
+            rule,
+        )
+        expected_resample_bins_sub_frame = get_expected_resample_bins_frame(
+            rule, start_date, end_date
+        )
 
+        new_index_column_name = "a"
+        expected_resample_bins_sub_frame = (
+            expected_resample_bins_sub_frame.append_column(
+                new_index_column_name, pandas_lit(value)
+            )
+        )
+        qc_subframe = SnowflakeQueryCompiler(
+            expected_resample_bins_sub_frame
+        ).reset_index()
+        new_idx_labels = [
+            new_index_column_name
+        ] + expected_resample_bins_sub_frame.index_column_pandas_labels
+        new_idx_qc = qc_subframe.set_index(new_idx_labels)
+
+        sub_qcs.append(new_idx_qc)
+    concat_qc_idx = sub_qcs[0].concat(axis=0, other=sub_qcs[1:])
+
+    # Join on expected expected_resample_bins_frame to fill in missing resample bins.
+    multi_expected_resample_bins_snowpark_frame = concat_qc_idx._modin_frame
     joined_frame = join(
         frame,
         multi_expected_resample_bins_snowpark_frame,

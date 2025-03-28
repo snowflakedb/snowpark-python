@@ -23,16 +23,14 @@
 # existing code originally distributed by the pandas project, under the BSD 3-Clause License
 
 """Implement ResamplerGroupby public API."""
-import collections
-from typing import Any, Callable, Hashable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import modin.pandas as pd
-import numpy as np
 import pandas
 import pandas.core.resample
 from pandas._libs import lib
 from pandas._libs.lib import no_default
-from pandas._typing import AggFuncType, T
+from pandas._typing import AggFuncType, T, AnyArrayLike
 
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
@@ -118,21 +116,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
             Groups as specified by resampling arguments.
         """
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        df = self._dataframe if self.axis == 0 else self._dataframe.T
-        groups = df.groupby(
-            pandas.Grouper(
-                key=self.resample_kwargs["on"],
-                freq=self.resample_kwargs["rule"],
-                closed=self.resample_kwargs["closed"],
-                label=self.resample_kwargs["label"],
-                convention=self.resample_kwargs["convention"],
-                level=self.resample_kwargs["level"],
-                origin=self.resample_kwargs["origin"],
-                offset=self.resample_kwargs["offset"],
-            ),
-            group_keys=self.resample_kwargs["group_keys"],
-        )
-        return groups
+        self._method_not_implemented("_get_groups")
 
     def __getitem__(self, key):  # pragma: no cover
         """
@@ -151,24 +135,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         """
 
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-
-        def _get_new_resampler(key):
-            subset = self._dataframe[key]
-            resampler = type(self)(subset, **self.resample_kwargs)
-            return resampler
-
-        from modin.pandas import Series
-
-        if isinstance(key, (list, tuple, Series, pandas.Index, np.ndarray)):
-            if len(self._dataframe.columns.intersection(key)) != len(set(key)):
-                missed_keys = list(set(key).difference(self._dataframe.columns))
-                raise KeyError(f"Columns not found: {str(sorted(missed_keys))[1:-1]}")
-            return _get_new_resampler(list(key))
-
-        if key not in self._dataframe:
-            raise KeyError(f"Column not found: {key}")
-
-        return _get_new_resampler(key)
+        self._method_not_implemented("__getitem__")
 
     ###########################################################################
     # Indexing, iteration
@@ -182,19 +149,15 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         # thrown before reach here. This is kept here because property function requires
         # a return value.
         return self._query_compiler.default_to_pandas(
-            lambda df: pandas.DataFrame.resample(df, **self.resample_kwargs).groups
+            lambda df: pandas.DataFrame.groupby(by=self.by)
+            .resample(df, **self.resample_kwargs)
+            .groups
         )
 
     @property
-    def indices(self) -> collections.defaultdict[Hashable, list]:
+    def indices(self):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        return self._query_compiler.groupby_resample(
-            self.resample_kwargs,
-            "indices",
-            tuple(),
-            dict(),
-            False,
-        )
+        self._method_not_implemented("indices")
 
     def get_group(self, name, obj=None):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
@@ -208,7 +171,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         self, func: Optional[AggFuncType] = None, *args: Any, **kwargs: Any
     ):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._method_not_implemented("aggregate")
+        self._method_not_implemented("apply")
 
     def aggregate(
         self, func: Optional[AggFuncType] = None, *args: Any, **kwargs: Any
@@ -237,8 +200,174 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         self._method_not_implemented("pipe")
 
     ###########################################################################
-    # Upsampling
+    # Computations / descriptive stats
     ###########################################################################
+
+    def count(self):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("count")
+
+    def nunique(self, *args: Any, **kwargs: Any):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("nunique")
+
+    def first(
+        self,
+        numeric_only: bool = False,
+        min_count: int = 0,
+        skipna: bool = True,
+        *args: Any,
+        **kwargs: Any,
+    ):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("first")
+
+    def last(
+        self,
+        numeric_only: bool = False,
+        min_count: int = 0,
+        skipna: bool = True,
+        *args: Any,
+        **kwargs: Any,
+    ):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("last")
+
+    def max(
+        self,
+        numeric_only: bool = False,
+        min_count: int = 0,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Union[pd.DataFrame, pd.Series]:
+        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        WarningMessage.warning_if_engine_args_is_set("resample_max", args, kwargs)
+
+        agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
+        is_series = not self._dataframe._is_dataframe
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.groupby_resample(
+                self.resample_kwargs,
+                "max",
+                self.groupby_kwargs,
+                is_series,
+                tuple(),
+                agg_kwargs,
+            )
+        )
+
+    def mean(
+        self,
+        numeric_only: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Union[pd.DataFrame, pd.Series]:
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        WarningMessage.warning_if_engine_args_is_set("resample_mean", args, kwargs)
+
+        agg_kwargs = dict(numeric_only=numeric_only)
+        is_series = not self._dataframe._is_dataframe
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.groupby_resample(
+                self.resample_kwargs,
+                "mean",
+                self.groupby_kwargs,
+                is_series,
+                tuple(),
+                agg_kwargs,
+            )
+        )
+
+    def median(
+        self,
+        numeric_only: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Union[pd.DataFrame, pd.Series]:
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        WarningMessage.warning_if_engine_args_is_set("resample_median", args, kwargs)
+
+        agg_kwargs = dict(numeric_only=numeric_only)
+        is_series = not self._dataframe._is_dataframe
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.groupby_resample(
+                self.resample_kwargs,
+                "median",
+                self.groupby_kwargs,
+                is_series,
+                tuple(),
+                agg_kwargs,
+            )
+        )
+
+    def min(
+        self,
+        numeric_only: bool = False,
+        min_count: int = 0,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Union[pd.DataFrame, pd.Series]:
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        WarningMessage.warning_if_engine_args_is_set("resample_min", args, kwargs)
+
+        agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
+        is_series = not self._dataframe._is_dataframe
+
+        return self._dataframe.__constructor__(
+            query_compiler=self._query_compiler.groupby_resample(
+                self.resample_kwargs,
+                "min",
+                self.groupby_kwargs,
+                is_series,
+                tuple(),
+                agg_kwargs,
+            )
+        )
+
+    def ohlc(self, *args: Any, **kwargs: Any):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("ohlc")
+
+    def prod(
+        self,
+        numeric_only: Union[bool, lib.NoDefault] = lib.no_default,
+        min_count: int = 0,
+        *args: Any,
+        **kwargs: Any,
+    ):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("prod")
+
+    def size(self):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("size")
+
+    def sem(
+        self,
+        ddof: int = 1,
+        numeric_only: Union[bool, lib.NoDefault] = lib.no_default,
+        *args: Any,
+        **kwargs: Any,
+    ):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("sem")
+
+    def std(
+        self,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("std")
+
     def sum(
         self,
         numeric_only: bool = False,
@@ -264,26 +393,20 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
             )
         )
 
-    def mean(
+    def var(
         self,
-        numeric_only: bool = False,
+        ddof: int = 1,
+        numeric_only: Union[bool, lib.NoDefault] = lib.no_default,
         *args: Any,
         **kwargs: Any,
-    ) -> Union[pd.DataFrame, pd.Series]:
+    ):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._validate_numeric_only_for_aggregate_methods(numeric_only)
-        WarningMessage.warning_if_engine_args_is_set("resample_sum", args, kwargs)
+        self._method_not_implemented("var")
 
-        agg_kwargs = dict(numeric_only=numeric_only)
-        is_series = not self._dataframe._is_dataframe
-
-        return self._dataframe.__constructor__(
-            query_compiler=self._query_compiler.groupby_resample(
-                self.resample_kwargs,
-                "mean",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
-            )
-        )
+    def quantile(
+        self,
+        q: Union[float, AnyArrayLike] = 0.5,
+        **kwargs: Any,
+    ):  # pragma: no cover
+        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        self._method_not_implemented("quantile")

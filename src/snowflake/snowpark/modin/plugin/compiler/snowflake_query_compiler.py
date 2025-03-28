@@ -4847,10 +4847,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 is_series_groupby=is_series,
             )
 
-            # expected_resample_bins_frame = get_expected_resample_bins_frame(
-            #     rule, start_date, end_date
-            # )
-
         quoted_by_list = (
             qc._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                 by_list
@@ -4868,10 +4864,33 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             #   2000-01-01 00:06:00  1  2
             # 5 2000-01-01 00:00:00  1  2
             #   2000-01-01 00:06:00  1  2
-
+        frame = qc._modin_frame
         resampled_frame_all_bins = fill_missing_groupby_resample_bins_for_frame(
-            qc._modin_frame, rule, start_date, end_date, resampled_quoted_ids
+            frame, rule, by_list
         )
+        if resample_method in ("sum", "count", "size", "nunique"):
+            values_arg: Union[int, dict]
+            if resample_method == "sum":
+                values_arg = {}
+                for pandas_label in resampled_frame_all_bins.data_column_pandas_labels:
+                    label_dtypes: native_pd.Series = self.dtypes[[pandas_label]]
+                    values_arg[pandas_label] = (
+                        native_pd.Timedelta(0)
+                        if len(set(label_dtypes)) == 1
+                        and is_timedelta64_dtype(label_dtypes.iloc[0])
+                        else 0
+                    )
+                if is_series:
+                    # For series, fillna() can't handle a dictionary, but
+                    # there should only be one column, so pass a scalar fill
+                    # value.
+                    assert len(values_arg) == 1
+                    values_arg = list(values_arg.values())[0]
+            else:
+                values_arg = 0
+            return SnowflakeQueryCompiler(resampled_frame_all_bins).fillna(
+                value=values_arg, self_is_series=is_series
+            )
         return SnowflakeQueryCompiler(resampled_frame_all_bins)
 
     def groupby_shift(
