@@ -351,8 +351,8 @@ class DataFrameWriter:
             self._dataframe, statement_params or self._dataframe._statement_params
         )
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteTable() to the input, followed by its Eval.
-            stmt = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteTable() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.write_table)
             expr.writer.CopyFrom(self._ast)
 
@@ -636,8 +636,8 @@ class DataFrameWriter:
             self._dataframe, statement_params or self._dataframe._statement_params
         )
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies Write<Caller>() to the input, followed by its Eval.
-            stmt = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies Write<Caller>() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(getattr(stmt.expr, "write_" + caller))
             expr.writer.CopyFrom(self._ast)
 
@@ -993,8 +993,8 @@ class DataFrameWriter:
         # AST.
         kwargs = {}
         if _emit_ast and self._ast is not None:
-            # Add an Assign node that applies WriteInsertInto() to the input, followed by its Eval.
-            stmt = self._dataframe._session._ast_batch.assign()
+            # Add an Bind node that applies WriteInsertInto() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.write_insert_into)
             expr.writer.CopyFrom(self._ast)
 

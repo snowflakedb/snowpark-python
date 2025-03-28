@@ -97,8 +97,8 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies DataframeStatsApproxQuantile() to the input, followed by its Eval.
-            stmt = self._dataframe._session._ast_batch.assign()
+            # Add an bind node that applies DataframeStatsApproxQuantile() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_stat_approx_quantile, stmt)
             self._dataframe._set_ast_ref(expr.df)
 
@@ -207,8 +207,8 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies DataframeStatsCorr() to the input, followed by its Eval.
-            stmt = self._dataframe._session._ast_batch.assign()
+            # Add an bind node that applies DataframeStatsCorr() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_stat_corr, stmt)
             self._dataframe._set_ast_ref(expr.df)
 
@@ -264,8 +264,8 @@ class DataFrameStatFunctions:
         kwargs = {}
 
         if _emit_ast:
-            # Add an assign node that applies DataframeStatsCov() to the input, followed by its Eval.
-            stmt = self._dataframe._session._ast_batch.assign()
+            # Add an bind node that applies DataframeStatsCov() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_stat_cov, stmt)
             self._dataframe._set_ast_ref(expr.df)
 
@@ -334,8 +334,8 @@ class DataFrameStatFunctions:
 
         stmt = None
         if _emit_ast:
-            # Add an assign node that applies DataframeStatsCrossTab() to the input, followed by its Eval.
-            stmt = self._dataframe._session._ast_batch.assign()
+            # Add an bind node that applies DataframeStatsCrossTab() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_stat_cross_tab, stmt)
             self._dataframe._set_ast_ref(expr.df)
 
@@ -348,7 +348,7 @@ class DataFrameStatFunctions:
                     t._1 = k
                     t._2 = v
 
-        # Note: In phase1 this will be shifted server-side, the API is not an eval but an assign.
+        # Note: In phase1 this will be shifted server-side, the API is not an eval but an bind.
 
         row_count = self._dataframe.select(
             count_distinct(col2), _emit_ast=False
@@ -373,7 +373,7 @@ class DataFrameStatFunctions:
         adjust_api_subcalls(df, "DataFrameStatFunctions.crosstab", len_subcalls=3)
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -451,8 +451,8 @@ class DataFrameStatFunctions:
 
         stmt = None
         if _emit_ast:
-            # Add an assign node that applies DataframeStatsSampleBy() to the input, followed by its Eval.
-            stmt = self._dataframe._session._ast_batch.assign()
+            # Add an bind node that applies DataframeStatsSampleBy() to the input, followed by its Eval.
+            stmt = self._dataframe._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_stat_sample_by, stmt)
             build_expr_from_snowpark_column_or_col_name(expr.col, col)
 
@@ -471,7 +471,7 @@ class DataFrameStatFunctions:
             )
 
             if _emit_ast:
-                res_df._ast_id = stmt.var_id.bitfield1
+                res_df._ast_id = stmt.uid
             return res_df
 
         col = _to_col_if_str(col, "sample_by")
@@ -516,7 +516,7 @@ class DataFrameStatFunctions:
                 )
 
         if _emit_ast:
-            res_df._ast_id = stmt.var_id.bitfield1
+            res_df._ast_id = stmt.uid
 
         return res_df
 

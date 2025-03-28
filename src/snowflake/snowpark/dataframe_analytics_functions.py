@@ -345,7 +345,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_moving_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
@@ -384,7 +384,7 @@ class DataFrameAnalyticsFunctions:
                     )
 
         if _emit_ast:
-            agg_df._ast_id = stmt.var_id.bitfield1
+            agg_df._ast_id = stmt.uid
 
         return agg_df
 
@@ -456,7 +456,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_cumulative_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
@@ -494,7 +494,7 @@ class DataFrameAnalyticsFunctions:
                 )
 
         if _emit_ast:
-            agg_df._ast_id = stmt.var_id.bitfield1
+            agg_df._ast_id = stmt.uid
 
         return agg_df
 
@@ -554,7 +554,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_compute_lag, stmt)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
@@ -581,7 +581,7 @@ class DataFrameAnalyticsFunctions:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
         return df
 
     @publicapi
@@ -640,7 +640,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_compute_lead, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for c in cols:
@@ -667,7 +667,7 @@ class DataFrameAnalyticsFunctions:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -754,7 +754,7 @@ class DataFrameAnalyticsFunctions:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_time_series_agg, stmt)
             ast.time_col = time_col
             for col_name, agg_funcs in aggs.items():
@@ -792,7 +792,7 @@ class DataFrameAnalyticsFunctions:
                 _emit_ast=False,
             )
             if _emit_ast:
-                ans._ast_id = stmt.var_id.bitfield1
+                ans._ast_id = stmt.uid
             return ans
 
         slide_duration, slide_unit = self._validate_and_extract_time_unit(
@@ -866,6 +866,6 @@ class DataFrameAnalyticsFunctions:
             )
 
         if _emit_ast:
-            result_df._ast_id = stmt.var_id.bitfield1
+            result_df._ast_id = stmt.uid
 
         return result_df

@@ -582,18 +582,18 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
     ) -> None:
         """
-        :param int _ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
+        :param int _ast_stmt: The AST Bind atom corresponding to this dataframe value. We track its assigned ID in the
                              slot self._ast_id. This allows this value to be referred to symbolically when it's
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
         self._ast_id = None
         if _emit_ast:
-            self._ast_id = _ast_stmt.var_id.bitfield1 if _ast_stmt is not None else None
+            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
 
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
@@ -635,7 +635,7 @@ class DataFrame:
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
         debug_check_missing_ast(self._ast_id, self._session, self)
-        dataframe_expr_builder.dataframe_ref.id.bitfield1 = self._ast_id
+        dataframe_expr_builder.dataframe_ref.id = self._ast_id
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -699,8 +699,8 @@ class DataFrame:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
-            stmt = self._session._ast_batch.assign()
+            # Add an Bind node that applies DataframeCollect() to the input, followed by its Eval.
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_collect)
             self._set_ast_ref(expr.df)
             if statement_params is not None:
@@ -748,8 +748,8 @@ class DataFrame:
         """
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies DataframeCollect() to the input, followed by its Eval.
-            stmt = self._session._ast_batch.assign()
+            # Add an Bind node that applies DataframeCollect() to the input, followed by its Eval.
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_collect)
             self._set_ast_ref(expr.df)
             if statement_params is not None:
@@ -884,8 +884,8 @@ class DataFrame:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies DataframeToLocalIterator() to the input, followed by its Eval.
-            stmt = self._session._ast_batch.assign()
+            # Add an Bind node that applies DataframeToLocalIterator() to the input, followed by its Eval.
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_to_local_iterator)
 
             self._set_ast_ref(expr.df)
@@ -936,7 +936,7 @@ class DataFrame:
         """Implements shallow copy protocol for copy.copy(...)."""
         stmt = None
         if self._session.ast_enabled:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             with_src_position(stmt.expr.dataframe_ref, stmt)
             self._set_ast_ref(stmt.expr)
         return DataFrame(
@@ -1008,7 +1008,7 @@ class DataFrame:
         """
 
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_to_pandas, stmt)
             self._set_ast_ref(ast.df)
             if statement_params is not None:
@@ -1111,7 +1111,7 @@ class DataFrame:
             :func:`Session.sql` can only be a SELECT statement.
         """
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_to_pandas_batches, stmt)
             self._set_ast_ref(ast.df)
             if statement_params is not None:
@@ -1260,7 +1260,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_to_df, stmt)
             for col in col_names:
                 build_expr_from_python_val(ast.col_names.args.add(), col)
@@ -1273,7 +1273,7 @@ class DataFrame:
         df = self.select(new_cols, _ast_stmt=stmt, _emit_ast=_emit_ast)
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -1368,7 +1368,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.to_snowpark_pandas, stmt)
             self._set_ast_ref(ast.df)
             if index_col is not None:
@@ -1412,7 +1412,7 @@ class DataFrame:
         if _emit_ast:
             # Set the Snowpark DataFrame AST ID to the AST ID of this pandas query.
             snowpandas_df._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._ast_id = (
-                stmt.var_id.bitfield1
+                stmt.uid
             )
 
         return snowpandas_df
@@ -1480,7 +1480,7 @@ class DataFrame:
             Union[ColumnOrName, TableFunctionCall],
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
@@ -1622,7 +1622,7 @@ class DataFrame:
         # Note it's intentional the column expressions are AST serialized earlier (ast_cols) to ensure any
         # AST IDs created preceed the AST ID of the select statement so they are deserialized in dependent order.
         if _emit_ast and _ast_stmt is None:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_select, stmt)
             self._set_ast_ref(ast.df)
             ast.cols.variadic = is_variadic
@@ -1654,7 +1654,7 @@ class DataFrame:
     def select_expr(
         self,
         *exprs: Union[str, Iterable[str]],
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """
@@ -1689,7 +1689,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.dataframe_select, stmt)
                 self._set_ast_ref(ast.df)
                 ast.cols.variadic = is_variadic
@@ -1748,7 +1748,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_drop, stmt)
             self._set_ast_ref(ast.df)
             for c in exprs:
@@ -1794,7 +1794,7 @@ class DataFrame:
             df = self.select(list(keep_col_names), _emit_ast=False)
 
             if _emit_ast:
-                df._ast_id = stmt.var_id.bitfield1
+                df._ast_id = stmt.uid
 
             return df
 
@@ -1803,7 +1803,7 @@ class DataFrame:
     def filter(
         self,
         expr: ColumnOrSqlExpr,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
@@ -1834,7 +1834,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.dataframe_filter, stmt)
                 self._set_ast_ref(ast.df)
                 build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
@@ -1918,7 +1918,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             # Parsing args separately since the original column expr or string
             # needs to be recorded.
             _cols, is_variadic = parse_positional_args_to_list_variadic(*cols)
@@ -1989,7 +1989,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -2031,7 +2031,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_alias, stmt)
             ast.name = name
             self._set_ast_ref(ast.df)
@@ -2048,7 +2048,7 @@ class DataFrame:
             ] = attr.name
 
         if _emit_ast:
-            _copy._ast_id = stmt.var_id.bitfield1
+            _copy._ast_id = stmt.uid
         return _copy
 
     @df_api_usage
@@ -2121,7 +2121,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_agg, stmt)
             exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
             for e in exprs:
@@ -2132,7 +2132,7 @@ class DataFrame:
         df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -2155,7 +2155,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_rollup, stmt)
             self._set_ast_ref(expr.df)
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
@@ -2174,7 +2174,7 @@ class DataFrame:
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
@@ -2218,7 +2218,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 expr = with_src_position(stmt.expr.dataframe_group_by, stmt)
                 col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(
                     *cols
@@ -2238,7 +2238,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -2285,7 +2285,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_group_by_grouping_sets, stmt)
             self._set_ast_ref(expr.df)
             (
@@ -2321,7 +2321,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_cube, stmt)
             self._set_ast_ref(expr.df)
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
@@ -2337,7 +2337,7 @@ class DataFrame:
 
     @publicapi
     def distinct(
-        self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
+        self, _ast_stmt: proto.Bind = None, _emit_ast: bool = True
     ) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -2349,7 +2349,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.dataframe_distinct, stmt)
                 self._set_ast_ref(ast.df)
             else:
@@ -2380,7 +2380,7 @@ class DataFrame:
             adjust_api_subcalls(df, "DataFrame.distinct[group_by]", len_subcalls=2)
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -2388,7 +2388,7 @@ class DataFrame:
     def drop_duplicates(
         self,
         *subset: Union[str, Iterable[str]],
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
@@ -2413,7 +2413,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.dataframe_drop_duplicates, stmt)
                 ast.cols.variadic = is_variadic
                 for arg in subset:
@@ -2427,7 +2427,7 @@ class DataFrame:
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
 
             if _emit_ast:
-                df._ast_id = stmt.var_id.bitfield1
+                df._ast_id = stmt.uid
             return df
 
         with ResourceUsageCollector() as resource_usage_collector:
@@ -2453,7 +2453,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -2525,7 +2525,7 @@ class DataFrame:
         """
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_pivot, stmt)
             self._set_ast_ref(ast.df)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
@@ -2588,7 +2588,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_unpivot, stmt)
             self._set_ast_ref(ast.df)
             ast.value_column = value_column
@@ -2622,7 +2622,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
         return df
 
     @df_api_usage
@@ -2631,7 +2631,7 @@ class DataFrame:
         self,
         n: int,
         offset: int = 0,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
@@ -2666,7 +2666,7 @@ class DataFrame:
         # AST.
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.dataframe_limit, stmt)
                 self._set_ast_ref(ast.df)
                 ast.n = n
@@ -2710,7 +2710,7 @@ class DataFrame:
         """
         # AST.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_union, stmt)
             ast.all = False
             ast.by_name = False
@@ -2733,7 +2733,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -2765,7 +2765,7 @@ class DataFrame:
 
         # AST.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_union, stmt)
             ast.all = True
             ast.by_name = False
@@ -2788,7 +2788,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -2839,7 +2839,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_union, stmt)
             ast.all = False
             ast.by_name = True
@@ -2903,7 +2903,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_union, stmt)
             ast.all = True
             ast.by_name = True
@@ -2923,7 +2923,7 @@ class DataFrame:
         other: "DataFrame",
         is_all: bool = False,
         allow_missing_columns: bool = False,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
     ) -> "DataFrame":
         left_cols = {attr.name for attr in self._output}
         left_attr_map = {attr.name: attr for attr in self._output}
@@ -3017,7 +3017,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_intersect, stmt)
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
@@ -3037,7 +3037,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -3067,7 +3067,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_except, stmt)
             other._set_ast_ref(ast.other)
             self._set_ast_ref(ast.df)
@@ -3086,7 +3086,7 @@ class DataFrame:
             df = self._with_plan(Except(self._plan, other._plan))
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -3149,7 +3149,7 @@ class DataFrame:
         )
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_natural_join, stmt)
             self._set_ast_ref(ast.lhs)
             right._set_ast_ref(ast.rhs)
@@ -3506,7 +3506,7 @@ class DataFrame:
             # AST.
             stmt = None
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.dataframe_join, stmt)
                 self._set_ast_ref(ast.lhs)
                 right._set_ast_ref(ast.rhs)
@@ -3669,7 +3669,7 @@ class DataFrame:
         ast = None
         if _emit_ast:
             add_intermediate_stmt(self._session._ast_batch, func)
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_join_table_function, stmt)
             self._set_ast_ref(ast.lhs)
             build_indirect_table_fn_apply(
@@ -3784,7 +3784,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_cross_join, stmt)
             self._set_ast_ref(ast.lhs)
             right._set_ast_ref(ast.rhs)
@@ -3961,7 +3961,7 @@ class DataFrame:
             keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplacing a column.
         """
         if ast_stmt is None and _emit_ast:
-            ast_stmt = self._session._ast_batch.assign()
+            ast_stmt = self._session._ast_batch.bind()
             expr = with_src_position(ast_stmt.expr.dataframe_with_column, ast_stmt)
             expr.col_name = col_name
             build_expr_from_snowpark_column_or_table_fn(expr.col, col)
@@ -3976,7 +3976,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = ast_stmt.var_id.bitfield1
+            df._ast_id = ast_stmt.uid
 
         return df
 
@@ -4077,7 +4077,7 @@ class DataFrame:
 
         # AST
         if _ast_stmt is None and _emit_ast:
-            _ast_stmt = self._session._ast_batch.assign()
+            _ast_stmt = self._session._ast_batch.bind()
             expr = with_src_position(_ast_stmt.expr.dataframe_with_columns, _ast_stmt)
             for col_name in col_names:
                 expr.col_names.append(col_name)
@@ -4122,7 +4122,7 @@ class DataFrame:
         df = self.select(final_cols, _ast_stmt=_ast_stmt, _emit_ast=False)
 
         if _emit_ast:
-            df._ast_id = _ast_stmt.var_id.bitfield1
+            df._ast_id = _ast_stmt.uid
 
         return df
 
@@ -4168,8 +4168,8 @@ class DataFrame:
 
         kwargs = {}
         if _emit_ast:
-            # Add an Assign node that applies DataframeCount() to the input, followed by its Eval.
-            stmt = self._session._ast_batch.assign()
+            # Add an Bind node that applies DataframeCount() to the input, followed by its Eval.
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_count)
             self._set_ast_ref(expr.df)
             if statement_params is not None:
@@ -4311,7 +4311,7 @@ class DataFrame:
         kwargs = {}
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_copy_into_table, stmt)
 
             build_table_name(expr.table_name, table_name)
@@ -4577,7 +4577,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_flatten, stmt)
             self._set_ast_ref(expr.df)
             build_expr_from_python_val(expr.input, input)
@@ -4603,7 +4603,7 @@ class DataFrame:
         )
 
     def _lateral(
-        self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None
+        self, table_function: TableFunctionExpression, _ast_stmt: proto.Bind = None
     ) -> "DataFrame":
         from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -4643,8 +4643,8 @@ class DataFrame:
         query = self._plan.queries[-1].sql.strip().lower()
 
         if _emit_ast:
-            # Add an Assign node that applies DataframeShow() to the input, followed by its Eval.
-            stmt = self._session._ast_batch.assign()
+            # Add an Bind node that applies DataframeShow() to the input, followed by its Eval.
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_show)
             self._set_ast_ref(ast.df)
             ast.n = n
@@ -4932,7 +4932,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = False
             self._set_ast_ref(expr.df)
@@ -5041,7 +5041,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(
                 stmt.expr.dataframe_create_or_replace_dynamic_table, stmt
             )
@@ -5143,7 +5143,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = True
             self._set_ast_ref(expr.df)
@@ -5204,7 +5204,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = True
             self._set_ast_ref(expr.df)
@@ -5236,7 +5236,7 @@ class DataFrame:
         view_type: ViewType,
         comment: Optional[str],
         replace: bool = True,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         **kwargs,
     ):
         validate_object_name(view_name)
@@ -5355,7 +5355,7 @@ class DataFrame:
         # AST.
         kwargs = {}
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_first, stmt)
             if statement_params is not None:
                 build_expr_from_dict_str_str(ast.statement_params, statement_params)
@@ -5413,7 +5413,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             # AST.
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_sample, stmt)
             if frac:
                 ast.probability_fraction.value = frac
@@ -5494,7 +5494,7 @@ class DataFrame:
         """
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_describe, stmt)
             self._set_ast_ref(expr.df)
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
@@ -5534,7 +5534,7 @@ class DataFrame:
             )
 
             if _emit_ast:
-                df._ast_id = stmt.var_id.bitfield1
+                df._ast_id = stmt.uid
 
             return df
 
@@ -5577,7 +5577,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            res_df._ast_id = stmt.var_id.bitfield1
+            res_df._ast_id = stmt.uid
 
         return res_df
 
@@ -5623,7 +5623,7 @@ class DataFrame:
         _ast_stmt = None
         expr = None
         if _emit_ast:
-            _ast_stmt = self._session._ast_batch.assign()
+            _ast_stmt = self._session._ast_batch.bind()
             expr = with_src_position(_ast_stmt.expr.dataframe_rename, _ast_stmt)
             self._set_ast_ref(expr.df)
             if new_column is not None:
@@ -5674,7 +5674,7 @@ class DataFrame:
         self,
         existing: ColumnOrName,
         new: str,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
@@ -5740,7 +5740,7 @@ class DataFrame:
 
         # AST.
         if _ast_stmt is None and _emit_ast:
-            _ast_stmt = self._session._ast_batch.assign()
+            _ast_stmt = self._session._ast_batch.bind()
             expr = with_src_position(
                 _ast_stmt.expr.dataframe_with_column_renamed, _ast_stmt
             )
@@ -5837,7 +5837,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_cache_result, stmt)
             self._set_ast_ref(expr.df)
             if statement_params is not None:
@@ -5892,7 +5892,7 @@ class DataFrame:
         cached_df.is_cached = True
 
         if _emit_ast:
-            cached_df._ast_id = stmt.var_id.bitfield1
+            cached_df._ast_id = stmt.uid
         return cached_df
 
     @publicapi
@@ -5941,7 +5941,7 @@ class DataFrame:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_random_split, stmt)
             for w in weights:
                 ast.weights.append(w)
@@ -6018,19 +6018,19 @@ class DataFrame:
             if _emit_ast:
                 # Assign each Dataframe in res_dfs a __getitem__ from random_split.
                 for i, df in enumerate(res_dfs):
-                    obj_stmt = self._session._ast_batch.assign()
+                    obj_stmt = self._session._ast_batch.bind()
 
                     # To enable symbol capture for multiple targets (e.g., a, b, c = ...), we hint
                     # with_src_position with a target_idx.
                     obj_expr = with_src_position(
                         obj_stmt.expr.object_get_item, obj_stmt, target_idx=i
                     )
-                    obj_expr.obj.bitfield1 = stmt.var_id.bitfield1
+                    obj_expr.obj = stmt.uid
 
                     arg = obj_expr.args.add()
                     build_expr_from_python_val(arg, i)
 
-                    df._ast_id = obj_stmt.var_id.bitfield1
+                    df._ast_id = obj_stmt.uid
 
             return res_dfs
 
@@ -6125,13 +6125,13 @@ Query List:
 
     def _with_plan(self, plan, _ast_stmt=None) -> "DataFrame":
         """
-        :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
+        :param proto.Bind ast_stmt: The AST statement protobuf corresponding to this value.
         """
         df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt, _emit_ast=False)
         df._statement_params = self._statement_params
 
         if _ast_stmt is not None:
-            df._ast_id = _ast_stmt.var_id.bitfield1
+            df._ast_id = _ast_stmt.uid
 
         return df
 
