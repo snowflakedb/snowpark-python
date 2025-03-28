@@ -769,7 +769,7 @@ def _df_init_list_data_with_snowpark_pandas_values(
 def __dataframe__(
     self, nan_as_null: bool = False, allow_copy: bool = True
 ) -> InterchangeDataframe:
-    return self._query_compiler.to_dataframe(
+    return self._query_compiler.to_interchange_dataframe(
         nan_as_null=nan_as_null, allow_copy=allow_copy
     )
 
