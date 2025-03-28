@@ -146,7 +146,7 @@ def _upload_and_copy_into_table(
     )
     copy_into_table_query = f"""
     COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
-    FILE_FORMAT = (TYPE = PARQUET)
+    FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
     MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
     PURGE=TRUE
     ON_ERROR={on_error}
@@ -182,6 +182,9 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
     while retry_count < _MAX_RETRY_TIME:
         try:
             return func(*args, **kwargs)
+        except SnowparkDataframeReaderException:
+            # SnowparkDataframeReaderException is a non-retryable exception
+            raise
         except Exception as e:
             last_error = e
             error_trace = traceback.format_exc()
