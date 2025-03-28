@@ -1,5 +1,13 @@
 # Release History
 
+## 1.31.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Deprecations
+
+- Deprecated support for Python3.8.
+
 ## 1.30.0 (2024-03-27)
 
 ### Snowpark Python API Updates
