@@ -11,6 +11,9 @@ import warnings
 # that we can mock get_active_session
 import snowflake.snowpark.context
 from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    get_default_snowpark_pandas_statement_params,
+)
 from snowflake.snowpark.session import Session, _active_sessions
 
 
@@ -50,7 +53,10 @@ class SnowpandasSessionHolder(ModuleType):
                     "SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION",
                     _emit_ast=False,
                 )
-                .collect(_emit_ast=False)[0]
+                .collect(
+                    statement_params=get_default_snowpark_pandas_statement_params(),
+                    _emit_ast=False,
+                )[0]
                 .value
             )
             if quoted_identifiers_ignore_case.lower() == "true":
