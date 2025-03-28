@@ -16,6 +16,7 @@ from snowflake.snowpark.version import VERSION
 from snowflake.connector import SnowflakeConnection
 from tests.parameters import CONNECTION_PARAMETERS
 
+
 @pytest.fixture(autouse=True, scope="module")
 def snowflake_connection() -> SnowflakeConnection:
     conn = SnowflakeConnection(None, None, **CONNECTION_PARAMETERS)
