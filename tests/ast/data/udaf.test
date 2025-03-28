@@ -138,7 +138,7 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udaf {
         handler {
@@ -189,17 +189,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "sum_udaf"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -355,17 +353,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_to_df {
         col_names {
@@ -397,9 +393,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+            id: 2
           }
         }
         src {
@@ -411,24 +405,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_agg {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 3
-            }
+            id: 3
           }
         }
         exprs {
@@ -436,9 +426,7 @@ body {
             apply_expr {
               fn {
                 fn_ref {
-                  id {
-                    bitfield1: 1
-                  }
+                  id: 1
                 }
               }
               pos_args {
@@ -473,25 +461,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 4
-            }
+            id: 4
           }
         }
         src {
@@ -503,24 +487,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
   eval {
-    uid: 6
-    var_id {
-      bitfield1: 5
-    }
+    bind_id: 5
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udaf {
         comment {
@@ -620,24 +599,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "u2"
     }
-    uid: 7
-    var_id {
-      bitfield1: 7
-    }
+    uid: 6
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_agg {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 3
-            }
+            id: 3
           }
         }
         exprs {
@@ -645,9 +620,7 @@ body {
             apply_expr {
               fn {
                 fn_ref {
-                  id {
-                    bitfield1: 7
-                  }
+                  id: 6
                 }
               }
               pos_args {
@@ -682,16 +655,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 7
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udaf {
         handler {
@@ -736,24 +707,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "sum_udaf"
     }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
+    uid: 8
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_agg {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 3
-            }
+            id: 3
           }
         }
         exprs {
@@ -761,9 +728,7 @@ body {
             apply_expr {
               fn {
                 fn_ref {
-                  id {
-                    bitfield1: 9
-                  }
+                  id: 8
                 }
               }
               pos_args {
@@ -798,16 +763,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 10
-    var_id {
-      bitfield1: 10
-    }
+    uid: 9
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udaf {
         handler {
@@ -851,24 +814,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "sum_udaf"
     }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
+    uid: 10
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_agg {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 3
-            }
+            id: 3
           }
         }
         exprs {
@@ -876,9 +835,7 @@ body {
             apply_expr {
               fn {
                 fn_ref {
-                  id {
-                    bitfield1: 11
-                  }
+                  id: 10
                 }
               }
               pos_args {
@@ -913,12 +870,10 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 12
-    var_id {
-      bitfield1: 12
-    }
+    uid: 11
   }
 }
 client_ast_version: 1
@@ -936,3 +891,4 @@ client_version {
   major: 1
   minor: 30
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
