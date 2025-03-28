@@ -313,8 +313,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 2
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
         }
         join_expr {
           and {
@@ -589,8 +593,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 5
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
         }
         join_expr {
           neq {
@@ -731,8 +739,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 8
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 8
+            }
+          }
         }
         join_expr {
           and {
@@ -1005,8 +1017,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 11
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 11
+            }
+          }
         }
         join_expr {
           neq {
@@ -1123,8 +1139,12 @@ body {
           merge_delete_when_matched_clause {
           }
         }
-        id {
-          bitfield1: 14
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 14
+            }
+          }
         }
         join_expr {
           eq {
@@ -1289,8 +1309,12 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 17
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 17
+            }
+          }
         }
         join_expr {
           and {
@@ -1462,8 +1486,12 @@ body {
   assign {
     expr {
       table_merge {
-        id {
-          bitfield1: 20
+        df {
+          dataframe_ref {
+            id {
+              bitfield1: 20
+            }
+          }
         }
         join_expr {
           eq {
