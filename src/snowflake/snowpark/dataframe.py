@@ -28,7 +28,6 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
@@ -206,6 +205,17 @@ from snowflake.snowpark.types import (
     StructType,
     _NumericType,
 )
+
+imported_installed_pandas = None
+def lazy_import_pyarrow():
+    from snowflake.connector.options import pyarrow
+
+def lazy_import_pandas():
+    if imported_installed_pandas is None:
+        lazy_import_pyarrow()
+        from snowflake.connector.options import installed_pandas, pandas
+        imported_installed_pandas = installed_pandas
+    return imported_installed_pandas
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -946,20 +956,17 @@ class DataFrame:
             _emit_ast=self._session.ast_enabled,
         )
 
-    if installed_pandas:
-        import pandas  # pragma: no cover
-
-        @publicapi
-        @overload
-        def to_pandas(
-            self,
-            *,
-            statement_params: Optional[Dict[str, str]] = None,
-            block: bool = True,
-            _emit_ast: bool = True,
-            **kwargs: Dict[str, Any],
-        ) -> pandas.DataFrame:
-            ...  # pragma: no cover
+    @publicapi
+    @overload
+    def to_pandas(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> "pandas.DataFrame":
+        ...  # pragma: no cover
 
     @publicapi
     @overload
@@ -1006,6 +1013,7 @@ class DataFrame:
             as pandas cannot distinguish between the two.
             - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
         """
+        lazy_import_pandas()
 
         if _emit_ast:
             stmt = self._session._ast_batch.bind()
@@ -1044,20 +1052,17 @@ class DataFrame:
 
         return result
 
-    if installed_pandas:
-        import pandas
-
-        @publicapi
-        @overload
-        def to_pandas_batches(
-            self,
-            *,
-            statement_params: Optional[Dict[str, str]] = None,
-            block: bool = True,
-            _emit_ast: bool = True,
-            **kwargs: Dict[str, Any],
-        ) -> Iterator[pandas.DataFrame]:
-            ...  # pragma: no cover
+    @publicapi
+    @overload
+    def to_pandas_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Iterator["pandas.DataFrame"]:
+        ...  # pragma: no cover
 
     @publicapi
     @overload
@@ -1110,6 +1115,8 @@ class DataFrame:
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
         """
+        lazy_import_pandas()
+
         if _emit_ast:
             stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_to_pandas_batches, stmt)
@@ -1164,6 +1171,8 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        lazy_import_pyarrow()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -1206,6 +1215,8 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        lazy_import_pyarrow()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
