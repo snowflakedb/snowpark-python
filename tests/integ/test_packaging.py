@@ -29,11 +29,6 @@ pytestmark = pytest.mark.xfail(
 )
 
 
-if sys.version_info >= (3, 9):
-    runtime_39_or_above = True
-else:
-    runtime_39_or_above = False
-
 try:
     import dateutil
 
@@ -474,9 +469,6 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
 )
-@pytest.mark.skipif(
-    not runtime_39_or_above, reason="arch is not available on python 3.8"
-)
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
     session.custom_package_usage_config = {"enabled": True, "force_push": True}
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -685,7 +677,7 @@ def test_add_requirements_yaml(session, resources_path):
         "seaborn",
         "scipy",
     }
-    assert session._runtime_version_from_requirement == "3.8"
+    assert session._runtime_version_from_requirement == "3.9"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"

@@ -18,7 +18,7 @@ If you don't have a Snowflake account yet, you can [sign up for a 30-day free tr
 
 ### Create a Python virtual environment
 You can use [miniconda][miniconda], [anaconda][anaconda], or [virtualenv][virtualenv]
-to create a Python 3.8, 3.9, 3.10 or 3.11 virtual environment.
+to create a Python 3.9, 3.10, 3.11 or 3.12 virtual environment.
 
 For Snowpark pandas, only Python 3.9, 3.10, or 3.11 is supported.
 
