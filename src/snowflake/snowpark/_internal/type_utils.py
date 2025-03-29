@@ -220,7 +220,9 @@ def convert_sf_to_sp_type(
         if internal_size > 0:
             return StringType(internal_size, internal_size == max_string_size)
         elif internal_size == 0:
-            return StringType()
+            # TODO: wufan TEST
+            return NullType()
+            # return StringType()
         raise ValueError("Negative value is not a valid input for StringType")
     if column_type_name == "TIME":
         return TimeType()

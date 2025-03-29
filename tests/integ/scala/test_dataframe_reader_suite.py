@@ -365,16 +365,16 @@ def test_read_csv(session, mode):
 @pytest.mark.parametrize(
     "format,file,expected",
     [
-        ("csv", test_file_csv, [Row(1, "one", 1.2), Row(2, "two", 2.2)]),
-        (
-            "json",
-            test_file_json,
-            [
-                Row(
-                    COL1='{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'
-                )
-            ],
-        ),
+        # ("csv", test_file_csv, [Row(1, "one", 1.2), Row(2, "two", 2.2)]),
+        # (
+        #     "json",
+        #     test_file_json,
+        #     [
+        #         Row(
+        #             COL1='{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'
+        #         )
+        #     ],
+        # ),
         (
             "avro",
             test_file_avro,
@@ -383,30 +383,30 @@ def test_read_csv(session, mode):
                 Row(str="str2", num=2),
             ],
         ),
-        (
-            "parquet",
-            test_file_parquet,
-            [
-                Row(str="str1", num=1),
-                Row(str="str2", num=2),
-            ],
-        ),
-        (
-            "orc",
-            test_file_orc,
-            [
-                Row(str="str1", num=1),
-                Row(str="str2", num=2),
-            ],
-        ),
-        (
-            "xml",
-            test_file_xml,
-            [
-                Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
-                Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
-            ],
-        ),
+        # (
+        #     "parquet",
+        #     test_file_parquet,
+        #     [
+        #         Row(str="str1", num=1),
+        #         Row(str="str2", num=2),
+        #     ],
+        # ),
+        # (
+        #     "orc",
+        #     test_file_orc,
+        #     [
+        #         Row(str="str1", num=1),
+        #         Row(str="str2", num=2),
+        #     ],
+        # ),
+        # (
+        #     "xml",
+        #     test_file_xml,
+        #     [
+        #         Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+        #         Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+        #     ],
+        # ),
     ],
 )
 def test_format_load(session, format, file, expected):

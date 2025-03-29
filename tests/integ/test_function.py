@@ -615,6 +615,19 @@ def test_cast_decimal(session, number_word):
     )
 
 
+def test_wufan(session):
+    # df = session.createDataFrame([(decimal.Decimal(123),)], StructType([StructField("x", DecimalType())]))
+    # print(df.schema)
+    # sql = "select * from values (ARRAY(1,2,3)), (NULL)"
+    # sql = "select * from values (NULL), ('')"
+    # sql = "select * from values (NULL)"
+    # sql = "select * from values ('')"
+    sql = "select NULL"
+    df = session.sql(sql)
+    print(df.schema)
+    # print(df.collect())
+
+
 def test_cast_map_type(session):
     df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
     result = df.select(cast(parse_json(df["a"]), "object")).collect()
