@@ -13058,42 +13058,54 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             `row_count` holds the number of rows the DataFrame has, `col_count` the number of columns the DataFrame has, and
             the pandas dataset with `num_rows` or fewer rows and `num_cols` or fewer columns.
         """
-        # In order to issue less queries, use following trick:
-        # 1. add the row count column holding COUNT(*) OVER () over the snowpark dataframe
-        # 2. retrieve all columns
-        # 3. filter on rows with recursive count
+        # build_repr_df needs to know the row count of the underlying data, as the displayed representation will
+        # include the last few rows of the frame.
+        #
+        # To maximize performance, we use two distinct code paths.
+        # If the underlying OrderedDataFrame is a simple projection of a table:
+        #   1. Perform a query to retrieve the row count. This query will be cheap because the SQL engine can
+        #      retrieve the value from table metadata.
+        #   2. Directly embed the row count into the filter query as a literal.
+        # If the underlying data is NOT a simple projection, we opt to perform fewer queries:
+        #   1. add the row count column holding COUNT(*) OVER () over the snowpark dataframe
+        #   2. retrieve all columns
+        #   3. filter on rows with recursive count
 
         # Previously, 2 queries were issued, and a first version replaced them with a single query and a join
         # the solution here uses a window function. This may lead to perf regressions, track these here SNOW-984177.
         # Ensure that our reference to self._modin_frame is updated with cached row count and position.
-        self._modin_frame = (
-            self._modin_frame.ensure_row_position_column().ensure_row_count_column()
-        )
-        row_count_pandas_label = (
-            ROW_COUNT_COLUMN_LABEL
-            if len(self._modin_frame.data_column_pandas_index_names) == 1
-            else (ROW_COUNT_COLUMN_LABEL,)
-            * len(self._modin_frame.data_column_pandas_index_names)
-        )
-        frame_with_row_count_and_position = InternalFrame.create(
-            ordered_dataframe=self._modin_frame.ordered_dataframe,
-            data_column_pandas_labels=self._modin_frame.data_column_pandas_labels
-            + [row_count_pandas_label],
-            data_column_snowflake_quoted_identifiers=self._modin_frame.data_column_snowflake_quoted_identifiers
-            + [self._modin_frame.row_count_snowflake_quoted_identifier],
-            data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
-            index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
-            data_column_types=self._modin_frame.cached_data_column_snowpark_pandas_types
-            + [None],
-            index_column_types=self._modin_frame.cached_index_column_snowpark_pandas_types,
-        )
+        row_count_value = None
+        if self._modin_frame.ordered_dataframe.is_projection_of_table():
+            frame = self._modin_frame.ensure_row_position_column()
+            row_count_value = frame.ordered_dataframe.materialize_row_count()
+            row_count_expr = pandas_lit(row_count_value)
+        else:
+            frame = (
+                self._modin_frame.ensure_row_position_column().ensure_row_count_column()
+            )
+            row_count_pandas_label = (
+                ROW_COUNT_COLUMN_LABEL
+                if len(frame.data_column_pandas_index_names) == 1
+                else (ROW_COUNT_COLUMN_LABEL,)
+                * len(frame.data_column_pandas_index_names)
+            )
+            frame = InternalFrame.create(
+                ordered_dataframe=frame.ordered_dataframe,
+                data_column_pandas_labels=frame.data_column_pandas_labels
+                + [row_count_pandas_label],
+                data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers
+                + [frame.row_count_snowflake_quoted_identifier],
+                data_column_pandas_index_names=frame.data_column_pandas_index_names,
+                index_column_pandas_labels=frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types
+                + [None],
+                index_column_types=frame.cached_index_column_snowpark_pandas_types,
+            )
 
-        row_count_identifier = (
-            frame_with_row_count_and_position.row_count_snowflake_quoted_identifier
-        )
+            row_count_expr = col(frame.row_count_snowflake_quoted_identifier)
         row_position_snowflake_quoted_identifier = (
-            frame_with_row_count_and_position.row_position_snowflake_quoted_identifier
+            frame.row_position_snowflake_quoted_identifier
         )
 
         # filter frame based on num_rows.
@@ -13101,14 +13113,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # in the future could analyze plan to see whether retrieving column count would trigger a query, if not
         # simply filter out based on static schema
         num_rows_for_head_and_tail = num_rows_to_display // 2 + 1
-        new_frame = frame_with_row_count_and_position.filter(
+        new_frame = frame.filter(
             (
                 col(row_position_snowflake_quoted_identifier)
                 <= num_rows_for_head_and_tail
             )
             | (
                 col(row_position_snowflake_quoted_identifier)
-                >= col(row_count_identifier) - num_rows_for_head_and_tail
+                >= row_count_expr - num_rows_for_head_and_tail
             )
         )
 
@@ -13116,9 +13128,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_qc = SnowflakeQueryCompiler(new_frame)
         pandas_frame = new_qc.to_pandas()
 
-        # remove last column after first retrieving row count
-        row_count = 0 if 0 == len(pandas_frame) else pandas_frame.iat[0, -1]
-        pandas_frame = pandas_frame.iloc[:, :-1]
+        if row_count_value is None:
+            # if we appended the row count column instead of directly doing a COUNT(*), splice it off
+            # remove last column after first retrieving row count
+            row_count = 0 if 0 == len(pandas_frame) else pandas_frame.iat[0, -1]
+            pandas_frame = pandas_frame.iloc[:, :-1]
+        else:
+            row_count = row_count_value
         col_count = len(pandas_frame.columns)
 
         return row_count, col_count, pandas_frame
