@@ -140,6 +140,7 @@ from snowflake.snowpark._internal.utils import (
     set_ast_state,
     is_ast_enabled,
     AstFlagSource,
+    AstMode,
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
@@ -281,6 +282,11 @@ _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
 _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION = (
     "PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION"
 )
+_PYTHON_SNOWPARK_CLIENT_AST_MODE = "PYTHON_SNOWPARK_CLIENT_AST_MODE"
+_PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
+    "PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST"
+)
+
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
 # TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
@@ -647,9 +653,46 @@ class Session:
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
-        ast_enabled: bool = self._conn._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+        ast_mode_value: int = self._conn._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_CLIENT_AST_MODE, None
         )
+        if ast_mode_value is not None and isinstance(ast_mode_value, int):
+            self._ast_mode = AstMode(ast_mode_value)
+        else:
+            self._ast_mode = None
+
+        # If PYTHON_SNOWPARK_AST_MODE is available, it has precedence over PYTHON_SNOWPARK_USE_AST.
+        if self._ast_mode is None:
+            ast_enabled: bool = self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+            )
+            self._ast_mode = AstMode.SQL_AND_AST if ast_enabled else AstMode.SQL_ONLY
+        else:
+            if self._ast_mode == AstMode.AST_ONLY:
+                _logger.warning(
+                    "Snowpark python client does not support dataframe requests, downgrading to SQL_AND_AST."
+                )
+                self._ast_mode = AstMode.SQL_AND_AST
+
+            ast_enabled = self._ast_mode == AstMode.SQL_AND_AST
+
+        if self._ast_mode != AstMode.SQL_ONLY:
+            if (
+                self._conn._get_client_side_session_parameter(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
+                )
+                is not None
+            ):
+                ast_supported_version: bool = self.is_feature_enabled_for_version(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST
+                )
+                if not ast_supported_version:
+                    _logger.warning(
+                        "Server side dataframe support requires minimum snowpark-python client version."
+                    )
+                    self._ast_mode = AstMode.SQL_ONLY
+                    ast_enabled = False
+
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
