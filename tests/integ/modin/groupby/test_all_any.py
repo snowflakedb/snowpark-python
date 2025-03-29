@@ -99,7 +99,7 @@ def test_all_any_invalid_types(data, msg):
         pd.DataFrame(data).groupby("by").any().to_pandas()
 
 
-@sql_count_checker(query_count=5, join_count=1, udtf_count=1)
+@sql_count_checker(query_count=4, join_count=1, udtf_count=1)
 def test_all_any_chained():
     data = {
         "by": ["a", "a", "b", "c", "c"],

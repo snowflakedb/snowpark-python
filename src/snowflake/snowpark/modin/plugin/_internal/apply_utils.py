@@ -145,6 +145,48 @@ class GroupbyApplySortMethod(Enum):
     GROUP_KEY_APPEARANCE_ORDER = auto()
 
 
+class GroupbyApplyFuncType(Enum):
+    """
+    The type of function that is being applied to each group in a groupby apply.
+    """
+
+    AGGREGATE = auto()
+    TRANSFORM = auto()
+    OTHER = auto()  # If apply function is neither aggregate nor transform.
+
+
+class GroupbyApplyOutputSchema:
+    """
+    Class to hold the inferred output schema of a groupby apply function.
+    """
+
+    def __init__(self) -> None:
+        # List of pandas labels (includes index columns).
+        self.column_labels: list[Hashable] = []
+        # List of snowflake column types (includes index columns).
+        self.column_types: list[DataType] = []
+        # List of snowflake quoted identifiers (includes index columns).
+        self.column_ids: list[str] = []
+        # Number of index columns.
+        self.num_index_columns = 0
+        # Type of function passed to groupby apply.
+        self.func_type = GroupbyApplyFuncType.OTHER
+        # Column index names.
+        self.column_index_names: list[Hashable] = []
+
+    def add_column(self, label: Hashable, column_type: DataType) -> None:
+        """
+        Add a column to the schema.
+        Args:
+            label: The label of the column.
+            column_type: The Snowflake type of the column.
+        Returns:
+
+        """
+        self.column_labels.append(label)
+        self.column_types.append(column_type)
+
+
 def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, DataType]:
     """Check whether the function returns a variant in Snowflake, and get its return type."""
     return_type = deduce_return_type_from_function(func, None)
@@ -325,7 +367,7 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
     func_output_df: native_pd.DataFrame,
     input_row_positions: native_pd.Series,
     include_index_columns: bool,
-    is_transform: bool,
+    func_type: GroupbyApplyFuncType,
 ) -> native_pd.DataFrame:  # pragma: no cover: this function runs inside a UDTF, so coverage tools can't detect that we are testing it.
     """
     Take the result of applying the user-provided function to a dataframe, and convert it to a dataframe with known schema that we can output from a vUDTF.
@@ -338,7 +380,7 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
                              func_input_df came from.
         include_index_columns: Whether to include the result's index columns in
                                the output.
-        is_transform: Whether the function is a transform or not.
+        func_type: Type of function passed to groupby apply.
 
     Returns:
         A 5-column dataframe that represents the function result per the
@@ -348,7 +390,11 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
     result_rows = []
     result_index_names = func_output_df.index.names
     for row_number, (index_label, row) in enumerate(func_output_df.iterrows()):
-        output_row_number = input_row_positions.iloc[row_number] if is_transform else -1
+        output_row_number = (
+            input_row_positions.iloc[row_number]
+            if func_type == GroupbyApplyFuncType.TRANSFORM
+            else -1
+        )
         if include_index_columns:
             if isinstance(index_label, tuple):
                 for k, v in enumerate(index_label):
@@ -460,7 +506,7 @@ def apply_groupby_func_to_df(
     args: tuple,
     kwargs: dict,
     force_list_like_to_series: bool = False,
-) -> Tuple[native_pd.Series, native_pd.DataFrame, bool, bool]:  # pragma: no cover
+) -> Tuple[native_pd.Series, native_pd.DataFrame, bool, GroupbyApplyFuncType, Tuple]:
     """
     Restore input dataframe received in udtf to original schema.
     Args:
@@ -479,7 +525,8 @@ def apply_groupby_func_to_df(
          1. rows positions
          2. Result of applying the function to input dataframe.
          3. Whether final result should include index columns.
-         4. Whether the index of the result is the same as the index of the input.
+         4. Function type (aggregate, transform, or other).
+         5. The group label.
     """
     # The first column is row position. Save it for later.
     col_offset = 0
@@ -491,22 +538,11 @@ def apply_groupby_func_to_df(
     # group label from the first row.
     group_label = tuple(df.iloc[0, col_offset : col_offset + num_by])
     col_offset = col_offset + num_by
-    if len(group_label) == 1:
-        group_label = group_label[0]
 
     df = df.iloc[:, col_offset:]
-    # Snowflake names the original columns "ARG1", "ARG2", ... "ARGN".
-    # the columns after the by columns are the index columns.
-    df.set_index(
-        [
-            f"ARG{i}"
-            for i in range(
-                1 + col_offset,
-                1 + col_offset + len(index_column_names),
-            )
-        ],
-        inplace=True,
-    )
+    # The columns after the by columns are the index columns. Set index and also rename
+    # them to the original index names.
+    df = df.set_index(df.columns.to_list()[: len(index_column_names)])
     df.index.names = index_column_names
     if series_groupby:
         # For SeriesGroupBy, there should be only one data column.
@@ -514,7 +550,8 @@ def apply_groupby_func_to_df(
         assert (
             num_columns == 1
         ), f"Internal error: SeriesGroupBy func should apply to series, but input data had {num_columns} columns."
-        input_object = df.iloc[:, 0].rename(group_label)
+        series_name = group_label[0] if len(group_label) == 1 else group_label
+        input_object = df.iloc[:, 0].rename(series_name)
     else:
         input_object = df.set_axis(data_column_index, axis="columns")
     # Use infer_objects() because integer columns come as floats
@@ -533,6 +570,7 @@ def apply_groupby_func_to_df(
             func_result = native_pd.Series(func_result)
             if len(func_result) == len(df.index):
                 func_result.index = df.index
+    func_type = GroupbyApplyFuncType.OTHER
     if isinstance(func_result, native_pd.Series):
         if series_groupby:
             func_result_as_frame = func_result.to_frame()
@@ -560,17 +598,23 @@ def apply_groupby_func_to_df(
             func_result_as_frame = func_result.to_frame().T
             if func_result_as_frame.columns.nlevels == 1:
                 func_result_as_frame.columns.name = name
+            # For DataFrameGroupBy, if func returns a series, we should treat it as an
+            # aggregate.
+            func_type = GroupbyApplyFuncType.AGGREGATE
         # For DataFrameGroupBy, we don't need to include any
         # information about the index of `func_result_as_frame`.
         # The series only has one index, and that index becomes the
         # columns of `func_result_as_frame`. For SeriesGroupBy, we
         # do include the result's index in the result.
         include_index_columns = series_groupby
-        is_transform = input_object.index.equals(func_result_as_frame.index)
+        if input_object.index.equals(func_result_as_frame.index):
+            func_type = GroupbyApplyFuncType.TRANSFORM
+
     elif isinstance(func_result, native_pd.DataFrame):
         include_index_columns = True
         func_result_as_frame = func_result
-        is_transform = input_object.index.equals(func_result_as_frame.index)
+        if input_object.index.equals(func_result_as_frame.index):
+            func_type = GroupbyApplyFuncType.TRANSFORM
     else:
         # At this point, we know the function result was not a DataFrame
         # or Series
@@ -578,23 +622,27 @@ def apply_groupby_func_to_df(
         func_result_as_frame = native_pd.DataFrame(
             {MODIN_UNNAMED_SERIES_LABEL: [func_result]}
         )
-        is_transform = False
-    return row_positions, func_result_as_frame, include_index_columns, is_transform
+        func_type = GroupbyApplyFuncType.AGGREGATE
+    return (
+        row_positions,
+        func_result_as_frame,
+        include_index_columns,
+        func_type,
+        group_label,
+    )
 
 
-def create_udtf_for_groupby_transform(
+def create_udtf_for_groupby_no_pivot(
     func: Callable,
     args: tuple,
     kwargs: dict,
     data_column_index: native_pd.Index,
     index_column_names: list,
-    input_data_column_types: list[DataType],
-    input_index_column_types: list[DataType],
+    input_column_types: list[DataType],
     session: Session,
     series_groupby: bool,
-    by_types: list[DataType],
     by_labels: list[Hashable],
-    existing_identifiers: list[str],
+    output_schema: GroupbyApplyOutputSchema,
     force_list_like_to_series: bool = False,
 ) -> UserDefinedTableFunction:
     """
@@ -620,13 +668,11 @@ def create_udtf_for_groupby_transform(
     kwargs: Function's keyword arguments
     data_column_index: Column labels for the input dataframe
     index_column_names: Names of the input dataframe's index
-    input_data_column_types: Types of the input dataframe's data columns
-    input_index_column_types: Types of the input dataframe's index columns
+    input_column_types: List of types for input frame passed to UDTF.
     session: the current session
     series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
-    by_labels: The pandas lables of the by columns.
-    by_types: The snowflake types of the by columns.
-    existing_identifiers: List of existing column identifiers; these are omitted when creating new column identifiers.
+    by_labels: Column labels for by columns.
+    output_schema: Output schema for the UDTF.
     force_list_like_to_series: Force the function result to series if it is list-like
 
     Returns
@@ -634,15 +680,6 @@ def create_udtf_for_groupby_transform(
     A UDTF that will apply the provided function to a group and return a
     dataframe representing all the data and metadata of the result.
     """
-
-    # Get the length of this list outside the vUDTF function because the vUDTF
-    # doesn't have access to the Snowpark module, which defines these types.
-    num_by = len(by_types)
-    from snowflake.snowpark.modin.plugin.extensions.utils import (
-        try_convert_index_to_native,
-    )
-
-    data_column_index = try_convert_index_to_native(data_column_index)
 
     class ApplyFunc:
         def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
@@ -658,9 +695,15 @@ def create_udtf_for_groupby_transform(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            row_positions, func_result, _, _ = apply_groupby_func_to_df(
+            (
+                row_positions,
+                func_result,
+                include_index_columns,
+                func_type,
+                group_label,
+            ) = apply_groupby_func_to_df(
                 df,
-                num_by,
+                len(by_labels),
                 index_column_names,
                 series_groupby,
                 data_column_index,
@@ -669,47 +712,36 @@ def create_udtf_for_groupby_transform(
                 kwargs,
                 force_list_like_to_series,
             )
+            min_row_position = row_positions.iloc[0]
+            if func_type == GroupbyApplyFuncType.AGGREGATE:
+                row_positions = -1
+            elif func_type == GroupbyApplyFuncType.OTHER:
+                if include_index_columns:
+                    func_result.reset_index(inplace=True, drop=False)
+                row_positions = list(range(0, len(func_result)))
             func_result = func_result.applymap(
                 lambda x: handle_missing_value_in_variant(
                     convert_numpy_int_result_to_int(x)
                 )
             ).astype("object")
-            func_result.reset_index(inplace=True, drop=False)
+            if func_type == GroupbyApplyFuncType.TRANSFORM:
+                func_result.reset_index(inplace=True, drop=False)
+
+            # Add by columns.
+            for i, value in enumerate(group_label):
+                func_result.insert(i, f"group_label_{i}", value, allow_duplicates=True)
+            # Add row position columns.
             func_result.insert(0, "__row_position__", row_positions)
+            func_result.insert(0, "__min_row_position__", min_row_position)
             return func_result
 
-    input_types = [
-        # first input column is the integer row number. the row number integer
-        # becomes a float inside the UDTF due to SNOW-1184587
-        LongType(),
-        # the next columns are the by columns...
-        *by_types,
-        # then the index columns for the input dataframe or series...
-        *input_index_column_types,
-        # ...then the data columns for the input dataframe or series.
-        *input_data_column_types,
-    ]
-
-    output_col_labels = ["__row_position__", *index_column_names] + [
-        col for col in data_column_index if col not in by_labels
-    ]
-
-    output_col_types = [LongType(), *input_index_column_types] + [VariantType()] * (
-        len(data_column_index) - len(by_types)
-    )
-
-    # Generate new column identifiers for all required UDTF columns with the helper
-    # below to prevent collisions in column identifiers.
-    output_col_ids = generate_snowflake_quoted_identifiers_helper(
-        pandas_labels=output_col_labels,
-        excluded=existing_identifiers,
-        wrap_double_underscore=False,
-    )
     try:
         return sp_func.udtf(
             ApplyFunc,
-            output_schema=PandasDataFrameType(output_col_types, output_col_ids),
-            input_types=[PandasDataFrameType(col_types=input_types)],
+            output_schema=PandasDataFrameType(
+                output_schema.column_types, output_schema.column_ids
+            ),
+            input_types=[PandasDataFrameType(col_types=input_column_types)],
             # We have to specify the local pandas package so that the UDF's pandas
             # behavior is consistent with client-side pandas behavior.
             packages=[native_pd] + list(session.get_packages().values()),
@@ -721,6 +753,107 @@ def create_udtf_for_groupby_transform(
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.
         raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
+
+
+def infer_output_schema_for_apply(
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    by_labels: list[Hashable],
+    data_column_index: native_pd.Index,
+    index_column_names: list,
+    input_types: list[DataType],
+    series_groupby: bool,
+    force_list_like_to_series: bool = False,
+) -> Optional[GroupbyApplyOutputSchema]:
+    """
+
+    Args:
+        func: The function we need to apply to each group
+        args: Function's positional arguments
+        kwargs: Function's keyword arguments
+        by_labels: List of labels for 'by' columns.
+        data_column_index: Column labels for the input dataframe
+        index_column_names: Names of the input dataframe's index
+        input_types: Types of the input dataframe's columns
+        series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
+        force_list_like_to_series: Force the function result to series if it is list-like.
+
+    Returns:
+        A list of labels for output columns as will be returned from UDTF
+        A list of labels for output columns as will be returned from UDTF
+    """
+    size = 10
+
+    def get_dummy_data(typ: DataType) -> Any:
+        if isinstance(typ, _IntegralType):
+            return np.arange(size)
+        if isinstance(typ, _FractionalType):
+            return np.arange(size) + 0.5
+        if isinstance(typ, StringType):
+            return [f"{chr(97 + i)}" for i in range(size)]
+        if isinstance(typ, BooleanType):
+            return [True, False] * int(size / 2)
+        if isinstance(typ, TimestampType):
+            return native_pd.date_range(start="2025-01-01 03:04:05", periods=size)
+        if isinstance(typ, BinaryType):
+            return [bytes("snow", "utf-8")] * size
+
+    input_data = {}
+    for i, typ in enumerate(input_types):
+        dummy_data = get_dummy_data(typ)
+        if dummy_data is None:
+            # unknown type, fail the schema inference
+            return None
+        input_data[f"ARG{i+1}"] = dummy_data
+
+    input_df = native_pd.DataFrame(input_data)
+    num_by = len(by_labels)
+    (
+        _,
+        func_result,
+        include_index_columns,
+        func_type,
+        group_label,
+    ) = apply_groupby_func_to_df(
+        input_df,
+        num_by,
+        index_column_names,
+        series_groupby,
+        data_column_index,
+        func,
+        args,
+        kwargs,
+        force_list_like_to_series,
+    )
+    schema = GroupbyApplyOutputSchema()
+    schema.num_index_columns = func_result.index.nlevels if include_index_columns else 0
+    schema.num_index_columns += num_by
+    schema.func_type = func_type
+    schema.column_index_names = func_result.columns.names
+
+    # First two columns are always row position columns.
+    schema.add_column("__min_row_position__", LongType())
+    schema.add_column("__row_position__", LongType())
+
+    # Always include the by columns in the output.
+    for i, by_label in enumerate(by_labels):
+        schema.add_column(by_label, input_types[1 + i])
+
+    # Add index columns to the schema.
+    if include_index_columns:
+        for i, label in enumerate(func_result.index.names):
+            schema.add_column(
+                label,
+                input_types[1 + num_by + i]
+                if func_type == GroupbyApplyFuncType.TRANSFORM
+                else VariantType(),
+            )
+
+    # Add data columns to the schema.
+    for label in func_result.columns:
+        schema.add_column(label, VariantType())
+    return schema
 
 
 def create_udtf_for_groupby_apply(
@@ -738,7 +871,7 @@ def create_udtf_for_groupby_apply(
     existing_identifiers: list[str],
     force_list_like_to_series: bool = False,
     is_transform: bool = False,
-) -> UserDefinedTableFunction:
+) -> Tuple[Optional[GroupbyApplyOutputSchema], UserDefinedTableFunction]:
     """
     Create a UDTF from the Python function for groupby.apply.
 
@@ -834,36 +967,93 @@ def create_udtf_for_groupby_apply(
 
     Returns
     -------
-    A UDTF that will apply the provided function to a group and return a
-    dataframe representing all the data and metadata of the result.
+    A Tuple of:
+        1. Groupby apply output schema. This will be None if the schema cannot be
+           inferred.
+        2. A UDTF that will apply the provided function to a group and return a
+           dataframe representing all the data and metadata of the result.
     """
 
-    if is_transform:
-        return create_udtf_for_groupby_transform(
-            func,
-            args,
-            kwargs,
-            data_column_index,
-            index_column_names,
-            input_data_column_types,
-            input_index_column_types,
-            session,
-            series_groupby,
-            by_types,
-            by_labels,
-            existing_identifiers,
-            force_list_like_to_series,
-        )
+    assert len(index_column_names) == len(
+        input_index_column_types
+    ), "list of index column names and list of index column types must have the same length"
+    assert len(data_column_index) == len(
+        input_data_column_types
+    ), "list of data column names and list of data column types must have the same length"
 
     # Get the length of this list outside the vUDTF function because the vUDTF
     # doesn't have access to the Snowpark module, which defines these types.
     num_by = len(by_types)
+
     from snowflake.snowpark.modin.plugin.extensions.utils import (
         try_convert_index_to_native,
     )
 
     data_column_index = try_convert_index_to_native(data_column_index)
 
+    input_types = [
+        # first input column is the integer row number. the row number integer
+        # becomes a float inside the UDTF due to SNOW-1184587
+        LongType(),
+        # the next columns are the by columns...
+        *by_types,
+        # then the index columns for the input dataframe or series...
+        *input_index_column_types,
+        # ...then the data columns for the input dataframe or series.
+        *input_data_column_types,
+    ]
+    output_schema = None
+    if is_transform:
+        # For transform, the UDTF will return same number of columns as input.
+        output_schema = GroupbyApplyOutputSchema()
+        output_schema.column_labels = [
+            "__min_row_position__",
+            "__row_position__",
+            *by_labels,
+            *index_column_names,
+        ] + [col for col in data_column_index if col not in by_labels]
+        column_types = [LongType(), LongType()] + by_types + input_index_column_types
+        num_data_cols = len(output_schema.column_labels) - len(column_types)
+        output_schema.column_types = column_types + ([VariantType()] * num_data_cols)
+        output_schema.num_index_columns = len(index_column_names) + num_by
+        output_schema.func_type = GroupbyApplyFuncType.TRANSFORM
+        output_schema.column_index_names = data_column_index.names
+    else:
+        # Attempt to infer output schema for UDTF
+        output_schema = infer_output_schema_for_apply(
+            func,
+            args,
+            kwargs,
+            by_labels,
+            data_column_index,
+            index_column_names,
+            input_types,
+            series_groupby,
+        )
+
+    if output_schema is not None:
+        # Generate new column identifiers for all required UDTF columns with the helper
+        # below to prevent collisions in column identifiers.
+        output_schema.column_ids = generate_snowflake_quoted_identifiers_helper(
+            pandas_labels=output_schema.column_labels,
+            excluded=existing_identifiers,
+            wrap_double_underscore=False,
+        )
+        return output_schema, create_udtf_for_groupby_no_pivot(
+            func,
+            args,
+            kwargs,
+            data_column_index,
+            index_column_names,
+            input_types,
+            session,
+            series_groupby,
+            by_labels,
+            output_schema,
+            force_list_like_to_series,
+        )
+
+    # Failed to infer schema, fallback to old implementation
     class ApplyFunc:
         def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
             """
@@ -882,7 +1072,8 @@ def create_udtf_for_groupby_apply(
                 row_positions,
                 func_result,
                 include_index_columns,
-                is_transform_func,
+                func_type,
+                _,
             ) = apply_groupby_func_to_df(
                 df,
                 num_by,
@@ -895,20 +1086,8 @@ def create_udtf_for_groupby_apply(
                 force_list_like_to_series,
             )
             return convert_groupby_apply_dataframe_result_to_standard_schema(
-                func_result, row_positions, include_index_columns, is_transform_func
+                func_result, row_positions, include_index_columns, func_type
             )
-
-    input_types = [
-        # first input column is the integer row number. the row number integer
-        # becomes a float inside the UDTF due to SNOW-1184587
-        LongType(),
-        # the next columns are the by columns...
-        *by_types,
-        # then the index columns for the input dataframe or series...
-        *input_index_column_types,
-        # ...then the data columns for the input dataframe or series.
-        *input_data_column_types,
-    ]
 
     col_labels = [
         "LABEL",
@@ -925,7 +1104,7 @@ def create_udtf_for_groupby_apply(
         wrap_double_underscore=False,
     )
     try:
-        return sp_func.udtf(
+        return None, sp_func.udtf(
             ApplyFunc,
             output_schema=PandasDataFrameType(
                 [

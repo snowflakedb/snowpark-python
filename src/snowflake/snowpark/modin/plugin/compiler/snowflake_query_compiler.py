@@ -188,6 +188,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
     APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
     DEFAULT_UDTF_PARTITION_SIZE,
+    GroupbyApplyFuncType,
     GroupbyApplySortMethod,
     check_return_variant_and_get_return_type,
     create_udf_for_series_apply,
@@ -4119,7 +4120,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             input_data_column_positions
         ]
         is_transform = groupby_kwargs.get("apply_op") == "transform"
-        udtf = create_udtf_for_groupby_apply(
+        output_schema, udtf = create_udtf_for_groupby_apply(
             agg_func,
             agg_args,
             agg_kwargs,
@@ -4199,7 +4200,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         |        1 |        2 | k1                   |                 14 | b                     |                  1 |
         |        0 |        0 | k0                   |                 15 | c                     |                  2 |
         """
-        if is_transform:
+        if output_schema is not None:
             x = udtf(
                 row_position_snowflake_quoted_identifier,
                 *by_snowflake_quoted_identifiers_list,
@@ -4211,26 +4212,105 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 else [*by_snowflake_quoted_identifiers_list],
                 order_by=row_position_snowflake_quoted_identifier,
             )
+            num_by = len(by_snowflake_quoted_identifiers_list)
+            output_cols = list(
+                zip(output_schema.column_labels, output_schema.column_ids)
+            )
+            num_index_cols = output_schema.num_index_columns
+            # Output ordered dataframe has the following columns in order.
+            # 1. min row position. This is used to find order of group when sort=False.
+            min_row_position_id = output_cols[0][1]
+            # 2. Original row position or row position within group.
+            row_position_id = output_cols[1][1]
+            # 4. index columns (will always include by columns)
+            index_cols = output_cols[2 : 2 + num_index_cols]
+            by_ids = [output_col[1] for output_col in output_cols[2 : 2 + num_by]]
+            # 5. data columns
+            data_cols = output_cols[2 + num_index_cols :]
+
+            logging.info(
+                f"sort={sort}, as_index={as_index}, group_keys={group_keys} func_type={output_schema.func_type}"
+            )
+
+            # df.groupby(group_keys=False).apply(transform_func) is equivalent to
+            # df.groupby().transform(transform_func)
+            if (
+                output_schema.func_type == GroupbyApplyFuncType.TRANSFORM
+                and not group_keys
+            ):
+                is_transform = True
+
+            # Note: group_keys is ignored for aggregate. Set to default value.
+            if output_schema.func_type == GroupbyApplyFuncType.AGGREGATE:
+                group_keys = True
+
+            # Note: 'sort' and 'as_index' arguments are ignored for transform.
+            # https://pandas.pydata.org/docs/user_guide/groupby.html#transformation
+            if is_transform:
+                as_index = True
+                sort = True
+
             ordered_dataframe = ordered_dataframe.select(x)
-            # output frame has the following columns in order
-            # 1. row position column
-            # 2. index columns
-            # 3. data columns (excluding by columns)
-            ids = ordered_dataframe.projected_column_snowflake_quoted_identifiers
-            data_col_labels = [
-                col for col in data_columns_index if col not in by_pandas_labels
-            ]
+            new_index_order_ids = by_ids if sort else [min_row_position_id]
+            if not as_index:
+                new_index_id = ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=[INDEX_LABEL]
+                )[0]
+                if force_single_group:
+                    new_index_col = col(row_position_id).as_(new_index_id)
+                else:
+                    new_index_col = (
+                        dense_rank().over(
+                            Window.order_by(
+                                *(
+                                    SnowparkColumn(col_id).asc_nulls_last()
+                                    for col_id in new_index_order_ids
+                                )
+                            )
+                        )
+                        - 1
+                    )
+                ordered_dataframe = append_columns(
+                    ordered_dataframe, new_index_id, new_index_col
+                )
+                # For aggregation if as_index is False 'by' columns should appear
+                # in data columns (excluding 'by' index columns).
+                # https://pandas.pydata.org/pandas-docs/stable/user_guide/groupby.html#aggregation
+                if output_schema.func_type == GroupbyApplyFuncType.AGGREGATE:
+                    cols_to_move = []
+                    for index_col in index_cols[:num_by]:
+                        if index_col[0] in _modin_frame.data_column_pandas_labels:
+                            cols_to_move.append(index_col)
+                    data_cols = cols_to_move + data_cols
+                    index_cols = [(None, new_index_id)]
+                    data_cols = [
+                        (None if label == MODIN_UNNAMED_SERIES_LABEL else label, sfid)
+                        for label, sfid in data_cols
+                    ]
+                else:
+                    index_cols = [(None, new_index_id)] + index_cols[num_by:]
+
+            if not group_keys and len(index_cols) > num_by:
+                index_cols = index_cols[num_by:]
+
+            sort_ids = (
+                [row_position_id]
+                if is_transform
+                else new_index_order_ids + [row_position_id]
+            )
+            ordered_dataframe = ordered_dataframe.sort(
+                *(OrderingColumn(id) for id in sort_ids)
+            )
+
             return SnowflakeQueryCompiler(
                 InternalFrame.create(
                     ordered_dataframe=ordered_dataframe,
-                    data_column_pandas_labels=data_col_labels,
-                    data_column_pandas_index_names=_modin_frame.data_column_pandas_index_names,
-                    data_column_snowflake_quoted_identifiers=ids[
-                        1 + _modin_frame.num_index_levels() :
-                    ],
-                    index_column_pandas_labels=_modin_frame.index_column_pandas_labels,
-                    index_column_snowflake_quoted_identifiers=ids[
-                        1 : 1 + _modin_frame.num_index_levels()
+                    data_column_pandas_labels=[c[0] for c in data_cols],
+                    data_column_pandas_index_names=output_schema.column_index_names,
+                    data_column_snowflake_quoted_identifiers=[c[1] for c in data_cols],
+                    index_column_pandas_labels=[c[0] for c in index_cols],
+                    index_column_snowflake_quoted_identifiers=[
+                        c[1] for c in index_cols
                     ],
                     data_column_types=None,
                     index_column_types=None,
