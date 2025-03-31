@@ -1877,14 +1877,7 @@ def count_rows(df: OrderedDataFrame) -> int:
     Returns the number of rows of a Snowpark DataFrame.
     """
     df = df.ensure_row_count_column()
-    rowset = (
-        df.select(df.row_count_snowflake_quoted_identifier)
-        ._dataframe_ref.snowpark_dataframe.select(
-            df.row_count_snowflake_quoted_identifier
-        )
-        .limit(1)
-        .collect()
-    )
+    rowset = df.select(df.row_count_snowflake_quoted_identifier).limit(1).collect()
     return 0 if len(rowset) == 0 else rowset[0][0]
 
 
