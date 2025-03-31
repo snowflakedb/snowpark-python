@@ -19,8 +19,8 @@ class TestAstBatch:
     def test_reset_id_gen_variant(self, fake_session):
         ast_batch = AstBatch(fake_session)
         # Simulate usage that changes _id_gen
-        ast_batch.assign()
-        ast_batch.assign()
+        ast_batch.bind()
+        ast_batch.bind()
         assert next(ast_batch._id_gen) != 1  # Ensure _id_gen has changed
 
         # Reset _id_gen and verify it is zero
@@ -29,20 +29,20 @@ class TestAstBatch:
 
     def test_assign(self, fake_session):
         ast_batch = AstBatch(fake_session)
-        stmt = ast_batch.assign()
+        stmt = ast_batch.bind()
         assert stmt is not None
 
     def test_eval(self, fake_session):
         # Smoke test for AstBatch.eval()
         ast_batch = AstBatch(fake_session)
-        ast_batch.eval(ast_batch.assign("foo"))
+        ast_batch.eval(ast_batch.bind("foo"))
 
     def test_flush(self, fake_session):
         ast_batch = AstBatch(fake_session)
 
-        # Call assign() and eval() a few times
-        assign_stmt1 = ast_batch.assign("symbol1")
-        assign_stmt2 = ast_batch.assign("symbol2")
+        # Call bind() and eval() a few times
+        assign_stmt1 = ast_batch.bind("symbol1")
+        assign_stmt2 = ast_batch.bind("symbol2")
         ast_batch.eval(assign_stmt1)
         ast_batch.eval(assign_stmt2)
 

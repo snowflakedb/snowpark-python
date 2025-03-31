@@ -439,7 +439,7 @@ class DataFrameReader:
         # AST.
         stmt = None
         if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.read_table, stmt)
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
@@ -447,7 +447,7 @@ class DataFrameReader:
         table = self._session.table(name, _emit_ast=False)
 
         if _emit_ast and stmt is not None:
-            table._ast_id = stmt.var_id.bitfield1
+            table._ast_id = stmt.uid
 
         return table
 
@@ -571,11 +571,11 @@ class DataFrameReader:
             res = loader(path, _emit_ast=False)
             # AST.
             if _emit_ast and self._ast is not None:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.read_load, stmt)
                 ast.path = path
                 ast.reader.CopyFrom(self._ast)
-                res._ast_id = stmt.var_id.bitfield1
+                res._ast_id = stmt.uid
             return res
 
         raise ValueError(f"Invalid format '{self._format}'.")
@@ -638,7 +638,7 @@ class DataFrameReader:
         # AST.
         stmt = None
         if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.read_csv, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
@@ -703,11 +703,11 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.read_json, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -731,11 +731,11 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.read_avro, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -760,11 +760,11 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.read_parquet, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -788,11 +788,11 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.read_orc, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -810,11 +810,11 @@ class DataFrameReader:
 
         # AST.
         if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.read_xml, stmt)
             ast.path = path
             ast.reader.CopyFrom(self._ast)
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 

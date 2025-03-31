@@ -220,7 +220,7 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         comment {
@@ -277,17 +277,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "my_copy_sp"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))"
@@ -300,26 +298,22 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "_"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+            id: 2
           }
         }
         src {
@@ -331,24 +325,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
   eval {
-    uid: 4
-    var_id {
-      bitfield1: 3
-    }
+    bind_id: 3
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -405,17 +394,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "from_df"
     }
-    uid: 5
-    var_id {
-      bitfield1: 5
-    }
+    uid: 4
   }
 }
 body {
-  assign {
+  bind {
     expr {
       write_table {
         block: true
@@ -442,9 +429,7 @@ body {
           dataframe_writer {
             df {
               dataframe_ref {
-                id {
-                  bitfield1: 5
-                }
+                id: 4
               }
             }
             src {
@@ -458,24 +443,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
+    uid: 5
   }
 }
 body {
   eval {
-    uid: 7
-    var_id {
-      bitfield1: 6
-    }
+    bind_id: 5
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -520,17 +500,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "to_df"
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 6
   }
 }
 body {
-  assign {
+  bind {
     expr {
       write_table {
         block: true
@@ -557,9 +535,7 @@ body {
           dataframe_writer {
             df {
               dataframe_ref {
-                id {
-                  bitfield1: 8
-                }
+                id: 6
               }
             }
             src {
@@ -573,24 +549,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
+    uid: 7
   }
 }
 body {
   eval {
-    uid: 10
-    var_id {
-      bitfield1: 9
-    }
+    bind_id: 7
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "call my_copy_sp(\'test_from\', \'test_to\', 10)"
@@ -603,25 +574,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
+    uid: 8
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 11
-            }
+            id: 8
           }
         }
         src {
@@ -633,24 +600,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 12
-    var_id {
-      bitfield1: 12
-    }
+    uid: 9
   }
 }
 body {
   eval {
-    uid: 13
-    var_id {
-      bitfield1: 12
-    }
+    bind_id: 9
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table {
         name {
@@ -672,24 +634,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 14
-    var_id {
-      bitfield1: 14
-    }
+    uid: 10
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_count {
         block: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 14
-            }
+            id: 10
           }
         }
         src {
@@ -701,24 +659,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 15
-    var_id {
-      bitfield1: 15
-    }
+    uid: 11
   }
 }
 body {
   eval {
-    uid: 16
-    var_id {
-      bitfield1: 15
-    }
+    bind_id: 11
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "drop table if exists test_to"
@@ -731,26 +684,22 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "_"
     }
-    uid: 17
-    var_id {
-      bitfield1: 17
-    }
+    uid: 12
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 17
-            }
+            id: 12
           }
         }
         src {
@@ -762,24 +711,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 18
-    var_id {
-      bitfield1: 18
-    }
+    uid: 13
   }
 }
 body {
   eval {
-    uid: 19
-    var_id {
-      bitfield1: 18
-    }
+    bind_id: 13
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
@@ -840,24 +784,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 20
-    var_id {
-      bitfield1: 20
-    }
+    uid: 14
   }
 }
 body {
   eval {
-    uid: 21
-    var_id {
-      bitfield1: 20
-    }
+    bind_id: 14
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table {
         name {
@@ -879,23 +818,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 22
-    var_id {
-      bitfield1: 22
-    }
+    uid: 15
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_limit {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 22
-            }
+            id: 15
           }
         }
         n: 10
@@ -908,16 +843,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 23
-    var_id {
-      bitfield1: 23
-    }
+    uid: 16
   }
 }
 body {
-  assign {
+  bind {
     expr {
       write_table {
         block: true
@@ -944,9 +877,7 @@ body {
           dataframe_writer {
             df {
               dataframe_ref {
-                id {
-                  bitfield1: 23
-                }
+                id: 16
               }
             }
             src {
@@ -960,24 +891,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 24
-    var_id {
-      bitfield1: 24
-    }
+    uid: 17
   }
 }
 body {
   eval {
-    uid: 25
-    var_id {
-      bitfield1: 24
-    }
+    bind_id: 17
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table {
         name {
@@ -999,24 +925,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 26
-    var_id {
-      bitfield1: 26
-    }
+    uid: 18
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_count {
         block: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 26
-            }
+            id: 18
           }
         }
         src {
@@ -1028,24 +950,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 27
-    var_id {
-      bitfield1: 27
-    }
+    uid: 19
   }
 }
 body {
   eval {
-    uid: 28
-    var_id {
-      bitfield1: 27
-    }
+    bind_id: 19
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "caller"
@@ -1077,24 +994,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "add_one_sp"
     }
-    uid: 29
-    var_id {
-      bitfield1: 29
-    }
+    uid: 20
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 29
-            }
+            id: 20
           }
         }
         pos_args {
@@ -1118,16 +1031,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 30
-    var_id {
-      bitfield1: 30
-    }
+    uid: 21
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "select 1 + 1"
@@ -1140,25 +1051,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 31
-    var_id {
-      bitfield1: 31
-    }
+    uid: 22
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 31
-            }
+            id: 22
           }
         }
         src {
@@ -1170,32 +1077,24 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 32
-    var_id {
-      bitfield1: 32
-    }
+    uid: 23
   }
 }
 body {
   eval {
-    uid: 33
-    var_id {
-      bitfield1: 32
-    }
+    bind_id: 23
   }
 }
 body {
   eval {
-    uid: 34
-    var_id {
-      bitfield1: 30
-    }
+    bind_id: 21
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "select 1 + 2"
@@ -1208,25 +1107,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 35
-    var_id {
-      bitfield1: 35
-    }
+    uid: 24
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 35
-            }
+            id: 24
           }
         }
         src {
@@ -1238,24 +1133,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 36
-    var_id {
-      bitfield1: 36
-    }
+    uid: 25
   }
 }
 body {
   eval {
-    uid: 37
-    var_id {
-      bitfield1: 36
-    }
+    bind_id: 25
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "create or replace temp stage mystage"
@@ -1268,26 +1158,22 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "_"
     }
-    uid: 38
-    var_id {
-      bitfield1: 38
-    }
+    uid: 26
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 38
-            }
+            id: 26
           }
         }
         src {
@@ -1299,24 +1185,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 39
-    var_id {
-      bitfield1: 39
-    }
+    uid: 27
   }
 }
 body {
   eval {
-    uid: 40
-    var_id {
-      bitfield1: 39
-    }
+    bind_id: 27
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -1361,17 +1242,15 @@ body {
         stage_location: "@mystage"
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "_"
     }
-    uid: 41
-    var_id {
-      bitfield1: 41
-    }
+    uid: 28
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "call mul_sp(5, 6)"
@@ -1384,25 +1263,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 42
-    var_id {
-      bitfield1: 42
-    }
+    uid: 29
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 42
-            }
+            id: 29
           }
         }
         src {
@@ -1414,24 +1289,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 43
-    var_id {
-      bitfield1: 43
-    }
+    uid: 30
   }
 }
 body {
   eval {
-    uid: 44
-    var_id {
-      bitfield1: 43
-    }
+    bind_id: 30
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -1476,17 +1346,15 @@ body {
         stage_location: "@mystage"
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "_"
     }
-    uid: 45
-    var_id {
-      bitfield1: 45
-    }
+    uid: 31
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "call mul_sp(5, 6)"
@@ -1499,25 +1367,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 46
-    var_id {
-      bitfield1: 46
-    }
+    uid: 32
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 46
-            }
+            id: 32
           }
         }
         src {
@@ -1529,24 +1393,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 47
-    var_id {
-      bitfield1: 47
-    }
+    uid: 33
   }
 }
 body {
   eval {
-    uid: 48
-    var_id {
-      bitfield1: 47
-    }
+    bind_id: 33
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -1601,17 +1460,15 @@ body {
         strict: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "_"
     }
-    uid: 49
-    var_id {
-      bitfield1: 49
-    }
+    uid: 34
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "call mul_sp(5, 6)"
@@ -1624,25 +1481,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 50
-    var_id {
-      bitfield1: 50
-    }
+    uid: 35
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 50
-            }
+            id: 35
           }
         }
         src {
@@ -1654,24 +1507,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 51
-    var_id {
-      bitfield1: 51
-    }
+    uid: 36
   }
 }
 body {
   eval {
-    uid: 52
-    var_id {
-      bitfield1: 51
-    }
+    bind_id: 36
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -1709,23 +1557,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 53
-    var_id {
-      bitfield1: 53
-    }
+    uid: 37
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 53
-            }
+            id: 37
           }
         }
         pos_args {
@@ -1749,24 +1593,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 54
-    var_id {
-      bitfield1: 54
-    }
+    uid: 38
   }
 }
 body {
   eval {
-    uid: 55
-    var_id {
-      bitfield1: 54
-    }
+    bind_id: 38
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -1824,23 +1663,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 56
-    var_id {
-      bitfield1: 56
-    }
+    uid: 39
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 56
-            }
+            id: 39
           }
         }
         pos_args {
@@ -1876,16 +1711,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 57
-    var_id {
-      bitfield1: 57
-    }
+    uid: 40
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "SELECT 1 as A, 2 as B"
@@ -1898,23 +1731,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 58
-    var_id {
-      bitfield1: 58
-    }
+    uid: 41
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_show {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 58
-            }
+            id: 41
           }
         }
         n: 10
@@ -1927,24 +1756,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 59
-    var_id {
-      bitfield1: 59
-    }
+    uid: 42
   }
 }
 body {
   eval {
-    uid: 60
-    var_id {
-      bitfield1: 59
-    }
+    bind_id: 42
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -1979,23 +1803,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 61
-    var_id {
-      bitfield1: 61
-    }
+    uid: 43
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 61
-            }
+            id: 43
           }
         }
         pos_args {
@@ -2031,16 +1851,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 62
-    var_id {
-      bitfield1: 62
-    }
+    uid: 44
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "SELECT 1 as A, 2 as B"
@@ -2053,23 +1871,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 63
-    var_id {
-      bitfield1: 63
-    }
+    uid: 45
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_show {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 63
-            }
+            id: 45
           }
         }
         n: 10
@@ -2082,24 +1896,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 64
-    var_id {
-      bitfield1: 64
-    }
+    uid: 46
   }
 }
 body {
   eval {
-    uid: 65
-    var_id {
-      bitfield1: 64
-    }
+    bind_id: 46
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -2135,23 +1944,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 66
-    var_id {
-      bitfield1: 66
-    }
+    uid: 47
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 66
-            }
+            id: 47
           }
         }
         pos_args {
@@ -2187,16 +1992,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 67
-    var_id {
-      bitfield1: 67
-    }
+    uid: 48
   }
 }
 body {
-  assign {
+  bind {
     expr {
       sql {
         query: "SELECT 1 as A, 2 as B"
@@ -2209,23 +2012,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 68
-    var_id {
-      bitfield1: 68
-    }
+    uid: 49
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_show {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 68
-            }
+            id: 49
           }
         }
         n: 10
@@ -2238,24 +2037,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 69
-    var_id {
-      bitfield1: 69
-    }
+    uid: 50
   }
 }
 body {
   eval {
-    uid: 70
-    var_id {
-      bitfield1: 69
-    }
+    bind_id: 50
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -2287,24 +2081,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "mod5_sp"
     }
-    uid: 71
-    var_id {
-      bitfield1: 71
-    }
+    uid: 51
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 71
-            }
+            id: 51
           }
         }
         pos_args {
@@ -2328,16 +2118,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 72
-    var_id {
-      bitfield1: 72
-    }
+    uid: 52
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -2381,16 +2169,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 73
-    var_id {
-      bitfield1: 73
-    }
+    uid: 53
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_select {
         cols {
@@ -2455,9 +2241,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 73
-            }
+            id: 53
           }
         }
         src {
@@ -2469,25 +2253,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 74
-    var_id {
-      bitfield1: 74
-    }
+    uid: 54
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
         df {
           dataframe_ref {
-            id {
-              bitfield1: 74
-            }
+            id: 54
           }
         }
         src {
@@ -2499,32 +2279,24 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 75
-    var_id {
-      bitfield1: 75
-    }
+    uid: 55
   }
 }
 body {
   eval {
-    uid: 76
-    var_id {
-      bitfield1: 75
-    }
+    bind_id: 55
   }
 }
 body {
   eval {
-    uid: 77
-    var_id {
-      bitfield1: 72
-    }
+    bind_id: 52
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         execute_as: "owner"
@@ -2554,24 +2326,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "range5_sproc"
     }
-    uid: 78
-    var_id {
-      bitfield1: 78
-    }
+    uid: 56
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 78
-            }
+            id: 56
           }
         }
         src {
@@ -2583,16 +2351,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 79
-    var_id {
-      bitfield1: 79
-    }
+    uid: 57
   }
 }
 body {
-  assign {
+  bind {
     expr {
       range {
         src {
@@ -2608,12 +2374,10 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 80
-    var_id {
-      bitfield1: 80
-    }
+    uid: 58
   }
 }
 client_ast_version: 1
@@ -2631,3 +2395,4 @@ client_version {
   major: 1
   minor: 30
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
