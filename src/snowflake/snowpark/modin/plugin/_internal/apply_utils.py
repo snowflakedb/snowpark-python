@@ -2076,10 +2076,10 @@ def create_internal_frame_for_groupby_apply_no_pivot_result(
     min_row_position_id = output_cols[0][1]
     # 2. Original row position or row position within group.
     row_position_id = output_cols[1][1]
-    # 4. index columns (will always include by columns)
+    # 3. index columns (will always include by columns)
     index_cols = output_cols[2 : 2 + num_index_cols]
     by_ids = [output_col[1] for output_col in output_cols[2 : 2 + num_by]]
-    # 5. data columns
+    # 4. data columns
     data_cols = output_cols[2 + num_index_cols :]
 
     # df.groupby(group_keys=False).apply(transform_func) is equivalent to

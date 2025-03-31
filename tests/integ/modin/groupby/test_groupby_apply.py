@@ -154,8 +154,7 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
 # 2. Put a zip file with the UDTF definition in the temporary stage (we filter this out when counting queries)
 # 3. Create the UDTF (increasing UDTF count by 1)
 # 3. Apply the UDTF using a join (increasing join count by 1)
-# 4. Save UDTF result as temp table to work around SNOW-1060191
-# 5. convert result to pandas
+# 4. convert result to pandas
 
 # For cases where we need to check whether we have a transform, we add an extra
 # query between 4) and 5) to check whether the function acted as a transform.
@@ -625,7 +624,9 @@ class TestFuncReturnsDataFrame:
 
     @pytest.mark.xfail(
         raises=AssertionError,
-        reason="If function that returns different labels for different groups, we pick the labels based on dummy input.",
+        reason="If function that returns different labels for different groups, we"
+        + " pick the labels based on dummy input. This should be very rare in"
+        + " practice",
     )
     def test_mismatched_data_column_positions(
         self, grouping_dfs_with_multiindexes, include_groups
@@ -1046,7 +1047,8 @@ class TestFuncReturnsSeries:
     @pytest.mark.xfail(
         raises=AssertionError,
         strict=True,
-        reason="Snowpark pandas uses name returned from first group, while pandas returns None",
+        reason="Snowpark pandas uses name returned from first group, while pandas "
+        + "returns None. This should be very rare in practice",
     )
     @sql_count_checker(
         query_count=QUERY_COUNT,
@@ -1073,7 +1075,8 @@ class TestFuncReturnsSeries:
     @pytest.mark.xfail(
         raises=AssertionError,
         strict=True,
-        reason="Snowpark pandas return a DataFrame but native pandas returns a Series",
+        reason="Snowpark pandas return a DataFrame but native pandas returns a"
+        + " Series. This should be very rate in practice.",
     )
     @sql_count_checker(
         query_count=QUERY_COUNT,
@@ -1252,7 +1255,8 @@ class TestCallableWithMixedReturnTypes:
     @pytest.mark.xfail(
         strict=True,
         raises=SnowparkSQLException,
-        reason="Results in mismatch between udtf schema and the actual result.",
+        reason="Results in mismatch between udtf schema and the actual result."
+        + " This should be rare in practice.",
     )
     def test_scalar_then_dataframe(self):
         eval_snowpark_pandas_result(
@@ -1267,7 +1271,8 @@ class TestCallableWithMixedReturnTypes:
     @pytest.mark.xfail(
         strict=True,
         raises=AssertionError,
-        reason="Results in mismatch between udtf schema and the actual result.",
+        reason="Results in mismatch between udtf schema and the actual result."
+        + " This should be rare in practice.",
     )
     def test_series_then_dataframe(self):
         eval_snowpark_pandas_result(
