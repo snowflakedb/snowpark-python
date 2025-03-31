@@ -41,27 +41,6 @@ def pytest_runtest_makereport(item, call):
     return tr
 
 
-# These tests require python packages that are no longer built for python 3.8
-PYTHON_38_SKIPS = {
-    "snowpark.session.Session.replicate_local_environment",
-    "snowpark.session.Session.table_function",
-}
-
-DocTestFinder = doctest.DocTestFinder
-
-
-class CustomDocTestFinder(DocTestFinder):
-    def _find(self, tests, obj, name, module, source_lines, globs, seen):
-        if name in PYTHON_38_SKIPS and sys.version_info < (3, 9):
-            return
-        return DocTestFinder._find(
-            self, tests, obj, name, module, source_lines, globs, seen
-        )
-
-
-doctest.DocTestFinder = CustomDocTestFinder
-
-
 # scope is module so that we ensure we delete the session before
 # moving onto running the tests in the tests dir. Having only one
 # session is important to certain UDF tests to pass , since they
