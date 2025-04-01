@@ -286,6 +286,8 @@ def _telemetry_helper(
     need_to_restore_args0_api_calls = False
     method_call_count = None
 
+
+
     # If the decorated func is a class method or a standalone function, we need to get an active session:
     if is_standalone_function or (len(args) > 0 and isinstance(args[0], type)):
         try:
@@ -341,6 +343,8 @@ def _telemetry_helper(
         # This prevents telemetry from interfering with regular API calls.
         with getattr(session, "query_history", nullcontext)() as query_history:
             result = func(*args, **kwargs)
+            if not hasattr(args[0], "_query_compiler") or not hasattr(args[0]._query_compiler, "snowpark_pandas_api_calls"):
+                return result
     except Exception as e:
         # Send Telemetry and Raise Error
         _send_snowpark_pandas_telemetry_helper(
