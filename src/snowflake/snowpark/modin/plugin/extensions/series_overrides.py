@@ -24,7 +24,7 @@ from modin.pandas.base import (
     _EXTENSION_NO_LOOKUP,
     sentinel,
 )
-from modin.pandas.series import _SERIES_EXTENSIONS_
+from modin.pandas import Series
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, is_integer, no_default
@@ -122,7 +122,7 @@ def _getattr_impl(self, key):
     # NOTE that to get an attribute, python calls __getattribute__() first and
     # then falls back to __getattr__() if the former raises an AttributeError.
     if key not in _EXTENSION_NO_LOOKUP:
-        extension = self._getattr__from_extension_impl(key, _SERIES_EXTENSIONS_)
+        extension = self._getattr__from_extension_impl(key, Series._extensions)
         if extension is not sentinel:
             return extension
     try:
