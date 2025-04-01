@@ -4,6 +4,8 @@
 
 ### Snowpark Python API Updates
 
+- Added parameter `batch_size` to `DataFrameReader.dbapi` (PrPr) for batching fetched data into a single Parquet file.
+
 #### Deprecations
 
 - Deprecated support for Python3.8.

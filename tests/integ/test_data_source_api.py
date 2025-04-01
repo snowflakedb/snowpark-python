@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
     OracledbDriver,
     output_type_handler,
 )
-from snowflake.snowpark._internal.data_source.drivers.pyodbc_driver import PyodbcDriver
+from snowflake.snowpark._internal.data_source.utils import PyodbcDriver, SqliteDriver
 from snowflake.snowpark._internal.data_source.utils import (
     _task_fetch_data_from_source_with_retry,
     _upload_and_copy_into_table_with_retry,
@@ -68,6 +68,8 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_create_connection_small_data,
     OracleDBType,
     sql_server_create_connection_empty_data,
+    SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+    SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -204,7 +206,7 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
                 lower_bound=0,
                 num_partitions=num_partitions,
                 max_workers=4,
-                custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
             )
             assert mock_upload_and_copy.call_count == expected_upload_cnt
             assert df.order_by("ID").collect() == assert_data
@@ -397,7 +399,7 @@ def test_telemetry_tracking(caplog, session):
 @pytest.mark.parametrize(
     "custom_schema",
     [
-        "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+        SQLITE3_DB_CUSTOM_SCHEMA_STRING,
         StructType(
             [
                 StructField("id", IntegerType()),
@@ -481,7 +483,7 @@ def test_session_init_statement(session):
         df = session.read.dbapi(
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             table=table_name,
-            custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
             session_init_statement=f"insert into {table_name} (int_col, var_col) values (100, '123');",
         )
         assert df.collect() == assert_data + [new_data1]
@@ -489,7 +491,7 @@ def test_session_init_statement(session):
         df = session.read.dbapi(
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             table=table_name,
-            custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
             session_init_statement=[
                 f"insert into {table_name} (int_col, var_col) values (100, '123');",
                 f"insert into {table_name} (int_col, var_col) values (101, '456');",
@@ -716,7 +718,7 @@ def test_query_parameter(session):
         df = session.read.dbapi(
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             query=f"(SELECT * FROM PrimitiveTypes WHERE id > {filter_idx}) as t",
-            custom_schema="id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
         )
         assert df.columns == [col.upper() for col in columns]
         assert df.collect() == assert_data[filter_idx:]
@@ -795,3 +797,41 @@ def test_oracledb_driver_coverage(caplog):
         [OracleDBType("NUMBER_COL", oracledb.DB_TYPE_NUMBER, 40, 2, True)]
     )
     assert "Snowpark does not support column" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "fetch_size, batch_size, expected_batch_cnt",
+    [(1, 1, 7), (5, 1, 2), (1, 5, 2), (2, 2, 2), (3, 3, 1), (100, 2, 1), (1, 100, 1)],
+)
+def test_batch_size_unit(fetch_size, batch_size, expected_batch_cnt):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, columns, example_data, _ = sqlite3_db(dbpath)
+        reader = DataSourceReader(
+            SqliteDriver,
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
+            fetch_size=fetch_size,
+            batch_size=batch_size,
+        )
+        all_fetched_data = []
+        batch_cnt = 0
+        for data in reader.read(f"SELECT * FROM {table_name}"):
+            assert 0 < len(data) <= batch_size * fetch_size
+            all_fetched_data.extend(data)
+            batch_cnt += 1
+        assert all_fetched_data == example_data and batch_cnt == expected_batch_cnt
+
+
+def test_batch_size_integ(session):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
+        df = session.read.dbapi(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            table=table_name,
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+            fetch_size=2,
+            batch_size=2,
+        )
+        assert df.order_by("ID").collect() == assert_data
