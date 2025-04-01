@@ -21,6 +21,7 @@ from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
+    count,
     flatten,
     max as max_,
     min as min_,
@@ -1110,3 +1111,61 @@ def test_snowpark_pandas_statement_params(session, df1):
             == mocked_collect.call_args.kwargs["statement_params"]["SNOWPARK_API"]
         )
         assert "efg" == mocked_collect.call_args.kwargs["statement_params"]["abc"]
+
+
+@sql_count_checker(query_count=4)
+def test_ordered_dataframe_row_count(session, df1, df2):
+    ordered_df1 = _create_ordered_dataframe(
+        session, df1, ordering_columns=['"row_pos"'], row_position_column='"row_pos"'
+    )
+    ordered_df2 = _create_ordered_dataframe(
+        session, df2, ordering_columns=['"row_pos"'], row_position_column='"row_pos"'
+    )
+    # Ensure the default values of row_count and row_count_upper_bound are None
+    assert ordered_df1.row_count is None
+    assert ordered_df1.row_count_upper_bound is None
+    assert ordered_df2.row_count is None
+    assert ordered_df2.row_count_upper_bound is None
+    # Ensure that the row_count and row_count_upper_bound are being set correctly
+    ordered_df1 = ordered_df1.ensure_row_count_column()
+    ordered_df2 = ordered_df2.ensure_row_count_column()
+    assert ordered_df1.row_count == 4
+    assert ordered_df1.row_count_upper_bound == 4
+    assert ordered_df2.row_count == 3
+    assert ordered_df2.row_count_upper_bound == 3
+
+    # Ensure row_count_upper_bound does not change with the following operations:
+    # SORT, DROPNA, FILTER, GROUP_BY
+    ordered_df2 = ordered_df2.sort([OrderingColumn('"A"')])
+    ordered_df2 = ordered_df2.dropna()
+    ordered_df2 = ordered_df2.filter(col('"A"') == 1)
+    ordered_df2 = ordered_df2.group_by(['"A"'], count(col("*")).alias("count"))
+    assert ordered_df2.row_count_upper_bound == 3
+
+    # Ensure LIMIT sets row_count_upper_bound to n rows
+    ordered_df2 = ordered_df2.filter(col('"A"') == 1).limit(n=10)
+    assert ordered_df2.row_count_upper_bound == 10
+
+    # Ensure SAMPLE sets row_count_upper_bound correctly
+    ordered_df2 = ordered_df2.sample(
+        n=5, frac=None
+    )  # Set upper bound to n if frac == None
+    assert ordered_df2.row_count_upper_bound == 5
+    ordered_df2 = ordered_df2.sample(
+        n=None, frac=0.5
+    )  # Set upper bound to ceil(row_count_upper_bound * frac)
+    assert ordered_df2.row_count_upper_bound == 3
+
+    # Ensure ALIGN and JOIN set row_count_upper_bound to row_count_upper_bound * other.row_count_upper_bound
+    ordered_df2 = ordered_df2.join(ordered_df1, ['"A"'], ['"A"'])
+    assert ordered_df2.row_count_upper_bound == 12  # Set upper bound to 4 * 3 = 12
+    ordered_df2 = ordered_df2.align(ordered_df1, ['"C"'], ['"C"'])
+    assert ordered_df2.row_count_upper_bound == 48  # Set upper bound to 12 * 4 = 48
+
+    # Ensure UNION_ALL sets row_count_upper_bound to row_count_upper_bound + other.row_count_upper_bound
+    ordered_df2 = ordered_df2.union_all(ordered_df1)
+    assert ordered_df2.row_count_upper_bound == 52  # Set upper bound to 48 + 4 = 52
+
+    # Ensure AGG sets row_count_upper_bound to 1
+    ordered_df1 = ordered_df1.agg(max_(col('"B"')).alias("max"))
+    assert ordered_df1.row_count_upper_bound == 1

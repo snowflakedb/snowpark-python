@@ -1231,6 +1231,7 @@ class OrderedDataFrame:
         original_right_quoted_identifiers = (
             right.projected_column_snowflake_quoted_identifiers
         )
+        original_right_ordered_dataframe = right
         # De-duplicate the column identifiers of right against self (left), so that
         # Snowpark doesn't perform any de-duplication on the result dataframe during join.
         right = right._deduplicate_active_column_snowflake_quoted_identifiers(
@@ -1263,6 +1264,7 @@ class OrderedDataFrame:
                 self,
                 DataFrameOperation.JOIN,
                 args={
+                    "right": original_right_ordered_dataframe,
                     "left_on_cols": left_on_cols,
                     "right_on_cols": right_on_cols,
                     "how": how,
@@ -1352,6 +1354,7 @@ class OrderedDataFrame:
             self,
             DataFrameOperation.JOIN,
             args={
+                "right": original_right_ordered_dataframe,
                 "left_on_cols": left_on_cols,
                 "right_on_cols": right_on_cols,
                 "how": how,
