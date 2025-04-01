@@ -514,7 +514,10 @@ def __init__(
         self._query_compiler = query_compiler
         return
     else:
-        ### TODO stuff
+        from modin.config import context as config_context
+        with config_context(Backend="pandas"):
+            self._extensions[None]["__init__"](self, data, index, columns, dtype, copy)
+        return
 
     # A DataFrame cannot be used as an index and Snowpark pandas does not support the Categorical type yet.
     # Check that index is not a DataFrame and dtype is not "category".
