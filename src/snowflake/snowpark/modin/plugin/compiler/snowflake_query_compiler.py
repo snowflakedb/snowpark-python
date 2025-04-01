@@ -746,8 +746,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         
     @classmethod
-    def _linear_row_cost_fn(query_compiler):
-        num_rows = query_compiler.get_axis_len(1)
+    def _linear_row_cost_fn(cls, query_compiler):
+        num_rows = query_compiler.get_axis_len(0)
         limit = 1000000 # one million rows is considered impossible
         ratio = num_rows / limit
         if ratio > 1.0:
@@ -780,6 +780,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return SnowflakeQueryCompiler._linear_row_cost_fn(self)
         return None
 
+    def qc_engine_switch_cost_from_new(self, other_qc_type: type) -> int:
+        if isinstance(self, other_qc_type):
+            return QCCoercionCost.COST_ZERO
+        
+        # cost to move to native is correlated with row size
+        if NativeQueryCompiler is other_qc_type:
+            return QCCoercionCost.COST_IMPOSSIBLE-SnowflakeQueryCompiler._linear_row_cost_fn(self)
+        return None
+
     @classmethod
     def qc_engine_switch_cost_from(cls, other_qc: BaseQueryCompiler) -> int:
         """
@@ -806,7 +815,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if isinstance(other_qc, NativeQueryCompiler):
             return QCCoercionCost.COST_IMPOSSIBLE-SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
         return None
-        return QCCoercionCost.COST_LOW
 
     def qc_engine_switch_max_cost(self) -> int:
         """
