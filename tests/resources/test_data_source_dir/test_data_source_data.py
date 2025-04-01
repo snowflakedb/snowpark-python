@@ -672,27 +672,25 @@ def sql_server_create_connection_with_exception():
 
 
 SQLITE3_DB_CUSTOM_SCHEMA_STRING = "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT"
-SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE = (
-    StructType(
-        [
-            StructField("id", IntegerType()),
-            StructField("int_col", IntegerType()),
-            StructField("real_col", FloatType()),
-            StructField("text_col", StringType()),
-            StructField("blob_col", BinaryType()),
-            StructField("null_col", NullType()),
-            StructField("ts_col", TimestampType()),
-            StructField("date_col", DateType()),
-            StructField("time_col", TimeType()),
-            StructField("short_col", ShortType()),
-            StructField("long_col", LongType()),
-            StructField("double_col", DoubleType()),
-            StructField("decimal_col", DecimalType()),
-            StructField("map_col", MapType()),
-            StructField("array_col", ArrayType()),
-            StructField("var_col", VariantType()),
-        ]
-    ),
+SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE = StructType(
+    [
+        StructField("id", IntegerType()),
+        StructField("int_col", IntegerType()),
+        StructField("real_col", FloatType()),
+        StructField("text_col", StringType()),
+        StructField("blob_col", BinaryType()),
+        StructField("null_col", NullType()),
+        StructField("ts_col", TimestampType()),
+        StructField("date_col", DateType()),
+        StructField("time_col", TimeType()),
+        StructField("short_col", ShortType()),
+        StructField("long_col", LongType()),
+        StructField("double_col", DoubleType()),
+        StructField("decimal_col", DecimalType()),
+        StructField("map_col", MapType()),
+        StructField("array_col", ArrayType()),
+        StructField("var_col", VariantType()),
+    ]
 )
 
 

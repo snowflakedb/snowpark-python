@@ -40,18 +40,7 @@ from snowflake.snowpark.types import (
     IntegerType,
     DateType,
     MapType,
-    FloatType,
     StringType,
-    BinaryType,
-    NullType,
-    TimestampType,
-    TimeType,
-    ShortType,
-    LongType,
-    DoubleType,
-    DecimalType,
-    ArrayType,
-    VariantType,
     BooleanType,
 )
 from tests.resources.test_data_source_dir.test_data_source_data import (
@@ -398,29 +387,7 @@ def test_telemetry_tracking(caplog, session):
 )
 @pytest.mark.parametrize(
     "custom_schema",
-    [
-        SQLITE3_DB_CUSTOM_SCHEMA_STRING,
-        StructType(
-            [
-                StructField("id", IntegerType()),
-                StructField("int_col", IntegerType()),
-                StructField("real_col", FloatType()),
-                StructField("text_col", StringType()),
-                StructField("blob_col", BinaryType()),
-                StructField("null_col", NullType()),
-                StructField("ts_col", TimestampType()),
-                StructField("date_col", DateType()),
-                StructField("time_col", TimeType()),
-                StructField("short_col", ShortType()),
-                StructField("long_col", LongType()),
-                StructField("double_col", DoubleType()),
-                StructField("decimal_col", DecimalType()),
-                StructField("map_col", MapType()),
-                StructField("array_col", ArrayType()),
-                StructField("var_col", VariantType()),
-            ]
-        ),
-    ],
+    [SQLITE3_DB_CUSTOM_SCHEMA_STRING, SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE],
 )
 def test_custom_schema(session, custom_schema):
     with tempfile.TemporaryDirectory() as temp_dir:
