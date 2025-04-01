@@ -1,8 +1,27 @@
 # Release History
 
-## 1.30.0 (YYYY-MM-DD)
+## 1.31.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
+
+#### Deprecations
+
+- Deprecated support for Python3.8.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in local testing that created incorrect result for `Column.like` calls.
+
+## 1.30.0 (2024-03-27)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added Support for relaxed consistency and ordering guarantees in `Dataframe.to_snowpark_pandas` by introducing the new parameter `relaxed_ordering`.
+- `DataFrameReader.dbapi` (PrPr) now accepts a list of strings for the session_init_statement parameter, allowing multiple SQL statements to be executed during session initialization.
 
 #### Improvements
 
@@ -12,6 +31,11 @@
   - Removed the need to `cache_result` in the internal implementation of the input dataframe resulting in a pure lazy dataframe operation.
   - The `seed` argument now behaves as expected with repeatable results across multiple calls and sessions.
 - `DataFrame.fillna` and `DataFrame.replace` now both support fitting `int` and `float` into `Decimal` columns if `include_decimal` is set to True.
+- Added documentation for the following UDF and stored procedure functions in `files.py` as a result of their General Availability.
+  - `SnowflakeFile.write`
+  - `SnowflakeFile.writelines`
+  - `SnowflakeFile.writeable`
+- Minor documentation changes for `SnowflakeFile` and `SnowflakeFile.open()`
 
 #### Bug Fixes
 
@@ -21,12 +45,11 @@
 
 ### Snowpark Local Testing Updates
 
-#### New Features
-
 #### Bug Fixes
 
+- Fixed a bug in aggregation that caused empty groups to still produce rows.
 - Fixed a bug in `Dataframe.except_` that would cause rows to be incorrectly dropped.
-- Fixed a bug in local testing that created incorrect result for `Column.like` calls.
+- Fixed a bug that caused `to_timestamp` to fail when casting filtered columns.
 
 ### Snowpark pandas API Updates
 
@@ -34,12 +57,14 @@
 
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
+- Added support for relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources by introducing the new parameter `relaxed_ordering`.
+- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
 
 #### Improvements
 
 - Raise a warning whenever `QUOTED_IDENTIFIERS_IGNORE_CASE` is found to be set, ask user to unset it.
-- Support relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources.
 - Improved how a missing `index_label` in `DataFrame.to_snowflake` and `Series.to_snowflake` is handled when `index=True`. Instead of raising a `ValueError`, system-defined labels are used for the index columns.
+- Improved error message for `groupby or DataFrame or Series.agg` when the function name is not supported.
 
 ## 1.29.1 (2025-03-12)
 
@@ -93,7 +118,7 @@
 - Fixed a bug where creating a Dataframe with large number of values raised `Unsupported feature 'SCOPED_TEMPORARY'.` error if thread-safe session was disabled.
 - Fixed a bug where `df.describe` raised internal SQL execution error when the dataframe is created from reading a stage file and CTE optimization is enabled.
 - Fixed a bug where `df.order_by(A).select(B).distinct()` would generate invalid SQL when simplified query generation was enabled using `session.conf.set("use_simplified_query_generation", True)`.
-  - Disabled simplified query generation by default.
+- Disabled simplified query generation by default.
 
 #### Improvements
 

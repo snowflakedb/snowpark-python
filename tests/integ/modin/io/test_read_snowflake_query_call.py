@@ -79,7 +79,11 @@ def filter_by_role(session, table_name, role):
     return df.filter(col('role') == role)
                 $$"""
     ).collect()
+    sql_simplifier_enabled_original = session.sql_simplifier_enabled
+
     try:
+        # Error is raised only when SQL simplifier is enabled.
+        session.sql_simplifier_enabled = True
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.sql(
             f"""CREATE OR REPLACE TEMPORARY TABLE {table_name}(id NUMBER, name VARCHAR, role VARCHAR) AS SELECT * FROM VALUES(1, 'Alice', 'op'), (2, 'Bob', 'dev')"""
@@ -93,6 +97,7 @@ def filter_by_role(session, table_name, role):
                 relaxed_ordering=True,
             ).head()
     finally:
+        session.sql_simplifier_enabled = sql_simplifier_enabled_original
         session.sql("DROP PROCEDURE filter_by_role(VARCHAR, VARCHAR)").collect()
 
 
