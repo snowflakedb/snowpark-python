@@ -444,8 +444,8 @@ def test_session_init_statement(session):
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
 
-        new_data1 = (5, 100) + (None,) * (len(columns) - 3) + ('"123"',)
-        new_data2 = (6, 101) + (None,) * (len(columns) - 3) + ('"456"',)
+        new_data1 = (8, 100) + (None,) * (len(columns) - 3) + ('"123"',)
+        new_data2 = (9, 101) + (None,) * (len(columns) - 3) + ('"456"',)
 
         df = session.read.dbapi(
             functools.partial(create_connection_to_sqlite3_db, dbpath),
