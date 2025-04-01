@@ -38,8 +38,8 @@ import pandas.io.parsers
 import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
-from modin.core.storage_formats.pandas.query_compiler import QueryCompilerCaster
-
+from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
+from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -545,7 +545,7 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
 
 
 @_propagate_attrs_on_methods
-class SnowflakeQueryCompiler(BaseQueryCompiler, QueryCompilerCaster):
+class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
@@ -744,6 +744,81 @@ class SnowflakeQueryCompiler(BaseQueryCompiler, QueryCompilerCaster):
         return not self.is_timestamp_type(idx, is_index) and is_string_dtype(
             self.index_dtypes[idx] if is_index else self.dtypes[idx]
         )
+        
+    @classmethod
+    def _linear_row_cost_fn(query_compiler):
+        num_rows = query_compiler.get_axis_len(1)
+        limit = 1000000 # one million rows is considered impossible
+        ratio = num_rows / limit
+        if ratio > 1.0:
+            return QCCoercionCost.COST_IMPOSSIBLE
+        return int(ratio*QCCoercionCost.COST_IMPOSSIBLE)
+
+    def qc_engine_switch_cost(self, other_qc_type: type) -> int:
+        """
+        Return the coercion costs of this qc to other_qc type.
+
+        Values returned must be within the acceptable range of
+        QCCoercionCost
+
+        Parameters
+        ----------
+        other_qc_type : QueryCompiler Class
+            The query compiler class to which we should return the cost of switching.
+
+        Returns
+        -------
+        int
+            Cost of migrating the data from this qc to the other_qc or
+            None if the cost cannot be determined.
+        """
+        if isinstance(self, other_qc_type):
+            return QCCoercionCost.COST_ZERO
+        
+        # cost to move to native is correlated with row size
+        if NativeQueryCompiler is other_qc_type:
+            return SnowflakeQueryCompiler._linear_row_cost_fn(self)
+        return None
+
+    @classmethod
+    def qc_engine_switch_cost_from(cls, other_qc: BaseQueryCompiler) -> int:
+        """
+        Return the coercion costs from other_qc to this qc type.
+
+        Values returned must be within the acceptable range of
+        QCCoercionCost
+
+        Parameters
+        ----------
+        other_qc : BaseQueryCompiler
+            The query compiler from which we should return the cost of switching.
+
+        Returns
+        -------
+        int
+            Cost of migrating the data from other_qc to this qc or
+            None if the cost cannot be determined.
+        """
+        if isinstance(other_qc, __class__):
+            return QCCoercionCost.COST_ZERO
+        # cost is inversely corellated with row size
+        # more rows; the more we try to steal the data
+        if isinstance(other_qc, NativeQueryCompiler):
+            return QCCoercionCost.COST_IMPOSSIBLE-SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
+        return None
+        return QCCoercionCost.COST_LOW
+
+    def qc_engine_switch_max_cost(self) -> int:
+        """
+        Return the max coercion cost allowed for switching to this engine.
+
+        Returns
+        -------
+        int
+            Max cost allowed for migrating the data to this qc.
+        """
+        # We should have a way to express "no max"
+        return QCCoercionCost.COST_IMPOSSIBLE * 10000
 
     @classmethod
     def from_pandas(
