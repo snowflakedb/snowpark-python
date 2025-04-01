@@ -250,6 +250,7 @@ class Column:
     #       For example, running: df.filter(col("A").isin(1, 2, 3) & col("B")) would fail since the boolean operator
     #       '&' would try to construct an AST using that of the new col("A").isin(1, 2, 3) column (which we currently
     #       don't fill if the only argument provided in the Column constructor is 'expr1' of type Expression)
+    @publicapi
     def __init__(
         self,
         expr1: Union[str, Expression],
@@ -1523,6 +1524,7 @@ class CaseExpr(Column):
         [Row(CASE_WHEN_COLUMN=1), Row(CASE_WHEN_COLUMN=2), Row(CASE_WHEN_COLUMN=3)]
     """
 
+    @publicapi
     def __init__(
         self,
         expr: CaseWhen,

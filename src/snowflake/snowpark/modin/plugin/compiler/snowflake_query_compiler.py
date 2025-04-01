@@ -1566,6 +1566,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             },
             header=_get_param("header"),
             single=True,
+            statement_params=get_default_snowpark_pandas_statement_params(),
         )
 
     def to_snowflake(

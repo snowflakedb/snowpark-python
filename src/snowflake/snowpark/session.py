@@ -140,6 +140,7 @@ from snowflake.snowpark._internal.utils import (
     set_ast_state,
     is_ast_enabled,
     AstFlagSource,
+    AstMode,
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
@@ -281,6 +282,11 @@ _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
 _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION = (
     "PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION"
 )
+_PYTHON_SNOWPARK_CLIENT_AST_MODE = "PYTHON_SNOWPARK_CLIENT_AST_MODE"
+_PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
+    "PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST"
+)
+
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
 # TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
@@ -647,9 +653,46 @@ class Session:
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
-        ast_enabled: bool = self._conn._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+        ast_mode_value: int = self._conn._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_CLIENT_AST_MODE, None
         )
+        if ast_mode_value is not None and isinstance(ast_mode_value, int):
+            self._ast_mode = AstMode(ast_mode_value)
+        else:
+            self._ast_mode = None
+
+        # If PYTHON_SNOWPARK_AST_MODE is available, it has precedence over PYTHON_SNOWPARK_USE_AST.
+        if self._ast_mode is None:
+            ast_enabled: bool = self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+            )
+            self._ast_mode = AstMode.SQL_AND_AST if ast_enabled else AstMode.SQL_ONLY
+        else:
+            if self._ast_mode == AstMode.AST_ONLY:
+                _logger.warning(
+                    "Snowpark python client does not support dataframe requests, downgrading to SQL_AND_AST."
+                )
+                self._ast_mode = AstMode.SQL_AND_AST
+
+            ast_enabled = self._ast_mode == AstMode.SQL_AND_AST
+
+        if self._ast_mode != AstMode.SQL_ONLY:
+            if (
+                self._conn._get_client_side_session_parameter(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
+                )
+                is not None
+            ):
+                ast_supported_version: bool = self.is_feature_enabled_for_version(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST
+                )
+                if not ast_supported_version:
+                    _logger.warning(
+                        "Server side dataframe support requires minimum snowpark-python client version."
+                    )
+                    self._ast_mode = AstMode.SQL_ONLY
+                    ast_enabled = False
+
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
@@ -2375,7 +2418,7 @@ class Session:
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.table, stmt)
             build_table_name(ast.name, name)
             ast.variant.session_table = True
@@ -2454,7 +2497,7 @@ class Session:
         stmt = None
         if _emit_ast:
             add_intermediate_stmt(self._ast_batch, func_name)
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.session_table_function, stmt)
             build_indirect_table_fn_apply(
                 ast.fn,
@@ -2476,7 +2519,7 @@ class Session:
                     _emit_ast=False,
                 )
                 if _emit_ast:
-                    ans._ast_id = stmt.var_id.bitfield1
+                    ans._ast_id = stmt.uid
                 return ans
             else:
                 # TODO: Implement table_function properly in local testing mode.
@@ -2497,17 +2540,17 @@ class Session:
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.table_function")
-
-        if _emit_ast:
-            d._ast_id = stmt.var_id.bitfield1
-
         return d
 
     @publicapi
@@ -2566,7 +2609,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.generator, stmt)
             col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
                 *columns
@@ -2590,7 +2633,7 @@ class Session:
                 _emit_ast=False,
             )
             if _emit_ast:
-                ans._ast_id = stmt.var_id.bitfield1
+                ans._ast_id = stmt.uid
             return ans
 
         if isinstance(self._conn, MockServerConnection):
@@ -2636,7 +2679,7 @@ class Session:
         self,
         query: str,
         params: Optional[Sequence[Any]] = None,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -2670,7 +2713,7 @@ class Session:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._ast_batch.assign()
+                stmt = self._ast_batch.bind()
                 expr = with_src_position(stmt.expr.sql, stmt)
                 expr.query = query
                 if params is not None:
@@ -2701,6 +2744,7 @@ class Session:
                     analyzer=self._analyzer,
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
@@ -2709,6 +2753,7 @@ class Session:
                     query, source_plan=None, params=params
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -3166,7 +3211,7 @@ class Session:
             # AST.
             if _emit_ast:
                 # Create AST statement.
-                stmt = self._ast_batch.assign()
+                stmt = self._ast_batch.bind()
                 ast = with_src_position(stmt.expr.write_pandas, stmt)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
@@ -3205,7 +3250,7 @@ class Session:
                 build_table_name(ast.table_name, table_location)
                 ast.table_type = table_type
 
-                table._ast_id = stmt.var_id.bitfield1
+                table._ast_id = stmt.uid
 
             return table
         else:
@@ -3356,7 +3401,7 @@ class Session:
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
-                    stmt = self._ast_batch.assign()
+                    stmt = self._ast_batch.bind()
                     ast = with_src_position(stmt.expr.create_dataframe, stmt)
                     # Save temp table and schema of it in AST (dataframe).
                     build_table_name(
@@ -3365,7 +3410,7 @@ class Session:
                     build_proto_from_struct_type(
                         table.schema, ast.schema.dataframe_schema__struct.v
                     )
-                    table._ast_id = stmt.var_id.bitfield1
+                    table._ast_id = stmt.uid
 
                 return table
 
@@ -3585,7 +3630,7 @@ class Session:
                 project_columns.append(column(name))
 
         # Create AST statement.
-        stmt = self._ast_batch.assign() if _emit_ast else None
+        stmt = self._ast_batch.bind() if _emit_ast else None
 
         df = (
             DataFrame(
@@ -3609,7 +3654,7 @@ class Session:
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         if (
             installed_pandas
@@ -3617,9 +3662,7 @@ class Session:
             and isinstance(self._conn, MockServerConnection)
         ):
             # MockServerConnection internally creates a table, and returns Table object (which inherits from Dataframe).
-            table = _convert_dataframe_to_table(
-                df, temp_table_name, self, _emit_ast=False
-            )
+            table = _convert_dataframe_to_table(df, temp_table_name, self)
 
             # AST.
             if _emit_ast:
@@ -3633,7 +3676,7 @@ class Session:
                     table.schema, ast.schema.dataframe_schema__struct.v
                 )
 
-                table._ast_id = stmt.var_id.bitfield1
+                table._ast_id = stmt.uid
 
             return table
 
@@ -3666,7 +3709,7 @@ class Session:
                         schema, ast.schema.dataframe_schema__struct.v
                     )
 
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -3703,7 +3746,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.range, stmt)
             ast.start = start
             if end:
@@ -3719,14 +3762,12 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
-            df = DataFrame(self, range_plan)
+            df = DataFrame(self, range_plan, _ast_stmt=stmt, _emit_ast=_emit_ast)
         set_api_call_source(df, "Session.range")
-
-        if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
-
         return df
 
     def create_async_job(self, query_id: str) -> AsyncJob:
@@ -4090,7 +4131,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
             expr.fn.stored_procedure.name.name.name_flat.name = sproc_name
             for arg in args:
@@ -4210,7 +4251,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             expr = with_src_position(stmt.expr.flatten, stmt)
             build_expr_from_python_val(expr.input, input)
             if path is not None:
@@ -4240,6 +4281,7 @@ class Session:
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
             _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
         )
         set_api_call_source(df, "Session.flatten")
         return df

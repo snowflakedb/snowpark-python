@@ -876,9 +876,9 @@ class UDFRegistration:
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.udf, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
 
             return UserDefinedFunction(
                 func,
@@ -905,9 +905,9 @@ class UDFRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.udf, stmt)
-            ast_id = stmt.var_id.bitfield1
+            ast_id = stmt.uid
             build_udf(
                 ast,
                 func,

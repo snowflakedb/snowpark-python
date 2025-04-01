@@ -143,6 +143,7 @@ docs/source/modin/pandas_api/
 .idea/
 .vscode/
 *.code-workspace
+.run/
 
 # performance test result
 tests/perf/results/
