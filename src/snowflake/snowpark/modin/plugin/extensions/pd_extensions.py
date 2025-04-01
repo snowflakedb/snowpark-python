@@ -392,7 +392,7 @@ def read_snowflake(
     """
     from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 
-    return DataFrame(
+    snow_df = DataFrame(
         query_compiler=FactoryDispatcher.get_factory()._read_snowflake(
             name_or_query,
             index_col=index_col,
@@ -400,6 +400,14 @@ def read_snowflake(
             enforce_ordering=enforce_ordering,
         )
     )
+    from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
+    cost_to = snow_df._get_query_compiler().qc_engine_switch_cost(NativeQueryCompiler)
+    # figure out if this needs to be a standard API
+    cost_from = snow_df._get_query_compiler().qc_engine_switch_cost_from_new(NativeQueryCompiler) 
+    if cost_to < cost_from:
+        return snow_df.move_to("Pandas")
+    return snow_df
+    
 
 
 @register_pd_accessor_helper("to_snowflake")
