@@ -262,7 +262,8 @@ def create_or_replace_view(
     name: Union[str, Iterable[str]],
     *,
     comment: Optional[str] = None,
-    statement_params: Optional[Dict[str, str]] = None,
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
     Creates a view that captures the computation expressed by this DataFrame.
@@ -278,12 +279,17 @@ def create_or_replace_view(
             that specifies the database name, schema name, and view name.
         comment: Adds a comment for the created view. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
-        statement_params: Dictionary of statement level parameters to be set while executing this action.
+        index: default True
+            If true, save DataFrame index columns in view columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
     """
-    return self.to_snowpark().create_or_replace_view(
+    return self._query_compiler.create_or_replace_view(
         name=name,
         comment=comment,
-        statement_params=statement_params,
+        index=index,
+        index_label=index_label,
     )
 
 
