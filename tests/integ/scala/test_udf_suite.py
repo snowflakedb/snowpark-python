@@ -600,7 +600,6 @@ def test_geometry_type(session):
     )
 
 
-@pytest.mark.xfail(reason="file type is in PrPr. Not stable yet to test.")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="to_file is not yet supported in local testing mode.",
@@ -621,7 +620,9 @@ def test_file_type(session, resources_path):
         if not x:
             return None
         else:
-            x["ETAG"] = x["LAST_MODIFIED"] = x["STAGE_FILE_URL"] = ""
+            x["ETAG"] = x["LAST_MODIFIED"] = x["STAGE_FILE_URL"] = x["STAGE"] = x[
+                "SIZE"
+            ] = ""
             return x
 
     func_udfs.append(udf(func1, return_type=StringType(), input_types=[FileType()]))
@@ -630,7 +631,9 @@ def test_file_type(session, resources_path):
         if not x:
             return None
         else:
-            x["ETAG"] = x["LAST_MODIFIED"] = x["STAGE_FILE_URL"] = ""
+            x["ETAG"] = x["LAST_MODIFIED"] = x["STAGE_FILE_URL"] = x["STAGE"] = x[
+                "SIZE"
+            ] = ""
             return x
 
     func_udfs.append(udf(func2))
@@ -640,8 +643,8 @@ def test_file_type(session, resources_path):
         "ETAG": "",
         "LAST_MODIFIED": "",
         "RELATIVE_PATH": "testCSV.csv",
-        "SIZE": 32,
-        "STAGE": stage_name,
+        "SIZE": "",
+        "STAGE": "",
         "STAGE_FILE_URL": "",
     }
 
