@@ -8,7 +8,8 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-from snowflake.snowpark.types import StructType
+from snowflake.snowpark.types import StructType, StructField, StringType
+import snowflake.snowpark
 
 
 class BaseDriver(ABC):
@@ -45,6 +46,47 @@ class BaseDriver(ABC):
         finally:
             cursor.close()
             conn.close()
+
+    def udtf_ingestion(
+        self,
+        session: "snowflake.snowpark.Session",
+        schema: StructType,
+        partition_table: str,
+        external_access_integrations: str,
+        fetch_size: int = 1000,
+    ) -> "snowflake.snowpark.DataFrame":
+        create_connection = self.create_connection
+        driver_package = type(create_connection()).__module__
+
+        class MyUDTFWithOptionalArgs:
+            def process(self, query: str):
+                conn = create_connection()
+                cursor = conn.cursor()
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    yield from rows
+
+        session.udtf.register(
+            MyUDTFWithOptionalArgs,
+            name="dbapi",
+            output_schema=StructType(
+                [
+                    StructField(field.name, StringType(), field.nullable)
+                    for field in schema.fields
+                ]
+            ),
+            external_access_integrations=[external_access_integrations],
+            packages=[driver_package],
+        )
+        call_udtf_sql = f"""
+            select * from {partition_table}, table(dbapi(partition))
+            """
+        res = session.sql(call_udtf_sql)
+        cols = [res[field.name].cast(field.datatype) for field in schema.fields]
+        return res.select(cols)
 
     @staticmethod
     def validate_numeric_precision_scale(
