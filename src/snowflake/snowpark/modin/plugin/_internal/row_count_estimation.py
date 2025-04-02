@@ -108,7 +108,7 @@ class RowCountEstimator:
         elif operation == DataFrameOperation.LIMIT:
             return args["n"]
 
-        # Sample can cause the row count to be set to n or reduced by a fraction
+        # Sample can cause the row count to be set to n or multiplied by a fraction
         elif operation == DataFrameOperation.SAMPLE:
             n, frac = args.get("n"), args.get("frac")
             if n is not None:
