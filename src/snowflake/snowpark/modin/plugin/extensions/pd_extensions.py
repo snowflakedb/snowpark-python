@@ -45,6 +45,7 @@ def read_snowflake(
     index_col: Union[str, list[str], None] = None,
     columns: Optional[list[str]] = None,
     relaxed_ordering: bool = False,
+    keep_in_snowflake = False,
 ) -> DataFrame:
     """
     Read a Snowflake table or SQL Query to a Snowpark pandas DataFrame.
@@ -399,6 +400,8 @@ def read_snowflake(
             relaxed_ordering=relaxed_ordering,
         )
     )
+    if keep_in_snowflake:
+        return snow_df
     from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
     cost_to = snow_df._get_query_compiler().qc_engine_switch_cost(NativeQueryCompiler)
     # figure out if this needs to be a standard API
