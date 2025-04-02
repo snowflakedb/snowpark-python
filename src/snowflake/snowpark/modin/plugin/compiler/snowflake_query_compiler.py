@@ -380,6 +380,7 @@ from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
     NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION,
 )
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
@@ -20068,3 +20069,41 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
         return (qc, min_val, max_val, bin_size)
+
+    def create_or_replace_dynamic_table(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        warehouse: str,
+        lag: str,
+        comment: Optional[str] = None,
+        mode: str = "overwrite",
+        refresh_mode: Optional[str] = None,
+        initialize: Optional[str] = None,
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        is_transient: bool = False,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        iceberg_config: Optional[dict] = None,
+        index: bool = True,
+        index_label: Optional[IndexLabel] = None,
+    ) -> List[Row]:
+        snowpark_df = self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
+            index, index_label
+        )
+
+        return snowpark_df.create_or_replace_dynamic_table(
+            name=name,
+            warehouse=warehouse,
+            lag=lag,
+            comment=comment,
+            mode=mode,
+            refresh_mode=refresh_mode,
+            initialize=initialize,
+            clustering_keys=clustering_keys,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+            iceberg_config=iceberg_config,
+        )
