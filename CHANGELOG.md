@@ -8,7 +8,7 @@
 
 - Deprecated support for Python3.8.
 
-## 1.30.0 (2025-03-28)
+## 1.30.0 (2025-03-27)
 
 ### Snowpark Python API Updates
 
