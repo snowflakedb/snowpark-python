@@ -39,3 +39,18 @@ def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: 
     else:
         # per NEP18 we raise NotImplementedError so that numpy can intercept
         return NotImplemented  # pragma: no cover
+
+@register_base_accessor(name="__switcheroo__", backend="Snowflake")
+def __switcheroo__(self, inplace=False):
+    me = self
+    from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
+    cost_to = self._get_query_compiler().qc_engine_switch_cost(NativeQueryCompiler)
+    # figure out if this needs to be a standard API
+    cost_from = self._get_query_compiler().qc_engine_switch_cost_from_new(NativeQueryCompiler) 
+    if cost_to < cost_from:
+        the_new_me_maybe = self.move_to("Pandas", inplace=inplace)
+        if inplace:
+            return self
+        else:
+            return the_new_me_maybe
+    return self

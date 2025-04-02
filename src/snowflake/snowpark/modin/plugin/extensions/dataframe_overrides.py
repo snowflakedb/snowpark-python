@@ -819,6 +819,9 @@ def apply(
     """
     Apply a function along an axis of the ``DataFrame``.
     """
+    self = self.__switcheroo__(inplace=True)
+    if self.get_backend() != 'Snowflake':
+        return self.apply(func, axis, raw, result_type, args, *kwargs)
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     axis = self._get_axis_number(axis)
     query_compiler = self._query_compiler.apply(
@@ -1781,6 +1784,13 @@ def plot(
     Make plots of ``DataFrame``. Materializes data into memory and uses the
     existing pandas PlotAccessor
     """
+    self = self.__switcheroo__(inplace=True)
+    if self.get_backend() != 'Snowflake':
+        return self.plot(x, y, kind, ax, subplots, sharex, sharey, 
+                         layout, figsize, use_index, title, grid, legend,
+                         style, logx, logy, loglog, xticks, yticks, xlim,
+                         ylim, rot, fontsize, colormap, table, yerr, xerr,
+                         secondary_y, sort_columns, **kwargs)
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     WarningMessage.single_warning(
         "DataFrame.plot materializes data to the local machine for plotting."
@@ -2165,7 +2175,7 @@ def value_counts(
             dropna=dropna,
         ),
         name="proportion" if normalize else "count",
-    )
+    ).__switcheroo__(inplace=False)
 
 
 @register_dataframe_accessor_helper("where")
@@ -2202,6 +2212,9 @@ def iterrows(self) -> Iterator[tuple[Hashable, Series]]:
     """
     Iterate over ``DataFrame`` rows as (index, ``Series``) pairs.
     """
+    self = self.__switcheroo__(inplace=True)
+    if self.get_backend() != 'Snowflake':
+        return self.iterrows()
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     def iterrow_builder(s):
         """Return tuple of the given `s` parameter name and the parameter themselves."""
@@ -2225,7 +2238,9 @@ def itertuples(
     Iterate over ``DataFrame`` rows as ``namedtuple``-s.
     """
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-
+    self = self.__switcheroo__(inplace=True)
+    if self.get_backend() != 'Snowflake':
+        return self.itertuples(index, name)
     def itertuples_builder(s):
         """Return the next namedtuple."""
         # s is the Series of values in the current row.
@@ -2265,6 +2280,9 @@ def __repr__(self):
     -------
     str
     """
+    self = self.__switcheroo__(inplace=True)
+    if self.get_backend() != 'Snowflake':
+        return self.__repr__()
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     num_rows = native_pd.get_option("display.max_rows") or len(self)
     # see _repr_html_ for comment, allow here also all column behavior
