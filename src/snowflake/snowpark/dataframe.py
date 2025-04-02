@@ -1397,7 +1397,8 @@ class DataFrame:
         self._ast_id = ast_id  # reset the AST ID.
 
         snowpandas_df = pd.read_snowflake(
-            name_or_query=temporary_table_name, index_col=index_col, columns=columns
+            name_or_query=temporary_table_name, index_col=index_col, columns=columns, 
+            keep_in_snowflake=True, # do not automatically move this to another engine
         )  # pragma: no cover
 
         if _emit_ast:
