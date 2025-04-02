@@ -364,7 +364,9 @@ def _telemetry_helper(
         raise e
 
     # Not inplace lazy APIs: add curr_api_call to the result
-    if is_snowpark_pandas_dataframe_or_series_type(result):
+    if is_snowpark_pandas_dataframe_or_series_type(result) and hasattr(
+        result._query_compiler, "snowpark_pandas_api_calls"
+    ):
         result._query_compiler.snowpark_pandas_api_calls = (
             existing_api_calls
             + result._query_compiler.snowpark_pandas_api_calls
