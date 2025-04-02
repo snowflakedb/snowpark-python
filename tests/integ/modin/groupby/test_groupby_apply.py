@@ -144,7 +144,7 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
     )
 
 
-# For almost all test cases, the query count is either 5 or 6,
+# For almost all test cases, the query count is 4,
 # the join count is 1, and the UDTF count is 1:
 
 # 0. Create temporary stage for UDTF (we filter this out when counting queries)
@@ -155,9 +155,6 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
 # 3. Create the UDTF (increasing UDTF count by 1)
 # 3. Apply the UDTF using a join (increasing join count by 1)
 # 4. convert result to pandas
-
-# For cases where we need to check whether we have a transform, we add an extra
-# query between 4) and 5) to check whether the function acted as a transform.
 
 QUERY_COUNT = 4
 JOIN_COUNT = 1
