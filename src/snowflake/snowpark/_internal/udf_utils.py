@@ -102,9 +102,6 @@ REGISTER_KWARGS_ALLOWLIST = {
     "input_names",  # for pandas_udtf
     "max_batch_size",  # for pandas_udtf
     "_registered_object_name",  # object name within Snowflake (post registration)
-    "artifact_repository",
-    "artifact_repository_packages",
-    "resource_constraint",
 }
 
 ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}

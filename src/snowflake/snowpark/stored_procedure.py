@@ -512,6 +512,9 @@ class StoredProcedureRegistration:
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -590,6 +593,13 @@ class StoredProcedureRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE PROCEDURE.
+            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+                parameter will search for packages in.
+            artifact_repository_packages: A list of packages to search for within the pypi repository
+                set in the above parameter.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -660,6 +670,9 @@ class StoredProcedureRegistration:
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -748,6 +761,13 @@ class StoredProcedureRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE PROCEDURE.
+            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+                parameter will search for packages in.
+            artifact_repository_packages: A list of packages to search for within the pypi repository
+                set in the above parameter.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -791,6 +811,9 @@ class StoredProcedureRegistration:
                 source_code_display=source_code_display,
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                artifact_repository=artifact_repository,
+                artifact_repository_packages=artifact_repository_packages,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -822,6 +845,9 @@ class StoredProcedureRegistration:
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
@@ -988,11 +1014,9 @@ class StoredProcedureRegistration:
                     native_app_params=native_app_params,
                     copy_grants=copy_grants,
                     runtime_version=runtime_version_from_requirement,
-                    artifact_repository=kwargs.get("artifact_repository"),
-                    artifact_repository_packages=kwargs.get(
-                        "artifact_repository_packages"
-                    ),
-                    resource_constraint=kwargs.get("resource_constraint"),
+                    artifact_repository=artifact_repository,
+                    artifact_repository_packages=artifact_repository_packages,
+                    resource_constraint=resource_constraint,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),
