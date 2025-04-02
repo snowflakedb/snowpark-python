@@ -179,6 +179,10 @@ def test_group_by_pivot(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="not supported in local testing when pivot column and aggregate column are the same.",
+)
 def test_group_by_pivot_agg_same_column(session):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
