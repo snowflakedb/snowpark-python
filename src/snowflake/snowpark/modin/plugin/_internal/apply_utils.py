@@ -2061,7 +2061,7 @@ def create_internal_frame_for_groupby_apply_no_pivot_result(
         ordered_dataframe: Output ordered dataframe from groupby apply udtf.
         output_schema: Inferred output schema for groupby apply.
         num_by: Number of by columns.
-        is_transform: Weather this is groupy.transform or not.
+        is_transform: Whether this is groupy.transform or not.
         group_keys: The `group_keys` argument to groupby()
         as_index: The `as_index` argument to groupby()
         sort: The `sort` argument to groupby()
