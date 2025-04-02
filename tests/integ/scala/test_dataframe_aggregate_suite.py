@@ -179,6 +179,19 @@ def test_group_by_pivot(session):
     )
 
 
+def test_group_by_pivot_agg_same_column(session):
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(count(col("month"))),
+        [
+            Row(EMPID=1, JAN=2, FEB=2, MAR=2, APR=2),
+            Row(EMPID=2, JAN=2, FEB=2, MAR=2, APR=2),
+        ],
+    )
+
+
 @multithreaded_run()
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
