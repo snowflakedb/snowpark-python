@@ -75,7 +75,7 @@ class StoredProcedure:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.StoredProcedure] = None,
@@ -506,7 +506,7 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
@@ -654,7 +654,7 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
@@ -725,7 +725,7 @@ class StoredProcedureRegistration:
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
             execute_as: What permissions should the procedure have while executing. This
-                supports caller, or owner for now.
+                supports ``caller``, ``owner`` or ``restricted caller`` for now.
             strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
                 the stored procedure if any input is null. Instead, a null value will always be returned. Note
                 that the stored procedure might still return null for non-null inputs.
@@ -811,7 +811,7 @@ class StoredProcedureRegistration:
         *,
         source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,

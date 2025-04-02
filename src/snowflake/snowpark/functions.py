@@ -10448,7 +10448,7 @@ def sproc(
     session: Optional["snowflake.snowpark.Session"] = None,
     parallel: int = 4,
     statement_params: Optional[Dict[str, str]] = None,
-    execute_as: typing.Literal["caller", "owner"] = "owner",
+    execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
     strict: bool = False,
     source_code_display: bool = True,
     external_access_integrations: Optional[List[str]] = None,

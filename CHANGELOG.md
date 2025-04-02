@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+
 #### Deprecations
 
 - Deprecated support for Python3.8.
