@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.telemetry import (
     safe_telemetry,
     ResourceUsageCollector,
 )
+from tests.utils import IS_MACOS
 
 
 @safe_telemetry
@@ -46,6 +47,9 @@ def test_resource_usage_time():
     assert cpu_time > 0.0, cpu_time
 
 
+@pytest.mark.skipif(
+    IS_MACOS, reason="SNOW-2005276: fix macos environment for telemetry tests"
+)
 def test_resource_usage_memory():
     with ResourceUsageCollector() as resource_usage_collector:
         _ = [1] * 10**6
