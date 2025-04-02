@@ -737,7 +737,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         
     @classmethod
     def _linear_row_cost_fn(cls, query_compiler):
-        num_rows = query_compiler.get_axis_len(0)
+        if isinstance(query_compiler, SnowflakeQueryCompiler):
+            internal_frame = query_compiler._modin_frame
+            ordered_dataframe = internal_frame.ordered_dataframe
+            num_rows = ordered_dataframe.row_count_upper_bound
+        else:
+            num_rows = query_compiler.get_axis_len(0)
+    
         limit = 1000000 # one million rows is considered impossible
         ratio = num_rows / limit
         if ratio > 1.0:
@@ -1671,6 +1677,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             },
             header=_get_param("header"),
             single=True,
+            statement_params=get_default_snowpark_pandas_statement_params(),
         )
 
     def to_snowflake(
@@ -3863,10 +3870,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 level=level,
                 dropna=agg_kwargs.get("dropna", True),
             )
-
-        if not check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis):
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas GroupBy.aggregate does not yet support the aggregation {repr_aggregate_function(agg_func, agg_kwargs)} with the given arguments."
+        (
+            is_supported,
+            unsupported_arguments,
+            is_supported_kwargs,
+        ) = check_is_aggregation_supported_in_snowflake(agg_func, agg_kwargs, axis)
+        if not is_supported:
+            raise AttributeError(
+                f"'SeriesGroupBy' object has no attribute {repr_aggregate_function(unsupported_arguments, is_supported_kwargs)}"
             )
 
         sort = groupby_kwargs.get("sort", True)
@@ -6254,11 +6265,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # by snowflake engine.
         # If we are using Named Aggregations, we need to do our supported check slightly differently.
         uses_named_aggs = using_named_aggregations_for_func(func)
-        if not check_is_aggregation_supported_in_snowflake(
+        (
+            is_supported,
+            unsupported_arguments,
+            is_supported_kwargs,
+        ) = check_is_aggregation_supported_in_snowflake(
             func, kwargs, axis, _is_df_agg=True
-        ):
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas aggregate does not yet support the aggregation {repr_aggregate_function(func, kwargs)} with the given arguments."
+        )
+        if not is_supported:
+            raise AttributeError(
+                f"{repr_aggregate_function(unsupported_arguments, is_supported_kwargs)} is not a valid function for 'Series' object"
             )
 
         query_compiler = self

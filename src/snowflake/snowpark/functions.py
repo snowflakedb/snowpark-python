@@ -8721,13 +8721,6 @@ def in_(
 
         values_args = []
         for val in vals:
-            # Skip if for other value AST generation was disabled.
-            if (
-                isinstance(val, snowflake.snowpark.dataframe.DataFrame)
-                and val._ast_id is None
-            ):
-                continue
-
             val_ast = proto.Expr()
             if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
                 val._set_ast_ref(val_ast)
@@ -12011,7 +12004,7 @@ def ai_filter(
         ...         ai_filter("Is the country in Europe?", col("country")).as_("europe"),
         ...         ai_filter("Is the country in North America?", col("country")).as_("north_america"),
         ...         ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
-        ...     ).show()
+        ...     ).show()  # doctest: +SKIP
         -----------------------------------------------------------
         |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
         -----------------------------------------------------------
@@ -12020,7 +12013,8 @@ def ai_filter(
         |False   |False     |False            |True               |
         -----------------------------------------------------------
         <BLANKLINE>
-        >>> df.filter(ai_filter("Is the country in Asia?", col("country"))).show()
+        >>> if "gcp" not in session.connection.host.split("."):
+        ...    df.filter(ai_filter("Is the country in Asia?", col("country"))).show()  # doctest: +SKIP
         -------------
         |"COUNTRY"  |
         -------------

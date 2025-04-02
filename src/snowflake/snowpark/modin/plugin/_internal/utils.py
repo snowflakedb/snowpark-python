@@ -488,6 +488,10 @@ def create_initial_ordered_dataframe(
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
+    # Set the materialized row count
+    materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count()
+    ordered_dataframe.row_count = materialized_row_count
+    ordered_dataframe.row_count_upper_bound = materialized_row_count
     return ordered_dataframe, row_position_snowflake_quoted_identifier
 
 
@@ -1178,12 +1182,16 @@ def create_ordered_dataframe_from_pandas(
             ]
         ),
     )
-    return OrderedDataFrame(
+    ordered_df = OrderedDataFrame(
         DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
         projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
         ordering_columns=ordering_columns,
         row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
     )
+    # Set the materialized row count
+    ordered_df.row_count = df.shape[0]
+    ordered_df.row_count_upper_bound = df.shape[0]
+    return ordered_df
 
 
 def fill_none_in_index_labels(
@@ -1877,14 +1885,7 @@ def count_rows(df: OrderedDataFrame) -> int:
     Returns the number of rows of a Snowpark DataFrame.
     """
     df = df.ensure_row_count_column()
-    rowset = (
-        df.select(df.row_count_snowflake_quoted_identifier)
-        ._dataframe_ref.snowpark_dataframe.select(
-            df.row_count_snowflake_quoted_identifier
-        )
-        .limit(1)
-        .collect()
-    )
+    rowset = df.select(df.row_count_snowflake_quoted_identifier).limit(1).collect()
     return 0 if len(rowset) == 0 else rowset[0][0]
 
 

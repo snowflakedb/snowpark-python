@@ -182,6 +182,9 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
     while retry_count < _MAX_RETRY_TIME:
         try:
             return func(*args, **kwargs)
+        except SnowparkDataframeReaderException:
+            # SnowparkDataframeReaderException is a non-retryable exception
+            raise
         except Exception as e:
             last_error = e
             error_trace = traceback.format_exc()

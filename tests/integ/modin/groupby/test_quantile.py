@@ -21,18 +21,18 @@ from tests.utils import running_on_public_ci
         pytest.param(
             "lower",
             marks=pytest.mark.xfail(
-                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                reason="Quantile with lower or midpoint interpolation not yet supported",
                 strict=True,
-                raises=RuntimeError,
+                raises=AttributeError,
             ),
         ),
         "nearest",
         pytest.param(
             "midpoint",
             marks=pytest.mark.xfail(
-                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+                reason="Quantile with lower or midpoint interpolation not yet supported",
                 strict=True,
-                raises=RuntimeError,
+                raises=AttributeError,
             ),
         ),
     ],
@@ -106,9 +106,9 @@ def test_quantile(interpolation, a_vals, b_vals, q):
 
 
 @pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    reason="SNOW-1062878: Because list-like q would return multiple rows, calling quantile through the aggregate frontend in this manner is unsupported.",
     strict=True,
-    raises=RuntimeError,
+    raises=AttributeError,
 )
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
@@ -134,9 +134,9 @@ def test_quantile_array():
 
 
 @pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    reason="SNOW-1062878: Because list-like q would return multiple rows, calling quantile through the aggregate frontend in this manner is unsupported.",
     strict=True,
-    raises=RuntimeError,
+    raises=AttributeError,
 )
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
@@ -158,9 +158,9 @@ def test_quantile_array_list_like_q():
 
 
 @pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    reason="SNOW-1062878: Because list-like q would return multiple rows, calling quantile through the aggregate frontend in this manner is unsupported.",
     strict=True,
-    raises=RuntimeError,
+    raises=AttributeError,
 )
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
@@ -183,9 +183,9 @@ def test_quantile_array_no_sort():
 
 
 @pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    reason="SNOW-1062878: Because list-like q would return multiple rows, calling quantile through the aggregate frontend in this manner is unsupported.",
     strict=True,
-    raises=RuntimeError,
+    raises=AttributeError,
 )
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
@@ -205,9 +205,9 @@ def test_quantile_array_multiple_levels():
 
 
 @pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    reason="SNOW-1062878: Because list-like q would return multiple rows, calling quantile through the aggregate frontend in this manner is unsupported.",
     strict=True,
-    raises=RuntimeError,
+    raises=AttributeError,
 )
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("frame_size", [(2, 3), (100, 10)])
@@ -257,21 +257,16 @@ def test_quantile_raises():
         df.groupby("key").quantile().to_pandas()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-@sql_count_checker(query_count=9)
+@sql_count_checker(query_count=1)
 def test_quantile_out_of_bounds_q_raises():
     # https://github.com/pandas-dev/pandas/issues/27470
     df = pd.DataFrame({"a": [0, 0, 0, 1, 1, 1], "b": range(6)})
     g = df.groupby([0, 0, 0, 1, 1, 1])
-    with pytest.raises(SnowparkSQLException):
+    with pytest.raises(NotImplementedError):
         g.quantile(50)
 
-    with pytest.raises(SnowparkSQLException):
+    with pytest.raises(NotImplementedError):
         g.quantile(-1)
 
 
@@ -308,9 +303,9 @@ def test_quantile_missing_group_values_correct_results(
 
 
 @pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    reason="Quantile with these arguments are not yet supported",
     strict=True,
-    raises=RuntimeError,
+    raises=AttributeError,
 )
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize(
@@ -332,9 +327,9 @@ def test_groupby_quantile_all_na_group_masked(interpolation, val1, val2):
 
 
 @pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
+    reason="SNOW-1062878: Because list-like q would return multiple rows, calling quantile through the aggregate frontend in this manner is unsupported.",
     strict=True,
-    raises=RuntimeError,
+    raises=AttributeError,
 )
 @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
