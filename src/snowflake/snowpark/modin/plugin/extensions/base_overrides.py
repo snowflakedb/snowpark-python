@@ -2137,6 +2137,9 @@ def describe(
     """
     Generate descriptive statistics.
     """
+    self = self.__switcheroo__(inplace=True)
+    if self.get_backend() != 'Snowflake':
+        return self.describe(percentiles, include, exclude)
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     percentiles = _refine_percentiles(percentiles)
     data = self
