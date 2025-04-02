@@ -1116,6 +1116,7 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
+        external_access_integration: Optional[str] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1169,6 +1170,8 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+            external_access_integration: A string of name of external access integration, if is not None, a server
+                ingestion using UDTF will be used.
 
         Example::
             .. code-block:: python
@@ -1204,6 +1207,16 @@ class DataFrameReader:
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
+
+        if external_access_integration:
+            partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                [[query] for query in partitioned_queries], schema=["partition"]
+            ).write.save_as_table(partitions_table, table_type="temp")
+            df = partitioner.driver.udtf_ingestion(
+                self._session, struct_schema, partitions_table
+            )
+            return df
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
