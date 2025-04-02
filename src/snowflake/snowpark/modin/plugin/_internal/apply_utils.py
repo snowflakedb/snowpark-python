@@ -2055,7 +2055,7 @@ def create_internal_frame_for_groupby_apply_no_pivot_result(
     sort: bool,
 ) -> InternalFrame:
     """
-    Create Interframe for groupy apply no pivot output.
+    Create InternalFrame for groupy apply no pivot output.
     Args:
         input_frame: Input internal frame.
         ordered_dataframe: Output ordered dataframe from groupby apply udtf.
