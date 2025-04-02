@@ -1076,7 +1076,7 @@ class TestFuncReturnsSeries:
         raises=AssertionError,
         strict=True,
         reason="Snowpark pandas return a DataFrame but native pandas returns a"
-        + " Series. This should be very rate in practice.",
+        + " Series. This should be very rare in practice.",
     )
     @sql_count_checker(
         query_count=QUERY_COUNT,
