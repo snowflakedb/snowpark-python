@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+### Improvements
+
+- Improve the error message for invalid identifier SQL error by suggesting the potentially matching identifiers.
+
 #### Deprecations
 
 - Deprecated support for Python3.8.
