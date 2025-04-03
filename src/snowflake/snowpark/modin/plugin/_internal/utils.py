@@ -1187,11 +1187,13 @@ def create_ordered_dataframe_from_pandas(
             ]
         ),
     )
-    ordered_df = OrderedDataFrame(
-        DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
-        projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
-        ordering_columns=ordering_columns,
-        row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
+    ordered_df = cache_result(
+        OrderedDataFrame(
+            DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
+            projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+            ordering_columns=ordering_columns,
+            row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
+        )
     )
     # Set the materialized row count
     ordered_df.row_count = df.shape[0]
