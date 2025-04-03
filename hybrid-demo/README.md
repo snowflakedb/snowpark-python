@@ -13,6 +13,24 @@ pip install ipywidgets ipython ipykernel
 
 3. run the notebook in this directory.
 
+# making a wheel
+
+1. edit version in [version.py]( src/snowflake/snowpark/version.py). I am trying to use 9.9.x, starting with 9.9.0
+1. set a particular modin main commit in [setup.py](https://github.com/snowflakedb/snowpark-python/blob/cd9c37406abb3915e661fb5c3b1da6b91aed5862/setup.py#L43)
+1. `python setup.py  bdist_wheel`
+1. test that the wheel built in `dist/` works by using the command below, then trying out pandas in ipython.
+1. check out a release branch, and name it like `modin-hybrid-client-release-9.9.0`
+1. `git commit -nsam` to the release branch and push it.
+
+# using built wheel
+
+```bash
+conda create --name=hybrid-wheel-test python=3.9 --y --force
+conda activate hybrid-wheel-test
+pip install "$WHEEL_FILE[modin]"
+pip install ipywidgets ipython ipykernel
+```
+
 # notes:
 
 DO NOT USE A VPN. downloads possibly way too slow on my VPN. Initially I tried on VPN + sfctest0 and hybrid experience was not fun.
