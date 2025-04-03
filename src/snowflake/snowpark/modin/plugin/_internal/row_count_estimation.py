@@ -113,9 +113,7 @@ class RowCountEstimator:
             elif frac is not None:
                 return ceil(current * frac)
             else:
-                raise ValueError(
-                    "Either 'n' or 'frac' must be provided for a sample operation"
-                )
+                return None
 
         else:
             raise ValueError(f"Unsupported operation: {operation}")
