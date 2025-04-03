@@ -586,8 +586,9 @@ def __init__(
     if name is not None:
         self.name = name
 
-
-@register_series_accessor_helper("_update_inplace")
+# Modin uses _update_inplace to implement set_backend(inplace=True), so we
+# can't extend _update_inplace. To fix a bug in _update_inplace, we overwrite
+# _update_inplace entirely instead of using the extension system.
 def _update_inplace(self, new_query_compiler) -> None:
     """
     Update the current Series in-place using `new_query_compiler`.
@@ -604,6 +605,8 @@ def _update_inplace(self, new_query_compiler) -> None:
             self._parent[self.name] = self
         else:
             self._parent.loc[self.index] = self
+
+Series._update_inplace = _update_inplace
 
 
 # Since Snowpark pandas leaves all data on the warehouse, memory_usage's report of local memory
