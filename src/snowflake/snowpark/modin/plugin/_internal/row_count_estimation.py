@@ -68,9 +68,8 @@ class RowCountEstimator:
             other: OrderedDataFrame = args["other"]
             other_bound = other.row_count_upper_bound or other.row_count
             if other_bound is None:
-                raise ValueError(
-                    "Cannot estimate row count: other DataFrame has no row count information."
-                )
+                # Cannot estimate row count: other DataFrame has no row count information
+                return None
             return current + other_bound
 
         # Unpivot creates a new row for each value in the column list
@@ -88,9 +87,8 @@ class RowCountEstimator:
             right: OrderedDataFrame = args["right"]
             right_bound = right.row_count_upper_bound or right.row_count
             if right_bound is None:
-                raise ValueError(
-                    "Cannot estimate row count: right DataFrame has no row count information."
-                )
+                # Cannot estimate row count: other DataFrame has no row count information
+                return None
             return current * right_bound
 
         # TODO: Implement a better estimate by having cases for different align types
@@ -99,9 +97,8 @@ class RowCountEstimator:
             other_df: OrderedDataFrame = args["right"]
             other_bound = other_df.row_count_upper_bound or other_df.row_count
             if other_bound is None:
-                raise ValueError(
-                    "Cannot estimate row count: right DataFrame has no row count information."
-                )
+                # Cannot estimate row count: other DataFrame has no row count information
+                return None
             return current * other_bound
 
         # Limit sets the upper bound to n rows
