@@ -53,6 +53,12 @@ DRIVER_MAP = {
     "sqlite3": SqliteDriver,
 }
 
+UDTF_PACKAGE_MAP = {
+    DBMS_TYPE.ORACLE_DB: ["oracledb"],
+    DBMS_TYPE.SQLITE_DB: ["sqlite3"],
+    DBMS_TYPE.SQL_SERVER_DB: ["pyodbc"],
+}
+
 
 def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, str]:
     """Detects the DBMS type from a DBAPI2 connection."""

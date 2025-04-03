@@ -3,7 +3,7 @@
 #
 
 from abc import ABC, abstractmethod
-from typing import List, Callable, Any, Optional
+from typing import List, Callable, Any, Optional, Union
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
@@ -55,10 +55,29 @@ class BaseDriver(ABC):
         external_access_integrations: str,
         fetch_size: int = 1000,
     ) -> "snowflake.snowpark.DataFrame":
-        create_connection = self.create_connection
-        driver_package = type(create_connection()).__module__
+        session.udtf.register(
+            self.udtf_class_builder(fetch_size),
+            name="dbapi",
+            output_schema=StructType(
+                [
+                    StructField(field.name, StringType(), field.nullable)
+                    for field in schema.fields
+                ]
+            ),
+            external_access_integrations=[external_access_integrations],
+            packages=get_dbms_packages(self.create_connection()),
+        )
+        call_udtf_sql = f"""
+            select * from {partition_table}, table(dbapi(partition))
+            """
+        res = session.sql(call_udtf_sql)
+        cols = [res[field.name].cast(field.datatype) for field in schema.fields]
+        return res.select(cols)
 
-        class MyUDTFWithOptionalArgs:
+    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+        create_connection = self.create_connection
+
+        class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
                 cursor = conn.cursor()
@@ -69,24 +88,7 @@ class BaseDriver(ABC):
                         break
                     yield from rows
 
-        session.udtf.register(
-            MyUDTFWithOptionalArgs,
-            name="dbapi",
-            output_schema=StructType(
-                [
-                    StructField(field.name, StringType(), field.nullable)
-                    for field in schema.fields
-                ]
-            ),
-            external_access_integrations=[external_access_integrations],
-            packages=[driver_package],
-        )
-        call_udtf_sql = f"""
-            select * from {partition_table}, table(dbapi(partition))
-            """
-        res = session.sql(call_udtf_sql)
-        cols = [res[field.name].cast(field.datatype) for field in schema.fields]
-        return res.select(cols)
+        return UDTFIngestion
 
     @staticmethod
     def validate_numeric_precision_scale(
@@ -100,3 +102,13 @@ class BaseDriver(ABC):
         elif scale is not None:
             return False
         return True
+
+
+def get_dbms_packages(dbapi2_conn) -> Union[list, None]:
+    from snowflake.snowpark._internal.data_source.utils import (
+        detect_dbms,
+        UDTF_PACKAGE_MAP,
+    )
+
+    dbms_type, _ = detect_dbms(dbapi2_conn)
+    return UDTF_PACKAGE_MAP.get(dbms_type)
