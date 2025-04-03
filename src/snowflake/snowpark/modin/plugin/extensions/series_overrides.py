@@ -464,6 +464,11 @@ def __init__(
         if name is not None:
             self.name = name
         return
+    else:
+        from modin.config import context as config_context
+        with config_context(Backend="pandas"):
+            self._extensions[None]["__init__"](self, data, index, dtype, name, copy, fastpath)
+        return
 
     # A DataFrame cannot be used as an index and Snowpark pandas does not support the Categorical type yet.
     # Check that index is not a DataFrame and dtype is not "category".
