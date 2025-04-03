@@ -88,6 +88,7 @@ def test_read_snowflake_iceberg_no_relaxed_ordering_raises(session):
     ).collect()
 
     # reading an iceberg table directly fails when relaxed_ordering is disabled
+    # TODO (SNOW-2025063): Fix this issue even when relaxed_ordering is disabled
     with pytest.raises(
         SnowparkPandasException,
         match="Clone Iceberg table should use CREATE ICEBERG TABLE CLONE command",
