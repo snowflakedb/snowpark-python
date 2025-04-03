@@ -40,7 +40,8 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     #"modin @ git+https://github.com/sfc-gh-joshi/modin.git@joshi/hybrid-bugfixes",  # TODO point at main
-    "modin @ git+https://github.com/modin-project/modin.git@main",
+    "modin @ git+https://github.com/modin-project/modin.git@12f802a2d71e6c460dac633ab41f72c98c99f76c",
+    "tqdm"
 ]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
