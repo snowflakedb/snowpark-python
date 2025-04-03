@@ -4767,7 +4767,7 @@ class DataFrame:
                     "["
                     + ", ".join(
                         [
-                            cell_to_str(v, datatype.element_type or StringType)
+                            cell_to_str(v, datatype.element_type or StringType())
                             for v in cell
                         ]
                     )
@@ -4778,7 +4778,7 @@ class DataFrame:
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k, datatype.key_type or StringType)} -> {cell_to_str(v, datatype.key_type or StringType)}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
                             for k, v in sorted(cell.items())
                         ]
                     )
@@ -4789,7 +4789,7 @@ class DataFrame:
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(cell[field.name], field.datatype or StringType)}"
+                            f"{cell_to_str(cell[field.name], field.datatype or StringType())}"
                             for field in datatype.fields
                         ]
                     )
