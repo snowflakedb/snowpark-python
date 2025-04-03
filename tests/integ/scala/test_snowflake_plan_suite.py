@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col, lit, table_function
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, LongType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.utils import IS_IN_STORED_PROC, Utils
 
 if sys.version_info <= (3, 9):
@@ -432,3 +433,39 @@ def test_create_scoped_temp_table(session):
 
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_invalid_identifier_error_message(session):
+    df = session.create_dataframe([[1, 2, 3]], schema=['"abc"', '"abd"', '"def"'])
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.select("abc").collect()
+    assert "invalid identifier 'ABC'" in str(ex.value)
+    assert (
+        "There are existing quoted column identifiers: ['\"abc\"', '\"abd\"', '\"def\"']"
+        in str(ex.value)
+    )
+    assert "Do you mean '\"abc\"'?" in str(ex.value)
+
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.select("_ab").collect()
+    assert "invalid identifier '_AB'" in str(ex.value)
+    assert (
+        "There are existing quoted column identifiers: ['\"abc\"', '\"abd\"', '\"def\"']"
+        in str(ex.value)
+    )
+    assert "Do you mean '\"abd\"' or '\"abc\"'?" in str(ex.value)
+
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.select('"abC"').collect()
+    assert "invalid identifier '\"abC\"'" in str(ex.value)
+    assert (
+        "There are existing quoted column identifiers: ['\"abc\"', '\"abd\"', '\"def\"']"
+        in str(ex.value)
+    )
+    assert "Do you mean" not in str(ex.value)
+
+    df = session.create_dataframe([list(range(20))], schema=[str(i) for i in range(20)])
+    with pytest.raises(
+        SnowparkSQLException, match="There are existing quoted column identifiers:*..."
+    ) as ex:
+        df.select("20").collect()
