@@ -185,24 +185,25 @@ from snowflake.snowpark.modin.plugin._internal.align_utils import (
     align_axis_1,
 )
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS,
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
     APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
     DEFAULT_UDTF_PARTITION_SIZE,
     GroupbyApplySortMethod,
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
     check_return_variant_and_get_return_type,
     create_udf_for_series_apply,
     create_udtf_for_apply_axis_1,
     create_udtf_for_groupby_apply,
+    create_internal_frame_for_groupby_apply_no_pivot_result,
     deduce_return_type_from_function,
     get_metadata_from_groupby_apply_pivot_result_column_names,
     groupby_apply_create_internal_frame_from_final_ordered_dataframe,
     groupby_apply_pivot_result_to_final_ordered_dataframe,
     groupby_apply_sort_method,
     is_supported_snowpark_python_function,
-    sort_apply_udtf_result_columns_by_pandas_positions,
     make_series_map_snowpark_function,
-    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
-    ALL_SNOWFLAKE_CORTEX_FUNCTIONS,
+    sort_apply_udtf_result_columns_by_pandas_positions,
 )
 from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
@@ -4121,7 +4122,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             input_data_column_positions
         ]
         is_transform = groupby_kwargs.get("apply_op") == "transform"
-        udtf = create_udtf_for_groupby_apply(
+        output_schema, udtf = create_udtf_for_groupby_apply(
             agg_func,
             agg_args,
             agg_kwargs,
@@ -4147,6 +4148,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             existing_identifiers=_modin_frame.ordered_dataframe._dataframe_ref.snowflake_quoted_identifiers,
             force_list_like_to_series=force_list_like_to_series,
             is_transform=is_transform,
+            force_single_group=force_single_group,
         )
 
         new_internal_df = _modin_frame.ensure_row_position_column()
@@ -4201,7 +4203,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         |        1 |        2 | k1                   |                 14 | b                     |                  1 |
         |        0 |        0 | k0                   |                 15 | c                     |                  2 |
         """
-        if is_transform:
+        if output_schema is not None:
             x = udtf(
                 row_position_snowflake_quoted_identifier,
                 *by_snowflake_quoted_identifiers_list,
@@ -4214,30 +4216,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 order_by=row_position_snowflake_quoted_identifier,
             )
             ordered_dataframe = ordered_dataframe.select(x)
-            # output frame has the following columns in order
-            # 1. row position column
-            # 2. index columns
-            # 3. data columns (excluding by columns)
-            ids = ordered_dataframe.projected_column_snowflake_quoted_identifiers
-            data_col_labels = [
-                col for col in data_columns_index if col not in by_pandas_labels
-            ]
-            return SnowflakeQueryCompiler(
-                InternalFrame.create(
-                    ordered_dataframe=ordered_dataframe,
-                    data_column_pandas_labels=data_col_labels,
-                    data_column_pandas_index_names=_modin_frame.data_column_pandas_index_names,
-                    data_column_snowflake_quoted_identifiers=ids[
-                        1 + _modin_frame.num_index_levels() :
-                    ],
-                    index_column_pandas_labels=_modin_frame.index_column_pandas_labels,
-                    index_column_snowflake_quoted_identifiers=ids[
-                        1 : 1 + _modin_frame.num_index_levels()
-                    ],
-                    data_column_types=None,
-                    index_column_types=None,
-                )
+            num_by = len(by_snowflake_quoted_identifiers_list)
+            result_frame = create_internal_frame_for_groupby_apply_no_pivot_result(
+                _modin_frame,
+                ordered_dataframe,
+                output_schema,
+                num_by,
+                is_transform,
+                group_keys,
+                as_index,
+                sort,
             )
+            return SnowflakeQueryCompiler(result_frame)
 
         # NOTE we are keeping the cache_result for performance reasons. DO NOT
         # REMOVE the cache_result unless you can prove that doing so will not
