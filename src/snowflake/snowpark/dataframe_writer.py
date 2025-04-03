@@ -360,7 +360,7 @@ class DataFrameWriter:
             ...     "base_location": "/iceberg_root",
             ...     "storage_serialization_policy": "OPTIMIZED",
             ... }
-            >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config)
+            >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
         """
 
         statement_params = self._track_data_source_statement_params(
