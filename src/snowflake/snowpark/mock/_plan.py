@@ -369,7 +369,7 @@ def compare_intervals(
             lower_part = lower_part or 0
             upper_part = upper_part or 0
             if (lower_part + upper_part) != 0:
-                return lower_part > upper_part
+                return lower_part >= upper_part
     return True
 
 
@@ -430,7 +430,7 @@ def handle_range_frame_indexing(
             group_col = analyzer.analyze(order_spec[0].child, expr_to_alias)
             lower, upper = range_bounds
             if isinstance(types[group_col].datatype, (DateType, TimestampType)):
-                # Intervals are handled by applying adding the interval to the window and then
+                # Intervals are handled by adding the interval to the window and then
                 # comparing to the current rows value. Normally the interval would be applied to
                 # the value rather than the window data, but it's more efficient to do it this way.
                 # Therefore intervals are expected to be passed negated.

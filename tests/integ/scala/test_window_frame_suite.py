@@ -477,6 +477,12 @@ def test_range_between_timestamp(session, local_testing_mode):
     df_count = df.select(count("a").over(window))
     Utils.check_answer(df_count, [Row(2), Row(3), Row(3), Row(2)])
 
+    window = Window.order_by(col("a")).range_between(
+        make_interval(hours=1), make_interval(hours=1)
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(0), Row(1), Row(1), Row(1)])
+
     window = Window.order_by(col("a")).range_between(make_interval(hours=1), 3)
     with pytest.raises(
         SnowparkSQLException,
