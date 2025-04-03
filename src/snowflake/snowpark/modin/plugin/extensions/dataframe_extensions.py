@@ -8,7 +8,7 @@ as `DataFrame.to_snowflake`.
 """
 
 from collections.abc import Iterable
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import modin.pandas as pd
 import pandas
@@ -308,9 +308,9 @@ def create_or_replace_dynamic_table(
     is_transient: bool = False,
     data_retention_time: Optional[int] = None,
     max_data_extension_time: Optional[int] = None,
-    statement_params: Optional[Dict[str, str]] = None,
     iceberg_config: Optional[dict] = None,
-    _emit_ast: bool = True,
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
     Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -354,13 +354,18 @@ def create_or_replace_dynamic_table(
             - base_location: the base directory that snowflake can write iceberg metadata and files to.
             - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
             - storage_serialization_policy: specifies the storage serialization policy for the table.
+        index: default True
+            If true, save DataFrame index columns as table columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
 
 
     Note:
         See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
         for more details on refresh mode.
     """
-    return self.to_snowpark().create_or_replace_dynamic_table(
+    return self._query_compiler.create_or_replace_dynamic_table(
         name=name,
         warehouse=warehouse,
         lag=lag,
@@ -372,6 +377,7 @@ def create_or_replace_dynamic_table(
         is_transient=is_transient,
         data_retention_time=data_retention_time,
         max_data_extension_time=max_data_extension_time,
-        statement_params=statement_params,
         iceberg_config=iceberg_config,
+        index=index,
+        index_label=index_label,
     )
