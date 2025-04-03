@@ -202,17 +202,17 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
 # Apply telemetry to all top-level functions in the pd namespace.
 
 
-for attr_name in dir(modin.pandas):
-    attr_value = getattr(modin.pandas, attr_name)
-    # Do not add telemetry to any method that is mirrored from native pandas
-    if (
-        inspect.isfunction(attr_value)
-        and not attr_name.startswith("_")
-        and attr_value is not getattr(pandas, attr_name, None)
-    ):
-        register_pd_accessor(attr_name)(
-            snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
-        )
+# for attr_name in dir(modin.pandas):
+#     attr_value = getattr(modin.pandas, attr_name)
+#     # Do not add telemetry to any method that is mirrored from native pandas
+#     if (
+#         inspect.isfunction(attr_value)
+#         and not attr_name.startswith("_")
+#         and attr_value is not getattr(pandas, attr_name, None)
+#     ):
+#         register_pd_accessor(attr_name)(
+#             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
+#         )
 
 # === SESSION INITIALIZATION ===
 # Make SnowpandasSessionHolder the __class__ of modin.pandas so that we can make
