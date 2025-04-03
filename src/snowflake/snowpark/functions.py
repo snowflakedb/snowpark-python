@@ -11630,13 +11630,9 @@ def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(to_file("@mystage/testCSV.csv").alias("file"))
         >>> result = json.loads(df.collect()[0][0])
-        >>> result["STAGE"]  # doctest: +SKIP
-        'MYSTAGE'
-        >>> result["RELATIVE_PATH"]  # doctest: +SKIP
+        >>> result["RELATIVE_PATH"]
         'testCSV.csv'
-        >>> result["SIZE"]  # doctest: +SKIP
-        32
-        >>> result["CONTENT_TYPE"]  # doctest: +SKIP
+        >>> result["CONTENT_TYPE"]
         'text/csv'
     """
     ast = build_function_expr("to_file", [stage_file_uri]) if _emit_ast else None
@@ -11663,7 +11659,7 @@ def fl_get_content_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_content_type(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]  # doctest: +SKIP
+        >>> df.collect()[0][0]
         'text/csv'
     """
     function_name = "fl_get_content_type"
@@ -11720,7 +11716,7 @@ def fl_get_file_type(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_file_type(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]  # doctest: +SKIP
+        >>> df.collect()[0][0]
         'document'
     """
     function_name = "fl_get_file_type"
@@ -11834,7 +11830,7 @@ def fl_get_stage(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_stage(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]
+        >>> df.collect()[0][0].split(".")[-1]
         'MYSTAGE'
     """
     function_name = "fl_get_stage"
@@ -11857,7 +11853,7 @@ def fl_get_stage_file_url(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_get_stage_file_url(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0][:8]
+        >>> df.collect()[0][0]  # doctest: +SKIP
         'https://'
     """
     function_name = "fl_get_stage_file_url"

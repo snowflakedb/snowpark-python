@@ -12,6 +12,12 @@
 
 - Deprecated support for Python3.8.
 
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
+
 ## 1.30.0 (2024-03-27)
 
 ### Snowpark Python API Updates
