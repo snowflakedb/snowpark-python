@@ -12,6 +12,12 @@
 
 - Deprecated support for Python3.8.
 
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for Interval experssion to `Window.range_between`.
+
 ### Snowpark pandas API Updates
 
 #### Improvements
