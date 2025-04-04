@@ -557,13 +557,7 @@ class Session:
         conn: Union[ServerConnection, MockServerConnection, NopConnection],
         options: Optional[Dict[str, Any]] = None,
     ) -> None:
-        if (
-            len(_active_sessions) >= 1
-            and is_in_stored_procedure()
-            and not conn._get_client_side_session_parameter(
-                "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
-            )
-        ):
+        if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
         self._query_tag = None
