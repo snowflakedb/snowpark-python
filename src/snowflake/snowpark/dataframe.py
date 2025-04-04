@@ -4753,7 +4753,7 @@ class DataFrame:
             result = []
             _spark_column_names = []
 
-        def cell_to_str(cell: Any, datatype: DataType = StringType) -> str:
+        def cell_to_str(cell: Any, datatype: DataType) -> str:
             # Special handling for cell printing in Spark
             # TODO: this operation can be pushed down to Snowflake for execution.
             if cell is None:
