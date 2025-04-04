@@ -4493,48 +4493,54 @@ def test_drop_columns_special_names(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="TODO: Interval Expression is not supported in Local Testing",
-)
 def test_dataframe_interval_operation(session):
     df = session.create_dataframe(
         [
-            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
-            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+            [datetime.datetime(2010, 1, 1)],
+            [datetime.datetime(2012, 1, 1)],
         ],
-        schema=["a", "b"],
+        schema=["a"],
     )
-    df2 = df.with_column(
-        "TWO_DAYS_AHEAD",
-        df["a"]
-        + make_interval(
-            years=1,
-            quarters=1,
-            months=1,
-            weeks=2,
-            days=2,
-            hours=2,
-            minutes=3,
-            seconds=3,
-            milliseconds=3,
-            microseconds=4,
-            nanoseconds=4,
-        ),
+    interval = make_interval(
+        years=1,
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+        microseconds=4,
+        nanoseconds=4,
     )
     Utils.check_answer(
-        df2,
+        df.select(df.a + interval),
         [
             Row(
-                datetime.datetime(2010, 1, 1, 0, 0, 0),
-                datetime.datetime(2011, 1, 1, 0, 0, 0),
                 datetime.datetime(2011, 5, 17, 2, 3, 3, 3004),
             ),
             Row(
-                datetime.datetime(2012, 1, 1, 0, 0, 0),
-                datetime.datetime(2013, 1, 1, 0, 0, 0),
                 datetime.datetime(2013, 5, 17, 2, 3, 3, 3004),
             ),
+        ],
+    )
+    interval = make_interval(
+        years=1,
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+    )
+    Utils.check_answer(
+        df.select(df.a - interval),
+        [
+            Row(datetime.datetime(2008, 8, 15, 21, 56, 56, 997000)),
+            Row(datetime.datetime(2010, 8, 15, 21, 56, 56, 997000)),
         ],
     )
 
