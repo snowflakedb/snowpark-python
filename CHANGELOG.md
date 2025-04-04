@@ -12,6 +12,12 @@
 
 - Deprecated support for Python3.8.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in local testing that created incorrect result for `Column.like` calls.
+
 ### Snowpark pandas API Updates
 
 #### Improvements
