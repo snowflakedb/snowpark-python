@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added parameter `batch_size` to `DataFrameReader.dbapi` (PrPr) for batching fetched data into a single Parquet file.
+
 #### Bug Fixes
 
 - Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
