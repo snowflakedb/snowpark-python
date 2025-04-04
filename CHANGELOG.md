@@ -20,6 +20,10 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
+
 #### Improvements
 
 - Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
