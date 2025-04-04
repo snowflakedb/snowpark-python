@@ -20,6 +20,10 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added support for `DataFrame.to_view` and `Series.to_view`.
+
 #### Improvements
 
 - Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
