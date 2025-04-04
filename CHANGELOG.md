@@ -8,6 +8,10 @@
 
 - Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
 
+#### Bug Fixes
+
+- Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
+
 #### Deprecations
 
 - Deprecated support for Python3.8.
