@@ -8,7 +8,7 @@ as `Series.to_snowflake`.
 """
 
 from collections.abc import Iterable
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import modin.pandas as pd
 import pandas
@@ -20,7 +20,6 @@ from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_do
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
-from snowflake.snowpark.row import Row
 
 
 @register_series_accessor("_set_axis_name")
@@ -243,34 +242,3 @@ def cache_result(self, inplace: bool = False) -> Optional[pd.Series]:
         self._update_inplace(new_qc)
     else:
         return pd.Series(query_compiler=new_qc)
-
-
-@register_series_accessor("create_or_replace_view")
-def create_or_replace_view(
-    self,
-    name: Union[str, Iterable[str]],
-    *,
-    comment: Optional[str] = None,
-    statement_params: Optional[Dict[str, str]] = None,
-) -> List[Row]:
-    """
-    Creates a view that captures the computation expressed by this Series.
-
-    For ``name``, you can include the database and schema name (i.e. specify a
-    fully-qualified name). If no database name or schema name are specified, the
-    view will be created in the current database or schema.
-
-    ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
-
-    Args:
-        name: The name of the view to create or replace. Can be a list of strings
-            that specifies the database name, schema name, and view name.
-        comment: Adds a comment for the created view. See
-            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
-        statement_params: Dictionary of statement level parameters to be set while executing this action.
-    """
-    return self.to_snowpark().create_or_replace_view(
-        name=name,
-        comment=comment,
-        statement_params=statement_params,
-    )

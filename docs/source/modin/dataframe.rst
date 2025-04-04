@@ -38,7 +38,6 @@ DataFrame
     DataFrame.to_snowflake
     DataFrame.to_snowpark
     DataFrame.cache_result
-    DataFrame.create_or_replace_view
 
 .. rubric:: Conversion
 
