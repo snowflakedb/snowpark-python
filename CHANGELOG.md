@@ -4,9 +4,19 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
+
 #### Deprecations
 
 - Deprecated support for Python3.8.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for Interval experssion to `Window.range_between`.
 
 ### Snowpark pandas API Updates
 
