@@ -25,6 +25,10 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
+- Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
+
 #### Improvements
 
 - Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
@@ -73,8 +77,6 @@
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
 - Added support for relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources by introducing the new parameter `relaxed_ordering`.
-- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
-- Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
 
 #### Improvements
 
