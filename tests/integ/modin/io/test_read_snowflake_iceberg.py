@@ -16,7 +16,7 @@ from tests.utils import Utils
 
 
 @sql_count_checker(query_count=5)
-def test_read_snowflake_iceberg_relaxed_ordering(session):
+def test_read_snowflake_iceberg_enforce_ordering(session):
     # create iceberg table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.sql(
@@ -41,8 +41,8 @@ def test_read_snowflake_iceberg_relaxed_ordering(session):
 
     # create dataframe directly from iceberg table
     with SqlCounter(query_count=1):
-        # Only one query is used when relaxed_ordering is enabled
-        df = pd.read_snowflake(table_name, relaxed_ordering=True)
+        # Only one query is used when enforce_ordering is disabled
+        df = pd.read_snowflake(table_name, enforce_ordering=False)
 
     # convert to pandas dataframe
     pdf = df.to_pandas()
@@ -53,8 +53,8 @@ def test_read_snowflake_iceberg_relaxed_ordering(session):
     # create dataframe from a query referencing an iceberg table
     SQL_QUERY = f"""SELECT count(*) FROM {table_name}"""
     with SqlCounter(query_count=1):
-        # Only one query is used when relaxed_ordering is enabled
-        df = pd.read_snowflake(SQL_QUERY, relaxed_ordering=True)
+        # Only one query is used when enforce_ordering is disabled
+        df = pd.read_snowflake(SQL_QUERY, enforce_ordering=False)
 
     # convert to pandas dataframe
     pdf = df.to_pandas()
@@ -64,7 +64,7 @@ def test_read_snowflake_iceberg_relaxed_ordering(session):
 
 
 @sql_count_checker(query_count=1)
-def test_read_snowflake_iceberg_no_relaxed_ordering_raises(session):
+def test_read_snowflake_iceberg_no_enforce_ordering_raises(session):
     # create iceberg table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.sql(
@@ -87,18 +87,18 @@ def test_read_snowflake_iceberg_no_relaxed_ordering_raises(session):
     """
     ).collect()
 
-    # reading an iceberg table directly fails when relaxed_ordering is disabled
-    # TODO (SNOW-2025063): Fix this issue even when relaxed_ordering is disabled
+    # reading an iceberg table directly fails when enforce_ordering is enabled
+    # TODO (SNOW-2025063): Fix this issue even when enforce_ordering is enabled
     with pytest.raises(
         SnowparkPandasException,
         match="Clone Iceberg table should use CREATE ICEBERG TABLE CLONE command",
     ):
-        pd.read_snowflake(table_name, relaxed_ordering=False)
+        pd.read_snowflake(table_name, enforce_ordering=True)
 
-    # reading an iceberg table indirectly via a query fails when relaxed_ordering is disabled
+    # reading an iceberg table indirectly via a query fails when enforce_ordering is enabled
     SQL_QUERY = f"""SELECT count(*) FROM {table_name}"""
     with pytest.raises(
         SnowparkPandasException,
         match="Clone Iceberg table should use CREATE ICEBERG TABLE CLONE command",
     ):
-        pd.read_snowflake(SQL_QUERY, relaxed_ordering=False)
+        pd.read_snowflake(SQL_QUERY, enforce_ordering=True)

@@ -39,7 +39,7 @@ def read_snowflake(
     name_or_query: Union[str, Iterable[str]],
     index_col: Union[str, list[str], None] = None,
     columns: Optional[list[str]] = None,
-    relaxed_ordering: bool = False,
+    enforce_ordering: bool = False,
 ) -> DataFrame:
     """
     Read a Snowflake table or SQL Query to a Snowpark pandas DataFrame.
@@ -52,8 +52,8 @@ def read_snowflake(
             A column name or a list of column names to use as index.
         columns:
             A list of column names to select from the table. If not specified, select all columns.
-        relaxed_ordering:
-            If True, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
+        enforce_ordering:
+            If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
             DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. See the Notes
             section for more details.
 
@@ -73,7 +73,7 @@ def read_snowflake(
 
         Snowpark pandas provides two modes of consistency and ordering semantics.
 
-        * When `relaxed_ordering` is set to True, Snowpark pandas provides relaxed consistency and ordering guarantees. In particular, the returned DataFrame object will be
+        * When `enforce_ordering` is set to False, Snowpark pandas provides relaxed consistency and ordering guarantees. In particular, the returned DataFrame object will be
           directly based on the source given by `name_or_query`. Consistency and isolation guarantees are relaxed in this case because any changes that happen to the source will be reflected in the
           DataFrame object returned by `pd.read_snowflake`.
 
@@ -87,7 +87,7 @@ def read_snowflake(
           Note that when `name_or_query` is a query with an ORDER BY clause, this will only guarantee that the immediate results of the input query are sorted. But it still gives no guarantees
           on the order of the final results (after applying a sequence of pandas operations to those initial results).
 
-        * When `relaxed_ordering` is set to False, Snowpark pandas provides the same consistency and ordering guarantees for `read_snowflake` as if local files were read.
+        * When `enforce_ordering` is set to True, Snowpark pandas provides the same consistency and ordering guarantees for `read_snowflake` as if local files were read.
           For example, calling `df.head(5)` two consecutive times is guaranteed to result in the exact same set of 5 rows each time and with the same ordering.
           Depending on the type of source, `pd.read_snowflake` will do one of the following
           at the time of calling `pd.read_snowflake`:
@@ -391,7 +391,7 @@ def read_snowflake(
             name_or_query,
             index_col=index_col,
             columns=columns,
-            relaxed_ordering=relaxed_ordering,
+            enforce_ordering=enforce_ordering,
         )
     )
 
