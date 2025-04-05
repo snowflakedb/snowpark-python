@@ -13,8 +13,8 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.utils import experimental, publicapi
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
+    _call_function,
     add_months,
-    builtin,
     col,
     dateadd,
     from_unixtime,
@@ -262,9 +262,9 @@ class DataFrameAnalyticsFunctions:
                     if col_formatter
                     else f"{column}_{func}{rename_suffix}"
                 )
-                agg_expression = builtin(func)(col(column + rename_suffix)).alias(
-                    agg_column_name
-                )
+                agg_expression = _call_function(
+                    func, col(column + rename_suffix, _emit_ast=False), _emit_ast=False
+                ).alias(agg_column_name, _emit_ast=False)
                 agg_df = input_df.group_by(group_by_cols, _emit_ast=False).agg(
                     agg_expression, _emit_ast=False
                 )
@@ -369,7 +369,9 @@ class DataFrameAnalyticsFunctions:
                     )
 
                     # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
-                    agg_col = builtin(agg_func)(col(column)).over(window_spec)
+                    agg_col = _call_function(
+                        agg_func, col(column, _emit_ast=False), _emit_ast=False
+                    ).over(window_spec, _emit_ast=False)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
                     if (
@@ -479,7 +481,9 @@ class DataFrameAnalyticsFunctions:
         for column, agg_funcs in aggs.items():
             for agg_func in agg_funcs:
                 # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
-                agg_col = builtin(agg_func)(col(column)).over(window_spec)
+                agg_col = _call_function(
+                    agg_func, col(column, _emit_ast=False), _emit_ast=False
+                ).over(window_spec, _emit_ast=False)
 
                 formatted_col_name = col_formatter(column, agg_func)
 

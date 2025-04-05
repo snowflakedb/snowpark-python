@@ -362,9 +362,9 @@ df27 = df.select(bitshiftright("A", col("B")), bitshiftright("A", -10), bitshift
 
 df28 = df.select(bround("A", 10), bround("A", 2), bround(col("A"), col("B")))
 
-df29 = df.select(convert_timezone("A", col("B"), None), convert_timezone(col("A"), "B", None), convert_timezone("A", "B", None), convert_timezone(col("A"), col("B"), None), convert_timezone("A", "B", None), convert_timezone("A", "B", "A"))
+df29 = df.select(convert_timezone("A", col("B")), convert_timezone(col("A"), "B"), convert_timezone("A", "B"), convert_timezone(col("A"), col("B")), convert_timezone("A", "B"), convert_timezone("A", "B", "A"))
 
-df30 = df.select(convert_timezone(lit("UTC"), col("a"), None), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
+df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
 
 df31 = df.select(approx_count_distinct("A"), approx_count_distinct(col("A")))
 
@@ -452,7 +452,7 @@ df72 = df.select(seq8(324))
 
 df73 = df.select(to_decimal("A", 10, 3), to_decimal(col("B"), 12, 3))
 
-df74 = df.select(to_double(col("A"), None), to_double("A", None), to_double("A", "999.9"), to_double(col("A"), col("B")))
+df74 = df.select(to_double(col("A")), to_double("A"), to_double("A", "999.9"), to_double(col("A"), col("B")))
 
 df75 = df.select(div0(0, 1), div0(1.2, 9.3), div0(10, 89.2), div0("A", 1), div0(0.2, "A"), div0(0.3, col("B")))
 
@@ -554,7 +554,7 @@ df123 = df111.select(regexp_replace("A", "B", "", 1, 0), regexp_replace(col("A")
 
 df124 = df111.select(replace(col("A"), "", ""), replace("A", "B", "ahsgj"))
 
-df125 = df111.select(charindex(col("A"), col("B"), None), charindex("A", "B", None), charindex("A", "B", 20), charindex("A", "B", col("C")))
+df125 = df111.select(charindex(col("A"), col("B")), charindex("A", "B"), charindex("A", "B", 20), charindex("A", "B", col("C")))
 
 df126 = df111.select(collate(col("A"), "sp-upper"))
 
@@ -580,7 +580,7 @@ df136 = df111.select(right("A", col("B")), right(col("A"), 10))
 
 df137 = df111.select(char("A"))
 
-df138 = df111.select(to_char("A", None), to_char(col("B"), None), to_char("A", "bcd"))
+df138 = df111.select(to_char("A"), to_char(col("B")), to_char("A", "bcd"))
 
 df139 = df111.select(date_format(col("A"), col("B")), date_format("A", "YYYY"))
 
@@ -588,11 +588,11 @@ df140 = df111.select(to_time("A"), to_time("A", "YYYY"), to_time(col("A"), col("
 
 df141 = df111.select(to_timestamp("A"), to_timestamp("C"), to_timestamp(col("A"), col("B")))
 
-df142 = df111.select(to_timestamp_ntz("A", None), to_timestamp_ntz(col("A"), None), to_timestamp_ntz("A", "auto"), to_timestamp_ntz(col("A"), col("B")))
+df142 = df111.select(to_timestamp_ntz("A"), to_timestamp_ntz(col("A")), to_timestamp_ntz("A", "auto"), to_timestamp_ntz(col("A"), col("B")))
 
-df143 = df111.select(to_timestamp_ltz("A", None), to_timestamp_ltz(col("A"), None), to_timestamp_ltz("A", "auto"), to_timestamp_ltz(col("A"), col("B")))
+df143 = df111.select(to_timestamp_ltz("A"), to_timestamp_ltz(col("A")), to_timestamp_ltz("A", "auto"), to_timestamp_ltz(col("A"), col("B")))
 
-df144 = df111.select(to_timestamp_tz("A", None), to_timestamp_tz(col("A"), None), to_timestamp_tz("A", "auto"), to_timestamp_tz(col("A"), col("B")))
+df144 = df111.select(to_timestamp_tz("A"), to_timestamp_tz(col("A")), to_timestamp_tz("A", "auto"), to_timestamp_tz(col("A"), col("B")))
 
 df145 = df111.select(from_utc_timestamp("A", lit(1234)), from_utc_timestamp(col("A"), col("B")))
 
@@ -600,7 +600,7 @@ df146 = df111.select(to_utc_timestamp("A", lit(1234)), to_utc_timestamp(col("A")
 
 df147 = df111.select(to_date("A"), to_date("A", col("A")), to_date(col("A")))
 
-df148 = df111.select(system_reference("table", "table1", "CALL", []))
+df148 = df111.select(system_reference("table", "table1", "CALL"))
 
 df149 = df111.select(to_boolean("A"), to_boolean(col("A")))
 
@@ -3327,17 +3327,6 @@ body {
                   }
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 56
-                    end_line: 85
-                    file: 2
-                    start_column: 25
-                    start_line: 85
-                  }
-                }
-              }
               src {
                 end_column: 56
                 end_line: 85
@@ -3406,17 +3395,6 @@ body {
                   v: "B"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 89
-                    end_line: 85
-                    file: 2
-                    start_column: 58
-                    start_line: 85
-                  }
-                }
-              }
               src {
                 end_column: 89
                 end_line: 85
@@ -3461,17 +3439,6 @@ body {
                     start_line: 85
                   }
                   v: "B"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 117
-                    end_line: 85
-                    file: 2
-                    start_column: 91
-                    start_line: 85
-                  }
                 }
               }
               src {
@@ -3564,17 +3531,6 @@ body {
                   }
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 155
-                    end_line: 85
-                    file: 2
-                    start_column: 119
-                    start_line: 85
-                  }
-                }
-              }
               src {
                 end_column: 155
                 end_line: 85
@@ -3619,17 +3575,6 @@ body {
                     start_line: 85
                   }
                   v: "B"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 187
-                    end_line: 85
-                    file: 2
-                    start_column: 157
-                    start_line: 85
-                  }
                 }
               }
               src {
@@ -3804,17 +3749,6 @@ body {
                     end_line: 87
                     file: 2
                     start_column: 54
-                    start_line: 87
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 63
-                    end_line: 87
-                    file: 2
-                    start_column: 25
                     start_line: 87
                   }
                 }
@@ -7901,17 +7835,6 @@ body {
                   }
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 44
-                    end_line: 175
-                    file: 2
-                    start_column: 25
-                    start_line: 175
-                  }
-                }
-              }
               src {
                 end_column: 44
                 end_line: 175
@@ -7944,17 +7867,6 @@ body {
                     start_line: 175
                   }
                   v: "A"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 66
-                    end_line: 175
-                    file: 2
-                    start_column: 46
-                    start_line: 175
-                  }
                 }
               }
               src {
@@ -14949,17 +14861,6 @@ body {
                   }
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 55
-                    end_line: 277
-                    file: 2
-                    start_column: 26
-                    start_line: 277
-                  }
-                }
-              }
               src {
                 end_column: 55
                 end_line: 277
@@ -15004,17 +14905,6 @@ body {
                     start_line: 277
                   }
                   v: "B"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 82
-                    end_line: 277
-                    file: 2
-                    start_column: 57
-                    start_line: 277
-                  }
                 }
               }
               src {
@@ -16691,17 +16581,6 @@ body {
                   v: "A"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 38
-                    end_line: 303
-                    file: 2
-                    start_column: 26
-                    start_line: 303
-                  }
-                }
-              }
               src {
                 end_column: 38
                 end_line: 303
@@ -16754,17 +16633,6 @@ body {
                     end_line: 303
                     file: 2
                     start_column: 48
-                    start_line: 303
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 63
-                    end_line: 303
-                    file: 2
-                    start_column: 40
                     start_line: 303
                   }
                 }
@@ -17425,17 +17293,6 @@ body {
                   v: "A"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 47
-                    end_line: 311
-                    file: 2
-                    start_column: 26
-                    start_line: 311
-                  }
-                }
-              }
               src {
                 end_column: 47
                 end_line: 311
@@ -17488,17 +17345,6 @@ body {
                     end_line: 311
                     file: 2
                     start_column: 66
-                    start_line: 311
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 81
-                    end_line: 311
-                    file: 2
-                    start_column: 49
                     start_line: 311
                   }
                 }
@@ -17701,17 +17547,6 @@ body {
                   v: "A"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 47
-                    end_line: 313
-                    file: 2
-                    start_column: 26
-                    start_line: 313
-                  }
-                }
-              }
               src {
                 end_column: 47
                 end_line: 313
@@ -17764,17 +17599,6 @@ body {
                     end_line: 313
                     file: 2
                     start_column: 66
-                    start_line: 313
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 81
-                    end_line: 313
-                    file: 2
-                    start_column: 49
                     start_line: 313
                   }
                 }
@@ -17977,17 +17801,6 @@ body {
                   v: "A"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 46
-                    end_line: 315
-                    file: 2
-                    start_column: 26
-                    start_line: 315
-                  }
-                }
-              }
               src {
                 end_column: 46
                 end_line: 315
@@ -18040,17 +17853,6 @@ body {
                     end_line: 315
                     file: 2
                     start_column: 64
-                    start_line: 315
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 79
-                    end_line: 315
-                    file: 2
-                    start_column: 48
                     start_line: 315
                   }
                 }
@@ -18833,17 +18635,6 @@ body {
                     start_line: 323
                   }
                   v: "CALL"
-                }
-              }
-              pos_args {
-                list_val {
-                  src {
-                    end_column: 61
-                    end_line: 323
-                    file: 2
-                    start_column: 26
-                    start_line: 323
-                  }
                 }
               }
               src {
