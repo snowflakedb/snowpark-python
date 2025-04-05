@@ -13,7 +13,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
-from snowflake.connector.options import pandas as pd
 import logging
 
 logger = logging.getLogger(__name__)
@@ -70,6 +69,8 @@ class DataSourceReader:
     def data_source_data_to_pandas_df(
         data: List[Any], schema: StructType
     ) -> "pd.DataFrame":
+        from snowflake.connector.options import pandas as pd
+
         columns = [col.name for col in schema.fields]
         # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
