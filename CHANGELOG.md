@@ -2,6 +2,12 @@
 
 ## 1.31.0 (YYYY-MM-DD)
 
+### Snowpark pandas API Updates
+
+### Improvements
+
+- Added estimate for row count upper bound to `OrderedDataFrame`.
+
 ### Snowpark Python API Updates
 
 #### New Features
