@@ -563,6 +563,10 @@ def test_telemetry_repr():
     ]
 
 
+@pytest.mark.skipif(
+    "config.getoption('disable_sql_simplifier', default=False)",
+    reason="SNOW-1893699: Test failing on github with sql simplifier disabled.",
+)
 @sql_count_checker(query_count=6, join_count=4)
 def test_telemetry_interchange_call_count():
     s = pd.DataFrame([1, 2, 3, 4])
@@ -604,11 +608,11 @@ def test_telemetry_interchange_call_count():
     assert telemetry_data[5]["call_count"] == 2
 
 
+@pytest.mark.skipif(
+    "config.getoption('disable_sql_simplifier', default=False)",
+    reason="SNOW-1893699: Test failing on github with sql simplifier disabled.",
+)
 def test_telemetry_func_call_count(session):
-    # TODO (SNOW-1893699): test failing on github with sql simplifier disabled.
-    #   Turn this back on once fixed.
-    if session.sql_simplifier_enabled is False:
-        return
 
     with SqlCounter(query_count=4):
         s = pd.DataFrame([1, 2, np.nan, 4])
@@ -643,6 +647,10 @@ def test_telemetry_func_call_count(session):
         assert telemetry_data[-1]["call_count"] == 1
 
 
+@pytest.mark.skipif(
+    "config.getoption('disable_sql_simplifier', default=False)",
+    reason="SNOW-1893699: Test failing on github with sql simplifier disabled.",
+)
 @sql_count_checker(query_count=3)
 def test_telemetry_multiple_func_call_count():
     s = pd.DataFrame([1, 2, np.nan, 4])
@@ -672,6 +680,8 @@ def test_telemetry_multiple_func_call_count():
         and _get_data(call)["func_name"] == "DataFrame.__dataframe__"
     ]
 
+    assert len(repr_telemetry_data) == 2
+    assert len(dataframe_telemetry_data) == 1
     # last call from telemetry data
     # s called __repr__() 2 times.
     assert repr_telemetry_data[-1]["call_count"] == 2
