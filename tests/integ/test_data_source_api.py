@@ -92,6 +92,7 @@ pytestmark = [
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
+ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integration"
 
 
 def test_dbapi_with_temp_table(session):
@@ -795,3 +796,26 @@ def test_oracledb_driver_coverage(caplog):
         [OracleDBType("NUMBER_COL", oracledb.DB_TYPE_NUMBER, 40, 2, True)]
     )
     assert "Snowpark does not support column" in caplog.text
+
+
+def test_udtf_ingestion_oracledb(session):
+    from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
+
+    def create_connection_oracledb():
+        import oracledb
+
+        host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+        port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+        service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+        username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+        password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+        dsn = f"{host}:{port}/{service_name}"
+        connection = oracledb.connect(user=username, password=password, dsn=dsn)
+        return connection
+
+    df = session.read.dbapi(
+        create_connection_oracledb,
+        table="ALL_TYPE_TABLE",
+        external_access_integration=ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+    )
+    df.show()
