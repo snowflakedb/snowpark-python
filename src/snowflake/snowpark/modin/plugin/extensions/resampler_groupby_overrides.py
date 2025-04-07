@@ -26,6 +26,7 @@
 from typing import Any, Callable, Optional, Union
 
 import modin.pandas as pd
+from modin.pandas.api.extensions import register_series_accessor
 import pandas
 import pandas.core.resample
 from pandas._libs import lib
@@ -33,7 +34,10 @@ from pandas._libs.lib import no_default
 from pandas._typing import AggFuncType, T, AnyArrayLike
 
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
-from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+from snowflake.snowpark.modin.plugin.utils.error_message import (
+    ErrorMessage,
+    series_not_implemented,
+)
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     _inherit_docstrings,
@@ -83,7 +87,6 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         self.groupby_kwargs = {
             "by": by,
         }
-        # self.__groups = self._get_groups()
 
     def _method_not_implemented(self, method: str):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
@@ -91,7 +94,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
             f"Method {method} is not implemented for GroupbyResampler!"
         )
 
-    def _validate_numeric_only_for_aggregate_methods(self, numeric_only):
+    def _series_not_implemented(self):
         """
         When the caller object is Series (ndim == 1), it is not valid to call aggregation
         method with numeric_only = True.
@@ -101,10 +104,12 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         if self._dataframe.ndim == 1:
-            if numeric_only and numeric_only is not lib.no_default:
-                raise ErrorMessage.not_implemented(
-                    "Series GroupbyResampler does not implement numeric_only."
-                )
+            raise ErrorMessage.not_implemented(
+                "Series GroupbyResampler is not yet implemented."
+            )
+        func = series_not_implemented()(self.__class__)
+        register_series_accessor(self.__class__.__name__)(func)
+        return func
 
     def _get_groups(self):
         """
@@ -240,7 +245,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("resample_max", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
@@ -264,7 +269,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("resample_mean", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only)
@@ -288,7 +293,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("resample_median", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only)
@@ -313,7 +318,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("resample_min", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
@@ -376,7 +381,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
-        self._validate_numeric_only_for_aggregate_methods(numeric_only)
+        self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("resample_sum", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)

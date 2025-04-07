@@ -4869,8 +4869,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # 5 2000-01-01 00:00:00  1  2
             #   2000-01-01 00:06:00  1  2
         frame = qc._modin_frame
+        datetime_index_col_identifier = resampled_quoted_ids[0]
         resampled_frame_all_bins = fill_missing_groupby_resample_bins_for_frame(
-            frame, rule, by_list
+            frame, rule, by_list, datetime_index_col_identifier
         )
         if resample_method in ("sum", "count", "size", "nunique"):
             values_arg: Union[int, dict]

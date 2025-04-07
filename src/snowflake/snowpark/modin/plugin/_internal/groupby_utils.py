@@ -883,7 +883,7 @@ def make_groupby_rank_col_for_method(
 
 
 def fill_missing_groupby_resample_bins_for_frame(
-    frame: InternalFrame, rule: str, by_list: list
+    frame: InternalFrame, rule: str, by_list: list, datetime_index_col_identifier: str
 ) -> InternalFrame:
     """
     Returns a new InternalFrame created using 2 rules.
@@ -934,35 +934,43 @@ def fill_missing_groupby_resample_bins_for_frame(
         SnowflakeQueryCompiler,
     )
 
-    by_labels = by_list[0]
-    unique_by_vals = frame.index_columns_pandas_index().unique(by_labels).to_list()
+    unique_by_idx_vals = (
+        frame.index_columns_pandas_index().droplevel("index").unique().to_list()
+    )
     subframes = {}
     sub_qcs = []
-    for value in unique_by_vals:
-        subframes[value] = frame.filter(
-            f"{frame.index_column_snowflake_quoted_identifiers[0]} = {value}"
-        )
+
+    for value in unique_by_idx_vals:
+
+        col_list = [
+            col(frame.index_column_snowflake_quoted_identifiers[i])
+            == pandas_lit(value[i])
+            for i in range(len(by_list))
+        ]
+        filter_cond = functools.reduce(lambda x, y: x & y, col_list)
+        subframes[value] = frame.filter(filter_cond)
         start_date, end_date = compute_resample_start_and_end_date(
             subframes[value],
-            frame.index_column_snowflake_quoted_identifiers[1],
+            datetime_index_col_identifier,
             rule,
         )
         expected_resample_bins_sub_frame = get_expected_resample_bins_frame(
             rule, start_date, end_date
         )
 
-        new_index_column_name = "a"
-        expected_resample_bins_sub_frame = (
-            expected_resample_bins_sub_frame.append_column(
-                new_index_column_name, pandas_lit(value)
+        for i in range(len(by_list)):
+            expected_resample_bins_sub_frame = (
+                expected_resample_bins_sub_frame.append_column(
+                    by_list[i], pandas_lit(value[i])
+                )
             )
-        )
+
         qc_subframe = SnowflakeQueryCompiler(
             expected_resample_bins_sub_frame
         ).reset_index()
-        new_idx_labels = [
-            new_index_column_name
-        ] + expected_resample_bins_sub_frame.index_column_pandas_labels
+        new_idx_labels = (
+            by_list + expected_resample_bins_sub_frame.index_column_pandas_labels
+        )
         new_idx_qc = qc_subframe.set_index(new_idx_labels)
 
         sub_qcs.append(new_idx_qc)
