@@ -83,7 +83,7 @@ def test_groupby_resample_by_b(freq, interval, agg_func):
 @freq
 @interval
 @agg_func
-def test_groupby_resample_multiple_by(freq, interval, agg_func):
+def test_groupby_resample_multiple_by_cols(freq, interval, agg_func):
     idx = native_pd.date_range("1/1/2000", periods=8, freq="min")
     pandas_df = native_pd.DataFrame(
         data=8 * [range(3)], index=idx, columns=["a", "b", "c"]
@@ -112,14 +112,24 @@ def test_groupby_resample_multiple_by(freq, interval, agg_func):
         )
 
 
+@pytest.mark.parametrize("freq", ["W", "ME", "YE"])
+@sql_count_checker(query_count=0)
+def test_groupby_resample_week_to_year_negative(freq):
+    idx = pd.date_range("1/1/2000", periods=8, freq="min")
+    snow_df = pd.DataFrame(data=8 * [range(3)], index=idx, columns=["a", "b", "c"])
+    rule = f"1{freq}"
+    with pytest.raises(
+        NotImplementedError,
+        match=f"Groupby resample with rule offset {rule} is not yet implemented.",
+    ):
+        snow_df.groupby("a").resample(rule=rule, include_groups=False).sum()
+
+
 @sql_count_checker(query_count=0)
 def test_resample_series_negative():
-    date_idx = native_pd.date_range("1/1/2000", periods=8, freq="min")
+    date_idx = pd.date_range("1/1/2000", periods=8, freq="min")
     date_idx.names = ["grp_col"]
-    pandas_ser = native_pd.Series(
-        data=[0, 1, 1, 4, 4, 5, 0, 1], index=date_idx, name="a"
-    )
-    snow_ser = pd.Series(pandas_ser)
+    snow_ser = pd.Series(data=[0, 1, 1, 4, 4, 5, 0, 1], index=date_idx, name="a")
     with pytest.raises(
         NotImplementedError, match="Series GroupbyResampler is not yet implemented."
     ):

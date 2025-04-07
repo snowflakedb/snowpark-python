@@ -231,6 +231,7 @@ from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     validate_groupby_columns,
     extract_groupby_column_pandas_labels,
     fill_missing_groupby_resample_bins_for_frame,
+    validate_groupby_resample_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     ValidIndex,
@@ -4782,15 +4783,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
 
-        validate_resample_supported_by_snowflake(resample_kwargs)
+        validate_groupby_resample_supported_by_snowflake(resample_kwargs)
         level = groupby_kwargs.get("level", None)
-        # dropna = groupby_kwargs.get("dropna", True)
         by = groupby_kwargs.get("by", None)
 
         axis = resample_kwargs.get("axis", 0)
         rule = resample_kwargs.get("rule")
         on = resample_kwargs.get("on")
-        # include_groups = resample_kwargs.get("include_groups", True)
 
         if not check_is_groupby_supported_by_snowflake(by, level, axis):
             ErrorMessage.not_implemented(
@@ -4808,6 +4807,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         snowflake_index_column_identifier = (
             get_snowflake_quoted_identifier_for_resample_index_col(frame)
         )
+        orig_datetime_index_col_label = frame.index_column_pandas_labels[0]
         slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
         start_date, end_date = compute_resample_start_and_end_date(
@@ -4871,7 +4871,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         frame = qc._modin_frame
         datetime_index_col_identifier = resampled_quoted_ids[0]
         resampled_frame_all_bins = fill_missing_groupby_resample_bins_for_frame(
-            frame, rule, by_list, datetime_index_col_identifier
+            frame,
+            rule,
+            by_list,
+            orig_datetime_index_col_label,
+            datetime_index_col_identifier,
         )
         if resample_method in ("sum", "count", "size", "nunique"):
             values_arg: Union[int, dict]
