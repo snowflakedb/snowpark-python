@@ -279,10 +279,10 @@ def session(
     session._join_alias_fix = join_alias_fix
     session.ast_enabled = ast_enabled
 
-    if RUNNING_ON_GH and not local_testing_mode:
-        set_up_external_access_integration_resources(
-            session, rule1, rule2, key1, key2, integration1, integration2
-        )
+    # if RUNNING_ON_GH and not local_testing_mode:
+    set_up_external_access_integration_resources(
+        session, rule1, rule2, key1, key2, integration1, integration2
+    )
 
     if validate_ast:
         full_ast_validation_listener = setup_full_ast_validation_mode(
