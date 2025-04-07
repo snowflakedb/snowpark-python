@@ -30,7 +30,7 @@ class TrackedCallable:
     It is undesirable for the same callable to have multiple IDs due to constraints in other parts of the system.
     """
 
-    var_id: int
+    bind_id: int
     func: Callable
 
 
@@ -44,7 +44,7 @@ class AstBatch:
     A batch of AST statements. This class is used to generate AST requests.
 
     The core statement types are:
-    - Assign: Creates a new variable and assigns a value to it.
+    - Bind: Creates a new variable and assigns a value to it.
     - Eval: Evaluates a variable.
     """
 
@@ -72,7 +72,7 @@ class AstBatch:
         """Resets the ID generator."""
         self._id_gen = itertools.count(start=1)
 
-    def assign(self, symbol: Optional[str] = None) -> proto.Assign:
+    def bind(self, symbol: Optional[str] = None) -> proto.Bind:
         """
         Creates a new assignment statement.
 
@@ -81,12 +81,14 @@ class AstBatch:
         """
         stmt = self._request.body.add()
         # TODO: extended BindingId spec from the branch snowpark-ir.
-        stmt.assign.uid = self._get_next_id()
-        stmt.assign.var_id.bitfield1 = stmt.assign.uid
-        stmt.assign.symbol.value = symbol if isinstance(symbol, str) else ""
-        return stmt.assign
+        stmt.bind.first_request_id = (
+            self._request_id.bytes
+        )  # Set the first batch ID this stmt will be flushed with.
+        stmt.bind.uid = self._get_next_id()
+        stmt.bind.symbol.value = symbol if isinstance(symbol, str) else ""
+        return stmt.bind
 
-    def eval(self, target: proto.Assign) -> None:
+    def eval(self, target: proto.Bind) -> None:
         """
         Creates a new evaluation statement.
 
@@ -94,8 +96,7 @@ class AstBatch:
             target: The variable to evaluate.
         """
         stmt = self._request.body.add()
-        stmt.eval.uid = self._get_next_id()
-        stmt.eval.var_id.CopyFrom(target.var_id)
+        stmt.eval.bind_id = target.uid
 
     def flush(self) -> SerializedBatch:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
@@ -114,6 +115,9 @@ class AstBatch:
         # Reset the AST batch by initializing a new request.
         self._request_id = AstBatch.generate_request_id()  # Generate a new unique ID.
         self._request = proto.Request()
+        self._request.id = (
+            self._request_id.bytes
+        )  # Convert UUID to bytes for the request.
 
         (major, minor, patch) = VERSION
         self._request.client_version.major = major
@@ -134,10 +138,10 @@ class AstBatch:
         k = id(func)
 
         if k in self._callables.keys():
-            return self._callables[k].var_id
+            return self._callables[k].bind_id
 
         next_id = len(self._callables)
-        self._callables[k] = TrackedCallable(var_id=next_id, func=func)
+        self._callables[k] = TrackedCallable(bind_id=next_id, func=func)
         return next_id
 
     def _get_next_id(self) -> int:

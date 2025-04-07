@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     )  # pragma: no cover
     import snowflake.snowpark.session
     import snowflake.snowpark.dataframe
+    from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 import snowflake.connector
 import snowflake.snowpark
@@ -108,6 +109,8 @@ from snowflake.snowpark._internal.compiler.cte_utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
+    XML_ROW_TAG_STRING,
+    XML_ROW_DATA_COLUMN_NAME,
     TempObjectType,
     generate_random_alphanumeric,
     get_copy_into_table_options,
@@ -1285,6 +1288,60 @@ class SnowflakePlanBuilder:
             )(setting["property_value"])
         return new_options
 
+    def _create_xml_query(
+        self,
+        xml_reader_udtf: "UserDefinedTableFunction",
+        file_path: str,
+        options: Dict[str, str],
+    ) -> str:
+        """
+        Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
+        """
+        from snowflake.snowpark.functions import lit, col, seq8, flatten
+        from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
+
+        worker_column_name = "WORKER"
+        xml_row_number_column_name = "XML_ROW_NUMBER"
+        row_tag = options[XML_ROW_TAG_STRING]
+
+        # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
+        # Currently it's capped at 16.
+        file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
+        num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
+
+        # Create a range from 0 to N-1
+        df = self.session.range(num_workers).to_df(worker_column_name)
+
+        # Apply UDTF to the XML file and get each XML record as a Variant data,
+        # and append a unique row number to each record.
+        df = df.select(
+            worker_column_name,
+            seq8().as_(xml_row_number_column_name),
+            xml_reader_udtf(
+                lit(file_path),
+                lit(num_workers),
+                lit(row_tag),
+                col(worker_column_name),
+            ),
+        )
+
+        # Flatten the Variant data to get the key-value pairs
+        df = df.select(
+            worker_column_name,
+            xml_row_number_column_name,
+            flatten(XML_ROW_DATA_COLUMN_NAME),
+        ).select(worker_column_name, xml_row_number_column_name, "key", "value")
+
+        # Apply dynamic pivot to get the flat table with dynamic schema
+        df = (
+            df.pivot("key")
+            .max("value")
+            .sort(worker_column_name, xml_row_number_column_name)
+        )
+
+        # Exclude the worker and row number columns
+        return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
+
     def read_file(
         self,
         path: str,
@@ -1296,9 +1353,23 @@ class SnowflakePlanBuilder:
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
         use_user_schema: bool = False,
+        xml_reader_udtf: Optional["UserDefinedTableFunction"] = None,
         source_plan: Optional[ReadFileNode] = None,
     ) -> SnowflakePlan:
         thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
+
+        if xml_reader_udtf is not None:
+            xml_query = self._create_xml_query(xml_reader_udtf, path, options)
+            return SnowflakePlan(
+                [Query(xml_query)],
+                # the schema query of dynamic pivot must be the same as the original query
+                xml_query,
+                None,
+                {},
+                source_plan=source_plan,
+                session=self.session,
+            )
+
         format_type_options, copy_options = get_copy_into_table_options(options)
         format_type_options = self._merge_file_format_options(
             format_type_options, options

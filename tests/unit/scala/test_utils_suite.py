@@ -276,8 +276,11 @@ def test_zip_file_or_directory_to_stream():
             stream,
             [
                 "resources/",
+                "resources/books.xml",
                 "resources/broken.csv",
                 "resources/diamonds.csv",
+                "resources/fias_house.xml",
+                "resources/fias_house.large.xml",
                 "resources/iris.csv",
                 "resources/test.avro",
                 "resources/test.orc",
@@ -321,6 +324,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_udtf_dir/test_vectorized_udtf.py",
                 "resources/test_udaf_dir/",
                 "resources/test_udaf_dir/test_udaf_file.py",
+                "resources/xxe.xml",
             ],
         )
 

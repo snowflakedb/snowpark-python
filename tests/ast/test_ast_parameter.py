@@ -18,7 +18,7 @@ def test_parameter(use_local_testing, ast_enabled, n_batches):
     session = (
         Session.builder.configs(CONNECTION_PARAMETERS)
         .config("local_testing", use_local_testing)
-        .getOrCreate()
+        .create()
     )
     session.ast_enabled = ast_enabled
 
