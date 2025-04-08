@@ -30,12 +30,19 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
 - Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
+- Added support for `DataFrame.to_view` and `Series.to_view`.
+- Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
 
 #### Improvements
 
 - Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
+
+#### Bug Fixes
+
+- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `relaxed_ordering=False`.
 
 ## 1.30.0 (2024-03-27)
 
