@@ -141,14 +141,14 @@ def test_read_snowflake_query_complex_recursive_cte(session, enforce_ordering):
 @pytest.mark.parametrize(
     "enforce_ordering",
     [
+        True,
         pytest.param(
-            True,
+            False,
             marks=pytest.mark.skip(
                 "Queries with CALL statements raise a SQL compilation "
                 "error when enforce_ordering=False"
             ),
         ),
-        False,
     ],
 )
 def test_read_snowflake_query_cte_with_cross_language_sproc(session, enforce_ordering):
@@ -194,14 +194,14 @@ def test_read_snowflake_query_cte_with_cross_language_sproc(session, enforce_ord
 @pytest.mark.parametrize(
     "enforce_ordering",
     [
+        True,
         pytest.param(
-            True,
+            False,
             marks=pytest.mark.skip(
                 "Queries with CALL statements raise a SQL compilation "
                 "error when enforce_ordering=False"
             ),
         ),
-        False,
     ],
 )
 def test_read_snowflake_query_cte_with_python_anonymous_sproc(

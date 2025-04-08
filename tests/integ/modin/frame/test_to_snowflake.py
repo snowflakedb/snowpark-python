@@ -17,7 +17,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
 # one extra query to convert index to native pandas when creating the snowpark pandas dataframe
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_to_snowflake_index(test_table_name, index, index_labels):
     df = pd.DataFrame(
         {"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4], name="index")
@@ -38,7 +38,7 @@ def test_to_snowflake_index(test_table_name, index, index_labels):
     verify_columns(test_table_name, expected_columns)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_to_snowflake_multiindex(test_table_name):
     index = native_pd.MultiIndex.from_arrays(
         [[1, 1, 2, 2], ["red", "blue", "red", "blue"]], names=("number", "color")
@@ -94,7 +94,7 @@ def test_to_snowflake_if_exists(session, test_table_name):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
 
     # Verify new table is created
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         df.to_snowflake(test_table_name, if_exists="fail", index=False)
         verify_columns(test_table_name, ["a", "b"])
 
@@ -110,19 +110,19 @@ def test_to_snowflake_if_exists(session, test_table_name):
 
     # Verify existing table is replaced with new data
     df = pd.DataFrame({"a": [1, 2, 3], "c": [4, 5, 6]})
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         df.to_snowflake(test_table_name, if_exists="replace", index=False)
         verify_columns(test_table_name, ["a", "c"])
         verify_num_rows(session, test_table_name, 3)
 
     # Verify data is appended to existing table
-    with SqlCounter(query_count=4):
+    with SqlCounter(query_count=3):
         df.to_snowflake(test_table_name, if_exists="append", index=False)
         verify_columns(test_table_name, ["a", "c"])
         verify_num_rows(session, test_table_name, 6)
 
     # Verify pd.to_snowflake operates the same
-    with SqlCounter(query_count=4):
+    with SqlCounter(query_count=3):
         pd.to_snowflake(df, test_table_name, if_exists="append", index=False)
         verify_columns(test_table_name, ["a", "c"])
         verify_num_rows(session, test_table_name, 9)
@@ -134,7 +134,7 @@ def test_to_snowflake_if_exists(session, test_table_name):
 
 
 @pytest.mark.parametrize("index_label", VALID_PANDAS_LABELS)
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_to_snowflake_index_labels(index_label, test_table_name):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df.to_snowflake(
@@ -144,7 +144,7 @@ def test_to_snowflake_index_labels(index_label, test_table_name):
 
 
 @pytest.mark.parametrize("col_name", VALID_PANDAS_LABELS)
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_to_snowflake_column_names_from_panadas(col_name, test_table_name):
     df = pd.DataFrame({col_name: [1, 2, 3], "b": [4, 5, 6]})
     df.to_snowflake(test_table_name, if_exists="replace", index=False)
@@ -156,7 +156,7 @@ def test_to_snowflake_column_names_from_panadas(col_name, test_table_name):
 def test_column_names_with_read_snowflake_and_to_snowflake(
     col_name, if_exists, session
 ):
-    with SqlCounter(query_count=7 if if_exists == "append" else 6):
+    with SqlCounter(query_count=6 if if_exists == "append" else 5):
         # Create a table
         session.sql(f"create or replace table t1 ({col_name} int)").collect()
         session.sql("insert into t1 values (1), (2), (3)").collect()
@@ -173,7 +173,7 @@ def test_column_names_with_read_snowflake_and_to_snowflake(
         assert len(data) == (6 if if_exists == "append" else 3)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_to_snowflake_column_with_quotes(session, test_table_name):
     df = pd.DataFrame({'a"b': [1, 2, 3], 'a""b': [4, 5, 6]})
     df.to_snowflake(test_table_name, if_exists="replace", index=False)
@@ -183,13 +183,13 @@ def test_to_snowflake_column_with_quotes(session, test_table_name):
 # one extra query to convert index to native pandas when creating the snowpark pandas dataframe
 def test_to_snowflake_index_label_none(test_table_name):
     # no index
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
         df.to_snowflake(test_table_name, if_exists="replace")
         verify_columns(test_table_name, ["index", "a", "b"])
 
     # named index
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         df = pd.DataFrame(
             {"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4], name="index")
         )
@@ -197,14 +197,14 @@ def test_to_snowflake_index_label_none(test_table_name):
         verify_columns(test_table_name, ["index", "a", "b"])
 
     # nameless index
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4]))
         df.to_snowflake(test_table_name, if_exists="replace", index_label=[None])
         verify_columns(test_table_name, ["index", "a", "b"])
 
 
 # one extra query to convert index to native pandas when creating the snowpark pandas dataframe
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_to_snowflake_index_label_none_data_column_conflict(test_table_name):
     df = pd.DataFrame({"index": [1, 2, 3], "a": [4, 5, 6]})
     df.to_snowflake(test_table_name, if_exists="replace")
@@ -260,7 +260,7 @@ def verify_num_rows(session, table_name: str, expected: int) -> None:
     assert actual == expected
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_timedelta_to_snowflake_with_read_snowflake(test_table_name, caplog):
     with caplog.at_level(logging.WARNING):
         df = pd.DataFrame(

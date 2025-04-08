@@ -107,14 +107,14 @@ def test_read_snowflake_basic_query_with_comment_preceding_sql_inline_string(
 @pytest.mark.parametrize(
     "enforce_ordering",
     [
+        True,
         pytest.param(
-            True,
+            False,
             marks=pytest.mark.skip(
                 "Queries with comment preceding sql multiline string "
                 "raise a SQL compilation error when enforce_ordering=False"
             ),
         ),
-        False,
     ],
 )
 def test_read_snowflake_basic_query_with_comment_preceding_sql_multiline_string(

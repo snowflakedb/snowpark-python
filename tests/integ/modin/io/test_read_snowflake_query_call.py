@@ -19,14 +19,14 @@ from tests.utils import Utils
 @pytest.mark.parametrize(
     "enforce_ordering",
     [
+        True,
         pytest.param(
-            True,
+            False,
             marks=pytest.mark.skip(
                 "Queries with CALL statements raise a SQL compilation "
                 "error when enforce_ordering=False"
             ),
         ),
-        False,
     ],
 )
 def test_read_snowflake_call_sproc(session, enforce_ordering):

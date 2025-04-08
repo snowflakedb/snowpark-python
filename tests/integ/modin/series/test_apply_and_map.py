@@ -294,6 +294,7 @@ class TestApplyOrMapCallable:
                 random_name_for_temp_object(TempObjectType.TABLE),
                 [ColumnSchema("col", VariantType())],
                 [[e] for e in data],
+                enforce_ordering=True,
             )
 
         expected_types = [

@@ -654,6 +654,7 @@ def create_snow_df_with_table_and_data(
     table_name: str,
     column_schema: list[ColumnSchema],
     data: list[list[Any]],
+    enforce_ordering: bool = False,
 ) -> pd.DataFrame:
     """
     Create a snowpark pandas dataframe out of a snowflake table. This function creates a snowflake
@@ -699,7 +700,7 @@ def create_snow_df_with_table_and_data(
         table_name, table_type="temporary"
     )
 
-    snow_df = pd.read_snowflake(table_name)
+    snow_df = pd.read_snowflake(table_name, enforce_ordering=enforce_ordering)
     return snow_df
 
 

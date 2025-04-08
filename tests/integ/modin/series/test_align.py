@@ -94,7 +94,7 @@ def test_align_series_on_row_position_column(session, join):
 
         native_left, native_right = native_ser1.align(native_ser2, join=join)
 
-        with SqlCounter(query_count=2, join_count=2, window_count=0):
+        with SqlCounter(query_count=2, join_count=2, window_count=4):
             left, right = ser1.align(ser2, join=join, axis=0)
             assert_series_equal(left, native_left)
             assert_series_equal(right, native_right)
