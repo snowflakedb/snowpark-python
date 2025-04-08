@@ -333,7 +333,9 @@ class DataFrameWriter:
 
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
-        Examples::
+        Example 1::
+
+            Basic table saves
 
             >>> df = session.create_dataframe([[1,2],[3,4]], schema=["a", "b"])
             >>> df.write.mode("overwrite").save_as_table("my_table", table_type="temporary")
@@ -345,6 +347,20 @@ class DataFrameWriter:
             >>> df.write.mode("overwrite").save_as_table("my_transient_table", table_type="transient")
             >>> session.table("my_transient_table").collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
+
+        Example 2::
+
+            Saving DataFrame to an Iceberg table. Note that the external_volume, catalog, and base_location should have been setup externally.
+            See `Create your first Iceberg table <https://docs.snowflake.com/en/user-guide/tutorials/create-your-first-iceberg-table>`_ for more information on creating iceberg resources.
+
+            >>> df = session.create_dataframe([[1,2],[3,4]], schema=["a", "b"])
+            >>> iceberg_config = {
+            ...     "external_volume": "example_volume",
+            ...     "catalog": "example_catalog",
+            ...     "base_location": "/iceberg_root",
+            ...     "storage_serialization_policy": "OPTIMIZED",
+            ... }
+            >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
         """
 
         statement_params = self._track_data_source_statement_params(
