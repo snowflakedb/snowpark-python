@@ -9309,6 +9309,9 @@ def udf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
@@ -9397,6 +9400,13 @@ def udf(
         immutable: Whether the UDF result is deterministic or not for the same input.
         comment: Adds a comment for the created object. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+        artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+            parameter will search for packages in.
+        artifact_repository_packages: A list of packages to search for within the pypi repository
+            set in the above parameter.
+        resource_constraint: A dictionary containing a resource properties of a warehouse and then
+            constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+            warehouse be used for execution.
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9499,6 +9509,9 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9524,6 +9537,9 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9551,6 +9567,9 @@ def udtf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
@@ -9625,6 +9644,13 @@ def udtf(
         immutable: Whether the UDTF result is deterministic or not for the same input.
         comment: Adds a comment for the created object. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+        artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+            parameter will search for packages in.
+        artifact_repository_packages: A list of packages to search for within the pypi repository
+            set in the above parameter.
+        resource_constraint: A dictionary containing a resource properties of a warehouse and then
+            constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+            warehouse be used for execution.
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9736,6 +9762,9 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9759,6 +9788,9 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9784,6 +9816,9 @@ def udaf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
     _emit_ast: bool = True,
     **kwargs,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
@@ -9858,6 +9893,13 @@ def udaf(
             retrieve the secrets using secret API.
         comment: Adds a comment for the created object. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+        artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+            parameter will search for packages in.
+        artifact_repository_packages: A list of packages to search for within the pypi repository
+            set in the above parameter.
+        resource_constraint: A dictionary containing a resource properties of a warehouse and then
+            constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+            warehouse be used for execution.
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -9975,6 +10017,9 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9996,6 +10041,9 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10459,6 +10507,9 @@ def sproc(
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     _emit_ast: bool = True,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -10539,6 +10590,13 @@ def sproc(
             retrieve the secrets using secret API.
         comment: Adds a comment for the created object. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+        artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+            parameter will search for packages in.
+        artifact_repository_packages: A list of packages to search for within the pypi repository
+            set in the above parameter.
+        resource_constraint: A dictionary containing a resource properties of a warehouse and then
+            constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+            warehouse be used for execution.
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -10628,6 +10686,9 @@ def sproc(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10651,6 +10712,9 @@ def sproc(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
