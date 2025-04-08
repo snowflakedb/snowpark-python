@@ -13067,14 +13067,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # the solution here uses a window function. This may lead to perf regressions, track these here SNOW-984177.
         # Ensure that our reference to self._modin_frame is updated with cached row count and position.
         row_count_value = None
+        frame = self._modin_frame.ensure_row_position_column()
         if self._modin_frame.ordered_dataframe.is_projection_of_table():
-            frame = self._modin_frame.ensure_row_position_column()
             row_count_value = frame.ordered_dataframe.materialize_row_count()
             row_count_expr = pandas_lit(row_count_value)
         else:
-            frame = (
-                self._modin_frame.ensure_row_position_column().ensure_row_count_column()
-            )
+            frame = frame.ensure_row_count_column()
             row_count_pandas_label = (
                 ROW_COUNT_COLUMN_LABEL
                 if len(frame.data_column_pandas_index_names) == 1
