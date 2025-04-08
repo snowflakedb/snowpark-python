@@ -9509,6 +9509,9 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9534,6 +9537,9 @@ def udf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9756,6 +9762,9 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -9779,6 +9788,9 @@ def udtf(
             secrets=secrets,
             immutable=immutable,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10005,6 +10017,9 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10026,6 +10041,9 @@ def udaf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10668,6 +10686,9 @@ def sproc(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )
@@ -10691,6 +10712,9 @@ def sproc(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             comment=comment,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=artifact_repository_packages,
+            resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
         )

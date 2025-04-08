@@ -645,6 +645,9 @@ class StoredProcedureRegistration:
                 # in pandas API to create stored procedures not registered by users.
                 force_inline_code=kwargs.pop("force_inline_code", False),
                 native_app_params=kwargs.pop("native_app_params", None),
+                artifact_repository=artifact_repository,
+                artifact_repository_packages=artifact_repository_packages,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )

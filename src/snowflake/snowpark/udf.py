@@ -684,6 +684,9 @@ class UDFRegistration:
                 + ("[pandas_udf]" if _from_pandas else ""),
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                artifact_repository_packages=artifact_repository_packages,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
