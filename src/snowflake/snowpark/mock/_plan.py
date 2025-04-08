@@ -2918,7 +2918,9 @@ def calculate_expression(
         return res
     elif isinstance(exp, SubfieldInt):
         col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        res = col.apply(lambda x: None if x is None else x[exp.field])
+        res = col.apply(
+            lambda x: None if x is None or exp.field >= len(x) else x[exp.field]
+        )
         res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SnowflakeUDF):

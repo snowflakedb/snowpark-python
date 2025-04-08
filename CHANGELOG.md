@@ -26,6 +26,7 @@
 #### Bug Fixes
 
 - Fixed a bug in local testing that created incorrect result for `Column.like` calls.
+- Fixed a bug in local testing that caused `Column.getItem` and `snowpark.snowflake.functions.get` to raise `IndexError` rather than return null.
 
 ### Snowpark pandas API Updates
 
