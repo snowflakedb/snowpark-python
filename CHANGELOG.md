@@ -26,8 +26,10 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
 - Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
+- Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
 
 #### Improvements
 
