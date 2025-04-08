@@ -6,8 +6,6 @@ from snowflake.snowpark.functions import col, when, array_agg
 from snowflake.snowpark.row import Row
 from tests.utils import Utils
 
-from tests.utils import Utils
-
 
 def test_casewhen_with_non_zero_row_index(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
