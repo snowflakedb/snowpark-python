@@ -76,7 +76,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
     SnowparkDataframeReaderException,
 )
-from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.functions import sql_expr, col
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -1116,6 +1116,7 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
+        query_staged_file: bool = False,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1208,20 +1209,26 @@ class DataFrameReader:
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
             snowflake_table_type = "TEMPORARY"
-            snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-            create_table_sql = (
-                "CREATE "
-                f"{snowflake_table_type} "
-                "TABLE "
-                f"identifier(?) "
-                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
-                f"""{DATA_SOURCE_SQL_COMMENT}"""
-            )
-            params = (snowflake_table_name,)
-            logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-            self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
-                statement_params=statements_params_for_telemetry, _emit_ast=False
-            )
+            snowflake_table_name = ""
+            if not query_staged_file:
+                snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+                create_table_sql = (
+                    "CREATE "
+                    f"{snowflake_table_type} "
+                    "TABLE "
+                    f"identifier(?) "
+                    f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                    f"""{DATA_SOURCE_SQL_COMMENT}"""
+                )
+                params = (snowflake_table_name,)
+                logger.debug(
+                    f"Creating temporary Snowflake table: {snowflake_table_name}"
+                )
+                self._session.sql(
+                    create_table_sql, params=params, _emit_ast=False
+                ).collect(
+                    statement_params=statements_params_for_telemetry, _emit_ast=False
+                )
             # create temp stage
             snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
             sql_create_temp_stage = (
@@ -1281,6 +1288,7 @@ class DataFrameReader:
                                 snowflake_table_name,
                                 "abort_statement",
                                 statements_params_for_telemetry,
+                                query_staged_file,
                             )
                             thread_future.add_done_callback(
                                 functools.partial(
@@ -1339,10 +1347,30 @@ class DataFrameReader:
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
                 DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
             )
-            # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
-            # with the new name for the temporary table into which the external db data was ingressed.
-            # Leaving this functionality as client-side only means capturing an AST specifically for
-            # this API in a new entity is not valuable from a server-side execution or AST perspective.
-            res_df = self.table(snowflake_table_name, _emit_ast=_emit_ast)
+            if not query_staged_file:
+                # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
+                # with the new name for the temporary table into which the external db data was ingressed.
+                # Leaving this functionality as client-side only means capturing an AST specifically for
+                # this API in a new entity is not valuable from a server-side execution or AST perspective.
+                res_df = self.table(snowflake_table_name, _emit_ast=_emit_ast)
+            else:
+                snowflake_file_format_name = random_name_for_temp_object(
+                    TempObjectType.FILE_FORMAT
+                )
+                # ISSUE1: use vectorized scanner has issue cast
+                # ISSUE2: query semi structure file is taken as a single variant column which has size limit 16 MB
+                create_format_sql = f"CREATE TEMPORARY FILE FORMAT identifier(?) TYPE = 'PARQUET' {DATA_SOURCE_SQL_COMMENT}"
+                self._session.sql(
+                    create_format_sql,
+                    params=(snowflake_file_format_name,),
+                    _emit_ast=False,
+                ).collect()
+                sql = f"select * from @{snowflake_stage_name} (FILE_FORMAT => {snowflake_file_format_name})"
+                res_df = self._session.sql(sql)
+                cols = [
+                    col("$1")[field.name].cast(field.datatype).alias(field.name)
+                    for field in struct_schema.fields
+                ]
+                res_df = res_df.select(*cols)
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df

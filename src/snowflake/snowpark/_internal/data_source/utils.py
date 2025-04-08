@@ -136,6 +136,7 @@ def _upload_and_copy_into_table(
     snowflake_table_name: Optional[str] = None,
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
+    query_staged_file: bool = False,
 ):
     file_name = os.path.basename(local_file)
     session.file.put(
@@ -144,6 +145,9 @@ def _upload_and_copy_into_table(
         overwrite=True,
         statement_params=statements_params,
     )
+    if query_staged_file:
+        # DO NOT RUN COPY INTO TABLE RETURN
+        return
     copy_into_table_query = f"""
     COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
     FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
@@ -162,6 +166,7 @@ def _upload_and_copy_into_table_with_retry(
     snowflake_table_name: Optional[str] = None,
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
+    query_staged_file: bool = False,
 ):
     _retry_run(
         _upload_and_copy_into_table,
@@ -171,6 +176,7 @@ def _upload_and_copy_into_table_with_retry(
         snowflake_table_name,
         on_error,
         statements_params,
+        query_staged_file,
     )
 
 
