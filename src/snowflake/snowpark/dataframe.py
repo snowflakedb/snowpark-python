@@ -4756,7 +4756,7 @@ class DataFrame:
             result = []
             _spark_column_names = []
 
-        def cell_to_str(cell: Any) -> str:
+        def cell_to_str(cell: Any, datatype: DataType) -> str:
             # Special handling for cell printing in Spark
             # TODO: this operation can be pushed down to Snowflake for execution.
             if cell is None:
@@ -4765,15 +4765,35 @@ class DataFrame:
                 res = "true" if cell else "false"
             elif isinstance(cell, bytes) or isinstance(cell, bytearray):
                 res = f"[{' '.join([format(b, '02X') for b in cell])}]"
-            elif isinstance(cell, list):
-                res = "[" + ", ".join([cell_to_str(v) for v in cell]) + "]"
-            elif isinstance(cell, dict):
+            elif isinstance(cell, list) and isinstance(datatype, ArrayType):
+                res = (
+                    "["
+                    + ", ".join(
+                        [
+                            cell_to_str(v, datatype.element_type or StringType())
+                            for v in cell
+                        ]
+                    )
+                    + "]"
+                )
+            elif isinstance(cell, dict) and isinstance(datatype, MapType):
                 res = (
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k)} -> {cell_to_str(v)}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
                             for k, v in sorted(cell.items())
+                        ]
+                    )
+                    + "}"
+                )
+            elif isinstance(cell, dict) and isinstance(datatype, StructType):
+                res = (
+                    "{"
+                    + ", ".join(
+                        [
+                            f"{cell_to_str(cell[field.name], field.datatype or StringType())}"
+                            for field in datatype.fields
                         ]
                     )
                     + "}"
@@ -4793,9 +4813,9 @@ class DataFrame:
         res_rows = []
         for res_row in result:
             processed_row = []
-            for res_cell in res_row:
+            for i, res_cell in enumerate(res_row):
                 # Convert res_cell to string and escape meta-characters
-                str_value = cell_to_str(res_cell)
+                str_value = cell_to_str(res_cell, self.schema.fields[i].datatype)
                 # Truncate string if necessary
                 if isinstance(truncate, bool):
                     truncate_length = 20 if truncate else 0
