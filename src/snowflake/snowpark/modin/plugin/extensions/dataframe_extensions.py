@@ -345,7 +345,6 @@ def create_or_replace_dynamic_table(
         max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend
             the data retention period of the dynamic table to prevent streams on the dynamic table
             from becoming stale.
-        statement_params: Dictionary of statement level parameters to be set while executing this action.
         iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
             - external_volume: specifies the identifier for the external volume where
@@ -378,6 +377,43 @@ def create_or_replace_dynamic_table(
         data_retention_time=data_retention_time,
         max_data_extension_time=max_data_extension_time,
         iceberg_config=iceberg_config,
+        index=index,
+        index_label=index_label,
+    )
+
+
+@register_dataframe_accessor("to_view")
+def to_view(
+    self,
+    name: Union[str, Iterable[str]],
+    *,
+    comment: Optional[str] = None,
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
+) -> List[Row]:
+    """
+    Creates a view that captures the computation expressed by this DataFrame.
+
+    For ``name``, you can include the database and schema name (i.e. specify a
+    fully-qualified name). If no database name or schema name are specified, the
+    view will be created in the current database or schema.
+
+    ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+    Args:
+        name: The name of the view to create or replace. Can be a list of strings
+            that specifies the database name, schema name, and view name.
+        comment: Adds a comment for the created view. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+        index: default True
+            If true, save DataFrame index columns in view columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+    """
+    return self.create_or_replace_view(
+        name=name,
+        comment=comment,
         index=index,
         index_label=index_label,
     )
@@ -435,7 +471,6 @@ def to_dynamic_table(
         max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend
             the data retention period of the dynamic table to prevent streams on the dynamic table
             from becoming stale.
-        statement_params: Dictionary of statement level parameters to be set while executing this action.
         iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
             - external_volume: specifies the identifier for the external volume where
