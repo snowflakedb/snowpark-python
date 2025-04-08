@@ -336,13 +336,17 @@ def test_read_snowflake_data_types(
     expected_to_pandas,
 ):
     expected_query_count = (
-        9
+        10
         if isinstance(samples, list) and len(samples) > 1
-        else 5
+        else 6
         if "timestamp_tz" in col_name_type
-        else 4
+        else 5
     )
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(
+        query_count=expected_query_count,
+        high_count_expected=True,
+        high_count_reason="Getting table schema",
+    ):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):
             samples = [samples]

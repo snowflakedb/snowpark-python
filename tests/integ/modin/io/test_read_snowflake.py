@@ -305,7 +305,7 @@ def test_read_snowflake_index_col_multiindex(session, as_query, relaxed_ordering
 def test_read_snowflake_non_existing(
     session, col_name, non_existing_index_col, index_col_or_columns, relaxed_ordering
 ):
-    expected_query_count = 2 if not relaxed_ordering else 1
+    expected_query_count = 3 if not relaxed_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)

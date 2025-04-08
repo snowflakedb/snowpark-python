@@ -134,7 +134,7 @@ def test_to_snowflake_if_exists(session, test_table_name):
 
 
 @pytest.mark.parametrize("index_label", VALID_PANDAS_LABELS)
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_to_snowflake_index_labels(index_label, test_table_name):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df.to_snowflake(
@@ -144,7 +144,7 @@ def test_to_snowflake_index_labels(index_label, test_table_name):
 
 
 @pytest.mark.parametrize("col_name", VALID_PANDAS_LABELS)
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_to_snowflake_column_names_from_panadas(col_name, test_table_name):
     df = pd.DataFrame({col_name: [1, 2, 3], "b": [4, 5, 6]})
     df.to_snowflake(test_table_name, if_exists="replace", index=False)

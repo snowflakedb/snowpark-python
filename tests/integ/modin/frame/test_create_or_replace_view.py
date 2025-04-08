@@ -42,7 +42,7 @@ def test_create_or_replace_view_basic(session, native_pandas_df_basic) -> None:
         Utils.drop_view(session, view_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=8)
 def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
     session,
     db_parameters,
@@ -85,7 +85,7 @@ def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
         pd.session = session
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=5)
 def test_create_or_replace_view_multiple_sessions_relaxed_ordering(
     session,
     db_parameters,
