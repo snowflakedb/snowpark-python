@@ -280,6 +280,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/broken.csv",
                 "resources/diamonds.csv",
                 "resources/fias_house.xml",
+                "resources/fias_house.large.xml",
                 "resources/iris.csv",
                 "resources/test.avro",
                 "resources/test.orc",

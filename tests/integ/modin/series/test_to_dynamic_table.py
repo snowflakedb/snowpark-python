@@ -15,7 +15,7 @@ from tests.utils import Utils
 
 
 @sql_count_checker(query_count=5)
-def test_create_or_replace_dynamic_table_no_relaxed_ordering_raises(session) -> None:
+def test_to_dynamic_table_no_relaxed_ordering_raises(session) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -23,10 +23,10 @@ def test_create_or_replace_dynamic_table_no_relaxed_ordering_raises(session) -> 
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create dataframe with relaxed_ordering disabled
-        snow_dataframe = pd.read_snowflake(
+        # create series with relaxed_ordering disabled
+        snow_series = pd.read_snowflake(
             f"(((SELECT * FROM {table_name})))", relaxed_ordering=False
-        )
+        ).iloc[:, 0]
 
         # creating dynamic_table fails when relaxed_ordering is disabled
         # because it cannot depend on a temp table
@@ -37,7 +37,7 @@ def test_create_or_replace_dynamic_table_no_relaxed_ordering_raises(session) -> 
             SnowparkSQLException,
             match="Dynamic Tables cannot depend on a temporary object",
         ):
-            snow_dataframe.create_or_replace_dynamic_table(
+            snow_series.to_dynamic_table(
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
@@ -49,7 +49,7 @@ def test_create_or_replace_dynamic_table_no_relaxed_ordering_raises(session) -> 
 
 
 @sql_count_checker(query_count=5)
-def test_create_or_replace_dynamic_table_relaxed_ordering(session) -> None:
+def test_to_dynamic_table_relaxed_ordering(session) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -57,10 +57,10 @@ def test_create_or_replace_dynamic_table_relaxed_ordering(session) -> None:
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create dataframe with relaxed_ordering enabled
-        snow_dataframe = pd.read_snowflake(
+        # create series with relaxed_ordering enabled
+        snow_series = pd.read_snowflake(
             f"(((SELECT * FROM {table_name})))", relaxed_ordering=True
-        )
+        ).iloc[:, 0]
 
         # creating dynamic_table succeeds when relaxed_ordering is enabled
         dynamic_table_name = Utils.random_name_for_temp_object(
@@ -68,7 +68,7 @@ def test_create_or_replace_dynamic_table_relaxed_ordering(session) -> None:
         )
         assert (
             "successfully created"
-            in snow_dataframe.create_or_replace_dynamic_table(
+            in snow_series.to_dynamic_table(
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
@@ -85,7 +85,7 @@ def test_create_or_replace_dynamic_table_relaxed_ordering(session) -> None:
 
 
 @sql_count_checker(query_count=4)
-def test_create_or_replace_dynamic_table_multiple_sessions_relaxed_ordering(
+def test_to_dynamic_table_multiple_sessions_relaxed_ordering(
     session,
     db_parameters,
 ) -> None:
@@ -96,10 +96,10 @@ def test_create_or_replace_dynamic_table_multiple_sessions_relaxed_ordering(
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create dataframe with relaxed_ordering enabled
-        snow_dataframe = pd.read_snowflake(
+        # create series with relaxed_ordering enabled
+        snow_series = pd.read_snowflake(
             f"(((SELECT * FROM {table_name})))", relaxed_ordering=True
-        )
+        ).iloc[:, 0]
 
         # creating dynamic_table succeeds when relaxed_ordering is enabled
         dynamic_table_name = Utils.random_name_for_temp_object(
@@ -107,7 +107,7 @@ def test_create_or_replace_dynamic_table_multiple_sessions_relaxed_ordering(
         )
         assert (
             "successfully created"
-            in snow_dataframe.create_or_replace_dynamic_table(
+            in snow_series.to_dynamic_table(
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
@@ -132,7 +132,7 @@ def test_create_or_replace_dynamic_table_multiple_sessions_relaxed_ordering(
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
 @sql_count_checker(query_count=6)
-def test_create_or_replace_dynamic_table_index(session, index, index_labels):
+def test_to_dynamic_table_index(session, index, index_labels):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -140,15 +140,15 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create dataframe with relaxed_ordering enabled
-        snow_dataframe = pd.read_snowflake(
+        # create series with relaxed_ordering enabled
+        snow_series = pd.read_snowflake(
             f"(((SELECT * FROM {table_name})))", relaxed_ordering=True
-        )
+        ).iloc[:, 0]
 
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        snow_dataframe.create_or_replace_dynamic_table(
+        snow_series.to_dynamic_table(
             name=dynamic_table_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
@@ -163,7 +163,7 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
                 expected_index = index_labels
             expected_columns = expected_columns + expected_index
         # add the expected data columns
-        expected_columns = expected_columns + ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
+        expected_columns = expected_columns + ["_1"]
 
         # verify columns
         actual = pd.read_snowflake(dynamic_table_name).columns
@@ -175,7 +175,7 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
 
 
 @sql_count_checker(query_count=6)
-def test_create_or_replace_dynamic_table_multiindex(session):
+def test_to_dynamic_table_multiindex(session):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -191,10 +191,13 @@ def test_create_or_replace_dynamic_table_multiindex(session):
         # make sure dataframe has a multi-index
         snow_dataframe = snow_dataframe.set_index(["_1", "_2"])
 
+        # create series
+        snow_series = snow_dataframe.iloc[:, 0]
+
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        snow_dataframe.create_or_replace_dynamic_table(
+        snow_series.to_dynamic_table(
             name=dynamic_table_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
@@ -203,12 +206,12 @@ def test_create_or_replace_dynamic_table_multiindex(session):
 
         # verify columns
         actual = pd.read_snowflake(dynamic_table_name).columns
-        assert actual.tolist() == ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
+        assert actual.tolist() == ["_1", "_2", "_3"]
 
         with pytest.raises(
             ValueError, match="Length of 'index_label' should match number of levels"
         ):
-            snow_dataframe.create_or_replace_dynamic_table(
+            snow_series.to_dynamic_table(
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",

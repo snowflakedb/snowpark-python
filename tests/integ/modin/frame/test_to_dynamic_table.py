@@ -15,7 +15,7 @@ from tests.utils import Utils
 
 
 @sql_count_checker(query_count=5)
-def test_create_or_replace_dynamic_table_no_relaxed_ordering_raises(session) -> None:
+def test_to_dynamic_table_no_relaxed_ordering_raises(session) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -37,7 +37,7 @@ def test_create_or_replace_dynamic_table_no_relaxed_ordering_raises(session) -> 
             SnowparkSQLException,
             match="Dynamic Tables cannot depend on a temporary object",
         ):
-            snow_dataframe.create_or_replace_dynamic_table(
+            snow_dataframe.to_dynamic_table(
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
@@ -49,7 +49,7 @@ def test_create_or_replace_dynamic_table_no_relaxed_ordering_raises(session) -> 
 
 
 @sql_count_checker(query_count=5)
-def test_create_or_replace_dynamic_table_relaxed_ordering(session) -> None:
+def test_to_dynamic_table_relaxed_ordering(session) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -68,7 +68,7 @@ def test_create_or_replace_dynamic_table_relaxed_ordering(session) -> None:
         )
         assert (
             "successfully created"
-            in snow_dataframe.create_or_replace_dynamic_table(
+            in snow_dataframe.to_dynamic_table(
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
@@ -85,7 +85,7 @@ def test_create_or_replace_dynamic_table_relaxed_ordering(session) -> None:
 
 
 @sql_count_checker(query_count=4)
-def test_create_or_replace_dynamic_table_multiple_sessions_relaxed_ordering(
+def test_to_dynamic_table_multiple_sessions_relaxed_ordering(
     session,
     db_parameters,
 ) -> None:
@@ -107,7 +107,7 @@ def test_create_or_replace_dynamic_table_multiple_sessions_relaxed_ordering(
         )
         assert (
             "successfully created"
-            in snow_dataframe.create_or_replace_dynamic_table(
+            in snow_dataframe.to_dynamic_table(
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
@@ -132,7 +132,7 @@ def test_create_or_replace_dynamic_table_multiple_sessions_relaxed_ordering(
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
 @sql_count_checker(query_count=6)
-def test_create_or_replace_dynamic_table_index(session, index, index_labels):
+def test_to_dynamic_table_index(session, index, index_labels):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -148,7 +148,7 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        snow_dataframe.create_or_replace_dynamic_table(
+        snow_dataframe.to_dynamic_table(
             name=dynamic_table_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
@@ -175,7 +175,7 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
 
 
 @sql_count_checker(query_count=6)
-def test_create_or_replace_dynamic_table_multiindex(session):
+def test_to_dynamic_table_multiindex(session):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -194,7 +194,7 @@ def test_create_or_replace_dynamic_table_multiindex(session):
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        snow_dataframe.create_or_replace_dynamic_table(
+        snow_dataframe.to_dynamic_table(
             name=dynamic_table_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
@@ -208,7 +208,7 @@ def test_create_or_replace_dynamic_table_multiindex(session):
         with pytest.raises(
             ValueError, match="Length of 'index_label' should match number of levels"
         ):
-            snow_dataframe.create_or_replace_dynamic_table(
+            snow_dataframe.to_dynamic_table(
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
