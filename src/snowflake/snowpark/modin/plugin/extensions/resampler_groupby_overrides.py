@@ -28,7 +28,7 @@ from typing import Any, Callable, Optional, Union
 import modin.pandas as pd
 from modin.pandas.api.extensions import register_series_accessor
 import pandas
-import pandas.core.resample
+import pandas.core.groupby
 from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._typing import AggFuncType, T, AnyArrayLike
@@ -46,7 +46,8 @@ from snowflake.snowpark.modin.utils import (
 
 
 @_inherit_docstrings(
-    pandas.core.resample.Resampler, modify_doc=doc_replace_dataframe_with_link
+    pandas.core.groupby.DataFrameGroupBy.resample,
+    modify_doc=doc_replace_dataframe_with_link,
 )
 class ResamplerGroupby(metaclass=TelemetryMeta):
     def __init__(

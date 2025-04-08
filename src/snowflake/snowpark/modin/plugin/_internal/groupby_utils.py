@@ -1025,7 +1025,7 @@ def fill_missing_groupby_resample_bins_for_frame(
         sub_qcs.append(new_idx_qc)
     concat_qc_idx = sub_qcs[0].concat(axis=0, other=sub_qcs[1:])
 
-    # Join on multi_expected_resample_bins_snowpark_frame to fill in missing resample bins.
+    # Join with multi_expected_resample_bins_snowpark_frame to fill in missing resample bins.
     multi_expected_resample_bins_snowpark_frame = concat_qc_idx._modin_frame
     joined_frame = join(
         frame,

@@ -7,7 +7,7 @@ import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 import pytest
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import eval_snowpark_pandas_result, create_test_dfs
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 IMPLEMENTED_GROUPBY_RESAMPLE_FUNCTIONS = ["max", "mean", "median", "min", "sum"]
@@ -22,28 +22,27 @@ interval = pytest.mark.parametrize("interval", [1, 3, 5, 15])
 @interval
 @agg_func
 def test_groupby_resample_by_a(freq, interval, agg_func):
-    idx = native_pd.date_range("1/1/2000", periods=8, freq="min")
-    pandas_df = native_pd.DataFrame(
-        data=8 * [range(3)], index=idx, columns=["a", "b", "c"]
-    )
-    # creating df with missing datetime bins to be filled in by resample
-    pandas_df.iloc[2, 0] = 5
-    pandas_df.iloc[5, 0] = 5
-    pandas_df.iloc[7, 0] = 5
-    pandas_df = pandas_df.reset_index().drop(index=[3, 4, 5]).set_index("index")
-    snow_df = pd.DataFrame(pandas_df)
     rule = f"{interval}{freq}"
-    with SqlCounter(query_count=5):
+    date_idx = native_pd.to_datetime(
+        [
+            "2000-01-01 00:00:00",
+            "2000-01-01 00:01:00",
+            "2000-01-01 00:02:00",
+            "2000-01-01 00:06:00",
+            "2000-01-01 00:07:00",
+        ]
+    )
+
+    with SqlCounter(query_count=6):
         eval_snowpark_pandas_result(
-            snow_df,
-            pandas_df,
+            *create_test_dfs(
+                {"a": [0, 0, 5, 0, 5], "b": [1, 1, 1, 1, 1], "c": [2, 2, 2, 2, 2]},
+                index=date_idx,
+            ),
             lambda df: getattr(
                 df.groupby("a").resample(rule=rule, include_groups=False),
                 agg_func,
             )(),
-            test_attrs=False,
-            check_freq=False,
-            check_index_type=False,
         )
 
 
@@ -51,30 +50,28 @@ def test_groupby_resample_by_a(freq, interval, agg_func):
 @interval
 @agg_func
 def test_groupby_resample_by_a_closed_left(freq, interval, agg_func):
-    idx = native_pd.date_range("1/1/2000", periods=8, freq="min")
-    pandas_df = native_pd.DataFrame(
-        data=8 * [range(3)], index=idx, columns=["a", "b", "c"]
-    )
-    # creating df with missing datetime bins to be filled in by resample
-    pandas_df.iloc[2, 0] = 5
-    pandas_df.iloc[5, 0] = 5
-    pandas_df.iloc[7, 0] = 5
-    pandas_df = pandas_df.reset_index().drop(index=[3, 4, 5]).set_index("index")
-    snow_df = pd.DataFrame(pandas_df)
     rule = f"{interval}{freq}"
-    with SqlCounter(query_count=5):
+    date_idx = native_pd.to_datetime(
+        [
+            "2000-01-01 00:00:00",
+            "2000-01-01 00:01:00",
+            "2000-01-01 00:02:00",
+            "2000-01-01 00:06:00",
+            "2000-01-01 00:07:00",
+        ]
+    )
+    with SqlCounter(query_count=6):
         eval_snowpark_pandas_result(
-            snow_df,
-            pandas_df,
+            *create_test_dfs(
+                {"a": [0, 0, 5, 0, 5], "b": [1, 1, 1, 1, 1], "c": [2, 2, 2, 2, 2]},
+                index=date_idx,
+            ),
             lambda df: getattr(
                 df.groupby("a").resample(
                     rule=rule, closed="left", include_groups=False
                 ),
                 agg_func,
             )(),
-            test_attrs=False,
-            check_freq=False,
-            check_index_type=False,
         )
 
 
@@ -84,21 +81,13 @@ def test_groupby_resample_by_a_diff_freq(freq):
     pandas_df = native_pd.DataFrame(
         data=8 * [range(3)], index=idx, columns=["a", "b", "c"]
     )
-    # creating df with missing datetime bins to be filled in by resample
-    pandas_df.iloc[2, 0] = 5
-    pandas_df.iloc[5, 0] = 5
-    pandas_df.iloc[7, 0] = 5
-    pandas_df = pandas_df.reset_index().drop(index=[3, 4, 5]).set_index("index")
     snow_df = pd.DataFrame(pandas_df)
     rule = f"1{freq}"
-    with SqlCounter(query_count=5):
+    with SqlCounter(query_count=6):
         eval_snowpark_pandas_result(
             snow_df,
             pandas_df,
             lambda df: df.groupby("a").resample(rule=rule, include_groups=False).sum(),
-            test_attrs=False,
-            check_freq=False,
-            check_index_type=False,
         )
 
 
@@ -106,28 +95,26 @@ def test_groupby_resample_by_a_diff_freq(freq):
 @interval
 @agg_func
 def test_groupby_resample_by_b(freq, interval, agg_func):
-    idx = native_pd.date_range("1/1/2000", periods=8, freq="min")
-    pandas_df = native_pd.DataFrame(
-        data=8 * [range(3)], index=idx, columns=["a", "b", "c"]
+    date_idx = native_pd.to_datetime(
+        [
+            "2000-01-01 00:00:00",
+            "2000-01-01 00:01:00",
+            "2000-01-01 00:02:00",
+            "2000-01-01 00:06:00",
+            "2000-01-01 00:07:00",
+        ]
     )
-    # creating df with missing datetime bins to be filled in by resample
-    pandas_df.iloc[2, 0] = 5
-    pandas_df.iloc[5, 0] = 5
-    pandas_df.iloc[7, 0] = 5
-    pandas_df = pandas_df.reset_index().drop(index=[3, 4, 5]).set_index("index")
-    snow_df = pd.DataFrame(pandas_df)
     rule = f"{interval}{freq}"
-    with SqlCounter(query_count=4):
+    with SqlCounter(query_count=5):
         eval_snowpark_pandas_result(
-            snow_df,
-            pandas_df,
+            *create_test_dfs(
+                {"a": [0, 0, 5, 0, 5], "b": [1, 1, 1, 1, 1], "c": [2, 2, 2, 2, 2]},
+                index=date_idx,
+            ),
             lambda df: getattr(
                 df.groupby("b").resample(rule=rule, include_groups=False),
                 agg_func,
             )(),
-            test_attrs=False,
-            check_freq=False,
-            check_index_type=False,
         )
 
 
@@ -135,29 +122,26 @@ def test_groupby_resample_by_b(freq, interval, agg_func):
 @interval
 @agg_func
 def test_groupby_resample_multiple_by_cols(freq, interval, agg_func):
-    idx = native_pd.date_range("1/1/2000", periods=8, freq="min")
-    pandas_df = native_pd.DataFrame(
-        data=8 * [range(3)], index=idx, columns=["a", "b", "c"]
+    date_idx = native_pd.to_datetime(
+        [
+            "2000-01-01 00:00:00",
+            "2000-01-01 00:01:00",
+            "2000-01-01 00:02:00",
+            "2000-01-01 00:06:00",
+            "2000-01-01 00:07:00",
+        ]
     )
-    # creating df with missing datetime bins to be filled in by resample
-    pandas_df.iloc[2, 0] = 5
-    pandas_df.iloc[5, 0] = 5
-    pandas_df.iloc[7, 0] = 5
-    pandas_df.iloc[1, 1] = 3
-    pandas_df = pandas_df.reset_index().drop(index=[3, 4, 5]).set_index("index")
-    snow_df = pd.DataFrame(pandas_df)
     rule = f"{interval}{freq}"
     with SqlCounter(query_count=6):
         eval_snowpark_pandas_result(
-            snow_df,
-            pandas_df,
+            *create_test_dfs(
+                {"a": [0, 0, 5, 0, 5], "b": [1, 1, 1, 1, 1], "c": [2, 2, 2, 2, 2]},
+                index=date_idx,
+            ),
             lambda df: getattr(
                 df.groupby(["a", "b"]).resample(rule=rule, include_groups=False),
                 agg_func,
             )(),
-            test_attrs=False,
-            check_freq=False,
-            check_index_type=False,
         )
 
 
