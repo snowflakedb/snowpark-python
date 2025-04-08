@@ -8,11 +8,12 @@ from typing import Dict, List, Tuple
 from datetime import datetime
 import pandas as pd
 import logging
+from dbapi_parameters import ORACLEDB_PARAMS
 
 from snowflake.snowpark import Session
 from dbtest_config import (
     DatabaseTestConfig,
-    create_sql_server_config,
+    # create_sql_server_config,
     create_oracle_config,
     DEFAULT_PYSPARK_CONFIG,
     DEFAULT_ORACLE_JDBC_CONFIG,
@@ -257,11 +258,18 @@ def snowpark_perf_test():
     perf_test = DBPerformanceTest(SNOWFLAKE_CONNECTION)
 
     # SAMPLE
-    sql_sever_config = create_sql_server_config(insert_row_count=10000, fetch_size=1000)
-    oracle_config = create_oracle_config(insert_row_count=10000, fetch_size=1000)
+    oracle_config = [
+        create_oracle_config(
+            connection_params=ORACLEDB_PARAMS,
+            existing_table="ALL_TYPE_TABLE",
+            fetch_size=1000,
+            query_staged_file=value,
+        )
+        for value in [True, False]
+    ]
 
     # UPDATE THIS
-    TEST_MATRIX = [sql_sever_config, oracle_config]
+    TEST_MATRIX = oracle_config
 
     # Run tests for each database type
     for db_config in TEST_MATRIX:
@@ -284,5 +292,5 @@ def snowpark_perf_test():
 
 
 if __name__ == "__main__":
-    pyspark_perf_test()
+    # pyspark_perf_test()
     snowpark_perf_test()

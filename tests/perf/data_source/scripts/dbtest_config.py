@@ -38,6 +38,7 @@ def create_oracle_config(
     lower_bound: Union[str, int] = None,
     upper_bound: Union[str, int] = None,
     num_partitions: int = None,
+    query_staged_file: bool = False,
 ) -> DatabaseTestConfig:
     """
     Helper method to create Oracle test configuration with default values.
@@ -72,6 +73,7 @@ def create_oracle_config(
         dbapi_parameters["upper_bound"] = upper_bound
     if num_partitions is not None:
         dbapi_parameters["num_partitions"] = num_partitions
+    dbapi_parameters["query_staged_file"] = query_staged_file
 
     config = DatabaseTestConfig(
         db_class=TestOracleDB,
