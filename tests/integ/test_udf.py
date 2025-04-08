@@ -2864,7 +2864,7 @@ def test_register_artifact_repository_negative(session):
         )
 
     with pytest.raises(
-        SnowparkSQLException,
+        ValueError,
         match="Cannot create a function with duplicates between packages and artifact repository packages.",
     ):
         udf(
