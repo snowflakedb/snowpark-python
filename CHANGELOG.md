@@ -45,7 +45,7 @@
 
 - Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `relaxed_ordering=False`.
 
-## 1.30.0 (2024-03-27)
+## 1.30.0 (2025-03-27)
 
 ### Snowpark Python API Updates
 
