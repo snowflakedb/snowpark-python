@@ -431,7 +431,6 @@ class OrderedDataFrame:
             *self.projected_column_snowflake_quoted_identifiers,
             count("*").over().as_(row_count_snowflake_quoted_identifier),
         )
-
         # inplace update so dataframe_ref can be shared. Note that we keep
         # the original ordering columns.
         ordered_dataframe.row_count_snowflake_quoted_identifier = (
