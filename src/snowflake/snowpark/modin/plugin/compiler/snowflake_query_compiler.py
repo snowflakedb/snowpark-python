@@ -4826,6 +4826,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             # resampled_frame is the frame with index column items set to its resampled bin
+            # With rule='3min', resampled_frame will look like this:
 
             #                      a  b  c
             # index
