@@ -4807,7 +4807,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             snowflake_index_column_identifier,
             rule,
         )
-
+        # Say this is the original frame with start_date = 2000-01-01 00:00:00 and end_date = 2000-01-01 00:07:00
         #                      a  b  c
         # index
         # 2000-01-01 00:00:00  0  1  2
@@ -4824,6 +4824,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 slice_width=slice_width,
                 slice_unit=slice_unit,
             )
+
+            # resampled_frame is the frame with index column items set to its resampled bin
+
             #                      a  b  c
             # index
             # 2000-01-01 00:00:00  0  1  2
@@ -4831,6 +4834,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # 2000-01-01 00:00:00  5  1  2
             # 2000-01-01 00:06:00  0  1  2
             # 2000-01-01 00:06:00  5  1  2
+
             agg_by_list = by_list + frame.index_column_pandas_labels
             qc = SnowflakeQueryCompiler(resampled_frame).groupby_agg(
                 by=agg_by_list,
@@ -4843,6 +4847,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 is_series_groupby=is_series,
             )
 
+        # after the groupby_agg grouping by 'a', the frame will look like this:
+        #                        b  c
+        # a index
+        # 0 2000-01-01 00:00:00  2  4
+        #   2000-01-01 00:06:00  1  2
+        # 5 2000-01-01 00:00:00  1  2
+        #   2000-01-01 00:06:00  1  2
+
         quoted_by_list = (
             qc._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                 by_list
@@ -4854,14 +4866,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if x[0] in resampled_quoted_ids:
                 resampled_quoted_ids.remove(x[0])
 
-            #                        b  c
-            # a index
-            # 0 2000-01-01 00:00:00  2  4
-            #   2000-01-01 00:06:00  1  2
-            # 5 2000-01-01 00:00:00  1  2
-            #   2000-01-01 00:06:00  1  2
         frame = qc._modin_frame
         datetime_index_col_identifier = resampled_quoted_ids[0]
+
+        # the aggregated frame with index column items set to its resampled bin may still be missing resampled bins
+        # based on the frequency.
+        # fill_missing_groupby_resample_bins_for_frame will fill in those missing bins with NaN values.
+
         resampled_frame_all_bins = fill_missing_groupby_resample_bins_for_frame(
             frame,
             rule,
@@ -4869,6 +4880,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             orig_datetime_index_col_label,
             datetime_index_col_identifier,
         )
+
+        # after filling in the missing bins, the frame will look like this:
+
+        #                        b  c
+        # a index
+        # 0 2000-01-01 00:00:00  2  4
+        #   2000-01-01 00:03:00  NaN  NaN
+        #   2000-01-01 00:06:00  1  2
+        # 5 2000-01-01 00:00:00  1  2
+        #   2000-01-01 00:03:00  NaN  NaN
+        #   2000-01-01 00:06:00  1  2
+
         if resample_method in ("sum", "count", "size", "nunique"):
             values_arg: Union[int, dict]
             if resample_method == "sum":

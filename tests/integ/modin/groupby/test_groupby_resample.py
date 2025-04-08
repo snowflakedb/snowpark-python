@@ -38,11 +38,64 @@ def test_groupby_resample_by_a(freq, interval, agg_func):
             snow_df,
             pandas_df,
             lambda df: getattr(
+                df.groupby("a").resample(rule=rule, include_groups=False),
+                agg_func,
+            )(),
+            test_attrs=False,
+            check_freq=False,
+            check_index_type=False,
+        )
+
+
+@freq
+@interval
+@agg_func
+def test_groupby_resample_by_a_closed_left(freq, interval, agg_func):
+    idx = native_pd.date_range("1/1/2000", periods=8, freq="min")
+    pandas_df = native_pd.DataFrame(
+        data=8 * [range(3)], index=idx, columns=["a", "b", "c"]
+    )
+    # creating df with missing datetime bins to be filled in by resample
+    pandas_df.iloc[2, 0] = 5
+    pandas_df.iloc[5, 0] = 5
+    pandas_df.iloc[7, 0] = 5
+    pandas_df = pandas_df.reset_index().drop(index=[3, 4, 5]).set_index("index")
+    snow_df = pd.DataFrame(pandas_df)
+    rule = f"{interval}{freq}"
+    with SqlCounter(query_count=5):
+        eval_snowpark_pandas_result(
+            snow_df,
+            pandas_df,
+            lambda df: getattr(
                 df.groupby("a").resample(
                     rule=rule, closed="left", include_groups=False
                 ),
                 agg_func,
             )(),
+            test_attrs=False,
+            check_freq=False,
+            check_index_type=False,
+        )
+
+
+@freq
+def test_groupby_resample_by_a_diff_freq(freq):
+    idx = native_pd.date_range("1/1/2000", periods=8, freq=f"{freq}")
+    pandas_df = native_pd.DataFrame(
+        data=8 * [range(3)], index=idx, columns=["a", "b", "c"]
+    )
+    # creating df with missing datetime bins to be filled in by resample
+    pandas_df.iloc[2, 0] = 5
+    pandas_df.iloc[5, 0] = 5
+    pandas_df.iloc[7, 0] = 5
+    pandas_df = pandas_df.reset_index().drop(index=[3, 4, 5]).set_index("index")
+    snow_df = pd.DataFrame(pandas_df)
+    rule = f"1{freq}"
+    with SqlCounter(query_count=5):
+        eval_snowpark_pandas_result(
+            snow_df,
+            pandas_df,
+            lambda df: df.groupby("a").resample(rule=rule, include_groups=False).sum(),
             test_attrs=False,
             check_freq=False,
             check_index_type=False,
@@ -69,9 +122,7 @@ def test_groupby_resample_by_b(freq, interval, agg_func):
             snow_df,
             pandas_df,
             lambda df: getattr(
-                df.groupby("b").resample(
-                    rule=rule, closed="left", include_groups=False
-                ),
+                df.groupby("b").resample(rule=rule, include_groups=False),
                 agg_func,
             )(),
             test_attrs=False,
@@ -101,9 +152,7 @@ def test_groupby_resample_multiple_by_cols(freq, interval, agg_func):
             snow_df,
             pandas_df,
             lambda df: getattr(
-                df.groupby(["a", "b"]).resample(
-                    rule=rule, closed="left", include_groups=False
-                ),
+                df.groupby(["a", "b"]).resample(rule=rule, include_groups=False),
                 agg_func,
             )(),
             test_attrs=False,
@@ -133,6 +182,4 @@ def test_resample_series_negative():
     with pytest.raises(
         NotImplementedError, match="Series GroupbyResampler is not yet implemented."
     ):
-        snow_ser.groupby(by="grp_col").resample(
-            rule="3min", closed="left", include_groups=False
-        ).sum()
+        snow_ser.groupby(by="grp_col").resample(rule="3min", include_groups=False).sum()

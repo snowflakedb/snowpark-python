@@ -12,7 +12,6 @@ from collections.abc import Hashable
 from typing import Any, Literal, Optional, Union, List
 
 import pandas as native_pd
-from pandas._libs.lib import no_default
 from pandas._typing import IndexLabel
 from pandas.core.dtypes.common import is_list_like
 
@@ -44,10 +43,8 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     perform_resample_binning_on_frame,
     rule_to_snowflake_width_and_slice_unit,
     get_expected_resample_bins_frame,
-    SUPPORTED_RESAMPLE_RULES,
-    _argument_not_implemented,
-    RULE_SECOND_TO_DAY,
     RULE_WEEK_TO_YEAR,
+    validate_resample_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
@@ -111,52 +108,16 @@ def validate_groupby_resample_supported_by_snowflake(
         Raises a NotImplementedError if a keyword argument of resample has an
         unsupported parameter-argument combination.
     """
-    rule = resample_kwargs.get("rule")
+    validate_resample_supported_by_snowflake(resample_kwargs)
 
+    # groupby resample specific validation
+    rule = resample_kwargs.get("rule")
     _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
-    if slice_unit not in SUPPORTED_RESAMPLE_RULES:
-        _argument_not_implemented("rule", rule)
-
-    axis = resample_kwargs.get("axis")
-    if axis != 0:  # pragma: no cover
-        _argument_not_implemented("axis", axis)
-
-    closed = resample_kwargs.get("closed")
-    if closed not in ("left", None) and slice_unit in RULE_SECOND_TO_DAY:
-        _argument_not_implemented("closed", closed)
     if slice_unit in RULE_WEEK_TO_YEAR:
         ErrorMessage.not_implemented(
             f"Groupby resample with rule offset {rule} is not yet implemented."
         )
-
-    label = resample_kwargs.get("label")
-    if label is not None:  # pragma: no cover
-        _argument_not_implemented("label", label)
-
-    convention = resample_kwargs.get("convention")
-    if convention != "start":  # pragma: no cover
-        _argument_not_implemented("convention", convention)
-
-    kind = resample_kwargs.get("kind")
-    if kind is not None:  # pragma: no cover
-        _argument_not_implemented("kind", kind)
-
-    level = resample_kwargs.get("level")
-    if level is not None:  # pragma: no cover
-        _argument_not_implemented("level", level)
-
-    origin = resample_kwargs.get("origin")
-    if origin != "start_day":  # pragma: no cover
-        _argument_not_implemented("origin", origin)
-
-    offset = resample_kwargs.get("offset")
-    if offset is not None:  # pragma: no cover
-        _argument_not_implemented("offset", offset)
-
-    group_keys = resample_kwargs.get("group_keys")
-    if group_keys is not no_default:  # pragma: no cover
-        _argument_not_implemented("group_keys", group_keys)
 
     return None
 
@@ -988,10 +949,19 @@ def fill_missing_groupby_resample_bins_for_frame(
     frame : InternalFrame
         A new internal frame with no missing rows in the resample operation.
     """
-    # Compute expected resample bins based on start_date, end_date and rule for each groupby col value.
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         SnowflakeQueryCompiler,
     )
+
+    # For example, if we have the following frame with rule='3min', we will fill in the missing
+    # resample bins for each group of by_list by adding index (0, 2000-01-01 00:03:00) and (5, 2000-01-01 00:03:00)
+
+    #                        b  c
+    # a index
+    # 0 2000-01-01 00:00:00  2  4
+    #   2000-01-01 00:06:00  1  2
+    # 5 2000-01-01 00:00:00  1  2
+    #   2000-01-01 00:06:00  1  2
 
     unique_by_idx_vals = (
         frame.index_columns_pandas_index()
@@ -1003,6 +973,7 @@ def fill_missing_groupby_resample_bins_for_frame(
     sub_qcs = []
 
     for value in unique_by_idx_vals:
+        # value is a tuple when there are multiple groupby columns
         if isinstance(value, tuple):
             col_list = [
                 col(frame.index_column_snowflake_quoted_identifiers[i])
@@ -1014,6 +985,10 @@ def fill_missing_groupby_resample_bins_for_frame(
                 col(frame.index_column_snowflake_quoted_identifiers[0])
                 == pandas_lit(value)
             ]
+
+        # This creates the filter expression col_1 == value_1 & col_2 == value_2 & ... col_n == value_n
+        # for cols in col_list. This is used to filter the frame to get the rows with the specific
+        # index col values.
         filter_cond = functools.reduce(lambda x, y: x & y, col_list)
         subframes[value] = frame.filter(filter_cond)
         start_date, end_date = compute_resample_start_and_end_date(
@@ -1050,7 +1025,7 @@ def fill_missing_groupby_resample_bins_for_frame(
         sub_qcs.append(new_idx_qc)
     concat_qc_idx = sub_qcs[0].concat(axis=0, other=sub_qcs[1:])
 
-    # Join on expected expected_resample_bins_frame to fill in missing resample bins.
+    # Join on multi_expected_resample_bins_snowpark_frame to fill in missing resample bins.
     multi_expected_resample_bins_snowpark_frame = concat_qc_idx._modin_frame
     joined_frame = join(
         frame,
