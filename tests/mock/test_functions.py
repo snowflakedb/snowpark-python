@@ -8,11 +8,10 @@ from typing import Iterable
 
 import pytest
 
-from tests.utils import Utils
-
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import (
     abs,
+    array_agg,
     asc,
     call_function,
     col,
@@ -22,6 +21,7 @@ from snowflake.snowpark.functions import (
     current_time,
     current_timestamp,
     desc,
+    get,
     is_null,
     lit,
     max,
@@ -35,6 +35,8 @@ from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnT
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import IntegerType
 from snowflake.snowpark.window import Window
+
+from tests.utils import Utils
 
 
 def test_col(session):
@@ -390,3 +392,19 @@ def test_row_number(session):
             Row(3, datetime.datetime(2020, 1, 1, 1, 1, 8), 4),
         ],
     )
+
+
+def test_get(session):
+    data = [
+        Row(101, 1, "cat"),
+        Row(101, 2, "dog"),
+        Row(101, 3, "dog"),
+        Row(102, 4, "cat"),
+    ]
+    df = session.create_dataframe(data, schema=["ID", "TS", "VALUE"])
+
+    agged = df.groupBy("ID").agg(
+        array_agg(col("VALUE")).within_group(col("TS")).alias("VALUES")
+    )
+    get_df = agged.select("ID", get(col("VALUES"), 1).alias("ELEMENT"))
+    Utils.check_answer(get_df, [Row(102, None), Row(101, '"dog"')])

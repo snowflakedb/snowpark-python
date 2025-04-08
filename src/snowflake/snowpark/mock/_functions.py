@@ -2063,7 +2063,7 @@ def mock_get(
 ) -> ColumnEmulator:
     def get(obj, key):
         try:
-            if isinstance(obj, list):
+            if isinstance(obj, list) and key < len(obj):
                 return obj[key]
             elif isinstance(obj, dict):
                 return obj.get(key, None)
