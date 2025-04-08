@@ -102,9 +102,6 @@ REGISTER_KWARGS_ALLOWLIST = {
     "input_names",  # for pandas_udtf
     "max_batch_size",  # for pandas_udtf
     "_registered_object_name",  # object name within Snowflake (post registration)
-    "artifact_repository",
-    "artifact_repository_packages",
-    "resource_constraint",
 }
 
 ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}
@@ -1311,6 +1308,19 @@ def create_python_udf_or_sp(
         raise ValueError(
             "artifact_repository must be specified when artifact_repository_packages has been specified"
         )
+    if all_packages and artifact_repository_packages:
+        package_names = [
+            pack.strip("\"'").split("==")[0] for pack in all_packages.split(",")
+        ]
+        artifact_repository_package_names = [
+            pack.strip("\"'").split("==")[0] for pack in artifact_repository_packages
+        ]
+
+        for package in package_names:
+            if package in artifact_repository_package_names:
+                raise ValueError(
+                    f"Cannot create a function with duplicates between packages and artifact repository packages. packages: {all_packages}, artifact_repository_packages: {','.join(artifact_repository_packages)}"
+                )
 
     artifact_repository_in_sql = (
         f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
