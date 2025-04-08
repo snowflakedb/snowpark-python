@@ -26,8 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 class OracledbDriver(BaseDriver):
-    def __init__(self, create_connection: Callable[[], "Connection"]) -> None:
-        super().__init__(create_connection)
+    def __init__(
+        self, create_connection: Callable[[], "Connection"], dbms_type: str
+    ) -> None:
+        super().__init__(create_connection, dbms_type)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         """

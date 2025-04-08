@@ -62,7 +62,7 @@ class DataSourcePartitioner:
         self.dialect_class = DBMS_MAP.get(dbms_type, BaseDialect)
         self.driver_class = DRIVER_MAP.get(driver, BaseDriver)
         self.dialect = self.dialect_class()
-        self.driver = self.driver_class(create_connection)
+        self.driver = self.driver_class(create_connection, dbms_type)
 
     def reader(self) -> DataSourceReader:
         return DataSourceReader(
