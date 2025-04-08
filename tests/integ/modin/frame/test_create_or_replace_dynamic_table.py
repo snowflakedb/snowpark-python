@@ -15,7 +15,7 @@ from tests.utils import Utils
 
 
 @sql_count_checker(query_count=5)
-def test_create_or_replace_dynamic_table_no_enforce_ordering_raises(session) -> None:
+def test_create_or_replace_dynamic_table_enforce_ordering_raises(session) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -49,7 +49,7 @@ def test_create_or_replace_dynamic_table_no_enforce_ordering_raises(session) -> 
 
 
 @sql_count_checker(query_count=5)
-def test_create_or_replace_dynamic_table_enforce_ordering(session) -> None:
+def test_create_or_replace_dynamic_table_no_enforce_ordering(session) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -85,7 +85,7 @@ def test_create_or_replace_dynamic_table_enforce_ordering(session) -> None:
 
 
 @sql_count_checker(query_count=4)
-def test_create_or_replace_dynamic_table_multiple_sessions_enforce_ordering(
+def test_create_or_replace_dynamic_table_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
 ) -> None:
@@ -131,7 +131,7 @@ def test_create_or_replace_dynamic_table_multiple_sessions_enforce_ordering(
 
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_dynamic_table_index(session, index, index_labels):
     try:
         # create table
@@ -166,7 +166,10 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
         expected_columns = expected_columns + ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
 
         # verify columns
-        actual = pd.read_snowflake(dynamic_table_name).columns
+        actual = pd.read_snowflake(
+            dynamic_table_name,
+            enforce_ordering=False,
+        ).columns
         assert actual.tolist() == expected_columns
     finally:
         # cleanup
@@ -174,7 +177,7 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_dynamic_table_multiindex(session):
     try:
         # create table
@@ -202,7 +205,10 @@ def test_create_or_replace_dynamic_table_multiindex(session):
         )
 
         # verify columns
-        actual = pd.read_snowflake(dynamic_table_name).columns
+        actual = pd.read_snowflake(
+            dynamic_table_name,
+            enforce_ordering=False,
+        ).columns
         assert actual.tolist() == ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
 
         with pytest.raises(

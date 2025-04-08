@@ -15,27 +15,35 @@ from tests.utils import Utils
 
 
 @pytest.fixture(scope="function")
-def native_pandas_ser_basic():
-    native_ser = native_pd.Series([4, 7, 4, 2], name="A")
-    return native_ser
+def native_pandas_df_basic():
+    native_df = native_pd.DataFrame(
+        {
+            "ID": [1, 2, 3],
+            "FOOT_SIZE": [32.0, 27.0, 40.0],
+            "SHOE_MODEL": ["medium", "small", "large"],
+        }
+    )
+    native_df = native_df.set_index("ID")
+    return native_df
 
 
 @sql_count_checker(query_count=2)
-def test_create_or_replace_view_basic(session, native_pandas_ser_basic) -> None:
+def test_to_view_basic(session, native_pandas_df_basic) -> None:
     view_name = Utils.random_view_name()
     try:
-        snow_series = pd.Series(native_pandas_ser_basic)
+        snow_dataframe = pd.DataFrame(native_pandas_df_basic)
 
         assert (
             "successfully created"
-            in snow_series.create_or_replace_view(name=view_name)[0]["status"]
+            in snow_dataframe.to_view(name=view_name)[0]["status"]
         )
+
     finally:
         Utils.drop_view(session, view_name)
 
 
 @sql_count_checker(query_count=6)
-def test_create_or_replace_view_multiple_sessions_enforce_ordering_raises(
+def test_to_view_multiple_sessions_enforce_ordering_raises(
     session,
     db_parameters,
 ) -> None:
@@ -46,21 +54,21 @@ def test_create_or_replace_view_multiple_sessions_enforce_ordering_raises(
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create series with enforce_ordering enabled
-        snow_series = pd.read_snowflake(
+        # create dataframe with enforce_ordering enabled
+        snow_dataframe = pd.read_snowflake(
             f"(((SELECT * FROM {table_name})))", enforce_ordering=True
-        ).iloc[:, 0]
+        )
 
         # create view
         view_name = Utils.random_view_name()
         assert (
             "successfully created"
-            in snow_series.create_or_replace_view(name=view_name)[0]["status"]
+            in snow_dataframe.to_view(name=view_name)[0]["status"]
         )
 
         # another session
         new_session = Session.builder.configs(db_parameters).create()
-        pd.session = new_session
+        pd.session = session
 
         # accessing the created view in another session fails when enforce_ordering is enabled
         with pytest.raises(
@@ -74,10 +82,11 @@ def test_create_or_replace_view_multiple_sessions_enforce_ordering_raises(
         # cleanup
         Utils.drop_view(session, view_name)
         Utils.drop_table(session, table_name)
+        pd.session = session
 
 
 @sql_count_checker(query_count=4)
-def test_create_or_replace_view_multiple_sessions_no_enforce_ordering(
+def test_to_view_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
 ) -> None:
@@ -88,16 +97,16 @@ def test_create_or_replace_view_multiple_sessions_no_enforce_ordering(
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create series with enforce_ordering disabled
-        snow_series = pd.read_snowflake(
+        # create dataframe with enforce_ordering disabled
+        snow_dataframe = pd.read_snowflake(
             f"(((SELECT * FROM {table_name})))", enforce_ordering=False
-        ).iloc[:, 0]
+        )
 
         # create view
         view_name = Utils.random_view_name()
         assert (
             "successfully created"
-            in snow_series.create_or_replace_view(name=view_name)[0]["status"]
+            in snow_dataframe.to_view(name=view_name)[0]["status"]
         )
 
         # another session
@@ -119,7 +128,7 @@ def test_create_or_replace_view_multiple_sessions_no_enforce_ordering(
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
 @sql_count_checker(query_count=4)
-def test_create_or_replace_view_index(session, index, index_labels):
+def test_to_view_index(session, index, index_labels):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -127,15 +136,13 @@ def test_create_or_replace_view_index(session, index, index_labels):
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create series with enforce_ordering disabled
-        snow_series = pd.read_snowflake(
+        # create dataframe with enforce_ordering disabled
+        snow_dataframe = pd.read_snowflake(
             f"(((SELECT * FROM {table_name})))", enforce_ordering=False
-        ).iloc[:, 0]
+        )
 
         view_name = Utils.random_view_name()
-        snow_series.create_or_replace_view(
-            name=view_name, index=index, index_label=index_labels
-        )
+        snow_dataframe.to_view(name=view_name, index=index, index_label=index_labels)
         expected_columns = []
         if index:
             # if index is retained in the result, add it as the first expected column
@@ -144,7 +151,7 @@ def test_create_or_replace_view_index(session, index, index_labels):
                 expected_index = index_labels
             expected_columns = expected_columns + expected_index
         # add the expected data columns
-        expected_columns = expected_columns + ["_1"]
+        expected_columns = expected_columns + ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
 
         # verify columns
         actual = pd.read_snowflake(
@@ -159,7 +166,7 @@ def test_create_or_replace_view_index(session, index, index_labels):
 
 
 @sql_count_checker(query_count=4)
-def test_create_or_replace_view_multiindex(session):
+def test_to_view_multiindex(session):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -175,11 +182,8 @@ def test_create_or_replace_view_multiindex(session):
         # make sure dataframe has a multi-index
         snow_dataframe = snow_dataframe.set_index(["_1", "_2"])
 
-        # create series
-        snow_series = snow_dataframe.iloc[:, 0]
-
         view_name = Utils.random_view_name()
-        snow_series.create_or_replace_view(
+        snow_dataframe.to_view(
             name=view_name,
             index=True,
         )
@@ -189,14 +193,12 @@ def test_create_or_replace_view_multiindex(session):
             view_name,
             enforce_ordering=False,
         ).columns
-        assert actual.tolist() == ["_1", "_2", "_3"]
+        assert actual.tolist() == ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
 
         with pytest.raises(
             ValueError, match="Length of 'index_label' should match number of levels"
         ):
-            snow_series.create_or_replace_view(
-                name=view_name, index=True, index_label=["a"]
-            )
+            snow_dataframe.to_view(name=view_name, index=True, index_label=["a"])
     finally:
         # cleanup
         Utils.drop_view(session, view_name)

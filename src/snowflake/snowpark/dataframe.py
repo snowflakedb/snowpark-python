@@ -1394,7 +1394,10 @@ class DataFrame:
             self._ast_id = ast_id  # reset the AST ID.
 
             snowpandas_df = pd.read_snowflake(
-                name_or_query=temporary_table_name, index_col=index_col, columns=columns
+                name_or_query=temporary_table_name,
+                index_col=index_col,
+                columns=columns,
+                enforce_ordering=True,
             )  # pragma: no cover
         else:
             if len(self.queries["queries"]) > 1:

@@ -43,7 +43,7 @@ def test_create_or_replace_view_basic(session, native_pandas_df_basic) -> None:
 
 
 @sql_count_checker(query_count=6)
-def test_create_or_replace_view_multiple_sessions_no_enforce_ordering_raises(
+def test_create_or_replace_view_multiple_sessions_enforce_ordering_raises(
     session,
     db_parameters,
 ) -> None:
@@ -86,7 +86,7 @@ def test_create_or_replace_view_multiple_sessions_no_enforce_ordering_raises(
 
 
 @sql_count_checker(query_count=4)
-def test_create_or_replace_view_multiple_sessions_enforce_ordering(
+def test_create_or_replace_view_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
 ) -> None:
@@ -127,7 +127,7 @@ def test_create_or_replace_view_multiple_sessions_enforce_ordering(
 
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_view_index(session, index, index_labels):
     try:
         # create table
@@ -156,7 +156,10 @@ def test_create_or_replace_view_index(session, index, index_labels):
         expected_columns = expected_columns + ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
 
         # verify columns
-        actual = pd.read_snowflake(view_name).columns
+        actual = pd.read_snowflake(
+            view_name,
+            enforce_ordering=False,
+        ).columns
         assert actual.tolist() == expected_columns
     finally:
         # cleanup
@@ -164,7 +167,7 @@ def test_create_or_replace_view_index(session, index, index_labels):
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_view_multiindex(session):
     try:
         # create table
@@ -188,7 +191,10 @@ def test_create_or_replace_view_multiindex(session):
         )
 
         # verify columns
-        actual = pd.read_snowflake(view_name).columns
+        actual = pd.read_snowflake(
+            view_name,
+            enforce_ordering=False,
+        ).columns
         assert actual.tolist() == ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
 
         with pytest.raises(

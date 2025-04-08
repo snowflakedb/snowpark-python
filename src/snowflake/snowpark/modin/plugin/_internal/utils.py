@@ -378,6 +378,7 @@ def create_initial_ordered_dataframe(
                     "Row access policy is not supported on read only table",  # case 1
                     "Cannot clone",  # case 2
                     "Unsupported feature",  # case 3
+                    "Clone Iceberg table should use CREATE ICEBERG TABLE CLONE command",  # case 3
                 )
                 if any(error in ex.message for error in known_errors):
                     readonly_table_name = _create_read_only_table(
@@ -476,7 +477,9 @@ def create_initial_ordered_dataframe(
             # so we lose the data isolation quality of pandas that we are attempting to replicate. By
             # creating a read only clone, we ensure that the underlying data cannot be modified by anyone
             # else.
-            snowpark_pandas_df = session.sql(table_name_or_query).to_snowpark_pandas()
+            snowpark_pandas_df = session.sql(table_name_or_query).to_snowpark_pandas(
+                enforce_ordering=enforce_ordering
+            )
         except SnowparkSQLException as ex:
             raise SnowparkPandasException(
                 f"Failed to create Snowpark pandas DataFrame out of query {table_name_or_query} with error {ex}",
