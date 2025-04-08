@@ -197,7 +197,7 @@ class DataFrameNaFunctions:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_na_drop__python, stmt)
             ast.how = how
             if thresh is not None:
@@ -229,7 +229,7 @@ class DataFrameNaFunctions:
             new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.drop")
             if _emit_ast:
-                new_df._ast_id = stmt.var_id.bitfield1
+                new_df._ast_id = stmt.uid
             return self._dataframe
         # if thresh is greater than the number of columns,
         # drop a row only if all its values are null
@@ -237,7 +237,7 @@ class DataFrameNaFunctions:
             new_df = self._dataframe.limit(0, _ast_stmt=stmt, _emit_ast=False)
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
             if _emit_ast:
-                new_df._ast_id = stmt.var_id.bitfield1
+                new_df._ast_id = stmt.uid
             return new_df
         else:
             df_col_type_dict = {
@@ -273,7 +273,7 @@ class DataFrameNaFunctions:
             adjust_api_subcalls(new_df, "DataFrameNaFunctions.drop", len_subcalls=1)
 
             if _emit_ast:
-                new_df._ast_id = stmt.var_id.bitfield1
+                new_df._ast_id = stmt.uid
 
             return new_df
 
@@ -391,7 +391,7 @@ class DataFrameNaFunctions:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_na_fill, stmt)
             self._dataframe._set_ast_ref(ast.df)
             if isinstance(value, dict):
@@ -429,7 +429,7 @@ class DataFrameNaFunctions:
             new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.fill")
             if _emit_ast:
-                new_df._ast_id = stmt.var_id.bitfield1
+                new_df._ast_id = stmt.uid
             return new_df
         if not all(
             [
@@ -604,7 +604,7 @@ class DataFrameNaFunctions:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_na_replace, stmt)
             self._dataframe._set_ast_ref(ast.df)
 
@@ -646,7 +646,7 @@ class DataFrameNaFunctions:
             new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             if _emit_ast:
-                new_df._ast_id = stmt.var_id.bitfield1
+                new_df._ast_id = stmt.uid
             return new_df
 
         if isinstance(to_replace, dict):
@@ -668,7 +668,7 @@ class DataFrameNaFunctions:
             new_df = self._dataframe._copy_without_ast()
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             if _emit_ast:
-                new_df._ast_id = stmt.var_id.bitfield1
+                new_df._ast_id = stmt.uid
             return new_df
         if not all(
             [

@@ -33,7 +33,6 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     build_proto_from_callable,
-    build_proto_from_pivot_values,
     build_proto_from_struct_type,
     debug_check_missing_ast,
     with_src_position,
@@ -75,7 +74,9 @@ def _expr_to_func(expr: str, input_expr: Expression, _emit_ast: bool) -> Express
     elif lowered in ["count", "size"]:
         return functions.count(create_column(input_expr))._expression
     else:
-        return functions.function(expr, _emit_ast=_emit_ast)(input_expr)._expression
+        return functions._call_function(
+            expr, input_expr, _emit_ast=_emit_ast
+        )._expression
 
 
 def _str_to_expr(expr: str, _emit_ast: bool) -> Callable:
@@ -165,18 +166,18 @@ class RelationalGroupedDataFrame:
         df: DataFrame,
         grouping_exprs: List[Expression],
         group_type: _GroupType,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
     ) -> None:
         self._dataframe = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
         self._df_api_call = None
-        self._ast_id = _ast_stmt.var_id.bitfield1 if _ast_stmt is not None else None
+        self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
 
     def _to_df(
         self,
         agg_exprs: List[Expression],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = False,
     ) -> DataFrame:
         aliased_agg = []
@@ -259,7 +260,7 @@ class RelationalGroupedDataFrame:
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. See examples in :meth:`DataFrame.group_by`.
@@ -294,7 +295,7 @@ class RelationalGroupedDataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._dataframe._session._ast_batch.assign()
+                stmt = self._dataframe._session._ast_batch.bind()
                 ast = with_src_position(
                     stmt.expr.relational_grouped_dataframe_agg, stmt
                 )
@@ -324,7 +325,7 @@ class RelationalGroupedDataFrame:
         df = self._to_df(agg_exprs, _emit_ast=False)
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
         return df
 
     @relational_group_df_api_usage
@@ -470,7 +471,7 @@ class RelationalGroupedDataFrame:
         )
 
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(
                 stmt.expr.relational_grouped_dataframe_apply_in_pandas, stmt
             )
@@ -483,7 +484,7 @@ class RelationalGroupedDataFrame:
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -586,16 +587,16 @@ class RelationalGroupedDataFrame:
 
         # special case: This is an internal state modifying operation.
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.relational_grouped_dataframe_pivot, stmt)
             if default_on_null is not None:
                 build_expr_from_python_val(ast.default_on_null, default_on_null)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
-            build_proto_from_pivot_values(ast.values, values)
+            build_expr_from_python_val(ast.values, values)
             self._set_ast_ref(ast.grouped_df)
 
             # Update self's id.
-            self._ast_id = stmt.var_id.bitfield1
+            self._ast_id = stmt.uid
 
         return self
 
@@ -638,7 +639,9 @@ class RelationalGroupedDataFrame:
         df = self._to_df(
             [
                 Alias(
-                    functions.builtin("count")(Literal(1))._expression,
+                    functions._call_function(
+                        "count", Literal(1), _emit_ast=False
+                    )._expression,
                     "count",
                 )
             ],
@@ -647,13 +650,13 @@ class RelationalGroupedDataFrame:
 
         # TODO: count seems similar to mean, min, .... Can we unify implementation here?
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(
                 stmt.expr.relational_grouped_dataframe_builtin, stmt
             )
             self._set_ast_ref(ast.grouped_df)
             ast.agg_name = "count"
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -667,18 +670,21 @@ class RelationalGroupedDataFrame:
 
     builtin = function
 
+    @publicapi
     def _function(
         self, agg_name: str, *cols: ColumnOrName, _emit_ast: bool = True
     ) -> DataFrame:
         agg_exprs = []
         for c in cols:
             c_expr = Column(c)._expression if isinstance(c, str) else c._expression
-            expr = functions.builtin(agg_name)(c_expr)._expression
+            expr = functions._call_function(
+                agg_name, c_expr, _emit_ast=False
+            )._expression
             agg_exprs.append(expr)
         df = self._to_df(agg_exprs)
 
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(
                 stmt.expr.relational_grouped_dataframe_builtin, stmt
             )
@@ -689,10 +695,11 @@ class RelationalGroupedDataFrame:
             for e in exprs:
                 build_expr_from_python_val(ast.cols.args.add(), e)
 
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
+    @publicapi
     def _non_empty_argument_function(
         self, func_name: str, *cols: ColumnOrName, _emit_ast: bool = True
     ) -> DataFrame:
@@ -707,6 +714,5 @@ class RelationalGroupedDataFrame:
         """
         Given a field builder expression of the AST type Expr, points the builder to reference this RelationalGroupedDataFrame.
         """
-        # TODO: remove the None guard below once we generate the correct AST.
         debug_check_missing_ast(self._ast_id, self._dataframe._session, self._dataframe)
-        expr_builder.relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
+        expr_builder.relational_grouped_dataframe_ref.id = self._ast_id

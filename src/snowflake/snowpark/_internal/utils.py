@@ -197,6 +197,10 @@ NON_FORMAT_TYPE_OPTIONS = {
     "COPY_OPTIONS",
 }
 
+XML_ROW_TAG_STRING = "ROWTAG"
+XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
+XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
+
 QUERY_TAG_STRING = "QUERY_TAG"
 SKIP_LEVELS_TWO = (
     2  # limit traceback to return up to 2 stack trace entries from traceback object tb
@@ -870,6 +874,17 @@ def create_rlock(
     if thread_safe_session_enabled:
         return threading.RLock()
     return DummyRLock()
+
+
+@unique
+class AstMode(IntEnum):
+    """
+    Describes the ast modes that instruct the client to send sql and/or dataframe AST to snowflake server.
+    """
+
+    SQL_ONLY = 0
+    SQL_AND_AST = 1
+    AST_ONLY = 2
 
 
 @unique

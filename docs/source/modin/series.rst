@@ -44,6 +44,10 @@ Series
     Series.to_snowflake
     Series.to_snowpark
     Series.cache_result
+    Series.create_or_replace_view
+    Series.create_or_replace_dynamic_table
+    Series.to_view
+    Series.to_dynamic_table
 
 .. rubric:: Conversion
 

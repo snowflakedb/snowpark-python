@@ -75,12 +75,12 @@ class StoredProcedure:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.StoredProcedure] = None,
         _ast_id: Optional[int] = None,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -97,7 +97,7 @@ class StoredProcedure:
         # If None, no ast will be emitted. Else, passed whenever sproc is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
-        # field to hold the assign statement for the stored procedure
+        # field to hold the bind statement for the stored procedure
         self._ast_stmt = _ast_stmt
 
     def _validate_call(
@@ -506,7 +506,7 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
@@ -654,7 +654,7 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
@@ -725,7 +725,7 @@ class StoredProcedureRegistration:
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
             execute_as: What permissions should the procedure have while executing. This
-                supports caller, or owner for now.
+                supports ``caller``, ``owner`` or ``restricted caller`` for now.
             strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
                 the stored procedure if any input is null. Instead, a null value will always be returned. Note
                 that the stored procedure might still return null for non-null inputs.
@@ -811,7 +811,7 @@ class StoredProcedureRegistration:
         *,
         source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
@@ -828,9 +828,9 @@ class StoredProcedureRegistration:
         stmt, ast, ast_id = None, None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.stored_procedure, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
 
             return StoredProcedure(
                 func,
@@ -865,9 +865,9 @@ class StoredProcedureRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.stored_procedure, stmt)
-            ast_id = stmt.var_id.bitfield1
+            ast_id = stmt.uid
 
             build_sproc(
                 ast,

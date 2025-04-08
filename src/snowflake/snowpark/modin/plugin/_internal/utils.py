@@ -378,6 +378,7 @@ def create_initial_ordered_dataframe(
                     "Row access policy is not supported on read only table",  # case 1
                     "Cannot clone",  # case 2
                     "Unsupported feature",  # case 3
+                    "Clone Iceberg table should use CREATE ICEBERG TABLE CLONE command",  # case 3
                 )
                 if any(error in ex.message for error in known_errors):
                     readonly_table_name = _create_read_only_table(
@@ -1877,14 +1878,7 @@ def count_rows(df: OrderedDataFrame) -> int:
     Returns the number of rows of a Snowpark DataFrame.
     """
     df = df.ensure_row_count_column()
-    rowset = (
-        df.select(df.row_count_snowflake_quoted_identifier)
-        ._dataframe_ref.snowpark_dataframe.select(
-            df.row_count_snowflake_quoted_identifier
-        )
-        .limit(1)
-        .collect()
-    )
+    rowset = df.select(df.row_count_snowflake_quoted_identifier).limit(1).collect()
     return 0 if len(rowset) == 0 else rowset[0][0]
 
 

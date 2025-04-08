@@ -1,6 +1,50 @@
 # Release History
 
-## 1.30.0 (YYYY-MM-DD)
+## 1.31.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
+- Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
+
+#### Deprecations
+
+- Deprecated support for Python3.8.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for Interval experssion to `Window.range_between`.
+
+#### Bug Fixes
+
+- Fixed a bug in local testing that caused `Column.getItem` and `snowpark.snowflake.functions.get` to raise `IndexError` rather than return null.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
+- Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
+- Added support for `DataFrame.to_view` and `Series.to_view`.
+- Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
+
+#### Improvements
+
+- Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
+
+#### Bug Fixes
+
+- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `relaxed_ordering=False`.
+
+## 1.30.0 (2024-03-27)
 
 ### Snowpark Python API Updates
 
@@ -33,14 +77,9 @@
 
 #### Bug Fixes
 
-- Fixed a bug that caused `to_timestamp` to fail when casting filtered columns.
-
-#### New Features
-
-#### Bug Fixes
-
 - Fixed a bug in aggregation that caused empty groups to still produce rows.
 - Fixed a bug in `Dataframe.except_` that would cause rows to be incorrectly dropped.
+- Fixed a bug that caused `to_timestamp` to fail when casting filtered columns.
 
 ### Snowpark pandas API Updates
 
