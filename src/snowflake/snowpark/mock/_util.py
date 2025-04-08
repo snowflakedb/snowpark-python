@@ -319,7 +319,10 @@ class ImportContext:
                     sys.path.append(module_path)
                 if os.path.isdir(module_path):
                     shutil.copytree(
-                        module_path, temporary_import_path.name, dirs_exist_ok=True
+                        module_path,
+                        temporary_import_path.name,
+                        dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("__pycache__"),
                     )
                 else:
                     shutil.copy2(module_path, temporary_import_path.name)
