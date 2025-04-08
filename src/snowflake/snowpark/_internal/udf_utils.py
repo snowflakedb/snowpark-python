@@ -1311,17 +1311,19 @@ def create_python_udf_or_sp(
         raise ValueError(
             "artifact_repository must be specified when artifact_repository_packages has been specified"
         )
-    package_names = [
-        pack.strip("\"'").split("==")[0] for pack in all_packages.split(",")
-    ]
-    artifact_repository_package_names = [
-        pack.strip("\"'").split("==")[0] for pack in artifact_repository_packages
-    ]
-    for package in package_names:
-        if package in artifact_repository_package_names:
-            raise ValueError(
-                f"Cannot create a function with duplicates between packages and artifact repository packages. packages: {all_packages}, artifact_repository_packages: {','.join(artifact_repository_packages)}"
-            )
+    if all_packages and artifact_repository_packages:
+        package_names = [
+            pack.strip("\"'").split("==")[0] for pack in all_packages.split(",")
+        ]
+        artifact_repository_package_names = [
+            pack.strip("\"'").split("==")[0] for pack in artifact_repository_packages
+        ]
+
+        for package in package_names:
+            if package in artifact_repository_package_names:
+                raise ValueError(
+                    f"Cannot create a function with duplicates between packages and artifact repository packages. packages: {all_packages}, artifact_repository_packages: {','.join(artifact_repository_packages)}"
+                )
 
     artifact_repository_in_sql = (
         f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
