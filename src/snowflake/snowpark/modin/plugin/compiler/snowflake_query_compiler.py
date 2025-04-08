@@ -20060,6 +20060,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return (qc, min_val, max_val, bin_size)
 
+    def create_or_replace_view(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        comment: Optional[str] = None,
+        index: bool = True,
+        index_label: Optional[IndexLabel] = None,
+    ) -> List[Row]:
+        snowpark_df = self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
+            index, index_label
+        )
+
+        return snowpark_df.create_or_replace_view(
+            name=name,
+            comment=comment,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+
     def create_or_replace_dynamic_table(
         self,
         name: Union[str, Iterable[str]],
