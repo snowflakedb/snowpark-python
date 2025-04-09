@@ -10,7 +10,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
@@ -36,26 +35,16 @@ def test_invalid_named_agg_errors(basic_df_data):
     )
 
 
-@sql_count_checker(query_count=5)
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=AssertionError,
-)
+@sql_count_checker(query_count=0)
 def test_invalid_func_with_named_agg_errors(basic_df_data):
-    # This test checks that a SnowparkSQLException is raised by this code, since the
-    # code is invalid. This code relies on falling back to native pandas though,
-    # so until SNOW-1336091 is fixed, a RuntimeError will instead by raised by the
-    # Snowpark pandas code. This test then errors out with an AssertionError, since
-    # the assertion that the raised exception is a SnowparkSQLException is False,
-    # so we mark it as xfail with raises=AssertionError. When SNOW-1336091 is fixed,
-    # this test should pass automatically.
     eval_snowpark_pandas_result(
         *create_test_dfs(basic_df_data),
         lambda df: df.groupby("col1").agg(80, valid_agg=("col2", min)),
         expect_exception=True,
-        assert_exception_equal=False,  # We fallback and then raise the correct error.
-        expect_exception_type=SnowparkSQLException,
+        expect_exception_match="aggregation function is not callable",
+        assert_exception_equal=False,
+        # native pandas raises a TypeError instead
+        expect_exception_type=ValueError,
     )
 
 
