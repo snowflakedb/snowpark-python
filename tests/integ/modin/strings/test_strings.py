@@ -16,6 +16,10 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
+# NOTE: Many tests in this file previously fell back to native pandas in stored procedures. These
+# have since been updated to expect NotImplementedError, and the original "expected" result has
+# been left as a comment to make properly implementing these methods easier.
+
 
 # This whole suite is skipped in ci run because those are tests for unsupported
 # APIs, which is time-consuming, and it will run the daily jenkins job.

@@ -10,6 +10,10 @@ from pandas import _testing as tm
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.utils.sql_counter import sql_count_checker
 
+# NOTE: Many tests in this file previously fell back to native pandas in stored procedures. These
+# have since been updated to expect NotImplementedError, and the original "expected" result has
+# been left as a comment to make properly implementing these methods easier.
+
 
 # TODO (SNOW-863786): import whole pandas/tests/strings/test_get_dummies.py
 @sql_count_checker(query_count=0)
