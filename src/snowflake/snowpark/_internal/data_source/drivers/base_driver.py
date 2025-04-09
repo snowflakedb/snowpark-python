@@ -58,7 +58,6 @@ class BaseDriver(ABC):
 
     def udtf_ingestion(
         self,
-        create_connection: Callable[[], "Connection"],
         session: "snowflake.snowpark.Session",
         schema: StructType,
         partition_table: str,
@@ -69,9 +68,7 @@ class BaseDriver(ABC):
 
         udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
         session.udtf.register(
-            self.udtf_class_builder(
-                create_connection=create_connection, fetch_size=fetch_size
-            ),
+            self.udtf_class_builder(fetch_size=fetch_size),
             name=udtf_name,
             output_schema=StructType(
                 [
@@ -93,9 +90,9 @@ class BaseDriver(ABC):
         cols = [res[field.name].cast(field.datatype) for field in schema.fields]
         return res.select(cols)
 
-    def udtf_class_builder(
-        self, create_connection: Callable[[], "Connection"], fetch_size: int = 1000
-    ) -> type:
+    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+        create_connection = self.create_connection
+
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
