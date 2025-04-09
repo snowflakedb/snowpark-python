@@ -10,6 +10,7 @@ from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.utils import (
     _pandas_importer,
     generate_random_alphanumeric,
+    split_dot_string,
 )
 
 
@@ -101,3 +102,23 @@ def test_generate_random_alphanumeric():
         futures = [executor.submit(generate_random_alphanumeric) for _ in range(5)]
         res = [f.result() for f in futures]
         assert len(set(res)) == 5  # no duplicate string
+
+
+@pytest.mark.parametrize(
+    "string, expected_result",
+    [
+        ('foo.bar."hello.world".baz', ["foo", "bar", '"hello.world"', "baz"]),
+        ('"a.b".c."d.e.f".g', ['"a.b"', "c", '"d.e.f"', "g"]),
+        ('x."y.z".w', ["x", '"y.z"', "w"]),
+        ("noquotes.here", ["noquotes", "here"]),
+        ('"only.one.token"', ['"only.one.token"']),
+        ('start."middle.with.dots".end', ["start", '"middle.with.dots"', "end"]),
+        ('part.with"quote".inside', ["part", 'with"quote"', "inside"]),
+        (
+            '"quoted with ""embedded"" quotes".end',
+            ['"quoted with ""embedded"" quotes"', "end"],
+        ),
+    ],
+)
+def test_split_dot_string(string, expected_result):
+    assert split_dot_string(string) == expected_result

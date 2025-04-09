@@ -1391,6 +1391,22 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
+def split_dot_string(s: str) -> list:
+    """
+    Splits the string by dots that are not within double-quoted parts.
+    Tokens that appear quoted in the input remain unchanged (quotes are kept).
+
+    Examples:
+      'foo.bar."hello.world".baz'
+          -> ['foo', 'bar', '"hello.world"', 'baz']
+      '"a.b".c."d.e.f".g'
+          -> ['"a.b"', 'c', '"d.e.f"', 'g']
+    """
+    # ensures that dots inside quotes are not used for splitting.
+    parts = re.split(r'\.(?=(?:[^"]*"[^"]*")*[^"]*$)', s)
+    return parts
+
+
 # Define the full-width regex pattern, copied from Spark
 full_width_regex = re.compile(
     r"[\u1100-\u115F"

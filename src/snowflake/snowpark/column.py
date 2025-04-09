@@ -86,6 +86,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     publicapi,
     quote_name,
+    split_dot_string,
 )
 from snowflake.snowpark.types import (
     DataType,
@@ -262,11 +263,13 @@ class Column:
         _is_qualified_name: bool = False,
     ) -> None:
         self._ast = _ast
+        self._expr1 = expr1
+        self._expr2 = expr2
 
         def derive_qualified_name_expr(
             expr: str, df_alias: Optional[str] = None
         ) -> UnresolvedAttribute:
-            parts = expr.split(".")
+            parts = split_dot_string(expr)
             if len(parts) == 1:
                 return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
             else:
