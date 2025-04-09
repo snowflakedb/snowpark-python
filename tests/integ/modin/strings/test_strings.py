@@ -8,7 +8,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -16,6 +15,10 @@ from tests.integ.modin.utils import (
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
+
+# NOTE: Many tests in this file previously fell back to native pandas in stored procedures. These
+# have since been updated to expect NotImplementedError, and the original "expected" result has
+# been left as a comment to make properly implementing these methods easier.
 
 
 # This whole suite is skipped in ci run because those are tests for unsupported
@@ -53,11 +56,6 @@ def test_count():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "repeat, expected_result_data",
     [
@@ -65,37 +63,37 @@ def test_count():
         ([1, 2, 3, 4, 5, 6], ["a", "bb", np.nan, "cccc", np.nan, "dddddd"]),
     ],
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_repeat(repeat, expected_result_data):
     ser = pd.Series(["a", "b", np.nan, "c", np.nan, "d"], dtype=object)
 
-    result = ser.str.repeat(repeat)
-    expected = native_pd.Series(expected_result_data, dtype=object)
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.repeat",
+    ):
+        ser.str.repeat(repeat)
+    # expected = native_pd.Series(expected_result_data, dtype=object)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize("arg, repeat", [[None, 4], ["b", None]])
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_repeat_with_null(arg, repeat):
     ser = pd.Series(["a", arg], dtype=object)
-    result = ser.str.repeat([3, repeat])
-    expected = native_pd.Series(["aaa", None], dtype=object)
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.repeat",
+    ):
+        ser.str.repeat([3, repeat])
+    # expected = native_pd.Series(["aaa", None], dtype=object)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_empty_str_empty_cat():
-    assert pd.Series(dtype=object).str.cat() == ""
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.cat",
+    ):
+        assert pd.Series(dtype=object).str.cat() == ""
 
 
 @sql_count_checker(query_count=0)
@@ -104,23 +102,14 @@ def test_empty_df_float_raises():
         pd.Series(dtype="float64").str.cat()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=10, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_empty_str_self_cat():
-    # The query count is higher in this test because of the creation of a temp table for the
-    # second series argument being passed in as argument to the cat sproc
-    # Related: SNOW-960061
-
-    eval_snowpark_pandas_result(
-        pd.Series(dtype=object),
-        native_pd.Series(dtype=object),
-        lambda ser: ser.str.cat(ser),
-        comparator=assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
-    )
+    ser = pd.Series(dtype=object)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.cat",
+    ):
+        ser.str.cat(ser)
 
 
 @pytest.mark.parametrize(
@@ -147,98 +136,72 @@ def test_empty_str_methods(fn, query_count=1, sproc_count=0):
 
 
 @pytest.mark.parametrize(
-    "method, expected, query_count, sproc_count",
+    "method, expected, query_count",
     [
         pytest.param(
             "isalnum",
             [True, True, True, True, True, False, True, True, False, False],
-            9,
-            1,
-            marks=pytest.mark.xfail(
-                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-                strict=True,
-                raises=RuntimeError,
-            ),
+            0,
         ),
         pytest.param(
             "isalpha",
             [True, True, True, False, False, False, True, False, False, False],
-            9,
-            1,
-            marks=pytest.mark.xfail(
-                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-                strict=True,
-                raises=RuntimeError,
-            ),
+            0,
         ),
         (
             "isdigit",
             [False, False, False, True, False, False, False, True, False, False],
             2,
-            0,
         ),
         pytest.param(
             "isnumeric",
             [False, False, False, True, False, False, False, True, False, False],
-            9,
-            1,
-            marks=pytest.mark.xfail(
-                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-                strict=True,
-                raises=RuntimeError,
-            ),
+            0,
         ),
         pytest.param(
             "isspace",
             [False, False, False, False, False, False, False, False, False, True],
-            9,
-            1,
-            marks=pytest.mark.xfail(
-                reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-                strict=True,
-                raises=RuntimeError,
-            ),
+            0,
         ),
         (
             "islower",
             [False, True, False, False, False, False, False, False, False, False],
             2,
-            0,
         ),
         (
             "isupper",
             [True, False, False, False, True, False, True, False, False, False],
             2,
-            0,
         ),
         (
             "istitle",
             [True, False, True, False, True, False, False, False, False, False],
             2,
-            0,
         ),
     ],
 )
-def test_ismethods(method, expected, query_count, sproc_count):
+def test_ismethods(method, expected, query_count):
     data = ["A", "b", "Xy", "4", "3A", "", "TT", "55", "-", "  "]
     native_ser = native_pd.Series(data, dtype=object)
     ser = pd.Series(data, dtype=object)
 
     expected = native_pd.Series(expected, dtype=bool)
-    with SqlCounter(query_count=query_count, sproc_count=sproc_count):
-        result = getattr(ser.str, method)()
-        assert_snowpark_pandas_equal_to_pandas(result, expected)
+    with SqlCounter(query_count=query_count):
+        if query_count == 0:  # indicates unimplemented method
+            with pytest.raises(
+                NotImplementedError,
+                match=f"Snowpark pandas does not yet support the method Series.str.{method}",
+            ):
+                result = getattr(ser.str, method)()
+        else:
+            result = getattr(ser.str, method)()
+            assert_snowpark_pandas_equal_to_pandas(result, expected)
 
-        # compare with standard library
-        expected = [getattr(item, method)() for item in native_ser]
-        assert list(result.to_pandas()) == expected
+            # compare with standard library
+            expected = [getattr(item, method)() for item in native_ser]
+            assert list(result.to_pandas()) == expected
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "method, expected",
     [
@@ -246,29 +209,26 @@ def test_ismethods(method, expected, query_count, sproc_count):
         ("isdecimal", [False, True, False, False, False, True, False]),
     ],
 )
-@sql_count_checker(query_count=9, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_isnumeric_unicode(method, expected):
     # 0x00bc: ¼ VULGAR FRACTION ONE QUARTER
     # 0x2605: ★ not number
     # 0x1378: ፸ ETHIOPIC NUMBER SEVENTY
     # 0xFF13: ３ Em 3
     data = ["A", "3", "¼", "★", "፸", "３", "four"]
-    native_ser = native_pd.Series(data, dtype=object)
+    # native_ser = native_pd.Series(data, dtype=object)
     ser = pd.Series(data, dtype=object)
-    expected = native_pd.Series(expected, dtype=bool)
-    result = getattr(ser.str, method)()
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    with pytest.raises(
+        NotImplementedError,
+        match=f"Snowpark pandas does not yet support the method Series.str.{method}",
+    ):
+        getattr(ser.str, method)()
+    # expected = native_pd.Series(expected, dtype=bool)
 
     # compare with standard library
-    expected = [getattr(item, method)() for item in native_ser]
-    assert list(result.to_pandas()) == expected
+    # expected = [getattr(item, method)() for item in native_ser]
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "method, expected",
     [
@@ -276,29 +236,29 @@ def test_isnumeric_unicode(method, expected):
         ("isdecimal", [False, np.nan, False, False, np.nan, True, False]),
     ],
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_isnumeric_unicode_missing(method, expected):
     values = ["A", np.nan, "¼", "★", np.nan, "３", "four"]
     ser = pd.Series(values, dtype=object)
-    expected = native_pd.Series(expected, dtype=object)
-    result = getattr(ser.str, method)()
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    # expected = native_pd.Series(expected, dtype=object)
+    with pytest.raises(
+        NotImplementedError,
+        match=f"Snowpark pandas does not yet support the method Series.str.{method}",
+    ):
+        getattr(ser.str, method)()
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=9, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_split_join_roundtrip():
-    ser = pd.Series(["a_b_c", "c_d_e", np.nan, "f_g_h"], dtype=object)
-    result = ser.str.split("_").str.join("_")
-    expected = ser.to_pandas().astype(object)
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    native_ser = native_pd.Series(["a_b_c", "c_d_e", np.nan, "f_g_h"], dtype=object)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.join",
+    ):
+        pd.Series(native_ser).str.split("_").str.join("_")
 
 
-@sql_count_checker(query_count=1, sproc_count=0)
+@sql_count_checker(query_count=1)
 def test_len():
     ser = pd.Series(
         ["foo", "fooo", "fooooo", np.nan, "fooooooo", "foo\n", "あ"],
@@ -309,11 +269,6 @@ def test_len():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "method,sub,start,end,expected",
     [
@@ -325,30 +280,29 @@ def test_len():
         ("rindex", "E", 0, 5, [4, 3, 1, 4]),
     ],
 )
-@sql_count_checker(query_count=9, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_index(method, sub, start, end, expected):
     data = ["ABCDEFG", "BCDEFEF", "DEFGHIJEF", "EFGHEF"]
-    native_obj = native_pd.Series(data, dtype=object)
+    # native_obj = native_pd.Series(data, dtype=object)
     obj = pd.Series(data, dtype=object)
-    expected = native_pd.Series(expected, dtype=np.int8)
-    result = getattr(obj.str, method)(sub, start, end)
-
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    # expected = native_pd.Series(expected, dtype=np.int8)
+    with pytest.raises(
+        NotImplementedError,
+        match=f"Snowpark pandas does not yet support the method Series.str.{method}",
+    ):
+        getattr(obj.str, method)(sub, start, end)
 
     # compare with standard library
-    expected = [getattr(item, method)(sub, start, end) for item in native_obj]
-    assert list(result.to_pandas()) == expected
+    # expected = [getattr(item, method)(sub, start, end) for item in native_obj]
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=0)
 def test_index_not_found_raises():
     obj = pd.Series(["ABCDEFG", "BCDEFEF", "DEFGHIJEF", "EFGHEF"], dtype=object)
-    with pytest.raises(SnowparkSQLException):
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.index",
+    ):
         obj.str.index("DE")
 
 
@@ -362,11 +316,6 @@ def test_index_raises_not_implemented_error(method):
         getattr(obj.str, method)("sub")
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "method, exp",
     [
@@ -374,13 +323,16 @@ def test_index_raises_not_implemented_error(method):
         ["rindex", [3, 1, 2]],
     ],
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_index_missing(method, exp):
     ser = pd.Series(["abcb", "ab", "bcbe", np.nan], dtype=object)
 
-    result = getattr(ser.str, method)("b")
-    expected = native_pd.Series(exp + [np.nan], dtype=np.float64)
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    # expected = native_pd.Series(exp + [np.nan], dtype=np.float64)
+    with pytest.raises(
+        NotImplementedError,
+        match=f"Snowpark pandas does not yet support the method Series.str.{method}",
+    ):
+        getattr(ser.str, method)("b")
 
 
 @pytest.mark.parametrize(
@@ -401,11 +353,6 @@ def test_slice(start, stop, step, expected):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "start,stop,repl,expected",
     [
@@ -419,15 +366,18 @@ def test_slice(start, stop, step, expected):
         (-10, 3, "z", ["zrt", "a zit longer", "evenlongzerthanthat", "z", np.nan]),
     ],
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_slice_replace(start, stop, repl, expected):
     ser = pd.Series(
         ["short", "a bit longer", "evenlongerthanthat", "", np.nan],
         dtype=object,
     )
-    expected = native_pd.Series(expected, dtype=object)
-    result = ser.str.slice_replace(start, stop, repl)
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    # expected = native_pd.Series(expected, dtype=object)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.slice_replace",
+    ):
+        ser.str.slice_replace(start, stop, repl)
 
 
 @pytest.mark.parametrize(
@@ -446,57 +396,45 @@ def test_lstrip_rstrip(method, exp):
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "prefix, expected", [("a", ["b", " b c", "bc"]), ("ab", ["", "a b c", "bc"])]
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_removeprefix(prefix, expected):
     ser = pd.Series(["ab", "a b c", "bc"], dtype=object)
-    result = ser.str.removeprefix(prefix)
-    ser_expected = native_pd.Series(expected, dtype=object)
-    assert_snowpark_pandas_equal_to_pandas(result, ser_expected)
+    # ser_expected = native_pd.Series(expected, dtype=object)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.removeprefix",
+    ):
+        ser.str.removeprefix(prefix)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "suffix, expected", [("c", ["ab", "a b ", "b"]), ("bc", ["ab", "a b c", ""])]
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_removesuffix(suffix, expected):
     ser = pd.Series(["ab", "a b c", "bc"], dtype=object)
-    result = ser.str.removesuffix(suffix)
-    ser_expected = native_pd.Series(expected, dtype=object)
-    assert_snowpark_pandas_equal_to_pandas(result, ser_expected)
+    # ser_expected = native_pd.Series(expected, dtype=object)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.removesuffix",
+    ):
+        ser.str.removesuffix(suffix)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=16, sproc_count=2)
+@sql_count_checker(query_count=0)
 def test_encode_decode():
-    ser = pd.Series(["a", "b", "a\xe4"], dtype=object).str.encode("utf-8")
-    result = ser.str.decode("utf-8")
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.encode",
+    ):
+        pd.Series(["a", "b", "a\xe4"], dtype=object).str.encode("utf-8")
+    # expected = ser.to_pandas().str.decode("utf-8")
+    # result = ser.str.decode("utf-8")
 
-    expected = ser.to_pandas().str.decode("utf-8")
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
 
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "form, expected",
     [
@@ -504,7 +442,7 @@ def test_encode_decode():
         ("NFC", ["ABC", "ＡＢＣ", "１２３", np.nan, "ｱｲｴ"]),
     ],
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_normalize(
     form,
     expected,
@@ -514,16 +452,16 @@ def test_normalize(
         index=["a", "b", "c", "d", "e"],
         dtype=object,
     )
-    expected = native_pd.Series(expected, index=["a", "b", "c", "d", "e"], dtype=object)
-    result = ser.str.normalize(form)
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    # expected = native_pd.Series(
+    #     expected, index=["a", "b", "c", "d", "e"], dtype=object
+    # )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.normalize",
+    ):
+        ser.str.normalize(form)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "width, data, expected_data",
     [
@@ -531,33 +469,29 @@ def test_normalize(
         (5, ["-2", "+5"], ["-0002", "+0005"]),
     ],
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_zfill(width, data, expected_data):
     # https://github.com/pandas-dev/pandas/issues/20868
     value = pd.Series(data)
-    result = value.str.zfill(width)
-    expected = native_pd.Series(expected_data)
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    # expected = native_pd.Series(expected_data)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.zfill",
+    ):
+        value.str.zfill(width)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_zfill_with_leading_sign():
     value = pd.Series(["-cat", "-1", "+dog"])
-    expected = native_pd.Series(["-0cat", "-0001", "+0dog"])
-    result = value.str.zfill(5)
-    assert_snowpark_pandas_equal_to_pandas(result, expected)
+    # expected = native_pd.Series(["-0cat", "-0001", "+0dog"])
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.zfill",
+    ):
+        value.str.zfill(5)
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
 @pytest.mark.parametrize(
     "key, expected_result",
     [
@@ -565,7 +499,7 @@ def test_zfill_with_leading_sign():
         ("value", ["World", "Planet", "Sea"]),
     ],
 )
-@sql_count_checker(query_count=8, sproc_count=1)
+@sql_count_checker(query_count=0)
 def test_get_with_dict_label(key, expected_result):
     # GH47911
     s = pd.Series(
@@ -575,6 +509,9 @@ def test_get_with_dict_label(key, expected_result):
             {"value": "Sea"},
         ]
     )
-    result = s.str.get(key)
-    expected = native_pd.Series(expected_result)
-    assert_snowpark_pandas_equal_to_pandas(result, expected, check_dtype=False)
+    # expected = native_pd.Series(expected_result)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument",
+    ):
+        s.str.get(key)

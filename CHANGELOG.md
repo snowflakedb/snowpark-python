@@ -41,6 +41,7 @@
 - Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
 - Added support for `DataFrame.to_view` and `Series.to_view`.
 - Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
+- Added support for `DataFrame.groupby.resample` for aggregations `max`, `mean`, `median`, `min`, and `sum`.
 
 #### Improvements
 
