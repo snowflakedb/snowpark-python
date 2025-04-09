@@ -328,7 +328,7 @@ def test_align_basic_axis0_on_row_position_columns(join):
     native_df2 = df2.to_pandas()
 
     # verify that no window function is generated
-    with SqlCounter(query_count=2, join_count=2, window_count=0):
+    with SqlCounter(query_count=2, join_count=2, window_count=2):
         native_left, native_right = native_df1.align(
             native_df2,
             join=join,

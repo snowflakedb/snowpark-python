@@ -655,11 +655,13 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         # The following two methods for computing the final result should be identical.
 
         # The first one uses `Series.str.len` followed by `Series.fillna`.
-        str_len_res = df["SHARED_CARD_USERS"].str.len().fillna(0)
+        str_len_res = df["SHARED_CARD_USERS"].sort_values().str.len().fillna(0)
 
         # The second one uses `Series.apply` and a user defined function.
-        apply_res = df["SHARED_CARD_USERS"].apply(
-            lambda x: compute_num_shared_card_users(x)
+        apply_res = (
+            df["SHARED_CARD_USERS"]
+            .sort_values()
+            .apply(lambda x: compute_num_shared_card_users(x))
         )
 
         assert_series_equal(str_len_res, apply_res, check_dtype=False)

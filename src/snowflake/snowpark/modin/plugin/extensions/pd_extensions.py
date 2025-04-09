@@ -243,9 +243,9 @@ def read_snowflake(
              A  B  C
           0  1  2  3
 
-        - SQL comments can also be included, and will be ignored.
+        - SQL comments can also be included, and will be ignored -- when enforce_ordering is set.
 
-          >>> pd.read_snowflake(f"-- SQL Comment 1\\nSELECT * FROM {table_name} WHERE A > 0")
+          >>> pd.read_snowflake(f"-- SQL Comment 1\\nSELECT * FROM {table_name} WHERE A > 0", enforce_ordering=True)
              A  B  C
           0  1  2  3
 
