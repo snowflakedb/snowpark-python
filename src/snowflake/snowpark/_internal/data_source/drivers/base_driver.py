@@ -7,10 +7,10 @@ from typing import List, Callable, Any, Optional
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType, StructField, StringType
 import snowflake.snowpark
-from tests.utils import Utils
 import logging
 
 PARTITION_TABLE_COLUMN_NAME = "partition"
@@ -66,7 +66,7 @@ class BaseDriver(ABC):
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
-        udtf_name = f"data_source_udtf_{Utils.random_alphanumeric_str(5)}"
+        udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
         session.udtf.register(
             self.udtf_class_builder(fetch_size),
             name=udtf_name,
