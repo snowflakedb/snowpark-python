@@ -243,9 +243,9 @@ body {
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
@@ -285,9 +285,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 5
-            }
+            id: 5
           }
         }
         src {
@@ -299,24 +297,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_limit {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 6
-            }
+            id: 6
           }
         }
         src {
@@ -328,13 +322,11 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 client_ast_version: 1
