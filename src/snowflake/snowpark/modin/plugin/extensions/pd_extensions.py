@@ -295,7 +295,7 @@ def read_snowflake(
         - Anonymous Stored Procedures (using CTEs) may also be used (although special care must be taken with respect to indentation of the code block,
           since the entire string encapsulated by the `$$` will be passed directly to a Python interpreter. In the example below, the lines within
           the function are indented, but not the import statement or function definition). The output schema must be specified when defining
-          an anonymous stored procedure.
+          an anonymous stored procedure. Currently CALL statements are only supported when `enforce_ordering=True`.
 
           >>> pd.read_snowflake('''WITH filter_rows AS PROCEDURE (table_name VARCHAR, column_to_filter VARCHAR, value NUMBER)
           ... RETURNS TABLE(A NUMBER, B NUMBER, C NUMBER)
@@ -307,7 +307,7 @@ def read_snowflake(
           ... def filter_rows(session, table_name, column_to_filter, value):
           ...   df = session.table(table_name)
           ...   return df.filter(col(column_to_filter) == value)$$
-          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)")
+          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)", enforce_ordering=True)
              A  B  C
           0  1  2  3
 
@@ -332,7 +332,7 @@ def read_snowflake(
           ...   }
           ... }
           ... $$
-          ... ''' + f"CALL filter_rows('{table_name}', 'A', -1)")
+          ... ''' + f"CALL filter_rows('{table_name}', 'A', -1)", enforce_ordering=True)
              A  B  C
           0 -1 -2 -3
 
@@ -348,7 +348,7 @@ def read_snowflake(
           ...     df = session_.table(table_name)
           ...     return df.select('*', (col(col_to_multiply)*value).as_("D"))
 
-          >>> pd.read_snowflake(f"CALL multiply_col_by_value('{table_name}', 'A', 2)")
+          >>> pd.read_snowflake(f"CALL multiply_col_by_value('{table_name}', 'A', 2)", enforce_ordering=True)
              A  B  C  D
           0  1  2  3  2
           1 -1 -2 -3 -2
