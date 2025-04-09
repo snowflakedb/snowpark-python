@@ -835,10 +835,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if isinstance(other_qc, __class__):
             return QCCoercionCost.COST_ZERO
-        # cost is inversely corellated with row size
-        # more rows; the more we try to steal the data
+        # fewer rows, less cost to moving them here
         if isinstance(other_qc, NativeQueryCompiler):
-            return QCCoercionCost.COST_IMPOSSIBLE-SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
+            return SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
         return None
 
     def max_cost(self) -> int:
