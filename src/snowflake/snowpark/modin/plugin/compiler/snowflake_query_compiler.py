@@ -1032,7 +1032,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         name_or_query: Union[str, Iterable[str]],
         index_col: Optional[Union[str, list[str]]] = None,
         columns: Optional[list[str]] = None,
-        relaxed_ordering: bool = False,
+        enforce_ordering: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
@@ -1047,7 +1047,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             row_position_snowflake_quoted_identifier,
         ) = create_initial_ordered_dataframe(
             table_name_or_query=name_or_query,
-            relaxed_ordering=relaxed_ordering,
+            enforce_ordering=enforce_ordering,
         )
         pandas_labels_to_snowflake_quoted_identifiers_map = {
             # pandas labels of resulting Snowpark pandas dataframe will be snowflake identifier
@@ -1231,7 +1231,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             table_type="temporary",
             use_logical_type=True,
         )
-        qc = cls.from_snowflake(temporary_table_name, relaxed_ordering=False)
+        qc = cls.from_snowflake(temporary_table_name, enforce_ordering=True)
         return cls._post_process_file(qc, filetype="csv", **kwargs)
 
     @classmethod
@@ -1295,7 +1295,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         qc = cls.from_snowflake(
-            name_or_query=temporary_table_name, relaxed_ordering=False
+            name_or_query=temporary_table_name, enforce_ordering=True
         )
 
         return cls._post_process_file(qc=qc, filetype=filetype, **kwargs)

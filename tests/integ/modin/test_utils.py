@@ -35,7 +35,7 @@ def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
     (
         ordered_df,
         row_position_quoted_identifier,
-    ) = create_initial_ordered_dataframe(test_table_name, relaxed_ordering=False)
+    ) = create_initial_ordered_dataframe(test_table_name, enforce_ordering=True)
 
     # verify the ordered df columns are row_position_quoted_identifier + quoted_identifiers
     assert ordered_df.projected_column_snowflake_quoted_identifiers == [
@@ -58,7 +58,7 @@ def test_create_snowpark_dataframe_with_no_readonly_temp_table(session, columns)
     (
         ordered_df,
         row_position_quoted_identifier,
-    ) = create_initial_ordered_dataframe(test_table_name, relaxed_ordering=True)
+    ) = create_initial_ordered_dataframe(test_table_name, enforce_ordering=False)
 
     # verify the ordered df columns are row_position_quoted_identifier + quoted_identifiers
     assert ordered_df.projected_column_snowflake_quoted_identifiers == [

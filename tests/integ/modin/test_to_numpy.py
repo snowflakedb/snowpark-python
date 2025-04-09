@@ -76,7 +76,7 @@ def test_to_numpy_basic(data, pandas_obj, func):
                 assert r1 == r2
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_tz_aware_data_to_numpy(session):
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(

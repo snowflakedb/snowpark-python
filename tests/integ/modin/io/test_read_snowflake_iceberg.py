@@ -14,8 +14,8 @@ from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import Utils
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_read_snowflake_iceberg(session, relaxed_ordering):
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_read_snowflake_iceberg(session, enforce_ordering):
     if "azure" in session.connection.host.split("."):
         pytest.skip("This test doesn't work for Azure.")
     if "gcp" in session.connection.host.split("."):
@@ -47,14 +47,14 @@ def test_read_snowflake_iceberg(session, relaxed_ordering):
         """
         ).collect()
 
-    expected_query_counts = [2, 0] if relaxed_ordering else [4, 2]
+    expected_query_counts = [2, 0] if not enforce_ordering else [4, 2]
 
     with SqlCounter(query_count=expected_query_counts[0]):
         # create dataframe directly from iceberg table
         with SqlCounter(query_count=expected_query_counts[1]):
-            # no eager query is used when relaxed_ordering is enabled
-            # two eager queries are used when relaxed_ordering is disabled
-            df = pd.read_snowflake(table_name, relaxed_ordering=relaxed_ordering)
+            # no eager query is used when enforce_ordering is disabled
+            # two eager queries are used when enforce_ordering is enabled
+            df = pd.read_snowflake(table_name, enforce_ordering=enforce_ordering)
 
         # convert to pandas dataframe
         pdf = df.to_pandas()
@@ -66,9 +66,9 @@ def test_read_snowflake_iceberg(session, relaxed_ordering):
         # create dataframe from a query referencing an iceberg table
         SQL_QUERY = f"""SELECT count(*) FROM {table_name}"""
         with SqlCounter(query_count=expected_query_counts[1]):
-            # no eager query is used when relaxed_ordering is enabled
-            # two eager queries are used when relaxed_ordering is disabled
-            df = pd.read_snowflake(SQL_QUERY, relaxed_ordering=relaxed_ordering)
+            # no eager query is used when enforce_ordering is disabled
+            # two eager queries are used when enforce_ordering is enabled
+            df = pd.read_snowflake(SQL_QUERY, enforce_ordering=enforce_ordering)
 
         # convert to pandas dataframe
         pdf = df.to_pandas()
