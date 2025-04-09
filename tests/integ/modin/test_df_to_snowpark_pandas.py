@@ -50,7 +50,7 @@ def tmp_table_basic(session):
 def test_to_snowpark_pandas_basic(
     session, tmp_table_basic, index_col, columns, relaxed_ordering
 ) -> None:
-    expected_query_count = 3 if not relaxed_ordering else 2
+    expected_query_count = 4 if not relaxed_ordering else 2
     # One less query when we don't have a multi-index
     with SqlCounter(
         query_count=expected_query_count

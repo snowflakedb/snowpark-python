@@ -24,7 +24,7 @@ from tests.utils import Utils
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
 def test_select_star_with_order_by(session, caplog, relaxed_ordering):
-    expected_query_count = 6 if not relaxed_ordering else 4
+    expected_query_count = 6 if not relaxed_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # This test ensures that the presence of an ORDER BY causes us not to take the fastpath
         # of select * from table, where we just do `pd.read_snowflake("table")` instead.

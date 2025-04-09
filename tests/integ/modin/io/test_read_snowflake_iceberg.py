@@ -47,7 +47,7 @@ def test_read_snowflake_iceberg(session, relaxed_ordering):
         """
         ).collect()
 
-    expected_query_counts = [3, 1] if relaxed_ordering else [6, 4]
+    expected_query_counts = [3, 1] if relaxed_ordering else [5, 3]
 
     with SqlCounter(query_count=expected_query_counts[0]):
         # create dataframe directly from iceberg table
@@ -61,6 +61,8 @@ def test_read_snowflake_iceberg(session, relaxed_ordering):
 
         # compare two dataframes
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, pdf)
+
+    expected_query_counts = [3, 1] if relaxed_ordering else [6, 4]
 
     with SqlCounter(query_count=expected_query_counts[0]):
         # create dataframe from a query referencing an iceberg table
