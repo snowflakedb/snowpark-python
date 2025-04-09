@@ -621,10 +621,7 @@ def test_str_len_list():
 @pytest.mark.parametrize("enable_sql_simplifier", [True, False])
 def test_str_len_list_coin_base(session, enable_sql_simplifier):
     session.sql_simplifier_enabled = enable_sql_simplifier
-    expected_udf_count = 2
-    if session.sql_simplifier_enabled:
-        expected_udf_count = 1
-    with SqlCounter(query_count=8, udf_count=expected_udf_count):
+    with SqlCounter(query_count=8, udf_count=1):
         from tests.utils import Utils
 
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -655,12 +652,14 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         # The following two methods for computing the final result should be identical.
 
         # The first one uses `Series.str.len` followed by `Series.fillna`.
-        str_len_res = df["SHARED_CARD_USERS"].sort_values().str.len().fillna(0)
+        str_len_res = (
+            df["SHARED_CARD_USERS"].sort_values(ignore_index=True).str.len().fillna(0)
+        )
 
         # The second one uses `Series.apply` and a user defined function.
         apply_res = (
             df["SHARED_CARD_USERS"]
-            .sort_values()
+            .sort_values(ignore_index=True)
             .apply(lambda x: compute_num_shared_card_users(x))
         )
 
