@@ -223,7 +223,6 @@ def test_col_is_qualified_name(session):
         df.select(col("name.firstname")).collect()
 
     df = session.sql('select parse_json(\'{"l1": {"l2": "xyz"}}\') as value')
-    df.show()
     Utils.check_answer(
         df.select(col("value.l1.l2", _is_qualified_name=True)), Row('"xyz"')
     )
