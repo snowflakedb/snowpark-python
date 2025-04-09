@@ -12,6 +12,7 @@
 
 - Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
 - Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when create_connection returned a connection object of an unsupported driver type.
 
 #### Deprecations
 
