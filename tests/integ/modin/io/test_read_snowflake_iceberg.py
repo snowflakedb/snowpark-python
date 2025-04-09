@@ -47,7 +47,7 @@ def test_read_snowflake_iceberg(session, relaxed_ordering):
         """
         ).collect()
 
-    expected_query_counts = [2, 0] if relaxed_ordering else [4, 2]
+    expected_query_counts = [3, 1] if relaxed_ordering else [6, 4]
 
     with SqlCounter(query_count=expected_query_counts[0]):
         # create dataframe directly from iceberg table

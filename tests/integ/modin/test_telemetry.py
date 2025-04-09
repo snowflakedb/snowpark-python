@@ -760,7 +760,7 @@ def test_telemetry_cache_result():
     ]
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=9)
 def test_telemetry_read_json(tmp_path):
     # read_json is overridden in io_overrides.py
     with open(tmp_path / "file.json", "w") as f:

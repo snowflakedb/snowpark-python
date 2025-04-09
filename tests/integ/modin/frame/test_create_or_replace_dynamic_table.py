@@ -131,7 +131,7 @@ def test_create_or_replace_dynamic_table_multiple_sessions_relaxed_ordering(
 
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=8)
 def test_create_or_replace_dynamic_table_index(session, index, index_labels):
     try:
         # create table
@@ -174,7 +174,7 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=8)
 def test_create_or_replace_dynamic_table_multiindex(session):
     try:
         # create table
