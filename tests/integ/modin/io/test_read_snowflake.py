@@ -331,7 +331,7 @@ def test_read_snowflake_non_existing(
 @pytest.mark.parametrize("col_name", VALID_SNOWFLAKE_COLUMN_NAMES)
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
 def test_read_snowflake_columns(session, col_name, relaxed_ordering):
-    expected_query_count = 3 if not relaxed_ordering else 2
+    expected_query_count = 4 if not relaxed_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -354,7 +354,7 @@ def test_read_snowflake_columns(session, col_name, relaxed_ordering):
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
 def test_read_snowflake_both_index_col_columns(session, relaxed_ordering):
-    expected_query_count = 3 if not relaxed_ordering else 2
+    expected_query_count = 4 if not relaxed_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -375,8 +375,12 @@ def test_read_snowflake_both_index_col_columns(session, relaxed_ordering):
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
 def test_read_snowflake_duplicate_columns(session, relaxed_ordering):
-    expected_query_count = 7 if not relaxed_ordering else 3
-    with SqlCounter(query_count=expected_query_count):
+    expected_query_count = 11 if not relaxed_ordering else 7
+    with SqlCounter(
+        query_count=expected_query_count,
+        high_count_expected=True,
+        high_count_reason="Each read creates counts a single row to get an estimated upper bound for hybrid execution",
+    ):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(session, table_name, '"X" int, Y int', is_temporary=True)
