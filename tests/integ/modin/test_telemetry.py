@@ -319,8 +319,9 @@ def test_telemetry_args():
     ) == ["arg7_no_default_dataframe", "arg8_nodefault_detaframe"]
 
 
-# TODO file ticket and fix this
-@pytest.mark.xfail(reason="TODO telemetry should be reported here")
+@pytest.mark.xfail(
+    reason="SNOW-2031975: Investigate why no telemetry is reported for accessor properties"
+)
 @sql_count_checker(query_count=1)
 def test_property_methods_telemetry():
     datetime_series = pd.Series(pd.date_range("2000-01-01", periods=3, freq="h"))
