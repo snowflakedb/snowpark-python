@@ -1214,6 +1214,7 @@ class DataFrameReader:
                 [[query] for query in partitioned_queries], schema=["partition"]
             ).write.save_as_table(partitions_table, table_type="temp")
             df = partitioner.driver.udtf_ingestion(
+                create_connection,
                 self._session,
                 struct_schema,
                 partitions_table,

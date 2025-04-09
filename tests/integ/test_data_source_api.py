@@ -818,4 +818,4 @@ def test_udtf_ingestion_oracledb(session):
         table="ALL_TYPE_TABLE",
         external_access_integration=ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
     )
-    df.show()
+    print(df.collect())

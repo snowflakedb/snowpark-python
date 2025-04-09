@@ -119,9 +119,9 @@ class OracledbDriver(BaseDriver):
             conn.outputtypehandler = output_type_handler
         return conn
 
-    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
-        create_connection = self.create_connection
-
+    def udtf_class_builder(
+        self, create_connection: Callable[[], "Connection"], fetch_size: int = 1000
+    ) -> type:
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
