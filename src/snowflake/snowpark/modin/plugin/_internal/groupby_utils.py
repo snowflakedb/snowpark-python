@@ -108,17 +108,14 @@ def validate_groupby_resample_supported_by_snowflake(
         Raises a NotImplementedError if a keyword argument of resample has an
         unsupported parameter-argument combination.
     """
-    validate_resample_supported_by_snowflake(resample_kwargs)
-
     # groupby resample specific validation
     rule = resample_kwargs.get("rule")
     _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
-
     if slice_unit in RULE_WEEK_TO_YEAR:
         ErrorMessage.not_implemented(
             f"Groupby resample with rule offset {rule} is not yet implemented."
         )
-
+    validate_resample_supported_by_snowflake(resample_kwargs)
     return None
 
 

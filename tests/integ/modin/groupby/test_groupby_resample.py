@@ -83,7 +83,7 @@ def test_groupby_resample_by_a_diff_freq(freq):
     )
     snow_df = pd.DataFrame(pandas_df)
     rule = f"1{freq}"
-    with SqlCounter(query_count=6):
+    with SqlCounter(query_count=4):
         eval_snowpark_pandas_result(
             snow_df,
             pandas_df,
