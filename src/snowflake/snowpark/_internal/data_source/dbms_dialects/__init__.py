@@ -6,6 +6,7 @@ __all__ = [
     "Sqlite3Dialect",
     "SqlServerDialect",
     "OracledbDialect",
+    "DatabricksDialect",
 ]
 
 from snowflake.snowpark._internal.data_source.dbms_dialects.base_dialect import (
@@ -19,4 +20,7 @@ from snowflake.snowpark._internal.data_source.dbms_dialects.sqlite3_dialect impo
 )
 from snowflake.snowpark._internal.data_source.dbms_dialects.sqlserver_dialect import (
     SqlServerDialect,
+)
+from snowflake.snowpark._internal.data_source.dbms_dialects.databricks_dialect import (
+    DatabricksDialect,
 )

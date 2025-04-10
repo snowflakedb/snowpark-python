@@ -3,12 +3,15 @@
 #
 
 from abc import ABC, abstractmethod
+import datetime
 from typing import List, Callable, Any, Optional
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
+from snowflake.snowpark._internal.utils import get_sorted_key_for_version
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
+from snowflake.connector.options import pandas as pd
 
 
 class BaseDriver(ABC):
@@ -58,3 +61,32 @@ class BaseDriver(ABC):
         elif scale is not None:
             return False
         return True
+
+    @staticmethod
+    def data_source_data_to_pandas_df(
+        data: List[Any], schema: StructType
+    ) -> "pd.DataFrame":
+        columns = [col.name for col in schema.fields]
+        # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
+        df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
+
+        # convert timestamp and date to string to work around SNOW-1911989
+        # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.map.html
+        # 'map' is introduced in pandas 2.1.0, before that it is 'applymap'
+        def df_map_method(pandas_df):
+            return (
+                pandas_df.applymap
+                if get_sorted_key_for_version(str(pd.__version__)) < (2, 1, 0)
+                else pandas_df.map
+            )
+
+        df = df_map_method(df)(
+            lambda x: x.isoformat()
+            if isinstance(x, (datetime.datetime, datetime.date))
+            else x
+        )
+        # convert binary type to object type to work around SNOW-1912094
+        df = df_map_method(df)(
+            lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
+        )
+        return df
