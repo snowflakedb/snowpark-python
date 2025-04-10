@@ -282,6 +282,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/fias_house.xml",
                 "resources/fias_house.large.xml",
                 "resources/iris.csv",
+                "resources/nested.xml",
                 "resources/test.avro",
                 "resources/test.orc",
                 "resources/test.parquet",
