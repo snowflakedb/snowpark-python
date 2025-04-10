@@ -27,7 +27,7 @@ from typing import (
     Sequence,
 )
 
-from modin.config import context as config_context, AutoSwitchBackend
+from modin.config import context as config_context
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -504,6 +504,13 @@ def __init__(
 
     self._siblings = []
 
+    try:
+        from modin.config import AutoSwitchBackend
+
+        should_autoswitch = AutoSwitchBackend.get()
+    except ImportError:
+        should_autoswitch = False
+
     # Setting the query compiler
     # --------------------------
     if query_compiler is not None:
@@ -514,7 +521,7 @@ def __init__(
         )
         self._query_compiler = query_compiler
         return
-    elif AutoSwitchBackend.get():
+    elif should_autoswitch:
         with config_context(Backend="pandas"):
             self._extensions[None]["__init__"](self, data, index, columns, dtype, copy)
         return

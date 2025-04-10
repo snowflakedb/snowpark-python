@@ -12,7 +12,7 @@ from __future__ import annotations
 import functools
 from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
-from modin.config import context as config_context, AutoSwitchBackend
+from modin.config import context as config_context
 import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
@@ -453,6 +453,13 @@ def __init__(
     # use this list to update inplace when there is a shallow copy.
     self._siblings = []
 
+    try:
+        from modin.config import AutoSwitchBackend
+
+        should_autoswitch = AutoSwitchBackend.get()
+    except ImportError:
+        should_autoswitch = False
+
     from snowflake.snowpark.modin.plugin.extensions.index import Index
 
     # Setting the query compiler
@@ -465,7 +472,7 @@ def __init__(
         if name is not None:
             self.name = name
         return
-    elif AutoSwitchBackend.get():
+    elif should_autoswitch:
         with config_context(Backend="pandas"):
             self._extensions[None]["__init__"](
                 self, data, index, dtype, name, copy, fastpath
