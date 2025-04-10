@@ -370,8 +370,9 @@ def test_add_packages_artifact_repository(session):
     artifact_repository = "SNOWPARK_PYTHON_TEST_REPOSITORY"
 
     try:
+        assert len(session.get_packages(artifact_repository)) == 0
         session.add_packages(["numpy"], artifact_repository=artifact_repository)
-        assert len(session._artifact_repository_packages[artifact_repository]) == 1
+        assert len(session.get_packages(artifact_repository)) == 1
         # Test function registration
         udf(
             func=test_urllib,
@@ -386,7 +387,7 @@ def test_add_packages_artifact_repository(session):
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session.remove_package("numpy", artifact_repository=artifact_repository)
-        assert len(session._artifact_repository_packages[artifact_repository]) == 0
+        assert len(session.get_packages(artifact_repository)) == 0
 
 
 @pytest.mark.udf
@@ -466,10 +467,11 @@ def test_add_requirements_artifact_repository(
 
     test_files = TestFiles(resources_path)
     artifact_repository = "SNOWPARK_PYTHON_TEST_REPOSITORY"
+    assert len(session.get_packages(artifact_repository)) == 0
     session.add_requirements(
         test_files.test_requirements_file, artifact_repository=artifact_repository
     )
-    assert len(session._artifact_repository_packages[artifact_repository]) == 2
+    assert len(session.get_packages(artifact_repository)) == 2
     temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     try:
@@ -484,7 +486,7 @@ def test_add_requirements_artifact_repository(
         Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("[1 2 3]")])
     finally:
         session.clear_packages(artifact_repository=artifact_repository)
-        assert len(session._artifact_repository_packages[artifact_repository]) == 0
+        assert len(session.get_packages(artifact_repository)) == 0
 
 
 @pytest.mark.skipif(

@@ -1437,13 +1437,15 @@ class Session:
         prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
-    def get_packages(self) -> Dict[str, str]:
+    def get_packages(self, artifact_repository: Optional[str] = None) -> Dict[str, str]:
         """
         Returns a ``dict`` of packages added for user-defined functions (UDFs).
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
         """
         with self._package_lock:
+            if artifact_repository:
+                return self._artifact_repository_packages[artifact_repository].copy()
             return self._packages.copy()
 
     def add_packages(

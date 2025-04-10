@@ -13,7 +13,7 @@
 #### New Features
 
 - Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
-- Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.remove_package`, and `Session.clear_packages`
+- Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`
 
 #### Bug Fixes
 
