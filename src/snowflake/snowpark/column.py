@@ -269,6 +269,7 @@ class Column:
         def derive_qualified_name_expr(
             expr: str, df_alias: Optional[str] = None
         ) -> UnresolvedAttribute:
+            """Note that this method does not work for full column name like <db>.<schema>.<table>.column."""
             parts = split_dot_string(expr)
             if len(parts) == 1:
                 return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
