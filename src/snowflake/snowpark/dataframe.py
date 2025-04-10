@@ -26,6 +26,8 @@ from typing import (
     overload,
 )
 
+import pandas as pd
+
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
@@ -142,7 +144,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     check_agg_exprs,
     check_flatten_mode,
-    check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
@@ -1040,7 +1041,8 @@ class DataFrame:
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
         if block:
-            check_is_pandas_dataframe_in_to_pandas(result)
+            if not isinstance(result, pandas.DataFrame):
+                return pd.DataFrame(result)
 
         return result
 
