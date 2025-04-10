@@ -751,16 +751,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame = query_compiler._modin_frame
             ordered_dataframe = internal_frame.ordered_dataframe
             num_rows = ordered_dataframe.row_count_upper_bound
+            # hack to work around large numbers when things are an estimate
+            if ordered_dataframe.row_count_upper_bound > 1e34:
+                num_rows = query_compiler.get_axis_len(0)
             if num_rows is None:
-                return QCCoercionCost.COST_IMPOSSIBLE
+                return 1.0
         else:
             num_rows = query_compiler.get_axis_len(0)
     
-        limit = 1000000 # one million rows is considered impossible
+        # one million rows is considered the point at which
+        # Snowflake has an advantage
+        limit = 1000000 
         ratio = num_rows / limit
-        if ratio > 1.0:
+        return ratio
+
+    @classmethod
+    def _bin_to_cost_limits(cls, cost) -> int:
+        if cost < QCCoercionCost.COST_ZERO:
+            return QCCoercionCost.COST_ZERO
+        if cost > QCCoercionCost.COST_IMPOSSIBLE:
             return QCCoercionCost.COST_IMPOSSIBLE
-        return int(ratio*QCCoercionCost.COST_IMPOSSIBLE)
+        return int(cost)
 
     def move_to_cost(self, 
                      other_qc_cls:type,         
@@ -791,10 +802,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if isinstance(self, other_qc_cls):
             return QCCoercionCost.COST_ZERO
-        
+        row_cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
+
         # cost to move to native is correlated with row size
         if NativeQueryCompiler is other_qc_cls:
-            return SnowflakeQueryCompiler._linear_row_cost_fn(self)
+            return SnowflakeQueryCompiler._bin_to_cost_limits(row_cost_ratio * QCCoercionCost.COST_IMPOSSIBLE)
         return None
 
     def stay_cost(self, 
@@ -802,13 +814,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         api_cls_name: Optional[str] = None,
         operation: Optional[str] = None,
     ) -> int:
-        if isinstance(self, other_qc_type):
-            return QCCoercionCost.COST_ZERO
+        row_cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
+        # discourage running apply if the dataset is <= 1M rows
+        if row_cost_ratio <= 1.0 and operation is "apply":
+            return QCCoercionCost.COST_IMPOSSIBLE
         
-        # cost to move to native is correlated with row size
-        if NativeQueryCompiler is other_qc_type:
-            return QCCoercionCost.COST_IMPOSSIBLE-SnowflakeQueryCompiler._linear_row_cost_fn(self)
-        return None
+        # always discourage running the iter functions
+        if operation in ['iterrows', 'itertuples', 'items']:
+            return QCCoercionCost.COST_IMPOSSIBLE
+        
+        # discourage running small datasets in snowflake
+        if row_cost_ratio <= 1.0:
+            return QCCoercionCost.COST_IMPOSSIBLE
+        
+        # default case, weighted for snowflake
+        row_cost = row_cost_ratio * QCCoercionCost.COST_IMPOSSIBLE
+        snowflake_boost_factor = 100
+        row_cost = row_cost / snowflake_boost_factor
+        
+        return SnowflakeQueryCompiler._bin_to_cost_limits(row_cost)
 
     @classmethod
     def move_to_me_cost(cls, 
@@ -833,12 +857,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Cost of migrating the data from other_qc to this qc or
             None if the cost cannot be determined.
         """
-        if isinstance(other_qc, __class__):
-            return QCCoercionCost.COST_ZERO
-        # fewer rows, less cost to moving them here
-        if isinstance(other_qc, NativeQueryCompiler):
-            return SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
-        return None
+        # Strongly discourage the use of these methods in snowflake
+        if operation in ["apply", "iterrows", "itertuples", "items"]:
+            return QCCoercionCost.COST_IMPOSSIBLE
+        cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
+
+        if  cost_ratio > 1.0:
+            return SnowflakeQueryCompiler._bin_to_cost_limits(cost_ratio * QCCoercionCost.COST_IMPOSSIBLE)
+        else:
+            return QCCoercionCost.COST_HIGH
+
+        return row_cost
+        
 
     def max_cost(self) -> int:
         """

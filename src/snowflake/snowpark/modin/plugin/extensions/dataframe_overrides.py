@@ -2280,9 +2280,6 @@ def __repr__(self):
     -------
     str
     """
-    self = self.__switcheroo__(inplace=True)
-    if self.get_backend() != 'Snowflake':
-        return self.__repr__()
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     num_rows = native_pd.get_option("display.max_rows") or len(self)
     # see _repr_html_ for comment, allow here also all column behavior
