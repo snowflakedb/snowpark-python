@@ -6,6 +6,7 @@ import pathlib
 import re
 from datetime import datetime
 
+from modin.config import AutoSwitchBackend
 import modin.pandas as pd
 import numpy as np
 import pandas
@@ -23,6 +24,11 @@ from tests.integ.utils.sql_counter import (
     is_sql_counter_called,
 )
 from tests.utils import Utils, running_on_jenkins
+
+
+# Disable automatic backend selection for hybrid execution by default.
+AutoSwitchBackend.put(False)
+
 
 INTEG_PANDAS_SUBPATH = "tests/integ/modin/"
 
