@@ -6,7 +6,7 @@
 
 ### Improvements
 
-- Added estimate for row count upper bound to `OrderedDataFrame`.
+- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
 
 ### Snowpark Python API Updates
 
