@@ -41,15 +41,15 @@ def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: 
         return NotImplemented  # pragma: no cover
 
 @register_base_accessor(name="__switcheroo__", backend="Snowflake")
-def __switcheroo__(self, inplace=False):
+def __switcheroo__(self, inplace=False, operation=""):
     # look up available;
     # lookup stay cost
     # for each backend we look up the cost_to; and compare
     me = self
     from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
-    cost_to = self._get_query_compiler().move_to_cost(NativeQueryCompiler, "", "")
+    cost_to = self._get_query_compiler().move_to_cost(NativeQueryCompiler, "", operation)
     # figure out if this needs to be a standard API
-    cost_from = self._get_query_compiler().stay_cost(NativeQueryCompiler, "", "") 
+    cost_from = self._get_query_compiler().stay_cost(NativeQueryCompiler, "", operation) 
     if cost_to < cost_from:
         the_new_me_maybe = self.move_to("Pandas", inplace=inplace)
         if inplace:
