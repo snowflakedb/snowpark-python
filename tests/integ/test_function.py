@@ -242,6 +242,15 @@ def test_col_is_qualified_name(session):
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col("value.l1.l2")).collect()
 
+    # dots inside quotes should not be treated as separators
+    df = session.sql('select parse_json(\'{"a.b": {"b.c": "xyz"}}\') as value')
+    Utils.check_answer(
+        df.select(col('value."a.b"."b.c"', _is_qualified_name=True)), Row('"xyz"')
+    )
+    Utils.check_answer(
+        df.select(col("value.a.b.b.c", _is_qualified_name=True)).collect(), Row(None)
+    )
+
 
 def test_order(session):
     null_data1 = TestData.null_data1(session)
