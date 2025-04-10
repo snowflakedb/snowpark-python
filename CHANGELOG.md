@@ -7,6 +7,7 @@
 #### New Features
 
 - Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+- Added support for non-select statement in `DataFrame.to_pandas()`.
 
 #### Bug Fixes
 
