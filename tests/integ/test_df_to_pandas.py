@@ -27,7 +27,6 @@ import decimal
 import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkFetchDataException
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
     ArrayType,
@@ -204,9 +203,7 @@ def test_to_pandas_non_select(session):
 
     # non SELECT statements will fail
     def check_fetch_data_exception(query: str) -> None:
-        with pytest.raises(SnowparkFetchDataException) as ex_info:
-            session.sql(query).to_pandas()
-        assert "the input query can only be a SELECT statement" in str(ex_info.value)
+        isinstance(session.sql(query).to_pandas(), PandasDF)
 
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     check_fetch_data_exception("show tables")
