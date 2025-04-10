@@ -130,7 +130,7 @@ range5_sproc()
 
 ## EXPECTED UNPARSER OUTPUT
 
-my_copy_sp = sproc("my_copy", return_type=StringType(), input_types=[StringType(), StringType(), LongType()], name="my_copy_sp", replace=True, comment="This is a comment", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\"")
+my_copy_sp = sproc("my_copy", return_type=StringType(), input_types=[StringType(), StringType(), LongType()], name="my_copy_sp", replace=True, comment="This is a comment", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\"")
 
 _ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))")
 
@@ -158,7 +158,7 @@ session.table("test_from").limit(10, 0).write.save_as_table("test_to", mode="ove
 
 session.table("test_to").count()
 
-add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 session.sql("select 1 + 1").collect()
 
@@ -170,39 +170,39 @@ _ = session.sql("create or replace temp stage mystage")
 
 _.collect()
 
-_ = sproc("<lambda [2]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
+_ = sproc("<lambda [2]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-_ = sproc("<lambda [3]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", if_not_exists=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
+_ = sproc("<lambda [3]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", if_not_exists=True, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-_ = sproc("<lambda [4]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
+_ = sproc("<lambda [4]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
+sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
 
-res30 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
-
-session.sql("SELECT 1 as A, 2 as B").show()
-
-res34 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res30 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res38 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res34 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+res38 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+
+session.sql("SELECT 1 as A, 2 as B").show()
+
+mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 session.create_dataframe([[3]], schema=["a"]).select(col("a") % 5).collect()
 
 mod5_sp(3)
 
-range5_sproc = sproc("range5_sproc", return_type=StructType(structured=False), _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
+range5_sproc = sproc("range5_sproc", return_type=StructType(structured=False), artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 res45 = range5_sproc()
 
@@ -251,6 +251,48 @@ body {
         }
         input_types {
           long_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 114
+                end_line: 42
+                file: 2
+                start_column: 21
+                start_line: 42
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 114
+                end_line: 42
+                file: 2
+                start_column: 21
+                start_line: 42
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 114
+                end_line: 42
+                file: 2
+                start_column: 21
+                start_line: 42
+              }
+            }
+          }
         }
         name {
           name {
@@ -980,6 +1022,48 @@ body {
         input_types {
           integer_type: true
         }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 65
+                file: 2
+                start_column: 21
+                start_line: 59
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 65
+                file: 2
+                start_column: 21
+                start_line: 59
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 65
+                file: 2
+                start_column: 21
+                start_line: 59
+              }
+            }
+          }
+        }
         parallel: 2
         return_type {
           integer_type: true
@@ -1219,6 +1303,48 @@ body {
           integer_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 83
+                file: 2
+                start_column: 12
+                start_line: 75
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 83
+                file: 2
+                start_column: 12
+                start_line: 75
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 83
+                file: 2
+                start_column: 12
+                start_line: 75
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -1324,6 +1450,48 @@ body {
           integer_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 95
+                file: 2
+                start_column: 12
+                start_line: 87
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 95
+                file: 2
+                start_column: 12
+                start_line: 87
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 95
+                file: 2
+                start_column: 12
+                start_line: 87
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -1428,6 +1596,48 @@ body {
           integer_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 110
+                file: 2
+                start_column: 12
+                start_line: 99
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 110
+                file: 2
+                start_column: 12
+                start_line: 99
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 110
+                file: 2
+                start_column: 12
+                start_line: 99
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -1537,6 +1747,48 @@ body {
         input_types {
           float_type: true
         }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 112
+                end_line: 114
+                file: 2
+                start_column: 9
+                start_line: 114
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 112
+                end_line: 114
+                file: 2
+                start_column: 9
+                start_line: 114
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 112
+                end_line: 114
+                file: 2
+                start_column: 9
+                start_line: 114
+              }
+            }
+          }
+        }
         packages: "snowflake-snowpark-python"
         packages: "numpy"
         parallel: 4
@@ -1625,6 +1877,48 @@ body {
         }
         input_types {
           integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 150
+                end_line: 120
+                file: 2
+                start_column: 9
+                start_line: 120
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 150
+                end_line: 120
+                file: 2
+                start_column: 9
+                start_line: 120
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 150
+                end_line: 120
+                file: 2
+                start_column: 9
+                start_line: 120
+              }
+            }
+          }
         }
         parallel: 4
         return_type {
@@ -1789,6 +2083,48 @@ body {
         input_types {
           integer_type: true
         }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 123
+                end_line: 126
+                file: 2
+                start_column: 9
+                start_line: 126
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 123
+                end_line: 126
+                file: 2
+                start_column: 9
+                start_line: 126
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 123
+                end_line: 126
+                file: 2
+                start_column: 9
+                start_line: 126
+              }
+            }
+          }
+        }
         parallel: 4
         return_type {
           struct_type {
@@ -1929,6 +2265,48 @@ body {
         input_types {
           long_type: true
         }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 14
+                end_line: 132
+                file: 2
+                start_column: 9
+                start_line: 132
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 14
+                end_line: 132
+                file: 2
+                start_column: 9
+                start_line: 132
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 14
+                end_line: 132
+                file: 2
+                start_column: 9
+                start_line: 132
+              }
+            }
+          }
+        }
         parallel: 4
         return_type {
           struct_type {
@@ -2066,6 +2444,48 @@ body {
         }
         input_types {
           integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 143
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 143
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 143
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
         }
         parallel: 4
         return_type {
@@ -2307,6 +2727,48 @@ body {
             name {
               name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 150
+                file: 2
+                start_column: 23
+                start_line: 147
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 150
+                file: 2
+                start_column: 23
+                start_line: 147
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 150
+                file: 2
+                start_column: 23
+                start_line: 147
               }
             }
           }

@@ -3184,3 +3184,44 @@ def test_to_df(session):
     assert "Invalid input type in to_df(), expected str or a list of strs." in str(
         exc_info
     )
+
+
+def test_limit(session):
+    df = session.create_dataframe([[1, 2], [2, 3]]).to_df("a", "b")
+    # run show(), make sure no error is reported
+    res = df._show_string(_emit_ast=session.ast_enabled)
+    assert (
+        res
+        == """
+-------------
+|"A"  |"B"  |
+-------------
+|1    |2    |
+|2    |3    |
+-------------\n""".lstrip()
+    )
+
+    df1 = df.limit(1)
+    res = df1._show_string(_emit_ast=session.ast_enabled)
+    assert (
+        res
+        == """
+-------------
+|"A"  |"B"  |
+-------------
+|1    |2    |
+-------------\n""".lstrip()
+    )
+
+    df2 = df.limit(0)
+
+    res = df2._show_string(_emit_ast=session.ast_enabled)
+    assert (
+        res
+        == """
+-------------
+|"A"  |"B"  |
+-------------
+|     |     |
+-------------\n""".lstrip()
+    )

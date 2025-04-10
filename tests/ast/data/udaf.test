@@ -106,7 +106,7 @@ df.agg(sum_udaf("a"))
 
 ## EXPECTED UNPARSER OUTPUT
 
-sum_udaf = udaf("PythonSumUDAF", return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, copy_grants=False, _registered_object_name="sum_int")
+sum_udaf = udaf("PythonSumUDAF", return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="sum_int")
 
 df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
 
@@ -114,15 +114,15 @@ df = df.to_df("a", "b")
 
 df.agg(sum_udaf("a")).collect()
 
-u2 = udaf("PythonTopK", return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", copy_grants=False, force_inline_code=True, _registered_object_name="top_k")
+u2 = udaf("PythonTopK", return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", artifact_repository=None, artifact_repository_packages=None, copy_grants=False, force_inline_code=True, resource_constraint=None, _registered_object_name="top_k")
 
 res3 = df.agg(u2("a"))
 
-sum_udaf = udaf("MyUDAFWithoutTypeHints", return_type=IntegerType(), input_types=[IntegerType()], immutable=True, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+sum_udaf = udaf("MyUDAFWithoutTypeHints", return_type=IntegerType(), input_types=[IntegerType()], immutable=True, artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
 
 res4 = df.agg(sum_udaf("a"))
 
-sum_udaf = udaf("MyUDAFWithTypeHints", return_type=LongType(), input_types=[LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+sum_udaf = udaf("MyUDAFWithTypeHints", return_type=LongType(), input_types=[LongType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
 
 res5 = df.agg(sum_udaf("a"))
 
@@ -155,9 +155,51 @@ body {
           integer_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 51
+                file: 2
+                start_column: 19
+                start_line: 45
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 51
+                file: 2
+                start_column: 19
+                start_line: 45
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 9
+                end_line: 51
+                file: 2
+                start_column: 19
+                start_line: 45
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 9
                 end_line: 51
@@ -530,6 +572,34 @@ body {
         }
         is_permanent: true
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 90
+                end_line: 108
+                file: 2
+                start_column: 13
+                start_line: 105
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 90
+                end_line: 108
+                file: 2
+                start_column: 13
+                start_line: 105
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
@@ -555,6 +625,20 @@ body {
                 start_line: 105
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 90
+                end_line: 108
+                file: 2
+                start_column: 13
+                start_line: 105
+              }
             }
           }
         }
@@ -681,9 +765,51 @@ body {
           integer_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 119
+                file: 2
+                start_column: 19
+                start_line: 113
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 119
+                file: 2
+                start_column: 19
+                start_line: 113
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 9
+                end_line: 119
+                file: 2
+                start_column: 19
+                start_line: 113
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 9
                 end_line: 119
@@ -788,9 +914,51 @@ body {
           long_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 126
+                file: 2
+                start_column: 19
+                start_line: 123
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 126
+                file: 2
+                start_column: 19
+                start_line: 123
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 9
+                end_line: 126
+                file: 2
+                start_column: 19
+                start_line: 123
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 9
                 end_line: 126

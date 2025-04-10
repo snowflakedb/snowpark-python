@@ -32,9 +32,9 @@ df7 = session.table_function(fn4)
 
 ## EXPECTED UNPARSER OUTPUT
 
-my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn1", replace=True, comment="The parameters are useless.", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN1\"")
+my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn1", replace=True, comment="The parameters are useless.", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN1\"")
 
-my_sproc_sp2 = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn2", replace=True, comment="Hello!", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN2\"")
+my_sproc_sp2 = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn2", replace=True, comment="Hello!", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN2\"")
 
 df1 = session.table_function("my_fn1", lit(1), lit("two"), lit(True))
 
@@ -90,6 +90,48 @@ body {
         }
         input_types {
           boolean_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 122
+                end_line: 33
+                file: 2
+                start_column: 22
+                start_line: 33
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 122
+                end_line: 33
+                file: 2
+                start_column: 22
+                start_line: 33
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 122
+                end_line: 33
+                file: 2
+                start_column: 22
+                start_line: 33
+              }
+            }
+          }
         }
         name {
           name {
@@ -152,6 +194,48 @@ body {
         }
         input_types {
           boolean_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 102
+                end_line: 35
+                file: 2
+                start_column: 23
+                start_line: 35
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 102
+                end_line: 35
+                file: 2
+                start_column: 23
+                start_line: 35
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 102
+                end_line: 35
+                file: 2
+                start_column: 23
+                start_line: 35
+              }
+            }
+          }
         }
         name {
           name {
