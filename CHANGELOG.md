@@ -6,7 +6,7 @@
 
 #### New Features
 
-- Added parameter `batch_size` to `DataFrameReader.dbapi` (PrPr) for batching fetched data into a single Parquet file.
+- Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
 
 #### Deprecations
 

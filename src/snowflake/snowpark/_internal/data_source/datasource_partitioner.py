@@ -45,7 +45,7 @@ class DataSourcePartitioner:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
-        batch_size: Optional[int] = 1,
+        fetch_merge_count: Optional[int] = 1,
     ) -> None:
         self.create_connection = create_connection
         self.table_or_query = table_or_query
@@ -58,7 +58,7 @@ class DataSourcePartitioner:
         self.custom_schema = custom_schema
         self.predicates = predicates
         self.session_init_statement = session_init_statement
-        self.batch_size = batch_size
+        self.fetch_merge_count = fetch_merge_count
         conn = create_connection()
         dbms_type, driver = detect_dbms(conn)
         self.dialect_class = DBMS_MAP.get(dbms_type, BaseDialect)
@@ -74,7 +74,7 @@ class DataSourcePartitioner:
             self.fetch_size,
             self.query_timeout,
             self.session_init_statement,
-            self.batch_size,
+            self.fetch_merge_count,
         )
 
     @cached_property

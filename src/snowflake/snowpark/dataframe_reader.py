@@ -1116,7 +1116,7 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
-        batch_size: int = 1,
+        fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1173,12 +1173,10 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
-            batch_size: The number of fetched batches to combine into a single Parquet file.
-                his is used for performance optimization. This improves performance by reducing the
-                number of small Parquet files. If set, up to `batch_size` fetched batches will be merged before
-                writing to a Parquet file.
-                The default value is 1, meaning each `fetch_size` chunk of data retrieved from
-                the external source is written as a separate batch.
+            fetch_merge_count: The number of fetched batches to merge into a single Parquet file
+                before uploading it. This improves performance by reducing the number of
+                small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
+                Parquet file and uploaded separately.
 
         Example::
             .. code-block:: python
@@ -1211,6 +1209,7 @@ class DataFrameReader:
             custom_schema,
             predicates,
             session_init_statement,
+            fetch_merge_count,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions

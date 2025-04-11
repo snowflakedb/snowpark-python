@@ -28,14 +28,14 @@ class DataSourceReader:
         fetch_size: Optional[int] = 0,
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
-        batch_size: Optional[int] = 1,
+        fetch_merge_count: Optional[int] = 1,
     ) -> None:
         self.driver = driver_class(create_connection)
         self.schema = schema
         self.fetch_size = fetch_size
         self.query_timeout = query_timeout
         self.session_init_statement = session_init_statement
-        self.batch_size = batch_size
+        self.fetch_merge_count = fetch_merge_count
 
     def read(self, partition: str) -> Iterator[List[Any]]:
         conn = self.driver.prepare_connection(
@@ -56,7 +56,7 @@ class DataSourceReader:
                 result = cursor.fetchall()
                 yield result
             elif self.fetch_size > 0:
-                cap_size = self.batch_size * self.fetch_size
+                cap_size = self.fetch_merge_count * self.fetch_size
                 cursor = cursor.execute(partition)
                 batch = []
                 while True:

@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import functools
+import logging
 import math
 import os
 import tempfile
@@ -767,10 +768,10 @@ def test_oracledb_driver_coverage(caplog):
 
 
 @pytest.mark.parametrize(
-    "fetch_size, batch_size, expected_batch_cnt",
+    "fetch_size, fetch_merge_count, expected_batch_cnt",
     [(1, 1, 7), (5, 1, 2), (1, 5, 2), (2, 2, 2), (3, 3, 1), (100, 2, 1), (1, 100, 1)],
 )
-def test_batch_size_unit(fetch_size, batch_size, expected_batch_cnt):
+def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cnt):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, _ = sqlite3_db(dbpath)
@@ -779,26 +780,29 @@ def test_batch_size_unit(fetch_size, batch_size, expected_batch_cnt):
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
             fetch_size=fetch_size,
-            batch_size=batch_size,
+            fetch_merge_count=fetch_merge_count,
         )
         all_fetched_data = []
         batch_cnt = 0
         for data in reader.read(f"SELECT * FROM {table_name}"):
-            assert 0 < len(data) <= batch_size * fetch_size
+            assert 0 < len(data) <= fetch_merge_count * fetch_size
             all_fetched_data.extend(data)
             batch_cnt += 1
         assert all_fetched_data == example_data and batch_cnt == expected_batch_cnt
 
 
-def test_batch_size_integ(session):
+def test_fetch_merge_count_integ(session, caplog):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, _, _, assert_data = sqlite3_db(dbpath)
-        df = session.read.dbapi(
-            functools.partial(create_connection_to_sqlite3_db, dbpath),
-            table=table_name,
-            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
-            fetch_size=2,
-            batch_size=2,
-        )
-        assert df.order_by("ID").collect() == assert_data
+        with caplog.at_level(logging.DEBUG):
+            df = session.read.dbapi(
+                functools.partial(create_connection_to_sqlite3_db, dbpath),
+                table=table_name,
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                fetch_size=2,
+                fetch_merge_count=2,
+            )
+            assert df.order_by("ID").collect() == assert_data
+            # 2 batch + 2 fetch size = 2 parquet file
+            assert caplog.text.count("Retrieved file from parquet queue") == 2
