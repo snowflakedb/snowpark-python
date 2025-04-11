@@ -458,7 +458,7 @@ def __init__(
 
         should_autoswitch = AutoSwitchBackend.get()
     except ImportError:
-        should_autoswitch = False
+        should_autoswitch = True
 
     from snowflake.snowpark.modin.plugin.extensions.index import Index
 
