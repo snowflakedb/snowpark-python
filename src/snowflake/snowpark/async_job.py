@@ -6,7 +6,6 @@ from enum import Enum
 from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
-
 import snowflake.snowpark
 from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
 from snowflake.connector.errors import DatabaseError
