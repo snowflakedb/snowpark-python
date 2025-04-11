@@ -85,7 +85,13 @@ def test_align_series_on_row_position_column(session, join):
             f"insert into {temp_table_name} values (1, 2), (2, 2), (3, 2), (4, 2), (5, 2)"
         ).collect()
         df1 = pd.read_snowflake(f"select * from {temp_table_name} where col1 < 3")
+        # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+        df1 = df1.sort_values(df1.columns.to_list())
+
         df2 = pd.read_snowflake(f"select * from {temp_table_name} where col1 >= 3")
+        # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+        df2 = df2.sort_values(df2.columns.to_list())
+
         # construct series whose row position column is used as index column
         ser1 = df1["COL1"]
         ser2 = df2["COL1"]
@@ -94,7 +100,7 @@ def test_align_series_on_row_position_column(session, join):
 
         native_left, native_right = native_ser1.align(native_ser2, join=join)
 
-        with SqlCounter(query_count=2, join_count=2, window_count=4):
+        with SqlCounter(query_count=2, join_count=2, window_count=18):
             left, right = ser1.align(ser2, join=join, axis=0)
             assert_series_equal(left, native_left)
             assert_series_equal(right, native_right)

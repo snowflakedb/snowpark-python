@@ -46,7 +46,7 @@
 #### Improvements
 
 - Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
-- Renamed the `relaxed_ordering` param into `enforce_ordering` for `pd.read_snowflake`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
+- Renamed the `relaxed_ordering` param into `enforce_ordering` for `pd.read_snowflake`. Also the new default value is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
 
 #### Bug Fixes
 

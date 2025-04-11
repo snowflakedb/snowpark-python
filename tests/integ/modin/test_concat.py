@@ -1206,6 +1206,8 @@ def test_concat_series_from_same_df(join):
     # and row position column is controlled by client side, which are
     # different columns.
     df = pd.read_snowflake(query)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
 
     series = [df[col] for col in df.columns]
     final_df = pd.concat(series, join=join, axis=1)
@@ -1220,6 +1222,8 @@ def test_df_creation_from_series_from_same_df():
     query = f"select {', '.join(select_data)}"
 
     df = pd.read_snowflake(query)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
 
     df_dict = {col: df[col] for col in df.columns}
     final_df = pd.DataFrame(df_dict)

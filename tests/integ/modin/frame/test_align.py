@@ -322,13 +322,17 @@ def test_align_basic_axis0_on_row_position_columns(join):
     query = f"select {', '.join(select_data)}"
 
     df1 = pd.read_snowflake(query)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df1 = df1.sort_values(df1.columns.to_list())
+
     df2 = pd.read_snowflake(query)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df2 = df2.sort_values(df2.columns.to_list())
 
     native_df1 = df1.to_pandas()
     native_df2 = df2.to_pandas()
 
-    # verify that no window function is generated
-    with SqlCounter(query_count=2, join_count=2, window_count=2):
+    with SqlCounter(query_count=2, join_count=2, window_count=16):
         native_left, native_right = native_df1.align(
             native_df2,
             join=join,

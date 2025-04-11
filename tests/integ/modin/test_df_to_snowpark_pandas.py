@@ -177,7 +177,9 @@ def test_to_snowpark_pandas_columns_not_list_raises(
 
 
 @sql_count_checker(query_count=0)
-def test_to_snowpark_pandas_with_multiple_queries_and_enforce_ordering_raises(session):
+def test_to_snowpark_pandas_with_multiple_queries_and_no_enforce_ordering_raises(
+    session,
+):
     tmp_stage_name = Utils.random_stage_name()
     test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
     user_schema = StructType(

@@ -61,6 +61,8 @@ def test_astype_from_timestamp_ltz(session, to_dtype):
         f"insert into {test_table_name} values ('2023-01-01 00:00:01.000000001'), ('2023-12-31 23:59:59.999999999')"
     ).collect()
     snow = pd.read_snowflake(test_table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snow = snow.sort_values(snow.columns.to_list())
     native = snow.to_pandas()
     expected_dtype = get_expected_dtype(to_dtype)
     expected_to_pandas_dtype = get_expected_to_pandas_dtype(to_dtype, expected_dtype)

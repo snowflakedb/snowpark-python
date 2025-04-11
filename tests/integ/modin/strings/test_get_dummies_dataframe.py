@@ -218,6 +218,9 @@ def test_get_dummies_pandas_after_read_snowflake(session):
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     snowpark_df.write.save_as_table(table_name, table_type="temp")
     snow_df = pd.read_snowflake(table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snow_df = snow_df.sort_values(snow_df.columns.to_list())
+    pandas_df = pandas_df.sort_values(pandas_df.columns.to_list())
 
     assert (
         snow_df._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers
