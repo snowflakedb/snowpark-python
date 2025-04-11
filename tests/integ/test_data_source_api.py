@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import functools
+import logging
 import math
 import os
 import tempfile
@@ -94,11 +95,14 @@ SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
 
 
-def test_dbapi_with_temp_table(session):
-    df = session.read.dbapi(
-        sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, max_workers=4
-    )
-    assert df.collect() == sql_server_all_type_data
+def test_dbapi_with_temp_table(session, caplog):
+    with caplog.at_level(logging.DEBUG):
+        df = session.read.dbapi(
+            sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, max_workers=4
+        )
+        # default fetch size is 1k, so we should only see 1 parquet file generated as the data is less than 1k
+        assert caplog.text.count("Retrieved file from parquet queue") == 1
+        assert df.collect() == sql_server_all_type_data
 
 
 def test_dbapi_oracledb(session):
@@ -134,12 +138,18 @@ def test_dbapi_oracledb(session):
 )
 @pytest.mark.parametrize("fetch_size", [1, 3])
 def test_dbapi_batch_fetch(
-    session, create_connection, table_name, expected_result, fetch_size
+    session, create_connection, table_name, expected_result, fetch_size, caplog
 ):
-    df = session.read.dbapi(
-        create_connection, table=table_name, max_workers=4, fetch_size=fetch_size
-    )
-    assert df.order_by("ID").collect() == expected_result
+    with caplog.at_level(logging.DEBUG):
+        df = session.read.dbapi(
+            create_connection, table=table_name, max_workers=4, fetch_size=fetch_size
+        )
+        # we only expect math.ceil(len(expected_result) / fetch_size) parquet files to be generated
+        # for example, 5 rows, fetch size 2, we expect 3 parquet files
+        assert caplog.text.count("Retrieved file from parquet queue") == math.ceil(
+            len(expected_result) / fetch_size
+        )
+        assert df.order_by("ID").collect() == expected_result
 
 
 def test_dbapi_retry(session):
