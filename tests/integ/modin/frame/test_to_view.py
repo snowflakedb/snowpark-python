@@ -28,14 +28,14 @@ def native_pandas_df_basic():
 
 
 @sql_count_checker(query_count=2)
-def test_create_or_replace_view_basic(session, native_pandas_df_basic) -> None:
+def test_to_view_basic(session, native_pandas_df_basic) -> None:
     view_name = Utils.random_view_name()
     try:
         snow_dataframe = pd.DataFrame(native_pandas_df_basic)
 
         assert (
             "successfully created"
-            in snow_dataframe.create_or_replace_view(name=view_name)[0]["status"]
+            in snow_dataframe.to_view(name=view_name)[0]["status"]
         )
 
     finally:
@@ -43,7 +43,7 @@ def test_create_or_replace_view_basic(session, native_pandas_df_basic) -> None:
 
 
 @sql_count_checker(query_count=8)
-def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
+def test_to_view_multiple_sessions_no_relaxed_ordering_raises(
     session,
     db_parameters,
 ) -> None:
@@ -63,7 +63,7 @@ def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
         view_name = Utils.random_view_name()
         assert (
             "successfully created"
-            in snow_dataframe.create_or_replace_view(name=view_name)[0]["status"]
+            in snow_dataframe.to_view(name=view_name)[0]["status"]
         )
 
         # another session
@@ -86,7 +86,7 @@ def test_create_or_replace_view_multiple_sessions_no_relaxed_ordering_raises(
 
 
 @sql_count_checker(query_count=5)
-def test_create_or_replace_view_multiple_sessions_relaxed_ordering(
+def test_to_view_multiple_sessions_relaxed_ordering(
     session,
     db_parameters,
 ) -> None:
@@ -106,7 +106,7 @@ def test_create_or_replace_view_multiple_sessions_relaxed_ordering(
         view_name = Utils.random_view_name()
         assert (
             "successfully created"
-            in snow_dataframe.create_or_replace_view(name=view_name)[0]["status"]
+            in snow_dataframe.to_view(name=view_name)[0]["status"]
         )
 
         # another session
@@ -128,7 +128,7 @@ def test_create_or_replace_view_multiple_sessions_relaxed_ordering(
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
 @sql_count_checker(query_count=8)
-def test_create_or_replace_view_index(session, index, index_labels):
+def test_to_view_index(session, index, index_labels):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -142,9 +142,7 @@ def test_create_or_replace_view_index(session, index, index_labels):
         )
 
         view_name = Utils.random_view_name()
-        snow_dataframe.create_or_replace_view(
-            name=view_name, index=index, index_label=index_labels
-        )
+        snow_dataframe.to_view(name=view_name, index=index, index_label=index_labels)
         expected_columns = []
         if index:
             # if index is retained in the result, add it as the first expected column
@@ -165,7 +163,7 @@ def test_create_or_replace_view_index(session, index, index_labels):
 
 
 @sql_count_checker(query_count=8)
-def test_create_or_replace_view_multiindex(session):
+def test_to_view_multiindex(session):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -182,7 +180,7 @@ def test_create_or_replace_view_multiindex(session):
         snow_dataframe = snow_dataframe.set_index(["_1", "_2"])
 
         view_name = Utils.random_view_name()
-        snow_dataframe.create_or_replace_view(
+        snow_dataframe.to_view(
             name=view_name,
             index=True,
         )
@@ -194,9 +192,7 @@ def test_create_or_replace_view_multiindex(session):
         with pytest.raises(
             ValueError, match="Length of 'index_label' should match number of levels"
         ):
-            snow_dataframe.create_or_replace_view(
-                name=view_name, index=True, index_label=["a"]
-            )
+            snow_dataframe.to_view(name=view_name, index=True, index_label=["a"])
     finally:
         # cleanup
         Utils.drop_view(session, view_name)

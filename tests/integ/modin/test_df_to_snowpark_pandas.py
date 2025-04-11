@@ -50,7 +50,7 @@ def tmp_table_basic(session):
 def test_to_snowpark_pandas_basic(
     session, tmp_table_basic, index_col, columns, relaxed_ordering
 ) -> None:
-    expected_query_count = 3 if not relaxed_ordering else 1
+    expected_query_count = 4 if not relaxed_ordering else 2
     # One less query when we don't have a multi-index
     with SqlCounter(
         query_count=expected_query_count
@@ -93,7 +93,7 @@ def test_to_snowpark_pandas_basic(
 def test_to_snowpark_pandas_from_views(
     session, tmp_table_basic, relaxed_ordering
 ) -> None:
-    with SqlCounter(query_count=3 if not relaxed_ordering else 1):
+    with SqlCounter(query_count=4 if not relaxed_ordering else 2):
         snowpark_df = session.sql(
             f"SELECT ID, SHOE_MODEL FROM {tmp_table_basic} WHERE ID > 1"
         )
@@ -113,7 +113,7 @@ def test_to_snowpark_pandas_from_views(
 def test_to_snowpark_pandas_with_operations(
     session, tmp_table_basic, relaxed_ordering
 ) -> None:
-    with SqlCounter(query_count=3 if not relaxed_ordering else 1):
+    with SqlCounter(query_count=4 if not relaxed_ordering else 2):
         snowpark_df = session.table(tmp_table_basic)
         snowpark_df = (
             snowpark_df.select(
