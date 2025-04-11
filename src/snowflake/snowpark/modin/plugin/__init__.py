@@ -147,6 +147,9 @@ modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 
 # For any method defined on Series/DF, add telemetry to it if the method name does not start with an
 # _, or the method is in TELEMETRY_PRIVATE_METHODS. This includes methods defined as an extension/override.
+#
+# Telemetry is currently not recorded for the ModinAPI accessor object, which contains methods such as
+# df.modin.to_pandas() that Snowpark pandas raises NotImplementedError for.
 from modin.pandas import DataFrame, Series  # isort: skip  # noqa: E402,F401
 from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
     register_dataframe_accessor,
@@ -154,65 +157,83 @@ from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
     register_series_accessor,
 )
 from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
+from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402,F401
+    _NON_EXTENDABLE_ATTRIBUTES,
+    _GENERAL_EXTENSIONS,
+)
 
 from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
     TELEMETRY_PRIVATE_METHODS,
     snowpark_pandas_telemetry_standalone_function_decorator,
     try_add_telemetry_to_attribute,
+    connect_modin_telemetry,
 )
 
-# adding telemetry does not work with the new extension system.
+# Skip the `modin` accessor object.
+# Skip __init__ because of recursion errors (need further investigation for root cause).
+# Skip the snowpark_pandas_api_calls list.
+_TELEMETRY_BLACKLIST = ("modin", "__init__", "__class__")
 
-# # Add telemetry on the ModinAPI accessor object.
-# # modin 0.30.1 introduces the pd.DataFrame.modin accessor object for non-pandas methods,
-# # such as pd.DataFrame.modin.to_pandas and pd.DataFrame.modin.to_ray. We will automatically
-# # raise NotImplementedError for all methods on this accessor object except to_pandas, but
-# # we still want to record telemetry.
-# for attr_name in dir(ModinAPI):
-#     if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
-#         setattr(
-#             ModinAPI,
-#             attr_name,
-#             try_add_telemetry_to_attribute(attr_name, getattr(ModinAPI, attr_name)),
-#         )
+for attr_name in dir(Series):
+    # Since Series is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if (
+        attr_name not in _TELEMETRY_BLACKLIST
+        and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
+        and (
+            not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
+        )
+    ):
+        attr_value = getattr(Series, attr_name)
+        # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
+        # backend, we must use the __wrapped__ property of the originally-defined attribute to avoid
+        # infinite recursion.
+        if hasattr(attr_value, "__wrapped__"):
+            attr_value = attr_value.__wrapped__
+        register_series_accessor(attr_name, backend="Snowflake")(
+            try_add_telemetry_to_attribute(attr_name, attr_value)
+        )
 
-# for attr_name in dir(Series):
-#     # Since Series is defined in upstream Modin, all of its members were either defined upstream
-#     # or overridden by extension.
-#     # Skip the `modin` accessor object, since we apply telemetry to all its fields.
-#     if attr_name != "modin" and (
-#         not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-#     ):
-#         register_series_accessor(attr_name)(
-#             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
-#         )
-
-# for attr_name in dir(DataFrame):
-#     # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
-#     # or overridden by extension.
-#     # Skip the `modin` accessor object, since we apply telemetry to all its fields.
-#     if attr_name != "modin" and (
-#         not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-#     ):
-#         register_dataframe_accessor(attr_name,             storage_format="Snowflake",
-#             engine="Snowflake",)(
-#             try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name)),
-#         )
+for attr_name in dir(DataFrame):
+    # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if (
+        attr_name not in _TELEMETRY_BLACKLIST
+        and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
+        and (
+            not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
+        )
+    ):
+        attr_value = getattr(DataFrame, attr_name)
+        if hasattr(attr_value, "__wrapped__"):
+            attr_value = attr_value.__wrapped__
+        register_dataframe_accessor(attr_name, backend="Snowflake")(
+            try_add_telemetry_to_attribute(attr_name, attr_value),
+        )
 
 # Apply telemetry to all top-level functions in the pd namespace.
 
+for attr_name in dir(modin.pandas):
+    # Upstream modin creates a dispatch wrapper for top-level methods, so we need to read
+    # from the extensions dict instead of directly calling getattr to prevent recursion.
+    # This assumes that all extension top-level methods are registered without a backend specified.
+    attr_value = _GENERAL_EXTENSIONS[None].get(
+        attr_name, getattr(modin.pandas, attr_name)
+    )
+    # Do not add telemetry to any method that is mirrored from native pandas
+    if (
+        inspect.isfunction(attr_value)
+        and not attr_name.startswith("_")
+        and attr_value is not getattr(pandas, attr_name, None)
+    ):
+        register_pd_accessor(attr_name)(
+            snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
+        )
 
-# for attr_name in dir(modin.pandas):
-#     attr_value = getattr(modin.pandas, attr_name)
-#     # Do not add telemetry to any method that is mirrored from native pandas
-#     if (
-#         inspect.isfunction(attr_value)
-#         and not attr_name.startswith("_")
-#         and attr_value is not getattr(pandas, attr_name, None)
-#     ):
-#         register_pd_accessor(attr_name)(
-#             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
-#         )
+# enable Modin's metrics system to collect API data for hybrid execution in parallel with
+# Snowpark-pandas specific information
+connect_modin_telemetry()
+
 
 # === SESSION INITIALIZATION ===
 # Make SnowpandasSessionHolder the __class__ of modin.pandas so that we can make
