@@ -7,6 +7,7 @@
 ### Improvements
 
 - Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
+- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
 
 ### Snowpark Python API Updates
 
