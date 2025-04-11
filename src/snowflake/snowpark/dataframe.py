@@ -5488,6 +5488,7 @@ class DataFrame:
     def describe(
         self, *cols: Union[str, List[str]], _emit_ast: bool = True
     ) -> "DataFrame":
+        raise ValueError("Expected error")
         """
         Computes basic statistics for numeric columns, which includes
         ``count``, ``mean``, ``stddev``, ``min``, and ``max``. If no columns

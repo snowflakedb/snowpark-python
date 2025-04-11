@@ -295,3 +295,7 @@ def test_column_with_builtins_that_shadow_functions(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.double1(session).select(sum(col("a"))).collect()
     assert iter_error_msg_text in str(ex_info)
+
+
+def test_wrong():
+    raise ValueError("This is a test error")
