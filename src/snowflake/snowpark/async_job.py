@@ -6,6 +6,8 @@ from enum import Enum
 from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
+import pandas as pd
+
 import snowflake.snowpark
 from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
 from snowflake.connector.errors import DatabaseError
@@ -13,7 +15,6 @@ from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
-    check_is_pandas_dataframe_in_to_pandas,
     is_in_stored_procedure,
     result_set_to_iter,
     result_set_to_rows,
@@ -374,7 +375,8 @@ class AsyncJob:
             result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=False
             )["data"]
-            check_is_pandas_dataframe_in_to_pandas(result)
+            if not isinstance(result, pd.DataFrame):
+                result = pd.DataFrame(result)
         elif async_result_type == _AsyncResultType.PANDAS_BATCH:
             result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True
