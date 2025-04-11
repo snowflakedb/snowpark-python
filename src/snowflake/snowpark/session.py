@@ -1442,6 +1442,9 @@ class Session:
         Returns a ``dict`` of packages added for user-defined functions (UDFs).
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
+
+        Args:
+            artifact_repository: When set this will function will return the packages for a specific artifact repository.
         """
         with self._package_lock:
             if artifact_repository:
