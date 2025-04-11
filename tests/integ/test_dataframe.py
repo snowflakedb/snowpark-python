@@ -1331,7 +1331,7 @@ def test_join_on_order(session):
     df3 = df1.join(df2, on=["B", "A"])
     assert df3.schema == StructType(
         [
-            StructField("B", StringType(), nullable=False),
+            StructField("B", StringType(134217728), nullable=False),
             StructField("A", LongType(), nullable=False),
             StructField("C", LongType(), nullable=False),
             StructField("D", LongType(), nullable=False),

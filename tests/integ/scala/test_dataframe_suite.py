@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import logging
 import copy
 import math
 import os
@@ -865,8 +864,7 @@ def test_df_stat_sampleBy_seed(session, caplog, use_simplified_query_gen):
 
     # DataFrame doesn't work with seed
     caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        sample_by_action(TestData.monthly_sales(session))
+    sample_by_action(TestData.monthly_sales(session))
     assert "`seed` argument is ignored on `DataFrame` object" in caplog.text
 
 
