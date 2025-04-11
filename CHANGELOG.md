@@ -6,15 +6,53 @@
 
 ### Improvements
 
-- Added estimate for row count upper bound to `OrderedDataFrame`.
+- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
 
 ### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
+- Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
 
 #### Deprecations
 
 - Deprecated support for Python3.8.
 
-## 1.30.0 (2024-03-27)
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for Interval experssion to `Window.range_between`.
+
+#### Bug Fixes
+
+- Fixed a bug in local testing that created incorrect result for `Column.like` calls.
+- Fixed a bug in local testing that caused `Column.getItem` and `snowpark.snowflake.functions.get` to raise `IndexError` rather than return null.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
+- Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
+- Added support for `DataFrame.to_view` and `Series.to_view`.
+- Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
+- Added support for `DataFrame.groupby.resample` for aggregations `max`, `mean`, `median`, `min`, and `sum`.
+
+#### Improvements
+
+- Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
+
+#### Bug Fixes
+
+- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `relaxed_ordering=False`.
+
+## 1.30.0 (2025-03-27)
 
 ### Snowpark Python API Updates
 
@@ -58,7 +96,6 @@
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
 - Added support for relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources by introducing the new parameter `relaxed_ordering`.
-- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
 
 #### Improvements
 

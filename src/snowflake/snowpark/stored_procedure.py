@@ -75,7 +75,7 @@ class StoredProcedure:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.StoredProcedure] = None,
@@ -506,12 +506,15 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -590,6 +593,13 @@ class StoredProcedureRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE PROCEDURE.
+            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+                parameter will search for packages in.
+            artifact_repository_packages: A list of packages to search for within the pypi repository
+                set in the above parameter.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -635,6 +645,9 @@ class StoredProcedureRegistration:
                 # in pandas API to create stored procedures not registered by users.
                 force_inline_code=kwargs.pop("force_inline_code", False),
                 native_app_params=kwargs.pop("native_app_params", None),
+                artifact_repository=artifact_repository,
+                artifact_repository_packages=artifact_repository_packages,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -654,12 +667,15 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -725,7 +741,7 @@ class StoredProcedureRegistration:
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
             execute_as: What permissions should the procedure have while executing. This
-                supports caller, or owner for now.
+                supports ``caller``, ``owner`` or ``restricted caller`` for now.
             strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
                 the stored procedure if any input is null. Instead, a null value will always be returned. Note
                 that the stored procedure might still return null for non-null inputs.
@@ -748,6 +764,13 @@ class StoredProcedureRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE PROCEDURE.
+            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+                parameter will search for packages in.
+            artifact_repository_packages: A list of packages to search for within the pypi repository
+                set in the above parameter.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -791,6 +814,9 @@ class StoredProcedureRegistration:
                 source_code_display=source_code_display,
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                artifact_repository=artifact_repository,
+                artifact_repository_packages=artifact_repository_packages,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -811,7 +837,7 @@ class StoredProcedureRegistration:
         *,
         source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
@@ -822,6 +848,9 @@ class StoredProcedureRegistration:
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
@@ -988,11 +1017,9 @@ class StoredProcedureRegistration:
                     native_app_params=native_app_params,
                     copy_grants=copy_grants,
                     runtime_version=runtime_version_from_requirement,
-                    artifact_repository=kwargs.get("artifact_repository"),
-                    artifact_repository_packages=kwargs.get(
-                        "artifact_repository_packages"
-                    ),
-                    resource_constraint=kwargs.get("resource_constraint"),
+                    artifact_repository=artifact_repository,
+                    artifact_repository_packages=artifact_repository_packages,
+                    resource_constraint=resource_constraint,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),
