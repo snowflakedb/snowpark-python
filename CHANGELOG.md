@@ -14,6 +14,7 @@
 #### New Features
 
 - Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+- Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
 
 #### Bug Fixes
 
