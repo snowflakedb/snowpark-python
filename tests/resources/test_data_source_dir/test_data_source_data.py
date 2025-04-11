@@ -671,6 +671,12 @@ def sql_server_create_connection_with_exception():
     )
 
 
+def unknown_dbms_create_connection():
+    return FakeConnection(
+        sql_server_all_type_small_data, sql_server_all_type_schema, "unknown"
+    )
+
+
 SQLITE3_DB_CUSTOM_SCHEMA_STRING = "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT"
 SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE = StructType(
     [
