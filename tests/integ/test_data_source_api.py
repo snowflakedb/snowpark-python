@@ -18,10 +18,13 @@ from snowflake.snowpark._internal.data_source.datasource_partitioner import (
 )
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
 from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
-    OracledbDriver,
     output_type_handler,
 )
-from snowflake.snowpark._internal.data_source.utils import PyodbcDriver, SqliteDriver
+from snowflake.snowpark._internal.data_source.drivers import (
+    PyodbcDriver,
+    SqliteDriver,
+    OracledbDriver,
+)
 from snowflake.snowpark._internal.data_source.utils import (
     _task_fetch_data_from_source_with_retry,
     _upload_and_copy_into_table_with_retry,
