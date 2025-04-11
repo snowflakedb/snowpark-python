@@ -2,11 +2,19 @@
 
 ## 1.31.0 (YYYY-MM-DD)
 
+### Snowpark pandas API Updates
+
+### Improvements
+
+- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
+- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
+
 ### Snowpark Python API Updates
 
 #### New Features
 
 - Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+- Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
 
 #### Bug Fixes
 
