@@ -14,12 +14,14 @@
 #### New Features
 
 - Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+- Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`
 - Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
 
 #### Bug Fixes
 
 - Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
 - Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
 - Fixed a bug where `df.limit(0)` call would not properly apply.
 
 #### Deprecations
