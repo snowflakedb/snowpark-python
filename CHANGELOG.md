@@ -2,6 +2,12 @@
 
 ## 1.31.0 (YYYY-MM-DD)
 
+### Snowpark pandas API Updates
+
+### Improvements
+
+- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
+
 ### Snowpark Python API Updates
 
 #### New Features
@@ -37,6 +43,7 @@
 - Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
 - Added support for `DataFrame.to_view` and `Series.to_view`.
 - Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
+- Added support for `DataFrame.groupby.resample` for aggregations `max`, `mean`, `median`, `min`, and `sum`.
 
 #### Improvements
 

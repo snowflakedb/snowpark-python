@@ -19,7 +19,6 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import running_on_public_ci
 
 transpose_and_double_transpose_parameterize = pytest.mark.parametrize(
     "transpose_operation, expected_query_count",
@@ -315,9 +314,10 @@ def test_dataframe_transpose_empty_with_failing_values():
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.T)
 
 
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-@pytest.mark.skip(
-    reason="SNOW-928130: Fallback converts non-json serializable to string type failed inteferred_type check"
+# This will succeed in pandas but fail in snowpark pandas
+@pytest.mark.xfail(
+    reason="SNOW-896985: Support non-JSON serializable types in dataframe",
+    strict=True,
 )
 @pytest.mark.parametrize(
     "col_label",
@@ -326,7 +326,10 @@ def test_dataframe_transpose_empty_with_failing_values():
         datetime.datetime(year=2023, month=9, day=29),
     ],
 )
-def test_dataframe_transpose_not_json_serializable_fallback(col_label, score_test_data):
+@sql_count_checker(query_count=0)
+def test_dataframe_transpose_not_json_serializable_unimplemented(
+    col_label, score_test_data
+):
     test_data = score_test_data.copy()
     test_data[col_label] = test_data["name"]
 

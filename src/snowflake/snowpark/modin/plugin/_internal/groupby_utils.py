@@ -43,6 +43,8 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     perform_resample_binning_on_frame,
     rule_to_snowflake_width_and_slice_unit,
     get_expected_resample_bins_frame,
+    RULE_WEEK_TO_YEAR,
+    validate_resample_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
@@ -87,6 +89,34 @@ def validate_grouper(val: native_pd.Grouper) -> None:
             + "\nSnowpark pandas does not yet support any of the following parameters in Grouper objects: "
             + ", ".join(param for param, _ in unsupported_params)
         )
+
+
+def validate_groupby_resample_supported_by_snowflake(
+    resample_kwargs: dict[str, Any]
+) -> None:
+    """
+    Checks whether execution with Snowflake engine is available for groupby resample operation.
+
+    Parameters:
+    ----------
+    resample_kwargs : Dict[str, Any]
+        keyword arguments of Resample operation. rule, axis, axis, etc.
+
+    Raises
+    ------
+    NotImplementedError
+        Raises a NotImplementedError if a keyword argument of resample has an
+        unsupported parameter-argument combination.
+    """
+    # groupby resample specific validation
+    rule = resample_kwargs.get("rule")
+    _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
+    if slice_unit in RULE_WEEK_TO_YEAR:
+        ErrorMessage.not_implemented(
+            f"Groupby resample with rule offset {rule} is not yet implemented."
+        )
+    validate_resample_supported_by_snowflake(resample_kwargs)
+    return None
 
 
 def is_groupby_value_label_like(val: Any) -> bool:
@@ -880,3 +910,139 @@ def make_groupby_rank_col_for_method(
                 total_cols = count("*").over(window)
         rank_col = rank_col / total_cols
     return rank_col
+
+
+def fill_missing_groupby_resample_bins_for_frame(
+    frame: InternalFrame,
+    rule: str,
+    by_list: list,
+    orig_datetime_index_col_label: str,
+    datetime_index_col_identifier: str,
+) -> InternalFrame:
+    """
+    Returns a new InternalFrame created using 2 rules.
+    1. Missing resample bins in `frame`'s DatetimeIndex column will be created.
+    2. Missing rows in data column will be filled with `None`.
+
+    Parameters:
+    ----------
+    frame : InternalFrame
+        A frame with a single DatetimeIndex column.
+
+    rule : str
+        The offset string or object representing target conversion.
+
+    by_list : list
+        The list of column labels to group by.
+
+    orig_datetime_index_col_label : str
+        The original DatetimeIndex column label.
+
+    datetime_index_col_identifier : str
+        The DatetimeIndex column quoted identifier
+
+    Returns
+    -------
+    frame : InternalFrame
+        A new internal frame with no missing rows in the resample operation.
+    """
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    # For example, if we have the following frame with rule='3min', we will fill in the missing
+    # resample bins for each group of by_list by adding index (0, 2000-01-01 00:03:00) and (5, 2000-01-01 00:03:00)
+
+    #                        b  c
+    # a index
+    # 0 2000-01-01 00:00:00  2  4
+    #   2000-01-01 00:06:00  1  2
+    # 5 2000-01-01 00:00:00  1  2
+    #   2000-01-01 00:06:00  1  2
+
+    unique_by_idx_vals = (
+        frame.index_columns_pandas_index()
+        .droplevel(orig_datetime_index_col_label)
+        .unique()
+        .to_list()
+    )
+    subframes = {}
+    sub_qcs = []
+
+    for value in unique_by_idx_vals:
+        # value is a tuple when there are multiple groupby columns
+        if isinstance(value, tuple):
+            col_list = [
+                col(frame.index_column_snowflake_quoted_identifiers[i])
+                == pandas_lit(value[i])
+                for i in range(len(by_list))
+            ]
+        else:
+            col_list = [
+                col(frame.index_column_snowflake_quoted_identifiers[0])
+                == pandas_lit(value)
+            ]
+
+        # This creates the filter expression col_1 == value_1 & col_2 == value_2 & ... col_n == value_n
+        # for cols in col_list. This is used to filter the frame to get the rows with the specific
+        # index col values.
+        filter_cond = functools.reduce(lambda x, y: x & y, col_list)
+        subframes[value] = frame.filter(filter_cond)
+        start_date, end_date = compute_resample_start_and_end_date(
+            subframes[value],
+            datetime_index_col_identifier,
+            rule,
+        )
+        expected_resample_bins_sub_frame = get_expected_resample_bins_frame(
+            rule, start_date, end_date
+        )
+
+        if isinstance(value, tuple):
+            for i in range(len(by_list)):
+                expected_resample_bins_sub_frame = (
+                    expected_resample_bins_sub_frame.append_column(
+                        by_list[i], pandas_lit(value[i])
+                    )
+                )
+        else:
+            expected_resample_bins_sub_frame = (
+                expected_resample_bins_sub_frame.append_column(
+                    by_list[0], pandas_lit(value)
+                )
+            )
+
+        qc_subframe = SnowflakeQueryCompiler(
+            expected_resample_bins_sub_frame
+        ).reset_index()
+        new_idx_labels = (
+            by_list + expected_resample_bins_sub_frame.index_column_pandas_labels
+        )
+        new_idx_qc = qc_subframe.set_index(new_idx_labels)
+
+        sub_qcs.append(new_idx_qc)
+    concat_qc_idx = sub_qcs[0].concat(axis=0, other=sub_qcs[1:])
+
+    # Join with multi_expected_resample_bins_snowpark_frame to fill in missing resample bins.
+    multi_expected_resample_bins_snowpark_frame = concat_qc_idx._modin_frame
+    joined_frame = join(
+        frame,
+        multi_expected_resample_bins_snowpark_frame,
+        how="right",
+        left_on=frame.index_column_snowflake_quoted_identifiers,
+        right_on=multi_expected_resample_bins_snowpark_frame.index_column_snowflake_quoted_identifiers,
+        sort=False,
+        # To match native pandas behavior, join index columns are coalesced.
+        inherit_join_index=InheritJoinIndex.FROM_RIGHT,
+    ).result_frame
+
+    # Ensure data_column_pandas_index_names is correct.
+    return InternalFrame.create(
+        ordered_dataframe=joined_frame.ordered_dataframe,
+        data_column_pandas_labels=frame.data_column_pandas_labels,
+        data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+        index_column_pandas_labels=frame.index_column_pandas_labels,
+        index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
+        data_column_pandas_index_names=frame.data_column_pandas_index_names,
+        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
+    )
