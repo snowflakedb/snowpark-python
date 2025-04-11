@@ -257,7 +257,7 @@ def update_resolvable_node(
         # needs the correct expr_to_alias map setup. This map is setup during
         # snowflake plan generation and cached for later use. Calling snowflake_plan
         # here to get the map setup correctly.
-        node.snowflake_plan
+        node.get_snowflake_plan(skip_schema_query=True)
 
     elif isinstance(node, SetStatement):
         # clean up the cached sql query and snowflake plan to allow
