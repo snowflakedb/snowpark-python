@@ -26,7 +26,6 @@ from typing import (
     overload,
 )
 
-import pandas as pd
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -1042,7 +1041,7 @@ class DataFrame:
         # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
-                return pd.DataFrame(result)
+                return pandas.DataFrame(result)
 
         return result
 
