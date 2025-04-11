@@ -4,6 +4,7 @@
 
 import inspect
 import sys
+from typing import Any, Union
 
 from packaging import version
 
@@ -167,6 +168,53 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
     connect_modin_telemetry,
 )
 
+# Skip the `modin` accessor object.
+_TELEMETRY_BLACKLIST = ("modin",)
+
+
+def _get_df_or_series_attr(cls: Union[DataFrame, Series], name: str) -> Any:
+    # If we already defined the method via the extensions system, then we need to retrieve it from
+    # the extensions dictionary directly to circumvent modin's caster dispatch wrapper.
+    attr_value = cls._extensions["Snowflake"].get(name, getattr(cls, name))
+    # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
+    # backend, we must use the __wrapped__ property of the originally-defined attribute to avoid
+    # infinite recursion.
+    if hasattr(attr_value, "__wrapped__"):
+        attr_value = attr_value.__wrapped__
+    return attr_value
+
+
+for attr_name in dir(Series):
+    # Since Series is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if (
+        attr_name not in _TELEMETRY_BLACKLIST
+        and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
+        and (
+            not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
+        )
+    ):
+        register_series_accessor(attr_name, backend="Snowflake")(
+            try_add_telemetry_to_attribute(
+                attr_name, _get_df_or_series_attr(Series, attr_name)
+            )
+        )
+
+for attr_name in dir(DataFrame):
+    # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
+    # or overridden by extension.
+    if (
+        attr_name not in _TELEMETRY_BLACKLIST
+        and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
+        and (
+            not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
+        )
+    ):
+        register_dataframe_accessor(attr_name, backend="Snowflake")(
+            try_add_telemetry_to_attribute(
+                attr_name, _get_df_or_series_attr(DataFrame, attr_name)
+            )
+        )
 
 # Apply telemetry to all top-level functions in the pd namespace.
 
@@ -186,6 +234,8 @@ for attr_name in dir(modin.pandas):
         register_pd_accessor(attr_name)(
             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
         )
+
+del _get_df_or_series_attr
 
 # enable Modin's metrics system to collect API data for hybrid execution in parallel with
 # Snowpark-pandas specific information
