@@ -1442,7 +1442,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
-    execute_as: typing.Literal["caller", "owner"] = "owner",
+    execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
     source_code_display: bool = True,
     is_permanent: bool = False,
     session: "snowflake.snowpark.session.Session" = None,

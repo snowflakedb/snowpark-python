@@ -378,6 +378,7 @@ def create_initial_ordered_dataframe(
                     "Row access policy is not supported on read only table",  # case 1
                     "Cannot clone",  # case 2
                     "Unsupported feature",  # case 3
+                    "Clone Iceberg table should use CREATE ICEBERG TABLE CLONE command",  # case 3
                 )
                 if any(error in ex.message for error in known_errors):
                     readonly_table_name = _create_read_only_table(
@@ -1182,13 +1183,11 @@ def create_ordered_dataframe_from_pandas(
             ]
         ),
     )
-    ordered_df = cache_result(
-        OrderedDataFrame(
-            DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
-            projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
-            ordering_columns=ordering_columns,
-            row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
-        )
+    ordered_df = OrderedDataFrame(
+        DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
+        projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+        ordering_columns=ordering_columns,
+        row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
     )
     # Set the materialized row count
     ordered_df.row_count = df.shape[0]
