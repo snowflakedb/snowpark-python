@@ -1325,6 +1325,11 @@ def create_python_udf_or_sp(
     artifact_repository_in_sql = (
         f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
     )
+    if artifact_repository:
+        artifact_repository_packages = {
+            *list(session._artifact_repository_packages[artifact_repository].values()),
+            *(artifact_repository_packages or []),
+        }
     artifact_repository_packages_str = (
         "','".join(artifact_repository_packages) if artifact_repository_packages else ""
     )
