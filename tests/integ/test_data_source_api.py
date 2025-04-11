@@ -68,6 +68,8 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_create_connection_small_data,
     OracleDBType,
     sql_server_create_connection_empty_data,
+    unknown_dbms_create_connection,
+    sql_server_all_type_schema,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -795,3 +797,23 @@ def test_oracledb_driver_coverage(caplog):
         [OracleDBType("NUMBER_COL", oracledb.DB_TYPE_NUMBER, 40, 2, True)]
     )
     assert "Snowpark does not support column" in caplog.text
+
+
+def test_unknown_driver_with_custom_schema(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="Failed to infer Snowpark DataFrame schema",
+    ):
+        session.read.dbapi(
+            unknown_dbms_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+        )
+
+    df = session.read.dbapi(
+        unknown_dbms_create_connection,
+        table=SQL_SERVER_TABLE_NAME,
+        custom_schema=",".join(
+            [f"col_{i} Variant" for i in range(len(sql_server_all_type_schema))]
+        ),
+    )
+    assert len(df.collect()) == len(sql_server_all_type_small_data)

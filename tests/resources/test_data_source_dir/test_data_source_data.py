@@ -651,6 +651,12 @@ def sql_server_create_connection_with_exception():
     )
 
 
+def unknown_dbms_create_connection():
+    return FakeConnection(
+        sql_server_all_type_small_data, sql_server_all_type_schema, "unknown"
+    )
+
+
 def sqlite3_db(db_path):
     conn = create_connection_to_sqlite3_db(db_path)
     cursor = conn.cursor()

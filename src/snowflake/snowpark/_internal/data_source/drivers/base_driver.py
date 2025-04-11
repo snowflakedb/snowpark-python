@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from abc import ABC, abstractmethod
 from typing import List, Callable, Any, Optional
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
@@ -11,11 +10,10 @@ from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
 
 
-class BaseDriver(ABC):
+class BaseDriver:
     def __init__(self, create_connection: Callable[[], "Connection"]) -> None:
         self.create_connection = create_connection
 
-    @abstractmethod
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
             f"{self.__class__.__name__} has not implemented to_snow_type function"
