@@ -27,7 +27,6 @@ import decimal
 import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkFetchDataException
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
     ArrayType,
@@ -203,15 +202,19 @@ def test_to_pandas_non_select(session):
     )
 
     # non SELECT statements will fail
-    def check_fetch_data_exception(query: str) -> None:
-        with pytest.raises(SnowparkFetchDataException) as ex_info:
-            session.sql(query).to_pandas()
-        assert "the input query can only be a SELECT statement" in str(ex_info.value)
+    def check_fetch_data_exception(query: str):
+        result = session.sql(query).to_pandas()
+        isinstance(result, PandasDF)
+        return result
 
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     check_fetch_data_exception("show tables")
-    check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
-    check_fetch_data_exception(f"drop table if exists {temp_table_name}")
+    res = check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
+    expected_res = pd.DataFrame([(f"Table {temp_table_name} successfully created.",)])
+    assert expected_res.equals(res)
+    res = check_fetch_data_exception(f"drop table if exists {temp_table_name}")
+    expected_res = pd.DataFrame([(f"{temp_table_name} successfully dropped.",)])
+    assert expected_res.equals(res)
 
     # to_pandas should work for the large dataframe
     # batch insertion will run "create" and "insert" first
