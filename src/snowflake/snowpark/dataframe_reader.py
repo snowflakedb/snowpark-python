@@ -1112,10 +1112,11 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
-        fetch_size: Optional[int] = 0,
+        fetch_size: Optional[int] = 1000,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
+        fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1159,7 +1160,10 @@ class DataFrameReader:
             fetch_size: The number of rows to fetch per batch from the external data source.
                 This determines how many rows are retrieved in each round trip,
                 which can improve performance for drivers with a low default fetch size.
-            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source. This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING", or StructType, for example: StructType([StructField("ID", IntegerType(), False)])
+            custom_schema: a custom snowflake table schema to read data from external data source,
+                the column names should be identical to corresponded column names external data source.
+                This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING",
+                or StructType, for example: StructType([StructField("ID", IntegerType(), False), StructField("INT_COL", IntegerType(), False), StructField("TEXT_COL", StringType(), False)])
             predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
                 Partitions will be retrieved in parallel.
                 If both `column` and `predicates` are specified, `column` takes precedence.
@@ -1169,6 +1173,10 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+            fetch_merge_count: The number of fetched batches to merge into a single Parquet file
+                before uploading it. This improves performance by reducing the number of
+                small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
+                Parquet file and uploaded separately.
 
         Example::
             .. code-block:: python
@@ -1201,6 +1209,7 @@ class DataFrameReader:
             custom_schema,
             predicates,
             session_init_statement,
+            fetch_merge_count,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
