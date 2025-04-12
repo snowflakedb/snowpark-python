@@ -1321,6 +1321,10 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="length of StringType is not supported in Local Testing",
+)
 def test_join_on_order(session):
     """
     Test that an 'on' clause in a different order from the data frame re-orders the columns correctly.
