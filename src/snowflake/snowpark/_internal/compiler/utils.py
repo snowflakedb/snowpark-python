@@ -489,7 +489,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                 sql_size += len(get_sql_text(with_query_block.children[0]))
         sql_preview = sql_text[:50]
 
-        return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}\nexpr_to_alias={node.expr_to_alias}"
+        return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}"
 
     g = graphviz.Graph(format="png")
 
