@@ -764,6 +764,7 @@ class SelectStatement(Selectable):
         new._merge_projection_complexity_with_subquery = (
             self._merge_projection_complexity_with_subquery
         )
+        new._attributes = self._attributes.copy()
 
         return new
 
@@ -792,6 +793,7 @@ class SelectStatement(Selectable):
             if not self._projection_complexities
             else None
         )
+        copied._attributes = deepcopy(self._attributes)
         return copied
 
     @property
