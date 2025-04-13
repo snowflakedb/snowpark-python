@@ -1175,17 +1175,6 @@ def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) 
     )
 
 
-def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
-    if not isinstance(result, pandas.DataFrame):
-        raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-            "to_pandas() did not return a pandas DataFrame. "
-            "If you use session.sql(...).to_pandas(), the input query can only be a "
-            "SELECT statement. Or you can use session.sql(...).collect() to get a "
-            "list of Row objects for a non-SELECT statement, then convert it to a "
-            "pandas DataFrame."
-        )
-
-
 def check_imports_type(
     imports: Optional[List[Union[str, Tuple[str, str]]]], name: str = ""
 ) -> None:
