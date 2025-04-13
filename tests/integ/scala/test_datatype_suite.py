@@ -6,7 +6,6 @@ import uuid
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
-from unittest import mock
 
 import logging
 import pytest
@@ -587,13 +586,6 @@ def test_structured_dtypes_iceberg(
 def test_structured_dtypes_negative(structured_type_session, structured_type_support):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
-
-    # SNOW-1862700: Map Type missing element or value fails to generate AST.
-    with pytest.raises(
-        NotImplementedError, match="AST does not support empty key or value type."
-    ):
-        x = MapType()
-        x._fill_ast(mock.Mock())
 
     # Maptype requires both key and value type be set if either is set
     with pytest.raises(

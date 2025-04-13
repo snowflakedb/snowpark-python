@@ -4738,13 +4738,12 @@ class DataFrame:
         truncate: Union[bool, int] = True,
         vertical: bool = False,
         _spark_column_names: List[str] = None,
-        _emit_ast: bool = True,
         **kwargs,
     ) -> str:
         """Spark's show() logic - translated from scala to python."""
         # Fetch one more rows to check whether the result is truncated.
         result, meta = self._get_result_and_meta_for_show(
-            num_rows + 1, _emit_ast, **kwargs
+            num_rows + 1, _emit_ast=False, **kwargs
         )
 
         # handle empty dataframe
