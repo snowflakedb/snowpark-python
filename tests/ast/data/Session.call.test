@@ -13,7 +13,7 @@ df2 = session.call("my_sproc", 2, "one", dict(), False)
 
 ## EXPECTED UNPARSER OUTPUT
 
-my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), MapType(StringType(), StringType(), structured=False), BooleanType()], name="my_sproc", replace=True, comment="The parameters are useless.", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\"")
+my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), MapType(StringType(), StringType(), structured=False), BooleanType()], name="my_sproc", replace=True, comment="The parameters are useless.", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\"")
 
 df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
 
@@ -79,6 +79,48 @@ body {
         }
         input_types {
           boolean_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 30
+                file: 2
+                start_column: 22
+                start_line: 30
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 30
+                file: 2
+                start_column: 22
+                start_line: 30
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 30
+                file: 2
+                start_column: 22
+                start_line: 30
+              }
+            }
+          }
         }
         name {
           name {
