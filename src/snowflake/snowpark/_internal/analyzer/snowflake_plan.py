@@ -473,7 +473,7 @@ class SnowflakePlan(LogicalPlan):
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
-            return SnowflakePlan(
+            copied_plan = SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
                 copy.deepcopy(self.post_actions) if self.post_actions else None,
@@ -486,7 +486,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         else:
-            return SnowflakePlan(
+            copied_plan = SnowflakePlan(
                 self.queries.copy() if self.queries else [],
                 self.schema_query,
                 self.post_actions.copy() if self.post_actions else None,
@@ -498,6 +498,8 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
+        copied_plan._metadata = copy.copy(self._metadata)
+        return copied_plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if self.source_plan:
@@ -527,6 +529,7 @@ class SnowflakePlan(LogicalPlan):
             session=self.session,
             referenced_ctes=self.referenced_ctes,
         )
+        copied_plan._metadata = copy.deepcopy(self._metadata)
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
