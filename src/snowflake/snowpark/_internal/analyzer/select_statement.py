@@ -338,7 +338,7 @@ class Selectable(LogicalPlan, ABC):
             # to initialize alias related fields here similar to how we do it in
             # analyzer.resolve()
             self.analyzer.generated_alias_maps = (
-                ExprAliasUpdateDict() if self.session._join_alias_fix else {}
+                ExprAliasUpdateDict() if self._session._join_alias_fix else {}
             )
             self.analyzer.alias_maps_to_use = self.expr_to_alias.copy()
 
