@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any, Callable, Hashable, Iterable, Literal, Se
 import modin.pandas as pd
 import pandas as native_pd
 from modin.pandas import DataFrame
-from modin.pandas.api.extensions import register_pd_accessor
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     CompressionOptions,
@@ -36,8 +35,6 @@ from snowflake.snowpark.modin.utils import _inherit_docstrings, expanduser_path_
 if TYPE_CHECKING:  # pragma: no cover
     import csv
 
-import functools
-
 from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa: F401
     DatetimeIndex,
 )
@@ -48,10 +45,7 @@ from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     pandas_module_level_function_not_implemented,
 )
-
-register_pd_accessor_helper = functools.partial(
-    register_pd_accessor,
-)
+from .general_overrides import register_pd_accessor_helper
 
 
 @_inherit_docstrings(native_pd.read_pickle, apilink="pandas.read_pickle")

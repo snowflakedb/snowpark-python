@@ -152,9 +152,7 @@ modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 # df.modin.to_pandas() that Snowpark pandas raises NotImplementedError for.
 from modin.pandas import DataFrame, Series  # isort: skip  # noqa: E402,F401
 from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
-    register_dataframe_accessor,
     register_pd_accessor,
-    register_series_accessor,
 )
 from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
 from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402,F401
@@ -169,47 +167,6 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
     connect_modin_telemetry,
 )
 
-# Skip the `modin` accessor object.
-# Skip __init__ because of recursion errors (need further investigation for root cause).
-# Skip the snowpark_pandas_api_calls list.
-_TELEMETRY_BLACKLIST = ("modin", "__init__", "__class__")
-
-for attr_name in dir(Series):
-    # Since Series is defined in upstream Modin, all of its members were either defined upstream
-    # or overridden by extension.
-    if (
-        attr_name not in _TELEMETRY_BLACKLIST
-        and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
-        and (
-            not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
-        )
-    ):
-        attr_value = getattr(Series, attr_name)
-        # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
-        # backend, we must use the __wrapped__ property of the originally-defined attribute to avoid
-        # infinite recursion.
-        if hasattr(attr_value, "__wrapped__"):
-            attr_value = attr_value.__wrapped__
-        register_series_accessor(attr_name, backend="Snowflake")(
-            try_add_telemetry_to_attribute(attr_name, attr_value)
-        )
-
-for attr_name in dir(DataFrame):
-    # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
-    # or overridden by extension.
-    if (
-        attr_name not in _TELEMETRY_BLACKLIST
-        and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
-        and (
-            not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
-        )
-    ):
-        attr_value = getattr(DataFrame, attr_name)
-        if hasattr(attr_value, "__wrapped__"):
-            attr_value = attr_value.__wrapped__
-        register_dataframe_accessor(attr_name, backend="Snowflake")(
-            try_add_telemetry_to_attribute(attr_name, attr_value),
-        )
 
 # Apply telemetry to all top-level functions in the pd namespace.
 
