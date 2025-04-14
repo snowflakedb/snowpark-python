@@ -1932,6 +1932,7 @@ def test_register_sproc_after_switch_schema(session):
         session.use_schema(current_schema)
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",

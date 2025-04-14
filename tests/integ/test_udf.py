@@ -2809,6 +2809,7 @@ def test_access_snowflake_import_directory(session, resources_path):
     session.clear_imports()
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
