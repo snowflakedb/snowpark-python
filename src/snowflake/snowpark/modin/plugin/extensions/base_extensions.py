@@ -43,12 +43,21 @@ def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: 
 
 @register_base_override_with_telemetry(name="__switcheroo__")
 def __switcheroo__(self, inplace=False, operation=""):
-    from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
-    cost_to_move = self._get_query_compiler().move_to_cost(NativeQueryCompiler, "", operation)
+    from modin.core.storage_formats.pandas.native_query_compiler import (
+        NativeQueryCompiler,
+    )
+
+    cost_to_move = self._get_query_compiler().move_to_cost(
+        NativeQueryCompiler, "", operation
+    )
 
     # figure out if this needs to be a standard API
-    cost_to_stay = self._get_query_compiler().stay_cost(NativeQueryCompiler, "", operation)
-    print(f"Switcheroo: cost to move to pandas: {cost_to_move} cost to stay: {cost_to_stay}")
+    cost_to_stay = self._get_query_compiler().stay_cost(
+        NativeQueryCompiler, "", operation
+    )
+    print(  # noqa: T201
+        f"Switcheroo operation: {operation} cost to move to pandas: {cost_to_move} cost to stay: {cost_to_stay}"
+    )
 
     if cost_to_move < cost_to_stay:
         the_new_me_maybe = self.move_to("Pandas", inplace=inplace)

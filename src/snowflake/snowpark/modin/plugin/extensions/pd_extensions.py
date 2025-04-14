@@ -405,9 +405,8 @@ def read_snowflake(
 
     if keep_in_snowflake or not should_autoswitch:
         return snow_df
-    from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
-    return snow_df.__switcheroo__()
-    
+
+    return snow_df.__switcheroo__(operation="read_snowflake")
 
 
 @register_pd_accessor_helper("to_snowflake")
