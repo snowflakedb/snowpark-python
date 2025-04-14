@@ -20,7 +20,7 @@
 
 #### Improvements
 
-- Renamed the `relaxed_ordering` param into `enforce_ordering` for `DataFrame.read_snowflake`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
+- Renamed the `relaxed_ordering` param into `enforce_ordering` for `DataFrame.to_snowpark_pandas`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
 
 
 #### Bug Fixes

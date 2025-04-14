@@ -75,7 +75,13 @@ def test_align_basic_series_reorder_index(join, axis):
 
 
 @pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
-def test_align_series_on_row_position_column(session, join):
+@pytest.mark.parametrize("enable_sql_simplifier", [True, False])
+def test_align_series_on_row_position_column(session, join, enable_sql_simplifier):
+    session.sql_simplifier_enabled = enable_sql_simplifier
+    expected_window_count = 18
+    if not session.sql_simplifier_enabled:
+        expected_window_count = 20
+
     temp_table_name = f"{Utils.random_table_name()}TESTTABLENAME"
     try:
         Utils.create_table(
@@ -100,7 +106,9 @@ def test_align_series_on_row_position_column(session, join):
 
         native_left, native_right = native_ser1.align(native_ser2, join=join)
 
-        with SqlCounter(query_count=2, join_count=2, window_count=18):
+        with SqlCounter(
+            query_count=2, join_count=2, window_count=expected_window_count
+        ):
             left, right = ser1.align(ser2, join=join, axis=0)
             assert_series_equal(left, native_left)
             assert_series_equal(right, native_right)
