@@ -405,20 +405,9 @@ def read_snowflake(
 
     if keep_in_snowflake or not should_autoswitch:
         return snow_df
-    from modin.core.storage_formats.pandas.native_query_compiler import (
-        NativeQueryCompiler,
-    )
-
-    cost_to = snow_df._get_query_compiler().move_to_cost(
-        NativeQueryCompiler, "", "read_snowflake"
-    )
-    # figure out if this needs to be a standard API
-    cost_from = snow_df._get_query_compiler().stay_cost(
-        NativeQueryCompiler, "", "read_snowflake"
-    )
-    if cost_to < cost_from:
-        return snow_df.move_to("Pandas")
-    return snow_df
+    from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
+    return snow_df.__switcheroo__()
+    
 
 
 @register_pd_accessor_helper("to_snowflake")
