@@ -2483,7 +2483,7 @@ class Session:
             name,
             session=self,
             is_temp_table_for_cleanup=is_temp_table_for_cleanup,
-            _ast_stmt=stmt,
+            _ast=stmt,
             _emit_ast=_emit_ast,
         )
         # Replace API call origin for table
@@ -2547,7 +2547,7 @@ class Session:
         stmt = None
         if _emit_ast:
             add_intermediate_stmt(self._ast_batch, func_name)
-            stmt = self._ast_batch.bind()
+            stmt = AstBuilder.bind()
             ast = with_src_position(stmt.expr.session_table_function, stmt)
             build_indirect_table_fn_apply(
                 ast.fn,
@@ -2659,7 +2659,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.bind()
+            stmt = AstBuilder.bind()
             ast = with_src_position(stmt.expr.generator, stmt)
             col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
                 *columns
@@ -2763,7 +2763,7 @@ class Session:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._ast_batch.bind()
+                stmt = AstBuilder.bind()
                 expr = with_src_position(stmt.expr.sql, stmt)
                 expr.query = query
                 if params is not None:
@@ -3261,7 +3261,7 @@ class Session:
             # AST.
             if _emit_ast:
                 # Create AST statement.
-                stmt = self._ast_batch.bind()
+                stmt = AstBuilder.bind()
                 ast = with_src_position(stmt.expr.write_pandas, stmt)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
@@ -3451,7 +3451,7 @@ class Session:
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
-                    stmt = self._ast_batch.bind()
+                    stmt = AstBuilder.bind()
                     ast = with_src_position(stmt.expr.create_dataframe, stmt)
                     # Save temp table and schema of it in AST (dataframe).
                     build_table_name(
@@ -3460,7 +3460,7 @@ class Session:
                     build_proto_from_struct_type(
                         table.schema, ast.schema.dataframe_schema__struct.v
                     )
-                    table._ast_id = stmt.uid
+                    table._ast.id = stmt.id
 
                 return table
 
@@ -3680,7 +3680,7 @@ class Session:
                 project_columns.append(column(name))
 
         # Create AST statement.
-        stmt = self._ast_batch.bind() if _emit_ast else None
+        stmt = AstBuilder.bind() if _emit_ast else None
 
         df = (
             DataFrame(
@@ -3796,7 +3796,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.bind()
+            stmt = AstBuilder.bind()
             ast = with_src_position(stmt.expr.range, stmt)
             ast.start = start
             if end:
@@ -4181,7 +4181,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.bind()
+            stmt = AstBuilder.bind()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
             expr.fn.stored_procedure.name.name.name_flat.name = sproc_name
             for arg in args:
@@ -4301,7 +4301,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.bind()
+            stmt = AstBuilder.bind()
             expr = with_src_position(stmt.expr.flatten, stmt)
             build_expr_from_python_val(expr.input, input)
             if path is not None:

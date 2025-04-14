@@ -163,6 +163,8 @@ def run_test(session, tables, test_files):
         sys.modules[test_name] = test_module
         spec.loader.exec_module(test_module)
         base64_batches = test_module.run_test(session, tables, test_files)
+        if len(base64_batches) == 0:
+            raise ValueError("Not batch generated.")
         raw_unparser_output = (
             render(base64_batches, pytest.unparser_jar) if pytest.unparser_jar else ""
         )

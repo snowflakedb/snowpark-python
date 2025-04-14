@@ -8,7 +8,6 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -20,6 +19,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
+from snowflake.snowpark._internal.ast.builder import AstBuilder
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_dict_str_str,
     build_expr_from_snowpark_column,
@@ -286,12 +286,12 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         is_temp_table_for_cleanup: bool = False,
-        _ast_stmt: Optional[proto.Bind] = None,
+        _ast: Optional[AstBuilder] = None,
         _emit_ast: bool = True,
     ) -> None:
-        if _ast_stmt is None and session is not None and _emit_ast:
-            _ast_stmt = session._ast_batch.bind()
-            ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
+        if _ast is None and session is not None and _emit_ast:
+            _ast = session._ast_batch.bind()
+            ast = with_src_position(_ast.expr.table, _ast)
             build_table_name(ast.name, table_name)
             ast.variant.table_init = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
@@ -310,7 +310,7 @@ class Table(DataFrame):
             )
         else:
             plan = snowflake_table_plan
-        super().__init__(session, plan, _ast_stmt=_ast_stmt, _emit_ast=_emit_ast)
+        super().__init__(session, plan, _ast=_ast, _emit_ast=_emit_ast)
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
