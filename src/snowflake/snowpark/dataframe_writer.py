@@ -456,9 +456,11 @@ class DataFrameWriter:
             )
             if column_order is None or column_order.lower() not in ("name", "index"):
                 raise ValueError("'column_order' must be either 'name' or 'index'")
-            column_names = (
-                self._dataframe.columns if column_order.lower() == "name" else None
-            )
+
+            column_names = None
+            if column_order.lower() == "name":
+                column_names = [x.name for x in self._dataframe.schema._to_attributes()]
+
             clustering_exprs = (
                 [
                     _to_col_if_str(col, "DataFrameWriter.save_as_table")._expression

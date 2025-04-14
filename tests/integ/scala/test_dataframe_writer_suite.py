@@ -99,6 +99,36 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
             Utils.drop_table(session, special_table_name)
 
 
+def test_write_reserved_names(session):
+    table_name = Utils.random_table_name()
+    table2_name = Utils.random_table_name()
+
+    schema = StructType([StructField("AS", LongType(), nullable=False)])
+    df = session.create_dataframe(
+        [
+            (1,),
+        ],
+        schema=schema,
+    )
+
+    try:
+        df.write.mode("overwrite").save_as_table(table_name, column_order="name")
+        table = session.table(table_name)
+
+        assert table.schema == schema
+
+        df.write.mode("append").save_as_table(table_name, column_order="name")
+
+        assert table.count() == 2
+
+        table.write.mode("append").save_as_table(table2_name, column_order="name")
+        table2 = session.table(table2_name)
+        assert table2.schema == schema
+    finally:
+        Utils.drop_table(session, table_name)
+        Utils.drop_table(session, table2_name)
+
+
 def test_snow_1668862_repro_save_null_data(session):
     table_name = Utils.random_table_name()
     test_data = session.create_dataframe([(1,), (2,)], ["A"])
