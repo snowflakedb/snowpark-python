@@ -101,6 +101,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal.ast.builder import AstBuilder
 from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
     build_expr_from_dict_str_str,
@@ -581,7 +582,7 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-        _ast_stmt: Optional[proto.Bind] = None,
+        _ast: Optional[AstBuilder] = None,
         _emit_ast: bool = True,
     ) -> None:
         """
@@ -590,9 +591,7 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_id = None
-        if _emit_ast:
-            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
+        self._ast = _ast
 
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
@@ -633,8 +632,8 @@ class DataFrame:
         Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
-        debug_check_missing_ast(self._ast_id, self._session, self)
-        dataframe_expr_builder.dataframe_ref.id = self._ast_id
+        debug_check_missing_ast(self._ast.id(), self._session, self)
+        dataframe_expr_builder.dataframe_ref.id = self._ast.id()
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -1273,7 +1272,7 @@ class DataFrame:
         df = self.select(new_cols, _ast_stmt=stmt, _emit_ast=_emit_ast)
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -1383,7 +1382,7 @@ class DataFrame:
             temporary_table_name = random_name_for_temp_object(
                 TempObjectType.TABLE
             )  # pragma: no cover
-            ast_id = self._ast_id
+            ast_id = self._ast.id
             self._ast_id = None  # set the AST ID to None to prevent AST emission.
             self.write.save_as_table(
                 temporary_table_name,
@@ -1391,7 +1390,7 @@ class DataFrame:
                 table_type="temporary",
                 _emit_ast=False,
             )  # pragma: no cover
-            self._ast_id = ast_id  # reset the AST ID.
+            self._ast.id = ast_id  # reset the AST ID.
 
             snowpandas_df = pd.read_snowflake(
                 name_or_query=temporary_table_name, index_col=index_col, columns=columns
@@ -1411,7 +1410,7 @@ class DataFrame:
 
         if _emit_ast:
             # Set the Snowpark DataFrame AST ID to the AST ID of this pandas query.
-            snowpandas_df._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._ast_id = (
+            snowpandas_df._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._ast.id = (
                 stmt.uid
             )
 
@@ -1419,7 +1418,7 @@ class DataFrame:
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
 
-        _emit_ast = self._ast_id is not None and self._session.ast_enabled
+        _emit_ast = self._ast.id is not None and self._session.ast_enabled
 
         if isinstance(item, str):
             return self.col(item, _emit_ast=_emit_ast)
@@ -1794,7 +1793,7 @@ class DataFrame:
             df = self.select(list(keep_col_names), _emit_ast=False)
 
             if _emit_ast:
-                df._ast_id = stmt.uid
+                df._ast.id = stmt.uid
 
             return df
 
@@ -1989,7 +1988,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -2048,7 +2047,7 @@ class DataFrame:
             ] = attr.name
 
         if _emit_ast:
-            _copy._ast_id = stmt.uid
+            _copy._ast.id = stmt.uid
         return _copy
 
     @df_api_usage
@@ -2132,7 +2131,7 @@ class DataFrame:
         df = self.group_by(_emit_ast=False).agg(*exprs, _emit_ast=False)
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -2238,7 +2237,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -2380,7 +2379,7 @@ class DataFrame:
             adjust_api_subcalls(df, "DataFrame.distinct[group_by]", len_subcalls=2)
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -2427,7 +2426,7 @@ class DataFrame:
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
 
             if _emit_ast:
-                df._ast_id = stmt.uid
+                df._ast.id = stmt.uid
             return df
 
         with ResourceUsageCollector() as resource_usage_collector:
@@ -2453,7 +2452,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -2622,7 +2621,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
         return df
 
     @df_api_usage
@@ -2733,7 +2732,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -2788,7 +2787,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -3037,7 +3036,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -3086,7 +3085,7 @@ class DataFrame:
             df = self._with_plan(Except(self._plan, other._plan))
 
         if _emit_ast:
-            df._ast_id = stmt.uid
+            df._ast.id = stmt.uid
 
         return df
 
@@ -3976,7 +3975,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            df._ast_id = ast_stmt.uid
+            df._ast.id = ast_stmt.uid
 
         return df
 
@@ -4122,7 +4121,7 @@ class DataFrame:
         df = self.select(final_cols, _ast_stmt=_ast_stmt, _emit_ast=False)
 
         if _emit_ast:
-            df._ast_id = _ast_stmt.uid
+            df._ast.id = _ast_stmt.uid
 
         return df
 
@@ -4213,7 +4212,7 @@ class DataFrame:
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
         if (
-            self._ast_id is not None
+            self._ast.id is not None
             and self._writer._ast is None
             and self._session.ast_enabled
         ):
@@ -5553,7 +5552,7 @@ class DataFrame:
             )
 
             if _emit_ast:
-                df._ast_id = stmt.uid
+                df._ast.id = stmt.uid
 
             return df
 
@@ -5596,7 +5595,7 @@ class DataFrame:
         )
 
         if _emit_ast:
-            res_df._ast_id = stmt.uid
+            res_df._ast.id = stmt.uid
 
         return res_df
 
@@ -5870,12 +5869,12 @@ class DataFrame:
             )
 
         if isinstance(self._session._conn, MockServerConnection):
-            ast_id = self._ast_id
-            self._ast_id = None  # set the AST ID to None to prevent AST emission.
+            ast_id = self._ast.id
+            self._ast.id = None  # set the AST ID to None to prevent AST emission.
             self.write.save_as_table(
                 temp_table_name, create_temp_table=True, _emit_ast=False
             )
-            self._ast_id = ast_id  # restore the original AST ID.
+            self._ast.id = ast_id  # restore the original AST ID.
         else:
             df = self._with_plan(
                 SnowflakeCreateTable(
@@ -5911,7 +5910,7 @@ class DataFrame:
         cached_df.is_cached = True
 
         if _emit_ast:
-            cached_df._ast_id = stmt.uid
+            cached_df._ast.id = stmt.uid
         return cached_df
 
     @publicapi
@@ -6049,7 +6048,7 @@ class DataFrame:
                     arg = obj_expr.args.add()
                     build_expr_from_python_val(arg, i)
 
-                    df._ast_id = obj_stmt.uid
+                    df._ast.id = obj_stmt.uid
 
             return res_dfs
 
@@ -6150,7 +6149,7 @@ Query List:
         df._statement_params = self._statement_params
 
         if _ast_stmt is not None:
-            df._ast_id = _ast_stmt.uid
+            df._ast.id = _ast_stmt.uid
 
         return df
 

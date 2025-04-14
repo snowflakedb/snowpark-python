@@ -160,3 +160,16 @@ class AstBuilder:
         # Serialize the request to a base64-encoded string for transmission.
         batch = str(base64.b64encode(request.SerializeToString()), "utf-8")
         return SerializedBatch(str(request_id), batch)
+
+    @property
+    def expr(self) -> proto.Expr:
+        return self._bind.expr
+
+    @property
+    def symbol(self) -> Optional[proto.StringVal]:  # <-- is this type hint true?
+        return self._bind.symbol
+
+    @property
+    def id(self) -> int:  # <-- is this type hint true?
+        # _ast_id
+        return self._bind.uid

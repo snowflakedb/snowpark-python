@@ -66,7 +66,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
-from snowflake.snowpark._internal.ast.batch import AstBatch
+from snowflake.snowpark._internal.ast.builder import AstBuilder
 from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
     build_expr_from_python_val,
@@ -741,8 +741,6 @@ class Session:
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._catalog = None
-
-        self._ast_batch = AstBatch(self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -2470,7 +2468,7 @@ class Session:
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
         if _emit_ast:
-            stmt = self._ast_batch.bind()
+            stmt = AstBuilder.bind()
             ast = with_src_position(stmt.expr.table, stmt)
             build_table_name(ast.name, name)
             ast.variant.session_table = True
