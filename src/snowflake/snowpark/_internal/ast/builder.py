@@ -173,3 +173,7 @@ class AstBuilder:
     def id(self) -> int:  # <-- is this type hint true?
         # _ast_id
         return self._bind.uid
+
+    @id.setter
+    def id(self, uid: int) -> None:
+        self._bind.uid = uid

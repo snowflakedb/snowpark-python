@@ -632,8 +632,8 @@ class DataFrame:
         Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
-        debug_check_missing_ast(self._ast.id(), self._session, self)
-        dataframe_expr_builder.dataframe_ref.id = self._ast.id()
+        debug_check_missing_ast(self._ast.id, self._session, self)
+        dataframe_expr_builder.dataframe_ref.id = self._ast.id
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -1641,12 +1641,12 @@ class DataFrame:
                         ),
                         analyzer=self._session._analyzer,
                     ).select(names),
-                    _ast_stmt=stmt,
+                    ast=stmt,
                 )
 
-            return self._with_plan(self._select_statement.select(names), _ast_stmt=stmt)
+            return self._with_plan(self._select_statement.select(names), ast=stmt)
 
-        return self._with_plan(Project(names, join_plan or self._plan), _ast_stmt=stmt)
+        return self._with_plan(Project(names, join_plan or self._plan), ast=stmt)
 
     @df_api_usage
     @publicapi
@@ -1802,7 +1802,9 @@ class DataFrame:
     def filter(
         self,
         expr: ColumnOrSqlExpr,
-        _ast_stmt: proto.Bind = None,
+        _ast_stmt: Optional[
+            AstBuilder
+        ] = None,  # why is this needed? Can we get rid off it?
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
@@ -1833,7 +1835,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._session._ast_batch.bind()
+                stmt = AstBuilder.bind()
                 ast = with_src_position(stmt.expr.dataframe_filter, stmt)
                 self._set_ast_ref(ast.df)
                 build_expr_from_snowpark_column_or_sql_str(ast.condition, expr)
@@ -1843,14 +1845,14 @@ class DataFrame:
         if self._select_statement:
             return self._with_plan(
                 self._select_statement.filter(filter_col_expr),
-                _ast_stmt=stmt,
+                ast=stmt,
             )
         return self._with_plan(
             Filter(
                 filter_col_expr,
                 self._plan,
             ),
-            _ast_stmt=stmt,
+            ast=stmt,
         )
 
     @df_api_usage
@@ -4212,7 +4214,8 @@ class DataFrame:
             [Row(rows_unloaded=2, input_bytes=8, output_bytes=28)]
         """
         if (
-            self._ast.id is not None
+            self._ast
+            and self._ast.id is not None
             and self._writer._ast is None
             and self._session.ast_enabled
         ):
@@ -6141,15 +6144,15 @@ Query List:
         ]
         return dtypes
 
-    def _with_plan(self, plan, _ast_stmt=None) -> "DataFrame":
+    def _with_plan(self, plan, ast: Optional[AstBuilder] = None) -> "DataFrame":
         """
-        :param proto.Bind ast_stmt: The AST statement protobuf corresponding to this value.
+        :param AstBuilder ast: The AST builder corresponding to this value.
         """
-        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt, _emit_ast=False)
+        df = DataFrame(self._session, plan, _ast=ast, _emit_ast=False)
         df._statement_params = self._statement_params
 
-        if _ast_stmt is not None:
-            df._ast.id = _ast_stmt.uid
+        if ast is not None:
+            df._ast.id = ast.id
 
         return df
 
