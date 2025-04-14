@@ -37,7 +37,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
-from snowflake.snowpark._internal.ast.batch import AstBatch
+from snowflake.snowpark._internal.ast.builder import AstBuilder
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
@@ -677,7 +677,7 @@ def fill_interned_value_table(table: proto.InternedValueTable) -> None:
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def with_src_position(
     expr_ast: proto.Expr,
-    bind: Optional[proto.Bind] = None,
+    bind: Optional[AstBuilder] = None,
     caller_frame_depth: Optional[int] = None,
     debug: bool = False,
     target_idx: Optional[int] = None,
@@ -1093,14 +1093,14 @@ def fill_write_file(
 def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
     expr_builder: proto.Callable,
     func: Union[Callable, Tuple[str, str]],
-    ast_batch: Optional[AstBatch] = None,
+    builder: Optional[AstBuilder],
     object_name: Optional[Union[str, Iterable[str]]] = None,
-):  # pragma: no cover
+) -> AstBuilder:  # pragma: no cover
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as Callable protobuf."""
 
     udf_id = None
-    if ast_batch is not None:
-        udf_id = ast_batch.register_callable(func)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "register_callable" of "AstBatch" has incompatible type "Union[Callable[..., Any], tuple[str, str]]"; expected "Callable[..., Any]"
+    if builder is not None:
+        udf_id = AstBuilder.register_callable(func)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "register_callable" of "AstBatch" has incompatible type "Union[Callable[..., Any], tuple[str, str]]"; expected "Callable[..., Any]"
         expr_builder.id = udf_id
 
     if callable(func) and func.__name__ == "<lambda>":
@@ -1400,7 +1400,7 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:  # pragma: no cover
+def add_intermediate_stmt(o: Any) -> AstBuilder:  # pragma: no cover
     """
     Helper function that takes an object AST as input and creates an assignment for it.
 
@@ -1416,12 +1416,13 @@ def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:  # pragma: no co
         o, (snowflake.snowpark.table_function.TableFunctionCall, Callable)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "isinstance" has incompatible type "tuple[type[TableFunctionCall], <typing special form>]"; expected "_ClassInfo"
     ):
         return
-    stmt = ast_batch.bind()
+    stmt = AstBuilder.bind()
     # In tests like test_permanent_udtf_negative, where a non-existent UDTF is used this will lead to o=None
     # being passed here. Safeguard as the check is carried out in the connector.
     if o is not None and o._ast is not None:
         stmt.expr.CopyFrom(o._ast)
         o._ast_stmt = stmt
+    return stmt
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
