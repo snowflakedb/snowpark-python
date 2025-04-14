@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 from typing import List, Callable, Any
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
@@ -122,10 +121,30 @@ class OracledbDriver(BaseDriver):
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
 
+        def udtf_handler(cursor, metadata):
+            from oracledb import (
+                DB_TYPE_CLOB,
+                DB_TYPE_NCLOB,
+                DB_TYPE_LONG,
+                DB_TYPE_BLOB,
+                DB_TYPE_RAW,
+                DB_TYPE_LONG_RAW,
+            )
+
+            def convert_to_hex(value):
+                return value.hex() if value is not None else None
+
+            if metadata.type_code in (DB_TYPE_CLOB, DB_TYPE_NCLOB):
+                return cursor.var(DB_TYPE_LONG, arraysize=cursor.arraysize)
+            elif metadata.type_code in (DB_TYPE_BLOB, DB_TYPE_RAW, DB_TYPE_LONG_RAW):
+                return cursor.var(
+                    DB_TYPE_RAW, arraysize=cursor.arraysize, outconverter=convert_to_hex
+                )
+
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                conn.outputtypehandler = output_type_handler
+                conn.outputtypehandler = udtf_handler
                 cursor = conn.cursor()
                 cursor.execute(query)
                 while True:
@@ -138,21 +157,9 @@ class OracledbDriver(BaseDriver):
 
 
 def output_type_handler(cursor, metadata):
-    from oracledb import (
-        DB_TYPE_CLOB,
-        DB_TYPE_NCLOB,
-        DB_TYPE_LONG,
-        DB_TYPE_BLOB,
-        DB_TYPE_RAW,
-        DB_TYPE_LONG_RAW,
-    )
+    import oracledb
 
-    def convert_to_hex(value):
-        return value.hex() if value is not None else None
-
-    if metadata.type_code in (DB_TYPE_CLOB, DB_TYPE_NCLOB):
-        return cursor.var(DB_TYPE_LONG, arraysize=cursor.arraysize)
-    elif metadata.type_code in (DB_TYPE_BLOB, DB_TYPE_RAW, DB_TYPE_LONG_RAW):
-        return cursor.var(
-            DB_TYPE_RAW, arraysize=cursor.arraysize, outconverter=convert_to_hex
-        )
+    if metadata.type_code in (oracledb.DB_TYPE_CLOB, oracledb.DB_TYPE_NCLOB):
+        return cursor.var(oracledb.DB_TYPE_LONG, arraysize=cursor.arraysize)
+    elif metadata.type_code == oracledb.DB_TYPE_BLOB:
+        return cursor.var(oracledb.DB_TYPE_RAW, arraysize=cursor.arraysize)

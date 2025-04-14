@@ -87,7 +87,10 @@ class BaseDriver(ABC):
         logger.info(
             f"ingest data to snowflake udtf takes: {time.time() - start} seconds"
         )
-        cols = [res[field.name].cast(field.datatype) for field in schema.fields]
+        cols = [
+            res[field.name].cast(field.datatype).alias(field.name)
+            for field in schema.fields
+        ]
         return res.select(cols)
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
