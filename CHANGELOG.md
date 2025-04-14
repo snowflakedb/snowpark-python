@@ -2,13 +2,6 @@
 
 ## 1.31.0 (YYYY-MM-DD)
 
-### Snowpark pandas API Updates
-
-### Improvements
-
-- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
-- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
-
 ### Snowpark Python API Updates
 
 #### New Features
@@ -24,6 +17,10 @@
 - Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
 - Fixed a bug where `df.limit(0)` call would not properly apply.
+
+#### Improvements
+
+- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
 
 #### Deprecations
 
@@ -54,6 +51,7 @@
 #### Improvements
 
 - Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
+- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
 
 #### Bug Fixes
 
