@@ -2986,10 +2986,6 @@ def test_array_compact(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="array_construct is not yet supported in local testing mode.",
-)
 def test_array_construct(session):
     assert (
         TestData.zero1(session)

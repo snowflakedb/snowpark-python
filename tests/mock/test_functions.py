@@ -12,6 +12,7 @@ from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
+    array_construct,
     asc,
     call_function,
     col,
@@ -408,3 +409,58 @@ def test_get(session):
     )
     get_df = agged.select("ID", get(col("VALUES"), 1).alias("ELEMENT"))
     Utils.check_answer(get_df, [Row(102, None), Row(101, '"dog"')])
+
+
+def test_array_construct_indexing(session):
+    data = [
+        Row(a=1, b="name1", c=5.2),
+        Row(a=2, b="name2", c=3.9),
+        Row(a=3, b="name3", c=10.8),
+    ]
+
+    df = session.create_dataframe(data=data)
+
+    df = df.with_column("d", array_construct(*["a", "b", "c"]))
+
+    for n, result in [
+        (
+            1,
+            [
+                Row(
+                    1,
+                    "name1",
+                    5.2,
+                    '[\n  1,\n  "name1",\n  5.2\n]',
+                    '[\n  1,\n  "name1",\n  5.2\n]',
+                )
+            ],
+        ),
+        (
+            2,
+            [
+                Row(
+                    2,
+                    "name2",
+                    3.9,
+                    '[\n  2,\n  "name2",\n  3.9\n]',
+                    '[\n  2,\n  "name2",\n  3.9\n]',
+                )
+            ],
+        ),
+        (
+            3,
+            [
+                Row(
+                    3,
+                    "name3",
+                    10.8,
+                    '[\n  3,\n  "name3",\n  10.8\n]',
+                    '[\n  3,\n  "name3",\n  10.8\n]',
+                )
+            ],
+        ),
+    ]:
+        # Each filter changes the index for the result. Test taht array construct maintains the index correctly
+        filtered = df.filter(col("a") == n)
+        filtered = filtered.with_column("arr", array_construct(*["a", "b", "c"]))
+        Utils.check_answer(filtered, result)

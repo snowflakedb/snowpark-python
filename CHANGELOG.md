@@ -34,6 +34,7 @@
 #### New Features
 
 - Added support for Interval experssion to `Window.range_between`.
+- Added support for `array_construct` function
 
 #### Bug Fixes
 
