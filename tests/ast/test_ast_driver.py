@@ -131,32 +131,17 @@ import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import *
 from snowflake.snowpark.types import *
 from snowflake.snowpark import Table
-from snowflake.snowpark._internal.ast.batch import AstBatch
 import snowflake.snowpark._internal.ast.utils as ast_utils
-
-import uuid
-
-# Set up the request ID generator.
-AstBatch.generate_request_id = lambda: uuid.uuid5(uuid.NAMESPACE_DNS, "id-gen")
 
 ast_utils.SRC_POSITION_TEST_MODE = True
 
 def run_test(session, tables, test_files):
-    # Reset the entity ID generator.
-    session._ast_batch.reset_id_gen()
-
-    session._ast_batch.flush()  # Clear the AST.
-
     # Run the test.
     with session.ast_listener() as al:
         {indent_lines(test_source, 2)}
-        # Perform extra-flush for any pending statements.
-        _, last_batch = session._ast_batch.flush()
 
     # Retrieve the ASTs corresponding to the test.
     result = al.base64_batches
-    if last_batch:
-        result.append(last_batch)
     return result
 """
     # We don't care about the results, and also want to test some APIs that can't be mocked. This suppresses an error
