@@ -2015,7 +2015,7 @@ def test_show_dataframe_spark(session):
                     pytest.fail()
 
         assert_show_string_equals(
-            df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
+            df._show_string_spark().strip(),
             dedent(
                 """
             +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
@@ -2027,9 +2027,7 @@ def test_show_dataframe_spark(session):
             ),
         )
         assert_show_string_equals(
-            df._show_string_spark(
-                _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
-            ),
+            df._show_string_spark(_spark_column_names=spark_col_names),
             dedent(
                 """
             +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
@@ -2043,7 +2041,6 @@ def test_show_dataframe_spark(session):
         assert_show_string_equals(
             df._show_string_spark(
                 vertical=True,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2074,7 +2071,6 @@ def test_show_dataframe_spark(session):
             df._show_string_spark(
                 vertical=True,
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2104,7 +2100,6 @@ def test_show_dataframe_spark(session):
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2120,7 +2115,6 @@ def test_show_dataframe_spark(session):
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=10,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(

@@ -476,12 +476,9 @@ class MapType(DataType):
 
     def _fill_ast(self, ast: proto.DataType) -> None:
         ast.map_type.structured = self.structured
-        if self.key_type is None or self.value_type is None:
-            raise NotImplementedError(
-                "SNOW-1862700: AST does not support empty key or value type."
-            )
-        self.key_type._fill_ast(ast.map_type.key_ty)
-        self.value_type._fill_ast(ast.map_type.value_ty)
+        if self.key_type is not None and self.value_type is not None:
+            self.key_type._fill_ast(ast.map_type.key_ty)
+            self.value_type._fill_ast(ast.map_type.value_ty)
 
 
 class VectorType(DataType):

@@ -1375,7 +1375,7 @@ class SelectStatement(Selectable):
         else:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
-            new.limit_ = min(self.limit_, n) if self.limit_ else n
+            new.limit_ = min(self.limit_, n) if self.limit_ is not None else n
             new.offset = offset or self.offset
             new.column_states = self.column_states
             new.pre_actions = new.from_.pre_actions
