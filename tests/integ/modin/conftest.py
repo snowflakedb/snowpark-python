@@ -27,7 +27,7 @@ from tests.utils import Utils, running_on_jenkins
 
 
 # Disable automatic backend selection for hybrid execution by default.
-AutoSwitchBackend.put(False)
+AutoSwitchBackend.disable()
 
 
 INTEG_PANDAS_SUBPATH = "tests/integ/modin/"

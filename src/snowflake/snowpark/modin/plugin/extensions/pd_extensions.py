@@ -16,9 +16,10 @@ from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
     DatetimeIndex,
 )  # noqa: F401
 from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
-from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (
+from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
     TimedeltaIndex,
-)  # noqa: F401
+)
+from snowflake.snowpark.modin.plugin.extensions.utils import is_autoswitch_enabled
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
@@ -396,14 +397,7 @@ def read_snowflake(
         )
     )
 
-    try:
-        from modin.config import AutoSwitchBackend
-
-        should_autoswitch = AutoSwitchBackend.get()
-    except ImportError:
-        should_autoswitch = True
-
-    if keep_in_snowflake or not should_autoswitch:
+    if keep_in_snowflake or not is_autoswitch_enabled():
         return snow_df
 
     return snow_df.__switcheroo__(operation="read_snowflake")

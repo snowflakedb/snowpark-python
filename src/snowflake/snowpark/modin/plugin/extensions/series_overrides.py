@@ -55,6 +55,7 @@ from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
 )
+from snowflake.snowpark.modin.plugin.extensions.utils import is_autoswitch_enabled
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     series_not_implemented,
@@ -76,14 +77,13 @@ from snowflake.snowpark.modin.utils import (
     validate_int_kwarg,
 )
 
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    try_add_telemetry_to_attribute,
-)
-
 
 def register_series_accessor_with_telemetry(name: str):
+    # TODO determine if we should put this back
+    # also make this location consistent for base/df
     return lambda func: register_series_accessor(name=name, backend="Snowflake")(
-        try_add_telemetry_to_attribute(name, func)
+        func
+        # try_add_telemetry_to_attribute(name, func)
     )
 
 
@@ -458,13 +458,6 @@ def __init__(
     # use this list to update inplace when there is a shallow copy.
     self._siblings = []
 
-    try:
-        from modin.config import AutoSwitchBackend
-
-        should_autoswitch = AutoSwitchBackend.get()
-    except ImportError:
-        should_autoswitch = True
-
     from snowflake.snowpark.modin.plugin.extensions.index import Index
 
     # Setting the query compiler
@@ -477,7 +470,7 @@ def __init__(
         if name is not None:
             self.name = name
         return
-    elif should_autoswitch:
+    elif is_autoswitch_enabled():
         with config_context(Backend="pandas"):
             self._extensions[None]["__init__"](
                 self, data, index, dtype, name, copy, fastpath
