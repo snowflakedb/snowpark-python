@@ -406,7 +406,7 @@ class Series(BasePandasDataset):
         pass
 
     __iadd__ = __add__
-    __imul__ = __add__
+    __imul__ = __mul__
     __ipow__ = __pow__
     __isub__ = __sub__
     __itruediv__ = __truediv__
