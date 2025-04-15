@@ -4,6 +4,10 @@
 
 # this module houses classes for IO and interacting with Snowflake engine
 
+from contextlib import contextmanager
+import os
+import tempfile
+
 import inspect
 from collections import OrderedDict
 from typing import (
@@ -31,6 +35,8 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_list_like
 
+from snowflake.snowpark.context import get_active_session
+from snowflake.snowpark.mock._stage_registry import extract_stage_name_and_prefix
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
     is_local_filepath,
     is_snowflake_stage_path,
@@ -154,6 +160,15 @@ def _validate_read_staged_csv_and_read_table_args(fn_name, **kwargs):
     for kw in warn_not_default_kwargs:
         parameter_set = kwargs.get(kw) is not READ_CSV_DEFAULTS[kw]
         warn_not_supported_parameter(kw, parameter_set, fn_name)
+
+
+@contextmanager
+def _file_from_stage(filepath_or_buffer):
+    session = get_active_session()
+    with tempfile.TemporaryDirectory() as local_temp_dir:
+        session.file.get(filepath_or_buffer, local_temp_dir)
+        _, stripped_filepath = extract_stage_name_and_prefix(filepath_or_buffer)
+        yield os.path.join(local_temp_dir, stripped_filepath)
 
 
 class PandasOnSnowflakeIO(BaseIO):
@@ -607,6 +622,14 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Read HTML tables into a list of query compilers.
         """
+        io = kwargs["io"]
+        if is_snowflake_stage_path(io):
+            with _file_from_stage(io) as local_filepath:
+                kwargs["io"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return [cls.from_pandas(df) for df in pandas.read_html(**kwargs)]
+
         return [cls.from_pandas(df) for df in pandas.read_html(**kwargs)]
 
     @classmethod
@@ -614,6 +637,14 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Read XML document into a query compiler.
         """
+        path_or_buffer = kwargs["path_or_buffer"]
+        if is_snowflake_stage_path(path_or_buffer):
+            with _file_from_stage(path_or_buffer) as local_filepath:
+                kwargs["path_or_buffer"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_xml(**kwargs))
+
         return cls.from_pandas(pandas.read_xml(**kwargs))
 
     @classmethod
@@ -662,6 +693,14 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Read SAS files stored as either XPORT or SAS7BDAT format files into a query compiler.
         """
+        filepath_or_buffer = kwargs["filepath_or_buffer"]
+        if is_snowflake_stage_path(filepath_or_buffer):
+            with _file_from_stage(filepath_or_buffer) as local_filepath:
+                kwargs["filepath_or_buffer"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_sas(**kwargs))
+
         return cls.from_pandas(pandas.read_sas(**kwargs))
 
     @classmethod
