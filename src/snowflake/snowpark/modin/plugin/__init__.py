@@ -152,8 +152,11 @@ modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 # Telemetry is currently not recorded for the ModinAPI accessor object, which contains methods such as
 # df.modin.to_pandas() that Snowpark pandas raises NotImplementedError for.
 from modin.pandas import DataFrame, Series  # isort: skip  # noqa: E402,F401
+from modin.pandas.base import BasePandasDataset  # isort: skip  # noqa: E402,F401
 from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
     register_pd_accessor,
+    register_series_accessor,
+    register_dataframe_accessor,
 )
 from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
 from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402,F401
@@ -175,7 +178,16 @@ _TELEMETRY_BLACKLIST = ("modin",)
 def _get_df_or_series_attr(cls: Union[DataFrame, Series], name: str) -> Any:
     # If we already defined the method via the extensions system, then we need to retrieve it from
     # the extensions dictionary directly to circumvent modin's caster dispatch wrapper.
-    attr_value = cls._extensions["Snowflake"].get(name, getattr(cls, name))
+    # Note that unlike prior versions of Snowpark pandas, we check BasePandasDataset's extensions
+    # ONLY if the method was not already defined on Series/DataFrame.
+    # Note that inherited methods are not present in a subclass's __dict__.
+    if name in cls.__dict__:
+        attr_value = cls._extensions["Snowflake"].get(name, getattr(cls, name))
+    else:
+        # if the attribute isn't in __dict__, it was defined on BasePandasDataset
+        attr_value = BasePandasDataset._extensions["Snowflake"].get(
+            name, getattr(cls, name)
+        )
     # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
     # backend, we must use the __wrapped__ property of the originally-defined attribute to avoid
     # infinite recursion.

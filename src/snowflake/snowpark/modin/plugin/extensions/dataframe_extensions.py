@@ -22,14 +22,12 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
 from snowflake.snowpark.row import Row
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    try_add_telemetry_to_attribute,
-)
 
 
 def register_dataframe_accessor_with_telemetry(name: str):
     return lambda func: register_dataframe_accessor(name=name, backend="Snowflake")(
-        try_add_telemetry_to_attribute(name, func)
+        func,
+        # try_add_telemetry_to_attribute(name, func)
     )
 
 
