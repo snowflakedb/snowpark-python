@@ -356,7 +356,7 @@ def test_unsupported_types(
         samples = [samples]
     for sample in samples:
         session.sql(f"insert into {test_table_name} {sample}").collect()
-    series = pd.read_snowflake(test_table_name).squeeze()
+    series = pd.read_snowflake(test_table_name, enforce_ordering=True).squeeze()
     with SqlCounter(query_count=0 if errors == "raise" else 1):
         eval_snowpark_pandas_result(
             series,

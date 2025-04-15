@@ -1283,7 +1283,7 @@ class DataFrame:
         self,
         index_col: Optional[Union[str, List[str]]] = None,
         columns: Optional[List[str]] = None,
-        relaxed_ordering: bool = False,
+        enforce_ordering: bool = False,
         _emit_ast: bool = True,
     ) -> "modin.pandas.DataFrame":
         """
@@ -1293,7 +1293,7 @@ class DataFrame:
             index_col: A column name or a list of column names to use as index.
             columns: A list of column names for the columns to select from the Snowpark DataFrame. If not specified, select
                 all columns except ones configured in index_col.
-            relaxed_ordering: If True, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
+            enforce_ordering: If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
                 DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
                 documentation of :func:`~modin.pandas.read_snowflake` for more details.
 
@@ -1378,7 +1378,7 @@ class DataFrame:
             if columns is not None:
                 ast.columns.extend(columns if isinstance(columns, list) else [columns])
 
-        if not relaxed_ordering:
+        if enforce_ordering:
             # create a temporary table out of the current snowpark dataframe
             temporary_table_name = random_name_for_temp_object(
                 TempObjectType.TABLE
@@ -1394,19 +1394,22 @@ class DataFrame:
             self._ast_id = ast_id  # reset the AST ID.
 
             snowpandas_df = pd.read_snowflake(
-                name_or_query=temporary_table_name, index_col=index_col, columns=columns
+                name_or_query=temporary_table_name,
+                index_col=index_col,
+                columns=columns,
+                enforce_ordering=True,
             )  # pragma: no cover
         else:
             if len(self.queries["queries"]) > 1:
                 raise NotImplementedError(
-                    "Setting 'relaxed_ordering=True' in 'to_snowpark_pandas' is not supported when the input "
-                    "dataframe includes DDL or DML operations. Please use 'relaxed_ordering=False' instead."
+                    "Setting 'enforce_ordering=False' in 'to_snowpark_pandas' is not supported when the input "
+                    "dataframe includes DDL or DML operations. Please use 'enforce_ordering=True' instead."
                 )
             snowpandas_df = pd.read_snowflake(
                 name_or_query=self.queries["queries"][0],
                 index_col=index_col,
                 columns=columns,
-                relaxed_ordering=True,
+                enforce_ordering=False,
             )  # pragma: no cover
 
         if _emit_ast:

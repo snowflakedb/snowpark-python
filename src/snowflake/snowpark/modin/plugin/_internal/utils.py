@@ -318,7 +318,7 @@ def _create_read_only_table(
 
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
-    relaxed_ordering: bool,
+    enforce_ordering: bool,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -327,7 +327,7 @@ def create_initial_ordered_dataframe(
     Args:
         table_name_or_query: A string or list of strings that specify the table name or
             fully-qualified object identifier (database name, schema name, and table name) or SQL query.
-        relaxed_ordering: If False, create a read only temp table on top of the existing table or Snowflake query,
+        enforce_ordering: If True, create a read only temp table on top of the existing table or Snowflake query,
             and create the OrderedDataFrame using the read only temp table created.
             Otherwise, directly using the existing table.
 
@@ -350,8 +350,8 @@ def create_initial_ordered_dataframe(
         table_name_or_query
     )
     is_query = not _is_table_name(table_name_or_query)
-    if not is_query or relaxed_ordering:
-        if not relaxed_ordering:
+    if not is_query or not enforce_ordering:
+        if enforce_ordering:
             try:
                 readonly_table_name = _create_read_only_table(
                     table_name=table_name_or_query,
@@ -407,7 +407,7 @@ def create_initial_ordered_dataframe(
 
         initial_ordered_dataframe = OrderedDataFrame(
             DataFrameReference(session.table(readonly_table_name, _emit_ast=False))
-            if not relaxed_ordering
+            if enforce_ordering
             else DataFrameReference(session.sql(table_name_or_query, _emit_ast=False))
             if is_query
             else DataFrameReference(session.table(table_name_or_query, _emit_ast=False))
@@ -425,7 +425,7 @@ def create_initial_ordered_dataframe(
 
         # create snowpark dataframe with columns: row_position_snowflake_quoted_identifier + snowflake_quoted_identifiers
         # if no snowflake_quoted_identifiers is specified, all columns will be selected
-        if not relaxed_ordering:
+        if enforce_ordering:
             row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
         else:
             row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
@@ -438,7 +438,7 @@ def create_initial_ordered_dataframe(
         # which creates a view without metadata column, we won't be able to access the metadata columns
         # with the created snowpark dataframe. In order to get the metadata column access in the created
         # dataframe, we create dataframe through sql which access the corresponding metadata column.
-        if not relaxed_ordering:
+        if enforce_ordering:
             dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
         else:
             dataframe_sql = f"SELECT {columns_to_select} FROM ({table_name_or_query})"
@@ -455,7 +455,7 @@ def create_initial_ordered_dataframe(
             row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
         )
     else:
-        assert is_query and not relaxed_ordering
+        assert is_query and enforce_ordering
 
         # If the string passed in to `pd.read_snowflake` is a SQL query, we can simply create
         # a Snowpark DataFrame, and convert that to a Snowpark pandas DataFrame, and extract
@@ -477,7 +477,9 @@ def create_initial_ordered_dataframe(
             # so we lose the data isolation quality of pandas that we are attempting to replicate. By
             # creating a read only clone, we ensure that the underlying data cannot be modified by anyone
             # else.
-            snowpark_pandas_df = session.sql(table_name_or_query).to_snowpark_pandas()
+            snowpark_pandas_df = session.sql(table_name_or_query).to_snowpark_pandas(
+                enforce_ordering=enforce_ordering
+            )
         except SnowparkSQLException as ex:
             raise SnowparkPandasException(
                 f"Failed to create Snowpark pandas DataFrame out of query {table_name_or_query} with error {ex}",

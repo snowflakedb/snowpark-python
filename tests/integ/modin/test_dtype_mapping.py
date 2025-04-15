@@ -352,7 +352,7 @@ def test_read_snowflake_data_types(
             samples = [samples]
         for sample in samples:
             session.sql(f"insert into {test_table_name} {sample}").collect()
-        df = pd.read_snowflake(test_table_name)
+        df = pd.read_snowflake(test_table_name, enforce_ordering=True)
         assert (
             df.dtypes.to_list() == [expected_dtype]
             if not isinstance(expected_dtype, list)
@@ -410,7 +410,7 @@ def test_read_snowflake_data_types_negative(
             samples = [samples]
         for sample in samples:
             session.sql(f"insert into {test_table_name} {sample}").collect()
-        df = pd.read_snowflake(test_table_name)
+        df = pd.read_snowflake(test_table_name, enforce_ordering=True)
         assert (
             df.dtypes.to_list() == [expected_dtype]
             if not isinstance(expected_dtype, list)
@@ -486,7 +486,7 @@ def test_read_snowflake_data_types_array_undefined_negative(
     expected_to_pandas_dtype,
     expected_to_pandas,
 ):
-    expected_query_count = 9 if isinstance(samples, list) and len(samples) > 1 else 5
+    expected_query_count = 8 if isinstance(samples, list) and len(samples) > 1 else 4
     with SqlCounter(query_count=expected_query_count):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):
