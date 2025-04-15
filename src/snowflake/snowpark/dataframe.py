@@ -5626,7 +5626,9 @@ class DataFrame:
                     )
                 )
                 res_df = (
-                    res_df.union(agg_stat_df, _emit_ast=False) if res_df else agg_stat_df
+                    res_df.union(agg_stat_df, _emit_ast=False)
+                    if res_df
+                    else agg_stat_df
                 )
 
         adjust_api_subcalls(
