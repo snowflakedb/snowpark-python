@@ -128,7 +128,6 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
-    private_preview,
     publicapi,
     quote_name,
     random_name_for_temp_object,
@@ -4062,7 +4061,6 @@ class Session:
         return self._sp_registration
 
     @property
-    @private_preview(version="1.23.0")
     def stored_procedure_profiler(self) -> StoredProcedureProfiler:
         """
         Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
