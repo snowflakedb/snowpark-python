@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import time
 from typing import List, Callable, Any, Optional
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
@@ -17,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 class BaseDriver:
-    def __init__(self, create_connection: Callable[[], "Connection"]) -> None:
+    def __init__(
+        self, create_connection: Callable[[], "Connection"], dbms_type: str
+    ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
 
