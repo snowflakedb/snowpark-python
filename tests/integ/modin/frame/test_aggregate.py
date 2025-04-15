@@ -812,7 +812,7 @@ def test_sum_min_count(min_count, axis):
     )
 
 
-@sql_count_checker(query_count=4, union_count=4)
+@sql_count_checker(query_count=3, union_count=4)
 def test_agg_valid_variant_col(session, test_table_name):
     pandas_df = native_pd.DataFrame(
         {
@@ -831,6 +831,11 @@ def test_agg_valid_variant_col(session, test_table_name):
     snowpark_pandas_df = create_snow_df_with_table_and_data(
         session, test_table_name, column_schema, pandas_df.values.tolist()
     )
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+    pandas_df = pandas_df.sort_values(pandas_df.columns.to_list())
 
     # 2 queries are executed, one for df.agg, another one is triggered during to_pandas,
     # which tries to convert the variant columns back to the right format.

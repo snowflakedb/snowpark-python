@@ -11,6 +11,11 @@
 - Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`
 - Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
 
+#### Improvements
+
+- Renamed the `relaxed_ordering` param into `enforce_ordering` for `DataFrame.to_snowpark_pandas`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
+
+
 #### Bug Fixes
 
 - Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
@@ -52,10 +57,11 @@
 
 - Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
 - Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
+- Renamed the `relaxed_ordering` param into `enforce_ordering` for `pd.read_snowflake`. Also the new default value is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
 
 #### Bug Fixes
 
-- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `relaxed_ordering=False`.
+- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `enforce_ordering=True`.
 
 ## 1.30.0 (2025-03-27)
 
