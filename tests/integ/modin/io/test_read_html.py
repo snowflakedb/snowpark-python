@@ -3,7 +3,7 @@
 #
 
 import os
-import uuid
+import tempfile
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -28,24 +28,21 @@ def test_read_html():
                 </tr>
             </table>
         """
-    filename = f"test_read_html_{str(uuid.uuid4())}"
 
-    with open(filename, "w") as f:
-        f.write(html_str)
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
+        tmp_file.write(html_str)
+        filename = tmp_file.name
+        tmp_file.close()
 
-    try:
         with SqlCounter(query_count=1):
             assert_frame_equal(
                 pd.read_html(filename)[0],
                 native_pd.read_html(filename)[0],
                 check_dtype=False,
             )
-    finally:
-        if os.path.exists(filename):
-            os.remove(filename)
 
 
-def test_read_html_from_stage(session, resources_path):
+def test_read_html_from_stage(session):
     html_str = """
             <table>
                 <tr>
@@ -60,12 +57,12 @@ def test_read_html_from_stage(session, resources_path):
                 </tr>
             </table>
         """
-    filename = f"test_read_html_{str(uuid.uuid4())}"
 
-    with open(filename, "w") as f:
-        f.write(html_str)
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
+        tmp_file.write(html_str)
+        filename = tmp_file.name
+        tmp_file.close()
 
-    try:
         stage_name = Utils.random_stage_name()
         Utils.create_stage(session, stage_name, is_temporary=True)
         Utils.upload_to_stage(session, "@" + stage_name, filename, compress=False)
@@ -76,6 +73,3 @@ def test_read_html_from_stage(session, resources_path):
                 native_pd.read_html(filename)[0],
                 check_dtype=False,
             )
-    finally:
-        if os.path.exists(filename):
-            os.remove(filename)

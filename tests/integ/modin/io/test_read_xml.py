@@ -4,7 +4,7 @@
 
 from io import BytesIO, StringIO
 import os
-import uuid
+import tempfile
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -75,10 +75,10 @@ def test_read_xml_xpath():
 def test_read_xml_from_stage(session, resources_path):
     df = native_pd.DataFrame({"foo": range(5), "bar": range(5, 10)})
 
-    filename = f"test_read_xml_{str(uuid.uuid4())}"
-
-    try:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
+        filename = tmp_file.name
         df.to_xml(filename)
+        tmp_file.close()
 
         stage_name = Utils.random_stage_name()
         Utils.create_stage(session, stage_name, is_temporary=True)
@@ -90,6 +90,3 @@ def test_read_xml_from_stage(session, resources_path):
                 native_pd.read_xml(filename),
                 check_dtype=False,
             )
-    finally:
-        if os.path.exists(filename):
-            os.remove(filename)
