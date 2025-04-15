@@ -204,7 +204,7 @@ def test_get_dummies_multiple_columns():
 # https://snowflakecomputing.atlassian.net/browse/SNOW-1050112
 # Customer issue: Calling get_dummies on the result of
 # pd.read_snowflake directly results in a ValueError.
-@sql_count_checker(query_count=4, join_count=2)
+@sql_count_checker(query_count=3, join_count=2)
 def test_get_dummies_pandas_after_read_snowflake(session):
     pandas_df = native_pd.DataFrame(
         {
@@ -218,6 +218,9 @@ def test_get_dummies_pandas_after_read_snowflake(session):
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     snowpark_df.write.save_as_table(table_name, table_type="temp")
     snow_df = pd.read_snowflake(table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snow_df = snow_df.sort_values(snow_df.columns.to_list())
+    pandas_df = pandas_df.sort_values(pandas_df.columns.to_list())
 
     assert (
         snow_df._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers
