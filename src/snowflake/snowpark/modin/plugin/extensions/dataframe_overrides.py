@@ -98,6 +98,7 @@ from snowflake.snowpark.modin.plugin.extensions.utils import (
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
     try_convert_index_to_native,
+    is_autoswitch_enabled,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -500,13 +501,6 @@ def __init__(
 
     self._siblings = []
 
-    try:
-        from modin.config import AutoSwitchBackend
-
-        should_autoswitch = AutoSwitchBackend.get()
-    except ImportError:
-        should_autoswitch = True
-
     # Setting the query compiler
     # --------------------------
     if query_compiler is not None:
@@ -517,7 +511,7 @@ def __init__(
         )
         self._query_compiler = query_compiler
         return
-    elif should_autoswitch:
+    elif is_autoswitch_enabled():
         with config_context(Backend="pandas"):
             self._extensions[None]["__init__"](self, data, index, columns, dtype, copy)
         return
