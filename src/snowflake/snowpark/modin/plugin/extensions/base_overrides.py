@@ -80,9 +80,6 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
 from snowflake.snowpark.modin.utils import validate_int_kwarg
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    try_add_telemetry_to_attribute,
-)
 
 _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
     "pct_change(axis=1) is invalid when one column is Timedelta another column is not."
@@ -91,7 +88,8 @@ _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
 
 def register_base_override_with_telemetry(name: str):
     return lambda func: register_base_accessor(name=name, backend="Snowflake")(
-        try_add_telemetry_to_attribute(name, func)
+        func
+        # try_add_telemetry_to_attribute(name, func)
     )
 
 

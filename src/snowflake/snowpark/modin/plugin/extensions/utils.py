@@ -583,3 +583,13 @@ def try_convert_index_to_native(index_like: Any) -> Any:
     if isinstance(index_like, Index):
         index_like = index_like.to_pandas()
     return index_like
+
+
+def is_autoswitch_enabled():
+    # TODO remove this import guard once it's merged to modin main
+    try:
+        from modin.config import AutoSwitchBackend
+
+        return AutoSwitchBackend.get()
+    except ImportError:
+        return True
