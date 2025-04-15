@@ -49,7 +49,7 @@ requirements:
     - tzlocal
   run_constrained:
     # Snowpark pandas
-    - modin==0.30.1
+    - modin==0.32.0
 
 test:
   imports:
