@@ -110,6 +110,7 @@ from snowflake.snowpark.functions import (
     lit,
     ln,
     log,
+    month,
     months_between,
     negate,
     not_,
@@ -157,6 +158,7 @@ from snowflake.snowpark.functions import (
     vector_cosine_distance,
     vector_inner_product,
     vector_l2_distance,
+    year,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -413,6 +415,33 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
                 Row("R : H : TD : 4 : 5"),
                 Row(""),
                 Row(""),
+            ],
+        )
+
+        df = session.create_dataframe(
+            [(datetime.date(2021, 12, 21),), (datetime.date(1969, 12, 31),)],
+            schema=["year_month"],
+        )
+
+        Utils.check_answer(
+            df.select(
+                _concat_ws_ignore_nulls("-", year("year_month"), month("year_month"))
+            ),
+            [
+                Row("2021-12"),
+                Row("1969-12"),
+            ],
+        )
+
+        Utils.check_answer(
+            df.select(
+                _concat_ws_ignore_nulls(
+                    "-", year("year_month"), month("year_month")
+                ).alias("year_month")
+            ),
+            [
+                Row(YEAR_MONTH="2021-12"),
+                Row(YEAR_MONTH="1969-12"),
             ],
         )
 

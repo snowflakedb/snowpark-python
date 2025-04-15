@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import os
+from logging import getLogger
 from typing import Dict
 
 import pytest
@@ -30,6 +31,8 @@ RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
 
 test_dir = os.path.dirname(__file__)
 test_data_dir = os.path.join(test_dir, "cassettes")
+
+_logger = getLogger(__name__)
 
 SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
     "Authorization",
@@ -145,6 +148,22 @@ def clean_up_external_access_integration_resources():
     CONNECTION_PARAMETERS.pop("external_access_integration2", None)
 
 
+def set_up_dataframe_processor_parameters(
+    session, dataframe_processor_pkg_version, dataframe_processor_location
+):
+    def set_param_value(param, value):
+        if value is not None:
+            try:
+                session.sql(
+                    f"alter session set {param} = '{value}';", _emit_ast=False
+                ).collect(_emit_ast=False)
+            except Exception as ex:
+                _logger.error(f"Failed to set {param}, ex={ex}")
+
+    set_param_value("DATAFRAME_PROCESSOR_PKG_VERSION", dataframe_processor_pkg_version)
+    set_param_value("DATAFRAME_PROCESSOR_LOCATION", dataframe_processor_location)
+
+
 @pytest.fixture(scope="session")
 def db_parameters(local_testing_mode) -> Dict[str, str]:
     # If its running on our public CI or Jenkins, replace the schema
@@ -231,7 +250,10 @@ def session(
     sql_simplifier_enabled,
     local_testing_mode,
     cte_optimization_enabled,
+    join_alias_fix,
     ast_enabled,
+    dataframe_processor_pkg_version,
+    dataframe_processor_location,
     validate_ast,
     unparser_jar,
 ):
@@ -248,8 +270,13 @@ def session(
         .config("local_testing", local_testing_mode)
         .create()
     )
+    set_up_dataframe_processor_parameters(
+        session, dataframe_processor_pkg_version, dataframe_processor_location
+    )
+
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
+    session._join_alias_fix = join_alias_fix
     session.ast_enabled = ast_enabled
 
     if RUNNING_ON_GH and not local_testing_mode:

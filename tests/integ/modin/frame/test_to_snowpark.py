@@ -50,7 +50,7 @@ def native_pandas_df_basic():
 
 
 @pytest.mark.parametrize("index", [True, False])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_to_snowpark_with_read_snowflake(tmp_table_basic, index) -> None:
     snow_dataframe = pd.read_snowflake(tmp_table_basic)
     index_label = None
@@ -64,7 +64,8 @@ def test_to_snowpark_with_read_snowflake(tmp_table_basic, index) -> None:
         assert snowpark_df.schema[start].column_identifier == '"row_number"'
         assert isinstance(snowpark_df.schema[start].datatype, LongType)
         start += 1
-    # verify the rest of data column is included
+
+    # verify the rest of data columns are included
     assert snowpark_df.schema[start].column_identifier.name == "ID"
     assert snowpark_df.schema[start].column_identifier.quoted_name == '"ID"'
     assert isinstance(snowpark_df.schema[start].datatype, LongType)
@@ -94,7 +95,8 @@ def test_to_snowpark_from_pandas_df(native_pandas_df_basic) -> None:
     # verify the index column is included
     assert snowpark_df.schema[0].column_identifier.quoted_name == '"ID"'
     assert isinstance(snowpark_df.schema[0].datatype, LongType)
-    # verify the rest of data column is included
+
+    # verify the rest of data columns are included
     assert snowpark_df.schema[1].column_identifier.name == "FOOT_SIZE"
     assert snowpark_df.schema[1].column_identifier.quoted_name == '"FOOT_SIZE"'
     assert isinstance(snowpark_df.schema[1].datatype, DoubleType)
@@ -144,7 +146,7 @@ def test_to_snowpark_with_multiindex(tmp_table_basic, index, index_labels) -> No
     assert snowpark_df.schema[start + 1].column_identifier.quoted_name == '"b"'
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_to_snowpark_with_operations(session, tmp_table_basic) -> None:
     snowpandas_df = pd.read_snowflake(tmp_table_basic)
     # rename FOOT_SIZE to size and SHOE_MODEL to model
@@ -161,7 +163,8 @@ def test_to_snowpark_with_operations(session, tmp_table_basic) -> None:
     assert isinstance(snowpark_df.schema[0].datatype, DoubleType)
     assert snowpark_df.schema[1].column_identifier.quoted_name == '"ID"'
     assert isinstance(snowpark_df.schema[1].datatype, LongType)
-    # verify the rest of data column is included
+
+    # verify the rest of data columns are included
     assert snowpark_df.schema[2].column_identifier.quoted_name == '"model"'
     assert isinstance(snowpark_df.schema[2].datatype, StringType)
 
@@ -180,16 +183,26 @@ def test_to_snowpark_with_duplicated_columns_raise(native_pandas_df_basic) -> No
         snow_dataframe.to_snowpark()
 
 
-@sql_count_checker(query_count=1)
-def test_to_snowpark_with_none_index_label_raises(tmp_table_basic) -> None:
-    snow_dataframe = pd.read_snowflake(tmp_table_basic)
+@sql_count_checker(query_count=2)
+def test_to_snowpark_with_none_index_label(tmp_table_basic) -> None:
+    snowpandas_df = pd.read_snowflake(tmp_table_basic)
 
-    message = re.escape(
-        "Label None is found in the index columns [None], which is invalid in Snowflake. "
-        "Please give it a name by passing index_label arguments."
-    )
-    with pytest.raises(ValueError, match=message):
-        snow_dataframe.to_snowpark()
+    snowpark_df = snowpandas_df.to_snowpark()
+
+    # verify the index column is included
+    assert snowpark_df.schema[0].column_identifier == '"index"'
+    assert isinstance(snowpark_df.schema[0].datatype, LongType)
+
+    # verify the rest of data columns are included
+    assert snowpark_df.schema[1].column_identifier.name == "ID"
+    assert snowpark_df.schema[1].column_identifier.quoted_name == '"ID"'
+    assert isinstance(snowpark_df.schema[1].datatype, LongType)
+    assert snowpark_df.schema[2].column_identifier.name == "FOOT_SIZE"
+    assert snowpark_df.schema[2].column_identifier.quoted_name == '"FOOT_SIZE"'
+    assert isinstance(snowpark_df.schema[2].datatype, DoubleType)
+    assert snowpark_df.schema[3].column_identifier.name == "SHOE_MODEL"
+    assert snowpark_df.schema[3].column_identifier.quoted_name == '"SHOE_MODEL"'
+    assert isinstance(snowpark_df.schema[3].datatype, StringType)
 
 
 @sql_count_checker(query_count=0)

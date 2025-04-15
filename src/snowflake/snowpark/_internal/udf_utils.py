@@ -92,7 +92,7 @@ AGGREGATE_FUNCTION_FINISH_METHOD = "finish"
 AGGREGATE_FUNCTION_MERGE_METHOD = "merge"
 AGGREGATE_FUNCTION_STATE_METHOD = "aggregate_state"
 
-EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
+EXECUTE_AS_WHITELIST = frozenset(["owner", "caller", "restricted caller"])
 
 REGISTER_KWARGS_ALLOWLIST = {
     "native_app_params",
@@ -102,9 +102,9 @@ REGISTER_KWARGS_ALLOWLIST = {
     "input_names",  # for pandas_udtf
     "max_batch_size",  # for pandas_udtf
     "_registered_object_name",  # object name within Snowflake (post registration)
-    "artifact_repository",
-    "artifact_repository_packages",
 }
+
+ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}
 
 
 class UDFColumn(NamedTuple):
@@ -139,7 +139,9 @@ class ExtensionFunctionProperties:
         func: Union[Callable, Tuple[str, str]],
         replace: bool = False,
         if_not_exists: bool = False,
-        execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+        execute_as: Optional[
+            typing.Literal["caller", "owner", "restricted caller"]
+        ] = None,
         anonymous: bool = False,
     ) -> None:
         self.func = func
@@ -510,7 +512,9 @@ def check_register_args(
         )
 
 
-def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
+def check_execute_as_arg(
+    execute_as: typing.Literal["caller", "owner", "restricted caller"]
+):
     if (
         not isinstance(execute_as, str)
         or execute_as.lower() not in EXECUTE_AS_WHITELIST
@@ -532,6 +536,22 @@ def check_python_runtime_version(runtime_version_from_requirement: Optional[str]
             f"Your system version is {system_version} while your requirements have specified version "
             f"{runtime_version_from_requirement}!"
         )
+
+
+def check_resource_constraint(constraint: Optional[Dict[str, str]]):
+    if constraint is None:
+        return
+
+    errors = []
+    for key, value in constraint.items():
+        if key.lower() not in ALLOWED_CONSTRAINT_CONFIGURATION:
+            errors.append(ValueError(f"Unknown resource constraint key '{key}'"))
+            continue
+        if value.lower() not in ALLOWED_CONSTRAINT_CONFIGURATION[key]:
+            errors.append(ValueError(f"Unknown value '{value}' for key '{key}'"))
+
+    if errors:
+        raise Exception(errors)
 
 
 def process_file_path(file_path: str) -> str:
@@ -1247,7 +1267,7 @@ def create_python_udf_or_sp(
     if_not_exists: bool,
     raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
     inline_python_code: Optional[str] = None,
-    execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+    execute_as: Optional[typing.Literal["caller", "owner", "restricted caller"]] = None,
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
@@ -1261,8 +1281,10 @@ def create_python_udf_or_sp(
     runtime_version: Optional[str] = None,
     artifact_repository: Optional[str] = None,
     artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
 ) -> None:
     runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
+    check_resource_constraint(resource_constraint)
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
@@ -1286,16 +1308,45 @@ def create_python_udf_or_sp(
         raise ValueError(
             "artifact_repository must be specified when artifact_repository_packages has been specified"
         )
+    if all_packages and artifact_repository_packages:
+        package_names = [
+            pack.strip("\"'").split("==")[0] for pack in all_packages.split(",")
+        ]
+        artifact_repository_package_names = [
+            pack.strip("\"'").split("==")[0] for pack in artifact_repository_packages
+        ]
+
+        for package in package_names:
+            if package in artifact_repository_package_names:
+                raise ValueError(
+                    f"Cannot create a function with duplicates between packages and artifact repository packages. packages: {all_packages}, artifact_repository_packages: {','.join(artifact_repository_packages)}"
+                )
 
     artifact_repository_in_sql = (
         f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
     )
+    if artifact_repository:
+        artifact_repository_packages = {
+            *list(session._artifact_repository_packages[artifact_repository].values()),
+            *(artifact_repository_packages or []),
+        }
     artifact_repository_packages_str = (
         "','".join(artifact_repository_packages) if artifact_repository_packages else ""
     )
     artifact_repository_packages_in_sql = (
         f"ARTIFACT_REPOSITORY_PACKAGES=('{artifact_repository_packages_str}')"
         if artifact_repository_packages
+        else ""
+    )
+
+    resource_constraint_fmt = (
+        ""
+        if resource_constraint is None
+        else ",".join(f"{k}='{v}'" for k, v in resource_constraint.items())
+    )
+    resource_constraint_sql = (
+        f"RESOURCE_CONSTRAINT=({resource_constraint_fmt})"
+        if resource_constraint_fmt
         else ""
     )
     if artifact_repository_in_sql or artifact_repository_packages_in_sql:
@@ -1383,6 +1434,7 @@ RUNTIME_VERSION={runtime_version}
 {artifact_repository_in_sql}
 {artifact_repository_packages_in_sql}
 {external_access_integrations_in_sql}
+{resource_constraint_sql}
 {secrets_in_sql}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}

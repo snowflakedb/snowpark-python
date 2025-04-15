@@ -476,12 +476,9 @@ class MapType(DataType):
 
     def _fill_ast(self, ast: proto.DataType) -> None:
         ast.map_type.structured = self.structured
-        if self.key_type is None or self.value_type is None:
-            raise NotImplementedError(
-                "SNOW-1862700: AST does not support empty key or value type."
-            )
-        self.key_type._fill_ast(ast.map_type.key_ty)
-        self.value_type._fill_ast(ast.map_type.value_ty)
+        if self.key_type is not None and self.value_type is not None:
+            self.key_type._fill_ast(ast.map_type.key_ty)
+            self.value_type._fill_ast(ast.map_type.value_ty)
 
 
 class VectorType(DataType):
@@ -526,6 +523,13 @@ class VectorType(DataType):
             ast.vector_type.ty.float_type = True
 
         ast.vector_type.dimension = self.dimension
+
+
+class FileType(DataType):
+    """File data type. This maps to the FILE data type in Snowflake."""
+
+    def _fill_ast(self, ast: proto.DataType) -> None:
+        ast.file_type = True
 
 
 class ColumnIdentifier:
@@ -792,13 +796,8 @@ class StructType(DataType):
 
     def _fill_ast(self, ast: proto.DataType) -> None:
         ast.struct_type.structured = self.structured
-        if self.fields is None:
-            return
-        elif len(self.fields) > 0:
-            for field in self.fields:
-                field._fill_ast(ast.struct_type.fields.list.add())
-        else:
-            ast.struct_type.fields.list.extend([])
+        for field in self.fields or []:
+            field._fill_ast(ast.struct_type.fields.add())
 
 
 class VariantType(DataType):
@@ -1018,6 +1017,9 @@ Geography = TypeVar("Geography")
 
 #: The type hint for annotating Geometry data when registering UDFs.
 Geometry = TypeVar("Geometry")
+
+#: The type hint for annotating Geometry data when registering UDFs.
+File = TypeVar("File")
 
 # TODO(SNOW-969479): Add a type hint that can be used to annotate Vector data. Python does not
 # currently support integer type parameters (which are needed to represent a vector's dimension).

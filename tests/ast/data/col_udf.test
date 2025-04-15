@@ -31,23 +31,50 @@ param_udf2 = udf(lambda x, y: str(y + x**2), return_type=VariantType(), input_ty
 
 df.select(param_udf(col("A"), col("A")))
 
+# Test registering UDF from file
+mod5_udf = session.udf.register_from_file(
+    test_files.test_udf_py_file,
+    "mod5",
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+    immutable=True,
+)
+df.select(mod5_udf("a"), mod5_udf("b")).collect()
+
+# Test registeringb vectorized UDF from file
+mod5_pandas_udf = session.udf.register_from_file(
+    test_files.test_pandas_udf_py_file,
+    "pandas_apply_mod5",
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+)
+df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect()
+
 ## EXPECTED UNPARSER OUTPUT
 
-add_one = udf("<lambda>", return_type=IntegerType(), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
+add_one = udf("<lambda>", return_type=IntegerType(), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
 
 df = session.create_dataframe([1, 2, 3], schema=["a"])
 
 df.select(add_one(col("a")).as_("ans")).collect()
 
-add_two = udf("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\"")
+add_two = udf("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\"")
 
 df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
 
-param_udf = udf("<lambda [2]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", force_inline_code=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\"")
+param_udf = udf("<lambda [2]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", artifact_repository=None, artifact_repository_packages=None, force_inline_code=True, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\"")
 
-param_udf2 = udf("<lambda [3]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", force_inline_code=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\"")
+param_udf2 = udf("<lambda [3]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", artifact_repository=None, artifact_repository_packages=None, force_inline_code=True, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\"")
 
 res5 = df.select(param_udf(col("A"), col("A")))
+
+mod5_udf = udf("mod5", return_type=IntegerType(), input_types=[IntegerType()], max_batch_size=0, immutable=True, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
+
+df.select(mod5_udf("a"), mod5_udf("b")).collect()
+
+mod5_pandas_udf = udf("pandas_apply_mod5", return_type=IntegerType(), input_types=[IntegerType()], max_batch_size=0, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
+
+df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect()
 
 ## EXPECTED ENCODED AST
 
@@ -61,7 +88,7 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udf {
         func {
@@ -75,8 +102,48 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 94
+                end_line: 29
+                file: 2
+                start_column: 18
+                start_line: 29
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 94
+                end_line: 29
+                file: 2
+                start_column: 18
+                start_line: 29
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 94
+                end_line: 29
+                file: 2
+                start_column: 18
+                start_line: 29
+              }
+            }
           }
         }
         parallel: 4
@@ -93,17 +160,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "add_one"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -160,19 +225,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_alias {
@@ -180,9 +243,7 @@ body {
                 apply_expr {
                   fn {
                     fn_ref {
-                      id {
-                        bitfield1: 1
-                      }
+                      id: 1
                     }
                   }
                   pos_args {
@@ -245,9 +306,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+            id: 2
           }
         }
         src {
@@ -259,22 +318,22 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 3
+        df {
+          dataframe_ref {
+            id: 3
+          }
         }
         src {
           end_column: 57
@@ -285,24 +344,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
   eval {
-    uid: 5
-    var_id {
-      bitfield1: 4
-    }
+    bind_id: 4
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udf {
         func {
@@ -317,8 +371,48 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 37
+                file: 2
+                start_column: 18
+                start_line: 37
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 37
+                file: 2
+                start_column: 18
+                start_line: 37
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 37
+                file: 2
+                start_column: 18
+                start_line: 37
+              }
+            }
           }
         }
         name {
@@ -343,19 +437,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "add_two"
     }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
+    uid: 5
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             column_alias {
@@ -444,9 +536,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+            id: 2
           }
         }
         src {
@@ -458,22 +548,22 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 7
-    var_id {
-      bitfield1: 7
-    }
+    uid: 6
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 7
+        df {
+          dataframe_ref {
+            id: 6
+          }
         }
         src {
           end_column: 71
@@ -484,24 +574,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 7
   }
 }
 body {
   eval {
-    uid: 9
-    var_id {
-      bitfield1: 8
-    }
+    bind_id: 7
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udf {
         comment {
@@ -528,14 +613,40 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            float_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          float_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 83
+                end_line: 45
+                file: 2
+                start_column: 20
+                start_line: 41
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 83
+                end_line: 45
+                file: 2
+                start_column: 20
+                start_line: 41
+              }
+            }
+          }
+        }
         kwargs {
           _1: "force_inline_code"
           _2 {
@@ -548,6 +659,20 @@ body {
                 start_line: 41
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 83
+                end_line: 45
+                file: 2
+                start_column: 20
+                start_line: 41
+              }
             }
           }
         }
@@ -587,17 +712,15 @@ body {
         strict: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "param_udf"
     }
-    uid: 10
-    var_id {
-      bitfield1: 10
-    }
+    uid: 8
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udf {
         comment {
@@ -625,14 +748,40 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            float_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          float_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 84
+                end_line: 52
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 84
+                end_line: 52
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
         kwargs {
           _1: "force_inline_code"
           _2 {
@@ -645,6 +794,20 @@ body {
                 start_line: 48
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 84
+                end_line: 52
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
             }
           }
         }
@@ -683,27 +846,23 @@ body {
         strict: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "param_udf2"
     }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
+    uid: 9
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
               fn {
                 fn_ref {
-                  id {
-                    bitfield1: 10
-                  }
+                  id: 8
                 }
               }
               pos_args {
@@ -787,9 +946,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+            id: 2
           }
         }
         src {
@@ -801,12 +958,405 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 10
+  }
+}
+body {
+  bind {
+    expr {
+      udf {
+        func {
+          id: 4
+          name: "mod5"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
+              }
+            }
+          }
+        }
+        immutable: true
+        input_types {
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 63
+                file: 2
+                start_column: 19
+                start_line: 57
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 63
+                file: 2
+                start_column: 19
+                start_line: 57
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 63
+                file: 2
+                start_column: 19
+                start_line: 57
+              }
+            }
+          }
+        }
+        max_batch_size {
+        }
+        parallel: 4
+        return_type {
+          integer_type: true
+        }
+        source_code_display: true
+        src {
+          end_column: 9
+          end_line: 63
+          file: 2
+          start_column: 19
+          start_line: 57
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "mod5_udf"
+    }
+    uid: 11
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id: 11
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 31
+                    end_line: 64
+                    file: 2
+                    start_column: 18
+                    start_line: 64
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                end_column: 31
+                end_line: 64
+                file: 2
+                start_column: 18
+                start_line: 64
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id: 11
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 46
+                    end_line: 64
+                    file: 2
+                    start_column: 33
+                    start_line: 64
+                  }
+                  v: "b"
+                }
+              }
+              src {
+                end_column: 46
+                end_line: 64
+                file: 2
+                start_column: 33
+                start_line: 64
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 2
+          }
+        }
+        src {
+          end_column: 47
+          end_line: 64
+          file: 2
+          start_column: 8
+          start_line: 64
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 12
-    var_id {
-      bitfield1: 12
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 12
+          }
+        }
+        src {
+          end_column: 57
+          end_line: 64
+          file: 2
+          start_column: 8
+          start_line: 64
+        }
+      }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 13
+  }
+}
+body {
+  eval {
+    bind_id: 13
+  }
+}
+body {
+  bind {
+    expr {
+      udf {
+        func {
+          id: 5
+          name: "pandas_apply_mod5"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
+              }
+            }
+          }
+        }
+        input_types {
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 72
+                file: 2
+                start_column: 26
+                start_line: 67
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 72
+                file: 2
+                start_column: 26
+                start_line: 67
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 72
+                file: 2
+                start_column: 26
+                start_line: 67
+              }
+            }
+          }
+        }
+        max_batch_size {
+        }
+        parallel: 4
+        return_type {
+          integer_type: true
+        }
+        source_code_display: true
+        src {
+          end_column: 9
+          end_line: 72
+          file: 2
+          start_column: 26
+          start_line: 67
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "mod5_pandas_udf"
+    }
+    uid: 14
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id: 14
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 38
+                    end_line: 73
+                    file: 2
+                    start_column: 18
+                    start_line: 73
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                end_column: 38
+                end_line: 73
+                file: 2
+                start_column: 18
+                start_line: 73
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id: 14
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 60
+                    end_line: 73
+                    file: 2
+                    start_column: 40
+                    start_line: 73
+                  }
+                  v: "b"
+                }
+              }
+              src {
+                end_column: 60
+                end_line: 73
+                file: 2
+                start_column: 40
+                start_line: 73
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 2
+          }
+        }
+        src {
+          end_column: 61
+          end_line: 73
+          file: 2
+          start_column: 8
+          start_line: 73
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 15
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 15
+          }
+        }
+        src {
+          end_column: 71
+          end_line: 73
+          file: 2
+          start_column: 8
+          start_line: 73
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 16
+  }
+}
+body {
+  eval {
+    bind_id: 16
   }
 }
 client_ast_version: 1
@@ -822,5 +1372,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
+  minor: 30
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

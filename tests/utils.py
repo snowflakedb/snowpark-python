@@ -417,7 +417,12 @@ class Utils:
             Utils.assert_rows(actual_rows, expected_rows, float_equality_threshold)
 
     @staticmethod
-    def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
+    def verify_schema(
+        sql: str,
+        expected_schema: StructType,
+        session: Session,
+        max_string_size: int = None,
+    ) -> None:
         session._run_query(sql)
         result_meta = session._conn._cursor.description
 
@@ -428,16 +433,17 @@ class Utils:
                 == field.column_identifier.quoted_name
             )
             assert meta.is_nullable == field.nullable
-            assert (
-                convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[meta.type_code],
-                    meta.precision,
-                    meta.scale,
-                    meta.internal_size,
-                    session._conn.max_string_size,
-                )
-                == field.datatype
+
+            sp_type = convert_sf_to_sp_type(
+                FIELD_ID_TO_NAME[meta.type_code],
+                meta.precision,
+                meta.scale,
+                meta.internal_size,
+                max_string_size or session._conn.max_string_size,
             )
+            assert (
+                sp_type == field.datatype
+            ), f"{sp_type=} is not equal to {field.datatype=}"
 
     @staticmethod
     def is_active_transaction(session: Session) -> bool:
@@ -629,6 +635,15 @@ class TestData:
                 schema=["flo", "int", "boo", "str"],
             )
         )
+
+    @classmethod
+    def null_data4(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                [Decimal(1), None],
+                [None, Decimal(2)],
+            ]
+        ).to_df(["a", "b"])
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
@@ -1513,6 +1528,22 @@ class TestFiles:
     @property
     def test_concat_file2_csv(self):
         return os.path.join(self.resources_path, "test_concat_file2.csv")
+
+    @property
+    def test_books_xml(self):
+        return os.path.join(self.resources_path, "books.xml")
+
+    @property
+    def test_house_xml(self):
+        return os.path.join(self.resources_path, "fias_house.xml")
+
+    @property
+    def test_house_large_xml(self):
+        return os.path.join(self.resources_path, "fias_house.large.xml")
+
+    @property
+    def test_xxe_xml(self):
+        return os.path.join(self.resources_path, "xxe.xml")
 
 
 class TypeMap(NamedTuple):

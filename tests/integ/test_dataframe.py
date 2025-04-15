@@ -4,6 +4,7 @@
 #
 import copy
 import datetime
+import decimal
 import json
 import logging
 import math
@@ -641,6 +642,34 @@ def test_select_table_function_negative(session):
         "The number of aliases should be same as the number of cols added by table function"
         in str(ex_info)
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="hash is not supported in Local Testing",
+)
+def test_random_split(session):
+    original_enabled = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set("use_simplified_query_generation", True)
+        # test the cache_result is not invoked
+        df = session.range(1, 50)
+        with session.query_history() as history:
+            df1, df2 = df.random_split([0.5, 0.5])
+        assert len(history.queries) == 0
+
+        # test the that seed is respected
+        df1, df2, df3 = df.random_split([0.5, 0.4, 0.1], seed=1729)
+        dfa, dfb, dfc = df.random_split([0.5, 0.4, 0.1], seed=1729)
+        Utils.check_answer(df1, dfa)
+        Utils.check_answer(df2, dfb)
+        Utils.check_answer(df3, dfc)
+
+        # assert that there in no overlap between the splits
+        df1, df2 = df.random_split([0.5, 0.5])
+        assert df1.intersect(df2).count() == 0
+    finally:
+        session.conf.set("use_simplified_query_generation", original_enabled)
 
 
 @pytest.mark.skipif(
@@ -1937,13 +1966,16 @@ def test_show_dataframe_spark(session):
         False,
         None,
         bytearray("a", "utf-8"),
-        bytearray("abc", "utf-8"),
+        bytearray("abc", "utf-16"),
         Decimal(0.5),
         [1, 2, 3],
         [
             bytearray("abc", "utf-8"),
-            bytearray("a", "utf-8"),
+            bytearray("a", "utf-16"),
         ],
+        {"a": "foo"},
+        {"Street": "123 Elm St", "ZipCode": 12345},
+        [1, 2, 3],
         {"a": "foo"},
     ]
 
@@ -1965,6 +1997,17 @@ def test_show_dataframe_spark(session):
                 StructField("col_13", ArrayType(IntegerType())),
                 StructField("col_14", ArrayType(BinaryType())),
                 StructField("col_15", MapType(StringType(), StringType())),
+                StructField(
+                    "col_16",
+                    StructType(
+                        [
+                            StructField("Street", StringType(), True),
+                            StructField("ZipCode", IntegerType(), True),
+                        ]
+                    ),
+                ),
+                StructField("col_17", ArrayType()),
+                StructField("col_18", MapType()),
             ]
         )
         df = session.create_dataframe([data], schema=schema)
@@ -1973,41 +2016,43 @@ def test_show_dataframe_spark(session):
         def assert_show_string_equals(actual: str, expected: str):
             actual_lines = actual.strip().split("\n")
             expected_lines = expected.strip().split("\n")
+            if len(actual_lines) != len(expected_lines):
+                print(
+                    f"\nactual_lines:\n{actual_lines}\nexpected_lines:\n{expected_lines}"
+                )
+                pytest.fail()
             for a, e in zip(actual_lines, expected_lines):
                 if a.strip() != e.strip():
                     print(f"\nactual:\n{actual}\nexpected:{expected}")
                     pytest.fail()
 
         assert_show_string_equals(
-            df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
+            df._show_string_spark().strip(),
             dedent(
                 """
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
-            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|  "COL_11"|"COL_12"| "COL_13"|          "COL_14"|  "COL_15"|
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
-            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [97]|[97 98 99]|       1|[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|            "COL_11"|"COL_12"| "COL_13"|            "COL_14"|  "COL_15"|           "COL_16"|            "COL_17"|          "COL_18"|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [61]|[FF FE 61 00 62 0...|       1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
             """
             ),
         )
         assert_show_string_equals(
-            df._show_string_spark(
-                _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
-            ),
+            df._show_string_spark(_spark_column_names=spark_col_names),
             dedent(
                 """
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
-            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|            col_14|    col_15|
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
-            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [97]|[97 98 99]|     1|[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|              col_11|col_12|   col_13|              col_14|    col_15|             col_16|              col_17|            col_18|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE 61 00 62 0...|     1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 vertical=True,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2022,12 +2067,15 @@ def test_show_dataframe_spark(session):
              col_7  | true
              col_8  | false
              col_9  | NULL
-             col_10 | [97]
-             col_11 | [97 98 99]
+             col_10 | [61]
+             col_11 | [FF FE 61 00 62 0...
              col_12 | 1
              col_13 | [1, 2, 3]
-             col_14 | [[97 98 99], [97]]
+             col_14 | [[61 62 63], [FF ...
              col_15 | {a -> foo}
+             col_16 | {123 Elm St, 12345}
+             col_17 | [\\n  1,\\n  2,\\n  ...
+             col_18 | {\\n  "a": "foo"\\n}
             """
             ),
         )
@@ -2035,59 +2083,59 @@ def test_show_dataframe_spark(session):
             df._show_string_spark(
                 vertical=True,
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
                 """
-            -RECORD 0----------------------------
-             col_1  | 1
-             col_2  | one
-             col_3  | 1.1
-             col_4  | 2017-02-24 12:00:05.456000
-             col_5  | 20:57:06
-             col_6  | 2017-02-25
-             col_7  | true
-             col_8  | false
-             col_9  | NULL
-             col_10 | [97]
-             col_11 | [97 98 99]
-             col_12 | 1
-             col_13 | [1, 2, 3]
-             col_14 | [[97 98 99], [97]]
-             col_15 | {a -> foo}
+            -RECORD 0-----------------------------
+            col_1  | 1
+            col_2  | one
+            col_3  | 1.1
+            col_4  | 2017-02-24 12:00:05.456000
+            col_5  | 20:57:06
+            col_6  | 2017-02-25
+            col_7  | true
+            col_8  | false
+            col_9  | NULL
+            col_10 | [61]
+            col_11 | [FF FE 61 00 62 00 63 00]
+            col_12 | 1
+            col_13 | [1, 2, 3]
+            col_14 | [[61 62 63], [FF FE 61 00]]
+            col_15 | {a -> foo}
+            col_16 | {123 Elm St, 12345}
+            col_17 | [\\n  1,\\n  2,\\n  3\\n]
+            col_18 | {\\n  "a": "foo"\\n}
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
                 """
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
-            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11    |col_12|col_13   |col_14            |col_15    |
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
-            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[97]  |[97 98 99]|1     |[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
+            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11                   |col_12|col_13   |col_14                     |col_15    |col_16             |col_17               |col_18            |
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
+            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[61]  |[FF FE 61 00 62 00 63 00]|1     |[1, 2, 3]|[[61 62 63], [FF FE 61 00]]|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  3\\n]|{\\n  "a": "foo"\\n}|
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=10,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
                 """
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
-            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
-            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [97]|[97 98 99]|     1|[1, 2, 3]|[[97 98...|{a -> foo}|
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
+            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|    col_16|    col_17|    col_18|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
+            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE ...|     1|[1, 2, 3]|[[61 62...|{a -> foo}|{123 El...|[\\n  1,...|{\\n  "a...|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
             """
             ),
         )
@@ -2574,8 +2622,44 @@ def test_fillna(session, local_testing_mode):
         df.fillna(1, subset={1: "a"})
     assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
+    # Fill Decimal columns with int
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123, include_decimal=True),
+        [
+            Row(decimal.Decimal(1), decimal.Decimal(123)),
+            Row(decimal.Decimal(123), 2),
+        ],
+        sort=False,
+    )
+    # Fill Decimal columns with float
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123.0, include_decimal=True),
+        [
+            Row(decimal.Decimal(1), decimal.Decimal(123)),
+            Row(decimal.Decimal(123), 2),
+        ],
+        sort=False,
+    )
+    # Making sure default still reflects old behavior
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123.0),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
 
-def test_replace_with_coercion(session):
+
+def test_replace_with_coercion(session, local_testing_mode):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
     )
@@ -2646,6 +2730,48 @@ def test_replace_with_coercion(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
+    if local_testing_mode:
+        # SNOW-1989698: local test gap
+        return
+    # Replace Decimal value with int
+    Utils.check_answer(
+        TestData.null_data4(session).replace(
+            decimal.Decimal(1), 123, include_decimal=True
+        ),
+        [
+            Row(decimal.Decimal(123), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    # Replace Decimal value with float
+    Utils.check_answer(
+        TestData.null_data4(session).replace(
+            decimal.Decimal(1), 123.0, include_decimal=True
+        ),
+        [
+            Row(decimal.Decimal(123.0), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    # Make sure old behavior is untouched
+    Utils.check_answer(
+        TestData.null_data4(session).replace(decimal.Decimal(1), 123),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data4(session).replace(decimal.Decimal(1), 123.0),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
 
 
 @pytest.mark.skipif(
@@ -3732,7 +3858,7 @@ def test_create_dataframe_string_length(session, local_testing_mode):
             session.sql(f"show columns in {table_name}").collect()[0]["data_type"]
         )
         assert datatype["type"] == "TEXT"
-        assert datatype["length"] == 2**20 * 16  # max length (16 MB)
+        assert datatype["length"] == session._conn.max_string_size
     else:
         datatype = df.schema[0].datatype
         assert isinstance(datatype, StringType)
@@ -4564,48 +4690,54 @@ def test_drop_columns_special_names(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="TODO: Interval Expression is not supported in Local Testing",
-)
 def test_dataframe_interval_operation(session):
     df = session.create_dataframe(
         [
-            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
-            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+            [datetime.datetime(2010, 1, 1)],
+            [datetime.datetime(2012, 1, 1)],
         ],
-        schema=["a", "b"],
+        schema=["a"],
     )
-    df2 = df.with_column(
-        "TWO_DAYS_AHEAD",
-        df["a"]
-        + make_interval(
-            years=1,
-            quarters=1,
-            months=1,
-            weeks=2,
-            days=2,
-            hours=2,
-            minutes=3,
-            seconds=3,
-            milliseconds=3,
-            microseconds=4,
-            nanoseconds=4,
-        ),
+    interval = make_interval(
+        years=1,
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+        microseconds=4,
+        nanoseconds=4,
     )
     Utils.check_answer(
-        df2,
+        df.select(df.a + interval),
         [
             Row(
-                datetime.datetime(2010, 1, 1, 0, 0, 0),
-                datetime.datetime(2011, 1, 1, 0, 0, 0),
                 datetime.datetime(2011, 5, 17, 2, 3, 3, 3004),
             ),
             Row(
-                datetime.datetime(2012, 1, 1, 0, 0, 0),
-                datetime.datetime(2013, 1, 1, 0, 0, 0),
                 datetime.datetime(2013, 5, 17, 2, 3, 3, 3004),
             ),
+        ],
+    )
+    interval = make_interval(
+        years=1,
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+    )
+    Utils.check_answer(
+        df.select(df.a - interval),
+        [
+            Row(datetime.datetime(2008, 8, 15, 21, 56, 56, 997000)),
+            Row(datetime.datetime(2010, 8, 15, 21, 56, 56, 997000)),
         ],
     )
 
@@ -5232,7 +5364,7 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
 
     expected_fields = [
         StructField("COL1", LongType(), nullable=False),
-        StructField("COL2", StringType(), nullable=True),
+        StructField("COL2", StringType(2**24), nullable=True),
     ]
     assert df.schema.fields == expected_fields
 
@@ -5292,7 +5424,7 @@ def test_create_dataframe_implicit_struct_not_null_mixed(session):
     expected_fields = [
         StructField("FLAG", BooleanType(), nullable=False),
         StructField("DT", df.schema.fields[1].datatype, nullable=True),
-        StructField("TXT", StringType(), nullable=False),
+        StructField("TXT", StringType(2**24), nullable=False),
     ]
 
     assert df.schema.fields == expected_fields

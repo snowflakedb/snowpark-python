@@ -15,7 +15,7 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 MODIN_DEPENDENCY_VERSION = "==0.30.1"  # Snowpark pandas requires modin 0.30.1, which is compatible with pandas 2.2.x
-CONNECTOR_DEPENDENCY_VERSION = ">=3.12.0, <4.0.0"
+CONNECTOR_DEPENDENCY_VERSION = ">=3.14.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
@@ -24,16 +24,16 @@ INSTALL_REQ_LIST = [
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
-    "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0",
+    "cloudpickle>=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
-REQUIRED_PYTHON_VERSION = ">=3.8, <3.13"
+REQUIRED_PYTHON_VERSION = ">=3.9, <3.13"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
-    REQUIRED_PYTHON_VERSION = ">=3.8"
+    REQUIRED_PYTHON_VERSION = ">=3.9"
 
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
@@ -60,6 +60,8 @@ DEVELOPMENT_REQUIREMENTS = [
     "lxml",  # used in read_xml tests
     "tox",  # used for setting up testing environments
     "snowflake.core>=1.0.0, <2",  # Catalog
+    "oracledb",  # used in data source
+    "psutil",  # testing for telemetry
 ]
 
 # read the version
@@ -168,6 +170,9 @@ setup(
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.ast",
         "snowflake.snowpark._internal.compiler",
+        "snowflake.snowpark._internal.data_source",
+        "snowflake.snowpark._internal.data_source.dbms_dialects",
+        "snowflake.snowpark._internal.data_source.drivers",
         "snowflake.snowpark._internal.proto.generated",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
@@ -227,7 +232,6 @@ setup(
         "Operating System :: OS Independent",
         "Programming Language :: SQL",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",

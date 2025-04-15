@@ -132,6 +132,14 @@ def test_except_between_two_projects_without_references_used_in_filter(session):
     Utils.check_answer(df1.select("b").except_(df2.select("c")), Row(2))
 
 
+def test_dataframe_except_edge_cases(session):
+    # Tests that all None row is kept, and values split between rows are respected
+    df1 = session.create_dataframe([[None, None], [1, 2], [1, 2], [3, 4], [5, 6]])
+    df2 = session.create_dataframe([[1, 1], [2, 2], [5, 6]])
+
+    Utils.check_answer(df1.except_(df2), [Row(None, None), Row(1, 2), Row(3, 4)])
+
+
 def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
