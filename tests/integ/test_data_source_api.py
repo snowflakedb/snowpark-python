@@ -163,6 +163,7 @@ def test_dbapi_retry(session):
                     PyodbcDriver,
                     sql_server_create_connection,
                     StructType([StructField("col1", IntegerType(), False)]),
+                    DBMS_TYPE.SQL_SERVER_DB,
                 ),
                 partition="SELECT * FROM test_table",
                 partition_idx=0,
@@ -543,6 +544,7 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 PyodbcDriver,
                 sql_server_create_connection_small_data,
                 schema=schema,
+                dbms_type=DBMS_TYPE.SQL_SERVER_DB,
                 fetch_size=fetch_size,
             ),
             "partition": "SELECT * FROM test_table",
@@ -837,6 +839,7 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
             SqliteDriver,
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
+            dbms_type=DBMS_TYPE.SQLITE_DB,
             fetch_size=fetch_size,
             fetch_merge_count=fetch_merge_count,
         )
