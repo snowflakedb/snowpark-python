@@ -29,11 +29,6 @@ pytestmark = pytest.mark.xfail(
 )
 
 
-if sys.version_info >= (3, 9):
-    runtime_39_or_above = True
-else:
-    runtime_39_or_above = False
-
 try:
     import dateutil
 
@@ -191,15 +186,15 @@ def test_patch_on_get_available_versions_for_packages(session):
 def test_add_packages(session, local_testing_mode):
     session.add_packages(
         [
-            "numpy==1.23.5",
-            "pandas==1.5.3",
+            "numpy==1.26.3",
+            "pandas==2.1.4",
             "matplotlib",
             "pyyaml",
         ]
     )
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "numpy": "numpy==1.26.3",
+        "pandas": "pandas==2.1.4",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
@@ -215,7 +210,7 @@ def test_add_packages(session, local_testing_mode):
     res = df.select(call_udf(udf_name)).collect()[0][0]
     # don't need to check the version of dateutil, as it can be changed on the server side
     assert (
-        res.startswith("1.23.5/1.5.3")
+        res.startswith("1.26.3/2.1.4")
         if not local_testing_mode
         else res == get_numpy_pandas_dateutil_version()
     )
@@ -364,6 +359,38 @@ def test_add_packages_negative(session, caplog):
 
 
 @pytest.mark.udf
+def test_add_packages_artifact_repository(session):
+    def test_urllib() -> str:
+        import urllib3
+        import numpy as np
+
+        return str(urllib3.exceptions.HTTPError(str(np.array([1, 2, 3]))))
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    artifact_repository = "SNOWPARK_PYTHON_TEST_REPOSITORY"
+
+    try:
+        assert len(session.get_packages(artifact_repository)) == 0
+        session.add_packages(["numpy"], artifact_repository=artifact_repository)
+        assert len(session.get_packages(artifact_repository)) == 1
+        # Test function registration
+        udf(
+            func=test_urllib,
+            name=temp_func_name,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=["urllib3"],
+        )
+
+        # Test UDF call
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("[1 2 3]")])
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}(int)")
+        session.remove_package("numpy", artifact_repository=artifact_repository)
+        assert len(session.get_packages(artifact_repository)) == 0
+
+
+@pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
@@ -373,8 +400,8 @@ def test_add_requirements(session, resources_path, local_testing_mode):
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "numpy": "numpy==1.26.3",
+        "pandas": "pandas==2.1.4",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -387,7 +414,7 @@ def test_add_requirements(session, resources_path, local_testing_mode):
     res = df.select(call_udf(udf_name))
     Utils.check_answer(
         res,
-        [Row("1.23.5/1.5.3")]
+        [Row("1.26.3/2.1.4")]
         if not local_testing_mode
         else [Row(f"{numpy.__version__}/{pandas.__version__}")],
     )
@@ -400,8 +427,8 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "numpy": "numpy==1.26.3",
+        "pandas": "pandas==2.1.4",
     }
 
     with pytest.raises(ValueError, match="Cannot add package"):
@@ -422,6 +449,44 @@ def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enab
             match=r"Session.custom_package_usage_config\['enabled'\] is not set to True",
         ):
             session.add_requirements(test_files.test_unsupported_requirements_file)
+
+
+@pytest.mark.udf
+@pytest.mark.skipif(
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
+)
+def test_add_requirements_artifact_repository(
+    session, resources_path, local_testing_mode
+):
+    def test_urllib() -> str:
+        import urllib3
+        import numpy as np
+
+        return str(urllib3.exceptions.HTTPError(str(np.array([1, 2, 3]))))
+
+    test_files = TestFiles(resources_path)
+    artifact_repository = "SNOWPARK_PYTHON_TEST_REPOSITORY"
+    assert len(session.get_packages(artifact_repository)) == 0
+    session.add_requirements(
+        test_files.test_requirements_file, artifact_repository=artifact_repository
+    )
+    assert len(session.get_packages(artifact_repository)) == 2
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    try:
+        udf(
+            func=test_urllib,
+            name=temp_func_name,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=["urllib3"],
+        )
+        # Test UDF call
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("[1 2 3]")])
+    finally:
+        session.clear_packages(artifact_repository=artifact_repository)
+        assert len(session.get_packages(artifact_repository)) == 0
 
 
 @pytest.mark.skipif(
@@ -474,9 +539,6 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
 )
-@pytest.mark.skipif(
-    not runtime_39_or_above, reason="arch is not available on python 3.8"
-)
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
     session.custom_package_usage_config = {"enabled": True, "force_push": True}
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -485,7 +547,7 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
         with pytest.raises(ValueError, match="Cannot add dependency package"):
             session.add_packages("sktime==0.20.0")
 
-        @udf(name=udf_name, packages=["arch==6.1.0", "scipy==1.11.1", "pandas==1.5.3"])
+        @udf(name=udf_name, packages=["arch==6.1.0", "scipy==1.11.1", "pandas==2.1.4"])
         def arch_function() -> list:
             import arch
             import pandas
@@ -499,7 +561,7 @@ def test_add_packages_should_fail_if_dependency_package_already_added(session):
 
         Utils.check_answer(
             session.sql(f"select {udf_name}()"),
-            [Row('[\n  "arch/6.1.0",\n  "scipy/1.11.1",\n  "pandas/1.5.3"\n]')],
+            [Row('[\n  "arch/6.1.0",\n  "scipy/1.11.1",\n  "pandas/2.1.4"\n]')],
         )
 
 
@@ -685,7 +747,7 @@ def test_add_requirements_yaml(session, resources_path):
         "seaborn",
         "scipy",
     }
-    assert session._runtime_version_from_requirement == "3.8"
+    assert session._runtime_version_from_requirement == "3.9"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -832,19 +894,24 @@ def test_add_requirements_with_empty_stage_as_cache_path(
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.23.5",
-        "pandas": "pandas==1.5.3",
+        "numpy": "numpy==1.26.3",
+        "pandas": "pandas==2.1.4",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
-    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.8.0"])
+    # use a newer snowpark to create an old snowpark udf could lead to conflict cloudpickle.
+    # e.g. using snowpark 1.27 with cloudpickle 3.0 to create udf using snowpark 1.8, this will leads to
+    # error as cloudpickle 3.0 is specified in udf creation but unsupported in snowpark 1.8
+    # the solution is to downgrade to cloudpickle 2.2.1 in the env
+    # TODO: SNOW-1951792, improve error experience
+    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.27.0"])
     def get_numpy_pandas_version() -> str:
         import snowflake.snowpark as snowpark
 
         return f"{snowpark.__version__}"
 
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.8.0")])
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.27.0")])
 
 
 @pytest.mark.udf
@@ -904,7 +971,7 @@ def test_add_requirements_unsupported_with_cache_path_negative(
         "cache_path": "arbitrary_name_for_not_existent_stages",
     }
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        with pytest.raises(RuntimeError, match="does not exist or not authorized"):
+        with pytest.raises(RuntimeError, match="Unable to auto-upload packages"):
             session.add_requirements(test_files.test_unsupported_requirements_file)
 
 

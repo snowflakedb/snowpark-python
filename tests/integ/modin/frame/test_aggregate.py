@@ -772,10 +772,7 @@ def test_ddof_fallback_negative(numeric_native_df, func):
     # TODO: SNOW-892532 support ddof that is not 0 or 1 for var/std
     snow_df = pd.DataFrame(numeric_native_df)
     with pytest.raises(
-        NotImplementedError,
-        match=re.escape(
-            f"Snowpark pandas aggregate does not yet support the aggregation '{func}' with the given arguments."
-        ),
+        AttributeError, match=f"'{func}' is not a valid function for 'Series' object"
     ):
         eval_snowpark_pandas_result(
             snow_df, numeric_native_df, lambda df: getattr(df, func)(ddof=2)
@@ -815,7 +812,7 @@ def test_sum_min_count(min_count, axis):
     )
 
 
-@sql_count_checker(query_count=3, union_count=4)
+@sql_count_checker(query_count=4, union_count=4)
 def test_agg_valid_variant_col(session, test_table_name):
     pandas_df = native_pd.DataFrame(
         {
@@ -1103,41 +1100,37 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
         param(
             sensitive_function_name,
             {},
-            "Snowpark pandas aggregate does not yet support the aggregation Callable with the given arguments",
+            "Callable is not a valid function for 'Series' object",
             id="user_defined_function",
         ),
         param(
             [sensitive_function_name, "size"],
             {},
-            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            "Callable is not a valid function for 'Series' object",
             id="list_with_user_defined_function_and_string",
         ),
         param(
             (sensitive_function_name, "size"),
             {},
-            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            "Callable is not a valid function for 'Series' object",
             id="tuple_with_user_defined_function_and_string",
         ),
         param(
             {sensitive_function_name, "size"},
             {},
-            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\]|\\['size', Callable\\] with the given arguments",
+            "Callable is not a valid function for 'Series' object",
             id="set_with_user_defined_function_and_string",
         ),
         param(
             (all, any, len, list, min, max, set, str, tuple, native_pd.Series.sum),
             {},
-            "Snowpark pandas aggregate does not yet support the aggregation "
-            + "\\['all', 'any', <built-in function len>, list, 'min', 'max', set, str, tuple, Callable]"
-            + " with the given arguments",
+            "list is not a valid function for 'Series' object",
             id="tuple_with_builtins_and_native_pandas_function",
         ),
         param(
             {"A": sensitive_function_name, "B": sum, "C": [np.mean, "size"]},
             {},
-            "Snowpark pandas aggregate does not yet support the aggregation "
-            + "{label: Callable, label: 'sum', label: \\[np\\.mean, 'size'\\]}"
-            + " with the given arguments",
+            "Callable is not a valid function for 'Series' object",
             id="dict",
         ),
         param(
@@ -1146,9 +1139,7 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
                 "x": ("A", np.exp),
                 "y": pd.NamedAgg("C", sum),
             },
-            "Snowpark pandas aggregate does not yet support the aggregation "
-            + "new_label=\\(label, np\\.exp\\), new_label=\\(label, <built-in function sum>\\)"
-            + " with the given arguments",
+            "np.exp is not a valid function for 'Series' object",
             id="named_agg",
         ),
         param(
@@ -1157,9 +1148,7 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
                 "x": ("A", "first"),
                 "y": pd.NamedAgg("C", sum),
             },
-            "Snowpark pandas aggregate does not yet support the aggregation "
-            + "new_label=\\(label, 'first'\\), new_label=\\(label, <built-in function sum>\\)"
-            + " with the given arguments",
+            "'first' is not a valid function for 'Series' object",
             id="named_agg",
         ),
         param(
@@ -1168,9 +1157,7 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
                 "x": ("A", "last"),
                 "y": pd.NamedAgg("C", sum),
             },
-            "Snowpark pandas aggregate does not yet support the aggregation "
-            + "new_label=\\(label, 'last'\\), new_label=\\(label, <built-in function sum>\\)"
-            + " with the given arguments",
+            "'last' is not a valid function for 'Series' object",
             id="named_agg",
         ),
     ],
@@ -1181,7 +1168,7 @@ def test_aggregate_unsupported_aggregation_SNOW_1526422(
 ):
     snow_df = pd.DataFrame(numeric_native_df)
     with pytest.raises(
-        NotImplementedError,
+        AttributeError,
         match=error_pattern,
     ):
         snow_df.agg(func, **kwargs)

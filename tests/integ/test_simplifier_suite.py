@@ -109,12 +109,12 @@ def test_set_same_operator(session, set_operator):
     if SET_UNION == set_operator:
         result1 = df1.union(df2).union(df3.union(df4))
         Utils.check_answer(
-            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=True
         )
     elif SET_UNION_ALL == set_operator:
         result1 = df1.union_all(df2).union_all(df3.union_all(df4))
         Utils.check_answer(
-            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=False
+            result1, [Row(1, 2), Row(2, 2), Row(3, 2), Row(4, 2)], sort=True
         )
     elif SET_EXCEPT == set_operator:
         result1 = df1.except_(df2).except_(df3.except_(df4))
@@ -140,44 +140,49 @@ def test_set_same_operator(session, set_operator):
     ],
 )
 def test_distinct_set_operator(session, distinct_table, action, operator):
-    df1 = session.table(distinct_table)
-    df2 = session.table(distinct_table)
+    try:
+        original = session.conf.get("use_simplified_query_generation")
+        session.conf.set("use_simplified_query_generation", True)
+        df1 = session.table(distinct_table)
+        df2 = session.table(distinct_table)
 
-    df = action(df1, df2.distinct())
-    assert (
-        df.queries["queries"][0]
-        == f"""( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table})"""
-    )
+        df = action(df1, df2.distinct())
+        assert (
+            df.queries["queries"][0]
+            == f"""( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table})"""
+        )
 
-    df = action(df1.distinct(), df2)
-    assert (
-        df.queries["queries"][0]
-        == f"""( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table})"""
-    )
+        df = action(df1.distinct(), df2)
+        assert (
+            df.queries["queries"][0]
+            == f"""( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table})"""
+        )
 
-    df = action(df1, df2).distinct()
-    assert (
-        df.queries["queries"][0]
-        == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
-    )
+        df = action(df1, df2).distinct()
+        assert (
+            df.queries["queries"][0]
+            == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+        )
 
-    df = action(df1, df2.distinct()).distinct()
-    assert (
-        df.queries["queries"][0]
-        == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
-    )
+        df = action(df1, df2.distinct()).distinct()
+        assert (
+            df.queries["queries"][0]
+            == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+        )
 
-    df = action(df1.distinct(), df2).distinct()
-    assert (
-        df.queries["queries"][0]
-        == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
-    )
+        df = action(df1.distinct(), df2).distinct()
+        assert (
+            df.queries["queries"][0]
+            == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+        )
 
-    df = action(df1.distinct(), df2.distinct()).distinct()
-    assert (
-        df.queries["queries"][0]
-        == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
-    )
+        df = action(df1.distinct(), df2.distinct()).distinct()
+        assert (
+            df.queries["queries"][0]
+            == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+        )
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
 
 
 @pytest.mark.parametrize("set_operator", [SET_UNION_ALL, SET_EXCEPT, SET_INTERSECT])
@@ -820,15 +825,25 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
 def test_limit(setup_reduce_cast, session, simplifier_table):
     df = session.table(simplifier_table)
     df = df.limit(10)
-    assert df.queries["queries"][-1] == f"SELECT  *  FROM {simplifier_table} LIMIT 10"
+    assert (
+        df.queries["queries"][-1].lower()
+        == f"select  *  from {simplifier_table.lower()} limit 10"
+    )
 
     df = session.sql(f"select * from {simplifier_table}")
     df = df.limit(10)
     # we don't know if the original sql already has top/limit clause using a subquery is necessary.
     #  or else there will be SQL compile error.
     assert (
-        df.queries["queries"][-1]
-        == f"SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10"
+        df.queries["queries"][-1].lower()
+        == f"select  *  from (select * from {simplifier_table.lower()}) limit 10"
+    )
+
+    df = session.sql(f"select * from {simplifier_table}")
+    df = df.limit(0)
+    assert (
+        df.queries["queries"][-1].lower()
+        == f"select  *  from (select * from {simplifier_table.lower()}) limit 0"
     )
 
     # test for non-select sql statement
@@ -1445,51 +1460,85 @@ def test_select_limit_orderby(session):
             lambda df: df.select("a", "b").distinct().select("a"),
             lambda table: f"""SELECT "A" FROM ( SELECT  DISTINCT "A", "B" FROM {table})""",
             [Row(5), Row(3), Row(1), Row(3)],
-            False,
+            True,
         ),
         (
             lambda df: df.select("a", "b").select("a").distinct(),
             lambda table: f"""SELECT  DISTINCT "A" FROM {table}""",
             [Row(5), Row(3), Row(1)],
-            False,
+            True,
         ),
         # df.select().distinct().limit() != df.distinct().select().limit() for optimization
         (
             lambda df: df.select("a", "b").distinct().limit(4),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} LIMIT 4""",
             [Row(5, "a"), Row(3, "b"), Row(1, "c"), Row(3, "c")],
-            False,
+            True,
         ),
         (
             lambda df: df.select("a", "b").limit(4).distinct(),
             lambda table: f"""SELECT  DISTINCT  *  FROM ( SELECT "A", "B" FROM {table} LIMIT 4)""",
             None,
-            False,
+            True,
         ),
         # df.distinct().filter() = df.filter().distinct()
         (
             lambda df: df.select("a", "b").distinct().filter(col("a") > 1),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} WHERE ("A" > 1)""",
             [Row(5, "a"), Row(3, "b"), Row(3, "c")],
-            False,
+            True,
         ),
         (
             lambda df: df.select("a", "b").filter(col("a") > 1).distinct(),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} WHERE ("A" > 1)""",
             [Row(5, "a"), Row(3, "b"), Row(3, "c")],
-            False,
+            True,
         ),
         # df.distinct().sort() = df.sort().distinct()
         (
             lambda df: df.select("a", "b").distinct().sort(col("a"), col("b")),
             lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
             [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
+            False,
+        ),
+        (
+            lambda df: df.sort(col("a"), col("b")).distinct(),
+            lambda table: f"""SELECT  DISTINCT  *  FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
+            [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
             True,
         ),
         (
             lambda df: df.select("a", "b").sort(col("a"), col("b")).distinct(),
-            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
+            lambda table: f"""SELECT  DISTINCT  *  FROM ( SELECT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST)""",
             [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
+            True,
+        ),
+        # df.sort(A).select(B).distinct()
+        (
+            lambda df: df.sort(col("a")).select("b").distinct(),
+            lambda table: f"""SELECT  DISTINCT  *  FROM ( SELECT "B" FROM {table} ORDER BY "A" ASC NULLS FIRST)""",
+            [Row("a"), Row("b"), Row("c")],
+            True,
+        ),
+        # df.sort(A).distinct().select(B)
+        (
+            lambda df: df.sort(col("a")).distinct().select("b"),
+            lambda table: f"""SELECT "B" FROM ( SELECT  DISTINCT  *  FROM {table} ORDER BY "A" ASC NULLS FIRST)""",
+            [Row("a"), Row("b"), Row("c"), Row("c")],
+            True,
+        ),
+        # df.filter(A).select(B).distinct()
+        (
+            lambda df: df.filter(col("a") > 1).select("b").distinct(),
+            lambda table: f"""SELECT  DISTINCT "B" FROM {table} WHERE ("A" > 1)""",
+            [Row("a"), Row("b"), Row("c")],
+            True,
+        ),
+        # df.filter(A).distinct().select(B)
+        (
+            lambda df: df.filter(col("a") > 1).distinct().select("b"),
+            lambda table: f"""SELECT "B" FROM ( SELECT  DISTINCT  *  FROM {table} WHERE ("A" > 1))""",
+            [Row("a"), Row("b"), Row("c")],
             True,
         ),
     ],
@@ -1497,8 +1546,13 @@ def test_select_limit_orderby(session):
 def test_select_distinct(
     session, distinct_table, operation, expected_query, expected_result, sort_results
 ):
-    df = session.table(distinct_table)
-    df1 = operation(df)
-    if expected_result is not None:
-        Utils.check_answer(df1, expected_result, sort=sort_results)
-    assert df1.queries["queries"][0] == expected_query(distinct_table)
+    try:
+        original = session.conf.get("use_simplified_query_generation")
+        session.conf.set("use_simplified_query_generation", True)
+        df = session.table(distinct_table)
+        df1 = operation(df)
+        if expected_result is not None:
+            Utils.check_answer(df1, expected_result, sort=sort_results)
+        assert df1.queries["queries"][0] == expected_query(distinct_table)
+    finally:
+        session.conf.set("use_simplified_query_generation", original)

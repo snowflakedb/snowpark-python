@@ -6,21 +6,15 @@
 
 import modin.pandas as pd
 import pandas as native_pd
-import pytest
-from packaging import version
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
 from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import multithreaded_run
 
-pytestmark = pytest.mark.skipif(
-    version.parse(native_pd.__version__) != version.parse("2.2.1"),
-    reason="SNOW-1758760: modin stored procedure test must pin pandas==2.2.1 and modin==0.28.1",
-)
 
 # Must pin modin version to match version available in Snowflake Anaconda
-SPROC_MODIN_VERSION = "0.28.1"
+SPROC_MODIN_VERSION = "0.30.1"
 
 PACKAGE_LIST = [
     # modin 0.30.1 supports any pandas 2.2.x, so just pick whichever one is installed in the client.

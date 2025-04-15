@@ -78,7 +78,10 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
 from snowflake.snowpark._internal.select_projection_complexity_utils import (
     has_invalid_projection_merge_functions,
 )
-from snowflake.snowpark._internal.utils import is_sql_select_statement
+from snowflake.snowpark._internal.utils import (
+    is_sql_select_statement,
+    ExprAliasUpdateDict,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -243,10 +246,14 @@ class Selectable(LogicalPlan, ABC):
         self.flatten_disabled: bool = False
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
-        self.expr_to_alias = {}
-        self.df_aliased_col_name_to_real_col_name: DefaultDict[
-            str, Dict[str, str]
-        ] = defaultdict(dict)
+        self.expr_to_alias = (
+            ExprAliasUpdateDict() if self._session._join_alias_fix else {}
+        )
+        self.df_aliased_col_name_to_real_col_name = (
+            defaultdict(ExprAliasUpdateDict)
+            if self._session._join_alias_fix
+            else defaultdict(dict)
+        )
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         self._encoded_node_id_with_query: Optional[str] = None
@@ -613,9 +620,7 @@ class SelectSnowflakePlan(Selectable):
             else analyzer.resolve(snowflake_plan)
         )
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
-        self.df_aliased_col_name_to_real_col_name.update(
-            self._snowflake_plan.df_aliased_col_name_to_real_col_name
-        )
+        self.df_aliased_col_name_to_real_col_name.update(self._snowflake_plan.df_aliased_col_name_to_real_col_name)  # type: ignore
 
         self.pre_actions = self._snowflake_plan.queries[:-1]
         self.post_actions = self._snowflake_plan.post_actions
@@ -1274,6 +1279,9 @@ class SelectStatement(Selectable):
             # has a limit clause to avoid moving distinct in front of limit.
             and (not self.limit_)
             and (not self.offset)
+            # .order_by(col1).select(col2).distinct() cannot be flattened because
+            # SELECT DISTINCT B FROM TABLE ORDER BY A is not valid SQL
+            and (not (self.order_by and self.projection))
             and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
@@ -1368,7 +1376,7 @@ class SelectStatement(Selectable):
         else:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()
-            new.limit_ = min(self.limit_, n) if self.limit_ else n
+            new.limit_ = min(self.limit_, n) if self.limit_ is not None else n
             new.offset = offset or self.offset
             new.column_states = self.column_states
             new.pre_actions = new.from_.pre_actions
@@ -1560,7 +1568,9 @@ class DeriveColumnDependencyError(Exception):
 def parse_column_name(
     column: Expression,
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
 ) -> Optional[str]:
     if isinstance(column, Expression):
         if isinstance(column, Attribute):
@@ -1747,7 +1757,9 @@ def can_select_projection_complexity_be_merged(
 def initiate_column_states(
     column_attrs: List[Attribute],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:

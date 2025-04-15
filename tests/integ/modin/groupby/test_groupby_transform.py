@@ -145,17 +145,7 @@ def test_dataframe_groupby_transform_conflicting_labels_negative():
         pd.show(df)
 
 
-@sql_count_checker(
-    query_count=7,
-    # Pivot step performs force materialization of the dataframe. So joins in subquery
-    # are not carried over but after removing the pivot step subquery is present
-    # multiple times resulting to increase in join count.
-    join_count=12,
-    udtf_count=1,
-    high_count_expected=True,
-    high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
-)
-def test_dataframe_groupby_transform_conflicting_labels():
+def test_dataframe_groupby_transform_conflicting_labels(session):
     """
     Based on SNOW-1361200 - The bug occurred because of conflicting UDTF columns appended during groupby transform
     operations in `create_udtf_for_groupby_apply`.
@@ -167,11 +157,19 @@ def test_dataframe_groupby_transform_conflicting_labels():
         df["A"] = df.groupby("X")["X_DATA"].transform("count")
         df["B"] = df.groupby("X")["X_DATA"].transform("count")
 
-    eval_snowpark_pandas_result(
-        *create_test_dfs({"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9]}),
-        transform_helper,
-        inplace=True,
-    )
+    with SqlCounter(
+        query_count=7,
+        join_count=12 if session.sql_simplifier_enabled else 6,
+        udtf_count=1,
+        high_count_expected=True,
+        high_count_reason="performing two groupby transform operations that use UDTFs and compare "
+        "with pandas",
+    ):
+        eval_snowpark_pandas_result(
+            *create_test_dfs({"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9]}),
+            transform_helper,
+            inplace=True,
+        )
 
 
 @sql_count_checker(

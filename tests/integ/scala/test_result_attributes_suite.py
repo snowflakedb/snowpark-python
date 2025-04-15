@@ -140,7 +140,8 @@ def test_array_type(session):
         pytest.param("parameters", marks=pytest.mark.xfail),
         "functions",
         "roles",
-        "grants",
+        # SNOW-1991751: grants describe and result mismatch
+        # "grants",
         "warehouses",
         "databases",
         "variables",

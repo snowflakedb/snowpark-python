@@ -11,6 +11,7 @@ import pytest
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import (
     abs,
+    array_agg,
     asc,
     call_function,
     col,
@@ -20,10 +21,12 @@ from snowflake.snowpark.functions import (
     current_time,
     current_timestamp,
     desc,
+    get,
     is_null,
     lit,
     max,
     min,
+    row_number,
     to_char,
     to_date,
 )
@@ -31,6 +34,9 @@ from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.window import Window
+
+from tests.utils import Utils
 
 
 def test_col(session):
@@ -355,3 +361,50 @@ def test_patch_unsupported_function(session):
             call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
         ).collect()
     assert "Please ensure the implementation follows specifications" in str(exc.value)
+
+
+def test_row_number(session):
+    df = session.create_dataframe(
+        [
+            (1, datetime.datetime(2020, 1, 1, 1, 1, 1)),
+            (1, datetime.datetime(2020, 1, 1, 1, 1, 2)),
+            (2, datetime.datetime(2020, 1, 1, 1, 1, 3)),
+            (2, datetime.datetime(2020, 1, 1, 1, 1, 4)),
+            (3, datetime.datetime(2020, 1, 1, 1, 1, 5)),
+            (3, datetime.datetime(2020, 1, 1, 1, 1, 6)),
+            (3, datetime.datetime(2020, 1, 1, 1, 1, 7)),
+            (3, datetime.datetime(2020, 1, 1, 1, 1, 8)),
+        ],
+        schema=["a", "b"],
+    )
+
+    window = Window.partitionBy("a").order_by("b")
+    Utils.check_answer(
+        df.withColumn("c", row_number().over(window)),
+        [
+            Row(1, datetime.datetime(2020, 1, 1, 1, 1, 1), 1),
+            Row(1, datetime.datetime(2020, 1, 1, 1, 1, 2), 2),
+            Row(2, datetime.datetime(2020, 1, 1, 1, 1, 3), 1),
+            Row(2, datetime.datetime(2020, 1, 1, 1, 1, 4), 2),
+            Row(3, datetime.datetime(2020, 1, 1, 1, 1, 5), 1),
+            Row(3, datetime.datetime(2020, 1, 1, 1, 1, 6), 2),
+            Row(3, datetime.datetime(2020, 1, 1, 1, 1, 7), 3),
+            Row(3, datetime.datetime(2020, 1, 1, 1, 1, 8), 4),
+        ],
+    )
+
+
+def test_get(session):
+    data = [
+        Row(101, 1, "cat"),
+        Row(101, 2, "dog"),
+        Row(101, 3, "dog"),
+        Row(102, 4, "cat"),
+    ]
+    df = session.create_dataframe(data, schema=["ID", "TS", "VALUE"])
+
+    agged = df.groupBy("ID").agg(
+        array_agg(col("VALUE")).within_group(col("TS")).alias("VALUES")
+    )
+    get_df = agged.select("ID", get(col("VALUES"), 1).alias("ELEMENT"))
+    Utils.check_answer(get_df, [Row(102, None), Row(101, '"dog"')])

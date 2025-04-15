@@ -122,6 +122,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Project,
     Rename,
     Sample,
+    SampleBy,
     Sort,
     Unpivot,
 )
@@ -836,6 +837,9 @@ class MockAnalyzer:
 
         # Add a sample stop to the plan being built
         if isinstance(logical_plan, Sample):
+            return MockExecutionPlan(logical_plan, self.session)
+
+        if isinstance(logical_plan, SampleBy):
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Join):

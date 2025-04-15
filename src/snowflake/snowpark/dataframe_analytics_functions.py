@@ -13,8 +13,8 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.utils import experimental, publicapi
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
+    _call_function,
     add_months,
-    builtin,
     col,
     dateadd,
     from_unixtime,
@@ -262,9 +262,9 @@ class DataFrameAnalyticsFunctions:
                     if col_formatter
                     else f"{column}_{func}{rename_suffix}"
                 )
-                agg_expression = builtin(func)(col(column + rename_suffix)).alias(
-                    agg_column_name
-                )
+                agg_expression = _call_function(
+                    func, col(column + rename_suffix, _emit_ast=False), _emit_ast=False
+                ).alias(agg_column_name, _emit_ast=False)
                 agg_df = input_df.group_by(group_by_cols, _emit_ast=False).agg(
                     agg_expression, _emit_ast=False
                 )
@@ -345,7 +345,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_moving_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
@@ -369,7 +369,9 @@ class DataFrameAnalyticsFunctions:
                     )
 
                     # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
-                    agg_col = builtin(agg_func)(col(column)).over(window_spec)
+                    agg_col = _call_function(
+                        agg_func, col(column, _emit_ast=False), _emit_ast=False
+                    ).over(window_spec, _emit_ast=False)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
                     if (
@@ -384,7 +386,7 @@ class DataFrameAnalyticsFunctions:
                     )
 
         if _emit_ast:
-            agg_df._ast_id = stmt.var_id.bitfield1
+            agg_df._ast_id = stmt.uid
 
         return agg_df
 
@@ -456,7 +458,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_cumulative_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
@@ -479,7 +481,9 @@ class DataFrameAnalyticsFunctions:
         for column, agg_funcs in aggs.items():
             for agg_func in agg_funcs:
                 # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
-                agg_col = builtin(agg_func)(col(column)).over(window_spec)
+                agg_col = _call_function(
+                    agg_func, col(column, _emit_ast=False), _emit_ast=False
+                ).over(window_spec, _emit_ast=False)
 
                 formatted_col_name = col_formatter(column, agg_func)
 
@@ -494,7 +498,7 @@ class DataFrameAnalyticsFunctions:
                 )
 
         if _emit_ast:
-            agg_df._ast_id = stmt.var_id.bitfield1
+            agg_df._ast_id = stmt.uid
 
         return agg_df
 
@@ -554,7 +558,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_compute_lag, stmt)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
@@ -581,7 +585,7 @@ class DataFrameAnalyticsFunctions:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
         return df
 
     @publicapi
@@ -640,7 +644,7 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_compute_lead, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for c in cols:
@@ -667,7 +671,7 @@ class DataFrameAnalyticsFunctions:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -754,7 +758,7 @@ class DataFrameAnalyticsFunctions:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_analytics_time_series_agg, stmt)
             ast.time_col = time_col
             for col_name, agg_funcs in aggs.items():
@@ -792,7 +796,7 @@ class DataFrameAnalyticsFunctions:
                 _emit_ast=False,
             )
             if _emit_ast:
-                ans._ast_id = stmt.var_id.bitfield1
+                ans._ast_id = stmt.uid
             return ans
 
         slide_duration, slide_unit = self._validate_and_extract_time_unit(
@@ -866,6 +870,6 @@ class DataFrameAnalyticsFunctions:
             )
 
         if _emit_ast:
-            result_df._ast_id = stmt.var_id.bitfield1
+            result_df._ast_id = stmt.uid
 
         return result_df

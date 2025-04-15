@@ -32,9 +32,9 @@ df7 = session.table_function(fn4)
 
 ## EXPECTED UNPARSER OUTPUT
 
-my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn1", replace=True, comment="The parameters are useless.", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN1\"")
+my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn1", replace=True, comment="The parameters are useless.", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN1\"")
 
-my_sproc_sp2 = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn2", replace=True, comment="Hello!", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN2\"")
+my_sproc_sp2 = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn2", replace=True, comment="Hello!", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN2\"")
 
 df1 = session.table_function("my_fn1", lit(1), lit("two"), lit(True))
 
@@ -62,7 +62,7 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         comment {
@@ -80,17 +80,57 @@ body {
           }
         }
         input_types {
-          list {
-            long_type: true
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
           }
-          list {
-            string_type {
-              length {
+        }
+        input_types {
+          boolean_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 122
+                end_line: 33
+                file: 2
+                start_column: 22
+                start_line: 33
               }
             }
           }
-          list {
-            boolean_type: true
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 122
+                end_line: 33
+                file: 2
+                start_column: 22
+                start_line: 33
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 122
+                end_line: 33
+                file: 2
+                start_column: 22
+                start_line: 33
+              }
+            }
           }
         }
         name {
@@ -118,17 +158,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "my_sproc_sp"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       stored_procedure {
         comment {
@@ -146,17 +184,57 @@ body {
           }
         }
         input_types {
-          list {
-            long_type: true
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
           }
-          list {
-            string_type {
-              length {
+        }
+        input_types {
+          boolean_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 102
+                end_line: 35
+                file: 2
+                start_column: 23
+                start_line: 35
               }
             }
           }
-          list {
-            boolean_type: true
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 102
+                end_line: 35
+                file: 2
+                start_column: 23
+                start_line: 35
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 102
+                end_line: 35
+                file: 2
+                start_column: 23
+                start_line: 35
+              }
+            }
           }
         }
         name {
@@ -184,17 +262,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "my_sproc_sp2"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
@@ -330,17 +406,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df1"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
@@ -408,17 +482,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df2"
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
@@ -453,17 +525,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df3"
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
@@ -588,25 +658,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 6
-                }
+                id: 6
               }
             }
             src {
@@ -627,17 +693,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df4"
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
@@ -694,25 +758,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 8
-                }
+                id: 8
               }
             }
             src {
@@ -733,17 +793,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df5"
     }
     uid: 9
-    var_id {
-      bitfield1: 9
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
@@ -867,25 +925,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 10
-    var_id {
-      bitfield1: 10
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 10
-                }
+                id: 10
               }
             }
             src {
@@ -906,17 +960,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df6"
     }
     uid: 11
-    var_id {
-      bitfield1: 11
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
@@ -939,25 +991,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 12
-    var_id {
-      bitfield1: 12
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 12
-                }
+                id: 12
               }
             }
             src {
@@ -978,13 +1026,11 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df7"
     }
     uid: 13
-    var_id {
-      bitfield1: 13
-    }
   }
 }
 client_ast_version: 1
@@ -1000,5 +1046,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
+  minor: 30
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

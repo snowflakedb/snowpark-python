@@ -1,5 +1,7 @@
 ## TEST CASE
 
+import decimal
+
 from snowflake.snowpark.functions import col, udtf
 
 from snowflake.snowpark.types import IntegerType, StructField, StructType
@@ -99,35 +101,101 @@ df.select(df.a, twoxsix_udtf(df.a)).collect()
 
 df.select("a", twoxsix_udtf("a").alias("double", "six_x"), "c").collect()
 
+# Test registering UDTF from file without type hints
+schema = StructType(
+    [
+        StructField("int_", IntegerType()),
+        StructField("float_", FloatType()),
+        StructField("bool_", BooleanType()),
+        StructField("decimal_", DecimalType(10, 2)),
+        StructField("str_", StringType()),
+        StructField("bytes_", BinaryType()),
+        StructField("bytearray_", BinaryType()),
+    ]
+)
+my_udtf = session.udtf.register_from_file(
+    test_files.test_udtf_py_file,
+    "MyUDTFWithoutTypeHints",
+    output_schema=schema,
+    input_types=[
+        IntegerType(),
+        FloatType(),
+        BooleanType(),
+        DecimalType(10, 2),
+        StringType(),
+        BinaryType(),
+        BinaryType(),
+    ],
+    immutable=True,
+)
+df = session.table_function(
+      my_udtf(
+          lit(1),
+          lit(2.2),
+          lit(True),
+          lit(decimal.Decimal("3.33")).cast("number(10, 2)"),
+          lit("python"),
+          lit(b"bytes"),
+          lit(bytearray("bytearray", "utf-8")),
+      )
+)
+
+# Test registering UDTF from file with type hints
+schema = ["int_", "float_", "bool_", "decimal_", "str_", "bytes_", "bytearray_"]
+my_udtf = session.udtf.register_from_file(
+    test_files.test_udtf_py_file,
+    "MyUDTFWithTypeHints",
+    output_schema=schema,
+)
+df = session.table_function(
+    my_udtf(
+        lit(1),
+        lit(2.2),
+        lit(True),
+        lit(decimal.Decimal("3.33")),
+        lit("python"),
+        lit(b"bytes"),
+        lit(bytearray("bytearray", "utf-8")),
+    )
+)
+
 ## EXPECTED UNPARSER OUTPUT
 
-prime_udtf = udtf("PrimeSieve", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+prime_udtf = udtf("PrimeSieve", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf("sum_udtf", output_schema=StructType([StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
+df.with_column("total", udtf("sum_udtf", output_schema=StructType(fields=[StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
 
-generator_udtf = udtf("GeneratorUDTF", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+generator_udtf = udtf("GeneratorUDTF", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(generator_udtf(lit(3))).collect()
 
-foo = udtf("Foo", output_schema=StructType([StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", copy_grants=False, force_inline_code=True, _registered_object_name="foo")
+foo = udtf("Foo", output_schema=StructType(fields=[StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", artifact_repository=None, artifact_repository_packages=None, copy_grants=False, force_inline_code=True, resource_constraint=None, _registered_object_name="foo")
 
 df = session.create_dataframe([(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)])
 
 df = df.to_df(["a", "b", "c"])
 
-twox_udtf = udtf("TwoXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twox_udtf = udtf("TwoXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select((twox_udtf("a"))).collect()
 
-twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select(df["a"], (twoxsix_udtf(df["a"]))).collect()
 
 df.select("a", (twoxsix_udtf("a").alias("double", "six_x")), "c").collect()
+
+my_udtf = udtf("MyUDTFWithoutTypeHints", output_schema=StructType(fields=[StructField("int_", IntegerType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(10, 2), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[IntegerType(), FloatType(), BooleanType(), DecimalType(10, 2), StringType(), BinaryType(), BinaryType()], immutable=True, artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df = session.table_function(my_udtf(lit(1), lit(2.2), lit(True), lit(Decimal("3.33")).cast(DecimalType(10, 2)), lit("python"), lit(bytes("bytes", "utf-8")), lit(bytes("bytearray", "utf-8"))))
+
+my_udtf = udtf("MyUDTFWithTypeHints", output_schema=StructType(fields=[StructField("int_", LongType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(38, 18), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[LongType(), FloatType(), BooleanType(), DecimalType(38, 18), StringType(), BinaryType(), BinaryType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df = session.table_function(my_udtf(lit(1), lit(2.2), lit(True), lit(Decimal("3.33")), lit("python"), lit(bytes("bytes", "utf-8")), lit(bytes("bytearray", "utf-8"))))
 
 ## EXPECTED ENCODED AST
 
@@ -141,7 +209,7 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udtf {
         handler {
@@ -155,8 +223,34 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 132
+                end_line: 48
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 132
+                end_line: 48
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
           }
         }
         kwargs {
@@ -165,10 +259,24 @@ body {
             bool_val {
               src {
                 end_column: 132
-                end_line: 46
+                end_line: 48
                 file: 2
                 start_column: 21
-                start_line: 46
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 132
+                end_line: 48
+                file: 2
+                start_column: 21
+                start_line: 48
               }
             }
           }
@@ -178,17 +286,15 @@ body {
             return_type {
               struct_type {
                 fields {
-                  list {
-                    column_identifier {
-                      column_name {
-                        name: "number"
-                      }
+                  column_identifier {
+                    column_name {
+                      name: "number"
                     }
-                    data_type {
-                      integer_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -197,31 +303,27 @@ body {
         parallel: 4
         src {
           end_column: 132
-          end_line: 46
+          end_line: 48
           file: 2
           start_column: 21
-          start_line: 46
+          start_line: 48
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "prime_udtf"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         pos_args {
@@ -241,115 +343,106 @@ body {
               int64_val {
                 src {
                   end_column: 49
-                  end_line: 48
+                  end_line: 50
                   file: 2
                   start_column: 42
-                  start_line: 48
+                  start_line: 50
                 }
                 v: 20
               }
             }
             src {
               end_column: 49
-              end_line: 48
+              end_line: 50
               file: 2
               start_column: 42
-              start_line: 48
+              start_line: 50
             }
           }
         }
         src {
           end_column: 50
-          end_line: 48
+          end_line: 50
           file: 2
           start_column: 31
-          start_line: 48
+          start_line: 50
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 2
-                }
+                id: 2
               }
             }
             src {
               end_column: 51
-              end_line: 48
+              end_line: 50
               file: 2
               start_column: 8
-              start_line: 48
+              start_line: 50
             }
           }
         }
         src {
           end_column: 51
-          end_line: 48
+          end_line: 50
           file: 2
           start_column: 8
-          start_line: 48
+          start_line: 50
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 3
+        df {
+          dataframe_ref {
+            id: 3
+          }
         }
         src {
           end_column: 61
-          end_line: 48
+          end_line: 50
           file: 2
           start_column: 8
-          start_line: 48
+          start_line: 50
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
   eval {
-    uid: 5
-    var_id {
-      bitfield1: 4
-    }
+    bind_id: 4
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udtf {
         handler {
@@ -364,11 +457,37 @@ body {
           }
         }
         input_types {
-          list {
-            long_type: true
+          long_type: true
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 39
+                end_line: 52
+                file: 2
+                start_column: 9
+                start_line: 52
+              }
+            }
           }
-          list {
-            long_type: true
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 39
+                end_line: 52
+                file: 2
+                start_column: 9
+                start_line: 52
+              }
+            }
           }
         }
         kwargs {
@@ -377,10 +496,24 @@ body {
             bool_val {
               src {
                 end_column: 39
-                end_line: 50
+                end_line: 52
                 file: 2
                 start_column: 9
-                start_line: 50
+                start_line: 52
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 39
+                end_line: 52
+                file: 2
+                start_column: 9
+                start_line: 52
               }
             }
           }
@@ -390,17 +523,15 @@ body {
             return_type {
               struct_type {
                 fields {
-                  list {
-                    column_identifier {
-                      column_name {
-                        name: "number"
-                      }
+                  column_identifier {
+                    column_name {
+                      name: "number"
                     }
-                    data_type {
-                      long_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    long_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -409,23 +540,21 @@ body {
         parallel: 4
         src {
           end_column: 39
-          end_line: 50
+          end_line: 52
           file: 2
           start_column: 9
-          start_line: 50
+          start_line: 52
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
+    uid: 5
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -434,19 +563,19 @@ body {
               list_val {
                 src {
                   end_column: 74
-                  end_line: 55
+                  end_line: 57
                   file: 2
                   start_column: 13
-                  start_line: 55
+                  start_line: 57
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 74
-                      end_line: 55
+                      end_line: 57
                       file: 2
                       start_column: 13
-                      start_line: 55
+                      start_line: 57
                     }
                     v: 1
                   }
@@ -455,10 +584,10 @@ body {
                   int64_val {
                     src {
                       end_column: 74
-                      end_line: 55
+                      end_line: 57
                       file: 2
                       start_column: 13
-                      start_line: 55
+                      start_line: 57
                     }
                     v: 2
                   }
@@ -469,19 +598,19 @@ body {
               list_val {
                 src {
                   end_column: 74
-                  end_line: 55
+                  end_line: 57
                   file: 2
                   start_column: 13
-                  start_line: 55
+                  start_line: 57
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 74
-                      end_line: 55
+                      end_line: 57
                       file: 2
                       start_column: 13
-                      start_line: 55
+                      start_line: 57
                     }
                     v: 3
                   }
@@ -490,10 +619,10 @@ body {
                   int64_val {
                     src {
                       end_column: 74
-                      end_line: 55
+                      end_line: 57
                       file: 2
                       start_column: 13
-                      start_line: 55
+                      start_line: 57
                     }
                     v: 4
                   }
@@ -510,33 +639,29 @@ body {
         }
         src {
           end_column: 74
-          end_line: 55
+          end_line: 57
           file: 2
           start_column: 13
-          start_line: 55
+          start_line: 57
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
-    uid: 7
-    var_id {
-      bitfield1: 7
-    }
+    uid: 6
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_with_column {
         col {
           apply_expr {
             fn {
               fn_ref {
-                id {
-                  bitfield1: 6
-                }
+                id: 5
               }
             }
             pos_args {
@@ -544,17 +669,15 @@ body {
                 col_name: "a"
                 df {
                   dataframe_ref {
-                    id {
-                      bitfield1: 7
-                    }
+                    id: 6
                   }
                 }
                 src {
                   end_column: 45
-                  end_line: 56
+                  end_line: 58
                   file: 2
                   start_column: 41
-                  start_line: 56
+                  start_line: 58
                 }
               }
             }
@@ -563,56 +686,50 @@ body {
                 col_name: "b"
                 df {
                   dataframe_ref {
-                    id {
-                      bitfield1: 7
-                    }
+                    id: 6
                   }
                 }
                 src {
                   end_column: 51
-                  end_line: 56
+                  end_line: 58
                   file: 2
                   start_column: 47
-                  start_line: 56
+                  start_line: 58
                 }
               }
             }
             src {
               end_column: 52
-              end_line: 56
+              end_line: 58
               file: 2
               start_column: 32
-              start_line: 56
+              start_line: 58
             }
           }
         }
         col_name: "total"
         df {
           dataframe_ref {
-            id {
-              bitfield1: 7
-            }
+            id: 6
           }
         }
         src {
           end_column: 53
-          end_line: 56
+          end_line: 58
           file: 2
           start_column: 8
-          start_line: 56
+          start_line: 58
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 7
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_sort {
         cols {
@@ -621,17 +738,15 @@ body {
               col_name: "a"
               df {
                 dataframe_ref {
-                  id {
-                    bitfield1: 7
-                  }
+                  id: 6
                 }
               }
               src {
                 end_column: 63
-                end_line: 56
+                end_line: 58
                 file: 2
                 start_column: 59
-                start_line: 56
+                start_line: 58
               }
             }
           }
@@ -639,56 +754,56 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 8
-            }
+            id: 7
           }
         }
         src {
           end_column: 64
-          end_line: 56
+          end_line: 58
           file: 2
           start_column: 8
-          start_line: 56
+          start_line: 58
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
+    uid: 8
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 9
+        df {
+          dataframe_ref {
+            id: 8
+          }
         }
         n: 10
+        src {
+          end_column: 71
+          end_line: 58
+          file: 2
+          start_column: 8
+          start_line: 58
+        }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 10
-    var_id {
-      bitfield1: 10
-    }
+    uid: 9
   }
 }
 body {
   eval {
-    uid: 11
-    var_id {
-      bitfield1: 10
-    }
+    bind_id: 9
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udtf {
         handler {
@@ -703,8 +818,34 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 139
+                end_line: 65
+                file: 2
+                start_column: 25
+                start_line: 65
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 139
+                end_line: 65
+                file: 2
+                start_column: 25
+                start_line: 65
+              }
+            }
           }
         }
         kwargs {
@@ -713,10 +854,24 @@ body {
             bool_val {
               src {
                 end_column: 139
-                end_line: 63
+                end_line: 65
                 file: 2
                 start_column: 25
-                start_line: 63
+                start_line: 65
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 139
+                end_line: 65
+                file: 2
+                start_column: 25
+                start_line: 65
               }
             }
           }
@@ -726,17 +881,15 @@ body {
             return_type {
               struct_type {
                 fields {
-                  list {
-                    column_identifier {
-                      column_name {
-                        name: "number"
-                      }
+                  column_identifier {
+                    column_name {
+                      name: "number"
                     }
-                    data_type {
-                      integer_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -745,31 +898,27 @@ body {
         parallel: 4
         src {
           end_column: 139
-          end_line: 63
+          end_line: 65
           file: 2
           start_column: 25
-          start_line: 63
+          start_line: 65
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "generator_udtf"
     }
-    uid: 12
-    var_id {
-      bitfield1: 12
-    }
+    uid: 10
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 12
-            }
+            id: 10
           }
         }
         pos_args {
@@ -789,115 +938,106 @@ body {
               int64_val {
                 src {
                   end_column: 52
-                  end_line: 65
+                  end_line: 67
                   file: 2
                   start_column: 46
-                  start_line: 65
+                  start_line: 67
                 }
                 v: 3
               }
             }
             src {
               end_column: 52
-              end_line: 65
+              end_line: 67
               file: 2
               start_column: 46
-              start_line: 65
+              start_line: 67
             }
           }
         }
         src {
           end_column: 53
-          end_line: 65
+          end_line: 67
           file: 2
           start_column: 31
-          start_line: 65
+          start_line: 67
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 13
-    var_id {
-      bitfield1: 13
-    }
+    uid: 11
   }
 }
 body {
-  assign {
+  bind {
     expr {
       session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 13
-                }
+                id: 11
               }
             }
             src {
               end_column: 54
-              end_line: 65
+              end_line: 67
               file: 2
               start_column: 8
-              start_line: 65
+              start_line: 67
             }
           }
         }
         src {
           end_column: 54
-          end_line: 65
+          end_line: 67
           file: 2
           start_column: 8
-          start_line: 65
+          start_line: 67
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 14
-    var_id {
-      bitfield1: 14
-    }
+    uid: 12
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 14
+        df {
+          dataframe_ref {
+            id: 12
+          }
         }
         src {
           end_column: 64
-          end_line: 65
+          end_line: 67
           file: 2
           start_column: 8
-          start_line: 65
+          start_line: 67
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 15
-    var_id {
-      bitfield1: 15
-    }
+    uid: 13
   }
 }
 body {
   eval {
-    uid: 16
-    var_id {
-      bitfield1: 15
-    }
+    bind_id: 13
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udtf {
         comment {
@@ -932,24 +1072,50 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
-          }
-          list {
-            long_type: true
-          }
+          integer_type: true
+        }
+        input_types {
+          long_type: true
         }
         is_permanent: true
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 40
+                end_line: 91
+                file: 2
+                start_column: 14
+                start_line: 74
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 40
+                end_line: 91
+                file: 2
+                start_column: 14
+                start_line: 74
+              }
+            }
+          }
+        }
         kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
               src {
                 end_column: 40
-                end_line: 89
+                end_line: 91
                 file: 2
                 start_column: 14
-                start_line: 72
+                start_line: 74
               }
             }
           }
@@ -960,12 +1126,26 @@ body {
             bool_val {
               src {
                 end_column: 40
-                end_line: 89
+                end_line: 91
                 file: 2
                 start_column: 14
-                start_line: 72
+                start_line: 74
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 40
+                end_line: 91
+                file: 2
+                start_column: 14
+                start_line: 74
+              }
             }
           }
         }
@@ -981,28 +1161,26 @@ body {
             return_type {
               struct_type {
                 fields {
-                  list {
-                    column_identifier {
-                      column_name {
-                        name: "a"
-                      }
+                  column_identifier {
+                    column_name {
+                      name: "a"
                     }
-                    data_type {
-                      long_type: true
-                    }
-                    nullable: true
                   }
-                  list {
-                    column_identifier {
-                      column_name {
-                        name: "b"
-                      }
-                    }
-                    data_type {
-                      long_type: true
-                    }
-                    nullable: true
+                  data_type {
+                    long_type: true
                   }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "b"
+                    }
+                  }
+                  data_type {
+                    long_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -1018,10 +1196,10 @@ body {
         secure: true
         src {
           end_column: 40
-          end_line: 89
+          end_line: 91
           file: 2
           start_column: 14
-          start_line: 72
+          start_line: 74
         }
         stage_location: "@"
         statement_params {
@@ -1031,17 +1209,15 @@ body {
         strict: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "foo"
     }
-    uid: 17
-    var_id {
-      bitfield1: 17
-    }
+    uid: 14
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -1050,19 +1226,19 @@ body {
               tuple_val {
                 src {
                   end_column: 9
-                  end_line: 93
+                  end_line: 95
                   file: 2
                   start_column: 13
-                  start_line: 91
+                  start_line: 93
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: 1
                   }
@@ -1071,10 +1247,10 @@ body {
                   string_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: "one o one"
                   }
@@ -1083,10 +1259,10 @@ body {
                   int64_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: 10
                   }
@@ -1097,19 +1273,19 @@ body {
               tuple_val {
                 src {
                   end_column: 9
-                  end_line: 93
+                  end_line: 95
                   file: 2
                   start_column: 13
-                  start_line: 91
+                  start_line: 93
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: 2
                   }
@@ -1118,10 +1294,10 @@ body {
                   string_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: "twenty two"
                   }
@@ -1130,10 +1306,10 @@ body {
                   int64_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: 20
                   }
@@ -1144,19 +1320,19 @@ body {
               tuple_val {
                 src {
                   end_column: 9
-                  end_line: 93
+                  end_line: 95
                   file: 2
                   start_column: 13
-                  start_line: 91
+                  start_line: 93
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: 3
                   }
@@ -1165,10 +1341,10 @@ body {
                   string_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: "thirty three"
                   }
@@ -1177,10 +1353,10 @@ body {
                   int64_val {
                     src {
                       end_column: 9
-                      end_line: 93
+                      end_line: 95
                       file: 2
                       start_column: 13
-                      start_line: 91
+                      start_line: 93
                     }
                     v: 30
                   }
@@ -1191,24 +1367,22 @@ body {
         }
         src {
           end_column: 9
-          end_line: 93
+          end_line: 95
           file: 2
           start_column: 13
-          start_line: 91
+          start_line: 93
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
-    uid: 18
-    var_id {
-      bitfield1: 18
-    }
+    uid: 15
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_to_df {
         col_names {
@@ -1216,10 +1390,10 @@ body {
             string_val {
               src {
                 end_column: 38
-                end_line: 94
+                end_line: 96
                 file: 2
                 start_column: 13
-                start_line: 94
+                start_line: 96
               }
               v: "a"
             }
@@ -1228,10 +1402,10 @@ body {
             string_val {
               src {
                 end_column: 38
-                end_line: 94
+                end_line: 96
                 file: 2
                 start_column: 13
-                start_line: 94
+                start_line: 96
               }
               v: "b"
             }
@@ -1240,10 +1414,10 @@ body {
             string_val {
               src {
                 end_column: 38
-                end_line: 94
+                end_line: 96
                 file: 2
                 start_column: 13
-                start_line: 94
+                start_line: 96
               }
               v: "c"
             }
@@ -1251,31 +1425,27 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 18
-            }
+            id: 15
           }
         }
         src {
           end_column: 38
-          end_line: 94
+          end_line: 96
           file: 2
           start_column: 13
-          start_line: 94
+          start_line: 96
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
-    uid: 19
-    var_id {
-      bitfield1: 19
-    }
+    uid: 16
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udtf {
         handler {
@@ -1290,8 +1460,34 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 106
+                file: 2
+                start_column: 20
+                start_line: 102
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 106
+                file: 2
+                start_column: 20
+                start_line: 102
+              }
+            }
           }
         }
         kwargs {
@@ -1300,10 +1496,24 @@ body {
             bool_val {
               src {
                 end_column: 9
-                end_line: 104
+                end_line: 106
                 file: 2
                 start_column: 20
-                start_line: 100
+                start_line: 102
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 106
+                file: 2
+                start_column: 20
+                start_line: 102
               }
             }
           }
@@ -1313,17 +1523,15 @@ body {
             return_type {
               struct_type {
                 fields {
-                  list {
-                    column_identifier {
-                      column_name {
-                        name: "two_x"
-                      }
+                  column_identifier {
+                    column_name {
+                      name: "two_x"
                     }
-                    data_type {
-                      integer_type: true
-                    }
-                    nullable: true
                   }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -1332,82 +1540,74 @@ body {
         parallel: 4
         src {
           end_column: 9
-          end_line: 104
+          end_line: 106
           file: 2
           start_column: 20
-          start_line: 100
+          start_line: 102
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "twox_udtf"
     }
-    uid: 20
-    var_id {
-      bitfield1: 20
-    }
+    uid: 17
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 20
-            }
+            id: 17
           }
         }
         pos_args {
           string_val {
             src {
               end_column: 32
-              end_line: 106
+              end_line: 108
               file: 2
               start_column: 18
-              start_line: 106
+              start_line: 108
             }
             v: "a"
           }
         }
         src {
           end_column: 32
-          end_line: 106
+          end_line: 108
           file: 2
           start_column: 18
-          start_line: 106
+          start_line: 108
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 21
-    var_id {
-      bitfield1: 21
-    }
+    uid: 18
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             apply_expr {
               fn {
                 indirect_table_fn_id_ref {
-                  id {
-                    bitfield1: 21
-                  }
+                  id: 18
                 }
               }
               src {
                 end_column: 33
-                end_line: 106
+                end_line: 108
                 file: 2
                 start_column: 8
-                start_line: 106
+                start_line: 108
               }
             }
           }
@@ -1415,64 +1615,57 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 19
-            }
+            id: 16
           }
         }
         src {
           end_column: 33
-          end_line: 106
+          end_line: 108
           file: 2
           start_column: 8
-          start_line: 106
+          start_line: 108
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 22
-    var_id {
-      bitfield1: 22
-    }
+    uid: 19
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 22
+        df {
+          dataframe_ref {
+            id: 19
+          }
         }
         src {
           end_column: 43
-          end_line: 106
+          end_line: 108
           file: 2
           start_column: 8
-          start_line: 106
+          start_line: 108
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 23
-    var_id {
-      bitfield1: 23
-    }
+    uid: 20
   }
 }
 body {
   eval {
-    uid: 24
-    var_id {
-      bitfield1: 23
-    }
+    bind_id: 20
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udtf {
         handler {
@@ -1487,8 +1680,34 @@ body {
           }
         }
         input_types {
-          list {
-            integer_type: true
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 120
+                file: 2
+                start_column: 23
+                start_line: 114
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 120
+                file: 2
+                start_column: 23
+                start_line: 114
+              }
+            }
           }
         }
         kwargs {
@@ -1497,10 +1716,24 @@ body {
             bool_val {
               src {
                 end_column: 9
-                end_line: 118
+                end_line: 120
                 file: 2
                 start_column: 23
-                start_line: 112
+                start_line: 114
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 120
+                file: 2
+                start_column: 23
+                start_line: 114
               }
             }
           }
@@ -1510,28 +1743,26 @@ body {
             return_type {
               struct_type {
                 fields {
-                  list {
-                    column_identifier {
-                      column_name {
-                        name: "two_x"
-                      }
+                  column_identifier {
+                    column_name {
+                      name: "two_x"
                     }
-                    data_type {
-                      integer_type: true
-                    }
-                    nullable: true
                   }
-                  list {
-                    column_identifier {
-                      column_name {
-                        name: "six_x"
-                      }
-                    }
-                    data_type {
-                      integer_type: true
-                    }
-                    nullable: true
+                  data_type {
+                    integer_type: true
                   }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "six_x"
+                    }
+                  }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
                 }
               }
             }
@@ -1540,31 +1771,27 @@ body {
         parallel: 4
         src {
           end_column: 9
-          end_line: 118
+          end_line: 120
           file: 2
           start_column: 23
-          start_line: 112
+          start_line: 114
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "twoxsix_udtf"
     }
-    uid: 25
-    var_id {
-      bitfield1: 25
-    }
+    uid: 21
   }
 }
 body {
-  assign {
+  bind {
     expr {
       apply_expr {
         fn {
           fn_ref {
-            id {
-              bitfield1: 25
-            }
+            id: 21
           }
         }
         pos_args {
@@ -1572,58 +1799,52 @@ body {
             col_name: "a"
             df {
               dataframe_ref {
-                id {
-                  bitfield1: 19
-                }
+                id: 16
               }
             }
             src {
               end_column: 41
-              end_line: 120
+              end_line: 122
               file: 2
               start_column: 37
-              start_line: 120
+              start_line: 122
             }
           }
         }
         src {
           end_column: 42
-          end_line: 120
+          end_line: 122
           file: 2
           start_column: 24
-          start_line: 120
+          start_line: 122
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 26
-    var_id {
-      bitfield1: 26
-    }
+    uid: 22
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             dataframe_col {
               col_name: "a"
               df {
                 dataframe_ref {
-                  id {
-                    bitfield1: 19
-                  }
+                  id: 16
                 }
               }
               src {
                 end_column: 22
-                end_line: 120
+                end_line: 122
                 file: 2
                 start_column: 18
-                start_line: 120
+                start_line: 122
               }
             }
           }
@@ -1631,17 +1852,15 @@ body {
             apply_expr {
               fn {
                 indirect_table_fn_id_ref {
-                  id {
-                    bitfield1: 26
-                  }
+                  id: 22
                 }
               }
               src {
                 end_column: 43
-                end_line: 120
+                end_line: 122
                 file: 2
                 start_column: 8
-                start_line: 120
+                start_line: 122
               }
             }
           }
@@ -1649,64 +1868,57 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 19
-            }
+            id: 16
           }
         }
         src {
           end_column: 43
-          end_line: 120
+          end_line: 122
           file: 2
           start_column: 8
-          start_line: 120
+          start_line: 122
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 27
-    var_id {
-      bitfield1: 27
-    }
+    uid: 23
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 27
+        df {
+          dataframe_ref {
+            id: 23
+          }
         }
         src {
           end_column: 53
-          end_line: 120
+          end_line: 122
           file: 2
           start_column: 8
-          start_line: 120
+          start_line: 122
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 28
-    var_id {
-      bitfield1: 28
-    }
+    uid: 24
   }
 }
 body {
   eval {
-    uid: 29
-    var_id {
-      bitfield1: 28
-    }
+    bind_id: 24
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table_fn_call_alias {
         aliases {
@@ -1714,10 +1926,10 @@ body {
             string_val {
               src {
                 end_column: 65
-                end_line: 122
+                end_line: 124
                 file: 2
                 start_column: 23
-                start_line: 122
+                start_line: 124
               }
               v: "double"
             }
@@ -1726,10 +1938,10 @@ body {
             string_val {
               src {
                 end_column: 65
-                end_line: 122
+                end_line: 124
                 file: 2
                 start_column: 23
-                start_line: 122
+                start_line: 124
               }
               v: "six_x"
             }
@@ -1740,62 +1952,58 @@ body {
           apply_expr {
             fn {
               fn_ref {
-                id {
-                  bitfield1: 25
-                }
+                id: 21
               }
             }
             pos_args {
               string_val {
                 src {
                   end_column: 40
-                  end_line: 122
+                  end_line: 124
                   file: 2
                   start_column: 23
-                  start_line: 122
+                  start_line: 124
                 }
                 v: "a"
               }
             }
             src {
               end_column: 40
-              end_line: 122
+              end_line: 124
               file: 2
               start_column: 23
-              start_line: 122
+              start_line: 124
             }
           }
         }
         src {
           end_column: 65
-          end_line: 122
+          end_line: 124
           file: 2
           start_column: 23
-          start_line: 122
+          start_line: 124
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 30
-    var_id {
-      bitfield1: 30
-    }
+    uid: 25
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      dataframe_select__columns {
+      dataframe_select {
         cols {
           args {
             string_val {
               src {
                 end_column: 71
-                end_line: 122
+                end_line: 124
                 file: 2
                 start_column: 8
-                start_line: 122
+                start_line: 124
               }
               v: "a"
             }
@@ -1804,17 +2012,15 @@ body {
             apply_expr {
               fn {
                 indirect_table_fn_id_ref {
-                  id {
-                    bitfield1: 30
-                  }
+                  id: 25
                 }
               }
               src {
                 end_column: 71
-                end_line: 122
+                end_line: 124
                 file: 2
                 start_column: 8
-                start_line: 122
+                start_line: 124
               }
             }
           }
@@ -1822,10 +2028,10 @@ body {
             string_val {
               src {
                 end_column: 71
-                end_line: 122
+                end_line: 124
                 file: 2
                 start_column: 8
-                start_line: 122
+                start_line: 124
               }
               v: "c"
             }
@@ -1834,60 +2040,1081 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 19
-            }
+            id: 16
           }
         }
         src {
           end_column: 71
-          end_line: 122
+          end_line: 124
           file: 2
           start_column: 8
-          start_line: 122
+          start_line: 124
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 31
-    var_id {
-      bitfield1: 31
-    }
+    uid: 26
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 31
+        df {
+          dataframe_ref {
+            id: 26
+          }
         }
         src {
           end_column: 81
-          end_line: 122
+          end_line: 124
           file: 2
           start_column: 8
-          start_line: 122
+          start_line: 124
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 32
-    var_id {
-      bitfield1: 32
-    }
+    uid: 27
   }
 }
 body {
   eval {
-    uid: 33
-    var_id {
-      bitfield1: 32
+    bind_id: 27
+  }
+}
+body {
+  bind {
+    expr {
+      udtf {
+        handler {
+          id: 6
+          name: "MyUDTFWithoutTypeHints"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        immutable: true
+        input_types {
+          integer_type: true
+        }
+        input_types {
+          float_type: true
+        }
+        input_types {
+          boolean_type: true
+        }
+        input_types {
+          decimal_type {
+            precision: 10
+            scale: 2
+          }
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          binary_type: true
+        }
+        input_types {
+          binary_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 152
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 152
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 152
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 152
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              struct_type {
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "int_"
+                    }
+                  }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "float_"
+                    }
+                  }
+                  data_type {
+                    float_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "bool_"
+                    }
+                  }
+                  data_type {
+                    boolean_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "decimal_"
+                    }
+                  }
+                  data_type {
+                    decimal_type {
+                      precision: 10
+                      scale: 2
+                    }
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "str_"
+                    }
+                  }
+                  data_type {
+                    string_type {
+                      length {
+                      }
+                    }
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "bytes_"
+                    }
+                  }
+                  data_type {
+                    binary_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "bytearray_"
+                    }
+                  }
+                  data_type {
+                    binary_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
+          }
+        }
+        parallel: 4
+        src {
+          end_column: 9
+          end_line: 152
+          file: 2
+          start_column: 18
+          start_line: 138
+        }
+      }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "my_udtf"
+    }
+    uid: 28
+  }
+}
+body {
+  bind {
+    expr {
+      apply_expr {
+        fn {
+          fn_ref {
+            id: 28
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 24
+                  end_line: 155
+                  file: 2
+                  start_column: 18
+                  start_line: 155
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 24
+              end_line: 155
+              file: 2
+              start_column: 18
+              start_line: 155
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              float64_val {
+                src {
+                  end_column: 26
+                  end_line: 156
+                  file: 2
+                  start_column: 18
+                  start_line: 156
+                }
+                v: 2.2
+              }
+            }
+            src {
+              end_column: 26
+              end_line: 156
+              file: 2
+              start_column: 18
+              start_line: 156
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  end_column: 27
+                  end_line: 157
+                  file: 2
+                  start_column: 18
+                  start_line: 157
+                }
+                v: true
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 157
+              file: 2
+              start_column: 18
+              start_line: 157
+            }
+          }
+        }
+        pos_args {
+          column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  big_decimal_val {
+                    scale: -2
+                    src {
+                      end_column: 46
+                      end_line: 158
+                      file: 2
+                      start_column: 18
+                      start_line: 158
+                    }
+                    unscaled_value: "\001M"
+                  }
+                }
+                src {
+                  end_column: 46
+                  end_line: 158
+                  file: 2
+                  start_column: 18
+                  start_line: 158
+                }
+              }
+            }
+            src {
+              end_column: 68
+              end_line: 158
+              file: 2
+              start_column: 18
+              start_line: 158
+            }
+            to {
+              decimal_type {
+                precision: 10
+                scale: 2
+              }
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 31
+                  end_line: 159
+                  file: 2
+                  start_column: 18
+                  start_line: 159
+                }
+                v: "python"
+              }
+            }
+            src {
+              end_column: 31
+              end_line: 159
+              file: 2
+              start_column: 18
+              start_line: 159
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              binary_val {
+                src {
+                  end_column: 31
+                  end_line: 160
+                  file: 2
+                  start_column: 18
+                  start_line: 160
+                }
+                v: "bytes"
+              }
+            }
+            src {
+              end_column: 31
+              end_line: 160
+              file: 2
+              start_column: 18
+              start_line: 160
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              binary_val {
+                src {
+                  end_column: 54
+                  end_line: 161
+                  file: 2
+                  start_column: 18
+                  start_line: 161
+                }
+                v: "bytearray"
+              }
+            }
+            src {
+              end_column: 54
+              end_line: 161
+              file: 2
+              start_column: 18
+              start_line: 161
+            }
+          }
+        }
+        src {
+          end_column: 15
+          end_line: 162
+          file: 2
+          start_column: 14
+          start_line: 154
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 29
+  }
+}
+body {
+  bind {
+    expr {
+      session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 29
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 163
+              file: 2
+              start_column: 13
+              start_line: 153
+            }
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 163
+          file: 2
+          start_column: 13
+          start_line: 153
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 30
+  }
+}
+body {
+  bind {
+    expr {
+      udtf {
+        handler {
+          id: 7
+          name: "MyUDTFWithTypeHints"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          float_type: true
+        }
+        input_types {
+          boolean_type: true
+        }
+        input_types {
+          decimal_type {
+            precision: 38
+            scale: 18
+          }
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          binary_type: true
+        }
+        input_types {
+          binary_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 171
+                file: 2
+                start_column: 18
+                start_line: 167
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 171
+                file: 2
+                start_column: 18
+                start_line: 167
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 171
+                file: 2
+                start_column: 18
+                start_line: 167
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 171
+                file: 2
+                start_column: 18
+                start_line: 167
+              }
+            }
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              struct_type {
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "int_"
+                    }
+                  }
+                  data_type {
+                    long_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "float_"
+                    }
+                  }
+                  data_type {
+                    float_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "bool_"
+                    }
+                  }
+                  data_type {
+                    boolean_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "decimal_"
+                    }
+                  }
+                  data_type {
+                    decimal_type {
+                      precision: 38
+                      scale: 18
+                    }
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "str_"
+                    }
+                  }
+                  data_type {
+                    string_type {
+                      length {
+                      }
+                    }
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "bytes_"
+                    }
+                  }
+                  data_type {
+                    binary_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "bytearray_"
+                    }
+                  }
+                  data_type {
+                    binary_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
+          }
+        }
+        parallel: 4
+        src {
+          end_column: 9
+          end_line: 171
+          file: 2
+          start_column: 18
+          start_line: 167
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "my_udtf"
+    }
+    uid: 31
+  }
+}
+body {
+  bind {
+    expr {
+      apply_expr {
+        fn {
+          fn_ref {
+            id: 31
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 22
+                  end_line: 174
+                  file: 2
+                  start_column: 16
+                  start_line: 174
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 22
+              end_line: 174
+              file: 2
+              start_column: 16
+              start_line: 174
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              float64_val {
+                src {
+                  end_column: 24
+                  end_line: 175
+                  file: 2
+                  start_column: 16
+                  start_line: 175
+                }
+                v: 2.2
+              }
+            }
+            src {
+              end_column: 24
+              end_line: 175
+              file: 2
+              start_column: 16
+              start_line: 175
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  end_column: 25
+                  end_line: 176
+                  file: 2
+                  start_column: 16
+                  start_line: 176
+                }
+                v: true
+              }
+            }
+            src {
+              end_column: 25
+              end_line: 176
+              file: 2
+              start_column: 16
+              start_line: 176
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              big_decimal_val {
+                scale: -2
+                src {
+                  end_column: 44
+                  end_line: 177
+                  file: 2
+                  start_column: 16
+                  start_line: 177
+                }
+                unscaled_value: "\001M"
+              }
+            }
+            src {
+              end_column: 44
+              end_line: 177
+              file: 2
+              start_column: 16
+              start_line: 177
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 29
+                  end_line: 178
+                  file: 2
+                  start_column: 16
+                  start_line: 178
+                }
+                v: "python"
+              }
+            }
+            src {
+              end_column: 29
+              end_line: 178
+              file: 2
+              start_column: 16
+              start_line: 178
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              binary_val {
+                src {
+                  end_column: 29
+                  end_line: 179
+                  file: 2
+                  start_column: 16
+                  start_line: 179
+                }
+                v: "bytes"
+              }
+            }
+            src {
+              end_column: 29
+              end_line: 179
+              file: 2
+              start_column: 16
+              start_line: 179
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              binary_val {
+                src {
+                  end_column: 52
+                  end_line: 180
+                  file: 2
+                  start_column: 16
+                  start_line: 180
+                }
+                v: "bytearray"
+              }
+            }
+            src {
+              end_column: 52
+              end_line: 180
+              file: 2
+              start_column: 16
+              start_line: 180
+            }
+          }
+        }
+        src {
+          end_column: 13
+          end_line: 181
+          file: 2
+          start_column: 12
+          start_line: 173
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 32
+  }
+}
+body {
+  bind {
+    expr {
+      session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 32
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 182
+              file: 2
+              start_column: 13
+              start_line: 172
+            }
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 182
+          file: 2
+          start_column: 13
+          start_line: 172
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 33
   }
 }
 client_ast_version: 1
@@ -1903,5 +3130,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
+  minor: 30
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

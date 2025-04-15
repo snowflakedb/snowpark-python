@@ -2,6 +2,10 @@
 
 df = session.create_dataframe([(1, 1),(1, 2),(2, 1),(2, 2),(3, 1),(3, 2)], schema=["a", "b"])
 
+df.group_by("a").min("b").collect()
+
+df.group_by("a").max("b").collect()
+
 df.group_by("a").median("b").collect()
 
 df.group_by("a").function("avg")("b").collect()
@@ -26,8 +30,7 @@ df.group_by("location").apply_in_pandas(convert,
 
 df = session.create_dataframe([(1, 'A', 10000, 'JAN'), (1, 'B', 400, 'JAN'), (1, 'B', 5000, 'FEB')], schema=['empid', 'team', 'amount', 'month'])
 
-# Does not work because __getitem__ is missing.
-# df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
+df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").sort(df["empid"]).show()
 
 df.group_by("empid").pivot("month", ['JAN', 'FEB']).sum("amount").show()
 
@@ -37,23 +40,29 @@ df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team"
 
 df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
 
+df.group_by("a").min("b").collect()
+
+df.group_by("a").max("b").collect()
+
 df.group_by("a").median("b").collect()
 
 df.group_by("a").avg("b").collect()
 
-res8 = df.group_by("a").count()
+res14 = df.group_by("a").count()
 
 df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)], schema=["location", "temp_c"])
 
-res10 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+res16 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
-df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
+df.group_by("location").apply_in_pandas(convert, StructType(fields=[StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
 
 df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
 
+df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").sort(df["empid"]).show()
+
 df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").show()
 
-df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team").show()
+df.group_by(["empid", "team"]).pivot("month", values=None).sum("amount").sort("empid", "team").show()
 
 ## EXPECTED ENCODED AST
 
@@ -67,7 +76,7 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -299,17 +308,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_group_by {
         cols {
@@ -329,9 +336,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -343,24 +348,22 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       relational_grouped_dataframe_builtin {
-        agg_name: "median"
+        agg_name: "min"
         cols {
           args {
             string_val {
               src {
-                end_column: 36
+                end_column: 33
                 end_line: 27
                 file: 2
                 start_column: 8
@@ -373,13 +376,11 @@ body {
         }
         grouped_df {
           relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+            id: 2
           }
         }
         src {
-          end_column: 36
+          end_column: 33
           end_line: 27
           file: 2
           start_column: 8
@@ -387,25 +388,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 3
+        df {
+          dataframe_ref {
+            id: 3
+          }
         }
         src {
-          end_column: 46
+          end_column: 43
           end_line: 27
           file: 2
           start_column: 8
@@ -413,24 +414,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
   eval {
-    uid: 5
-    var_id {
-      bitfield1: 4
-    }
+    bind_id: 4
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_group_by {
         cols {
@@ -450,9 +446,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -464,24 +458,22 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
+    uid: 5
   }
 }
 body {
-  assign {
+  bind {
     expr {
       relational_grouped_dataframe_builtin {
-        agg_name: "avg"
+        agg_name: "max"
         cols {
           args {
             string_val {
               src {
-                end_column: 45
+                end_column: 33
                 end_line: 29
                 file: 2
                 start_column: 8
@@ -494,13 +486,11 @@ body {
         }
         grouped_df {
           relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 6
-            }
+            id: 5
           }
         }
         src {
-          end_column: 45
+          end_column: 33
           end_line: 29
           file: 2
           start_column: 8
@@ -508,25 +498,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 7
-    var_id {
-      bitfield1: 7
-    }
+    uid: 6
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 7
+        df {
+          dataframe_ref {
+            id: 6
+          }
         }
         src {
-          end_column: 55
+          end_column: 43
           end_line: 29
           file: 2
           start_column: 8
@@ -534,24 +524,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 7
   }
 }
 body {
   eval {
-    uid: 9
-    var_id {
-      bitfield1: 8
-    }
+    bind_id: 7
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_group_by {
         cols {
@@ -571,9 +556,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -585,28 +568,39 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 10
-    var_id {
-      bitfield1: 10
-    }
+    uid: 8
   }
 }
 body {
-  assign {
+  bind {
     expr {
       relational_grouped_dataframe_builtin {
-        agg_name: "count"
+        agg_name: "median"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 36
+                end_line: 31
+                file: 2
+                start_column: 8
+                start_line: 31
+              }
+              v: "b"
+            }
+          }
+          variadic: true
+        }
         grouped_df {
           relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 10
-            }
+            id: 8
           }
         }
         src {
-          end_column: 32
+          end_column: 36
           end_line: 31
           file: 2
           start_column: 8
@@ -614,16 +608,219 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
+    uid: 9
   }
 }
 body {
-  assign {
+  bind {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 9
+          }
+        }
+        src {
+          end_column: 46
+          end_line: 31
+          file: 2
+          start_column: 8
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 10
+  }
+}
+body {
+  eval {
+    bind_id: 10
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 24
+                end_line: 33
+                file: 2
+                start_column: 8
+                start_line: 33
+              }
+              v: "a"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 24
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 11
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_builtin {
+        agg_name: "avg"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 45
+                end_line: 33
+                file: 2
+                start_column: 8
+                start_line: 33
+              }
+              v: "b"
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 11
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 12
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 12
+          }
+        }
+        src {
+          end_column: 55
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 13
+  }
+}
+body {
+  eval {
+    bind_id: 13
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 24
+                end_line: 35
+                file: 2
+                start_column: 8
+                start_line: 35
+              }
+              v: "a"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 24
+          end_line: 35
+          file: 2
+          start_column: 8
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 14
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_builtin {
+        agg_name: "count"
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 14
+          }
+        }
+        src {
+          end_column: 32
+          end_line: 35
+          file: 2
+          start_column: 8
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 15
+  }
+}
+body {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -632,19 +829,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "SF"
                   }
@@ -653,10 +850,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 21.0
                   }
@@ -667,19 +864,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "SF"
                   }
@@ -688,10 +885,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 17.5
                   }
@@ -702,19 +899,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "SF"
                   }
@@ -723,10 +920,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 24.0
                   }
@@ -737,19 +934,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "NY"
                   }
@@ -758,10 +955,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 30.9
                   }
@@ -772,19 +969,19 @@ body {
               tuple_val {
                 src {
                   end_column: 46
-                  end_line: 41
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 40
+                  start_line: 44
                 }
                 vs {
                   string_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: "NY"
                   }
@@ -793,10 +990,10 @@ body {
                   float64_val {
                     src {
                       end_column: 46
-                      end_line: 41
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 40
+                      start_line: 44
                     }
                     v: 33.6
                   }
@@ -813,24 +1010,22 @@ body {
         }
         src {
           end_column: 46
-          end_line: 41
+          end_line: 45
           file: 2
           start_column: 13
-          start_line: 40
+          start_line: 44
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
-    uid: 12
-    var_id {
-      bitfield1: 12
-    }
+    uid: 16
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_group_by {
         cols {
@@ -838,10 +1033,10 @@ body {
             string_val {
               src {
                 end_column: 31
-                end_line: 43
+                end_line: 47
                 file: 2
                 start_column: 8
-                start_line: 43
+                start_line: 47
               }
               v: "location"
             }
@@ -850,30 +1045,26 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 12
-            }
+            id: 16
           }
         }
         src {
           end_column: 31
-          end_line: 43
+          end_line: 47
           file: 2
           start_column: 8
-          start_line: 43
+          start_line: 47
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 13
-    var_id {
-      bitfield1: 13
-    }
+    uid: 17
   }
 }
 body {
-  assign {
+  bind {
     expr {
       udtf {
         handler {
@@ -887,14 +1078,40 @@ body {
           }
         }
         input_types {
-          list {
-            string_type {
-              length {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          float_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 75
+                end_line: 50
+                file: 2
+                start_column: 8
+                start_line: 47
               }
             }
           }
-          list {
-            float_type: true
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 75
+                end_line: 50
+                file: 2
+                start_column: 8
+                start_line: 47
+              }
+            }
           }
         }
         kwargs {
@@ -903,10 +1120,24 @@ body {
             bool_val {
               src {
                 end_column: 75
-                end_line: 46
+                end_line: 50
                 file: 2
                 start_column: 8
-                start_line: 43
+                start_line: 47
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 75
+                end_line: 50
+                file: 2
+                start_column: 8
+                start_line: 47
               }
             }
           }
@@ -937,23 +1168,21 @@ body {
         parallel: 4
         src {
           end_column: 75
-          end_line: 46
+          end_line: 50
           file: 2
           start_column: 8
-          start_line: 43
+          start_line: 47
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 14
-    var_id {
-      bitfield1: 14
-    }
+    uid: 18
   }
 }
 body {
-  assign {
+  bind {
     expr {
       relational_grouped_dataframe_apply_in_pandas {
         func {
@@ -962,9 +1191,7 @@ body {
         }
         grouped_df {
           relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 13
-            }
+            id: 17
           }
         }
         kwargs {
@@ -973,10 +1200,10 @@ body {
             list_val {
               src {
                 end_column: 75
-                end_line: 46
+                end_line: 50
                 file: 2
                 start_column: 8
-                start_line: 43
+                start_line: 47
               }
               vs {
                 datatype_val {
@@ -988,10 +1215,10 @@ body {
                   }
                   src {
                     end_column: 75
-                    end_line: 46
+                    end_line: 50
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 47
                   }
                 }
               }
@@ -1002,10 +1229,10 @@ body {
                   }
                   src {
                     end_column: 75
-                    end_line: 46
+                    end_line: 50
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 47
                   }
                 }
               }
@@ -1018,19 +1245,19 @@ body {
             list_val {
               src {
                 end_column: 75
-                end_line: 46
+                end_line: 50
                 file: 2
                 start_column: 8
-                start_line: 43
+                start_line: 47
               }
               vs {
                 string_val {
                   src {
                     end_column: 75
-                    end_line: 46
+                    end_line: 50
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 47
                   }
                   v: "LOCATION"
                 }
@@ -1039,10 +1266,10 @@ body {
                 string_val {
                   src {
                     end_column: 75
-                    end_line: 46
+                    end_line: 50
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 47
                   }
                   v: "TEMP_C"
                 }
@@ -1052,63 +1279,59 @@ body {
         }
         output_schema {
           fields {
-            list {
-              column_identifier {
-                column_name {
-                  name: "location"
-                }
+            column_identifier {
+              column_name {
+                name: "location"
               }
-              data_type {
-                string_type {
-                  length {
-                  }
-                }
-              }
-              nullable: true
             }
-            list {
-              column_identifier {
-                column_name {
-                  name: "temp_c"
+            data_type {
+              string_type {
+                length {
                 }
               }
-              data_type {
-                float_type: true
-              }
-              nullable: true
             }
-            list {
-              column_identifier {
-                column_name {
-                  name: "temp_f"
-                }
+            nullable: true
+          }
+          fields {
+            column_identifier {
+              column_name {
+                name: "temp_c"
               }
-              data_type {
-                float_type: true
-              }
-              nullable: true
             }
+            data_type {
+              float_type: true
+            }
+            nullable: true
+          }
+          fields {
+            column_identifier {
+              column_name {
+                name: "temp_f"
+              }
+            }
+            data_type {
+              float_type: true
+            }
+            nullable: true
           }
         }
         src {
           end_column: 75
-          end_line: 46
+          end_line: 50
           file: 2
           start_column: 8
-          start_line: 43
+          start_line: 47
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 15
-    var_id {
-      bitfield1: 15
-    }
+    uid: 19
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_sort {
         cols {
@@ -1116,10 +1339,10 @@ body {
             string_val {
               src {
                 end_column: 94
-                end_line: 46
+                end_line: 50
                 file: 2
                 start_column: 76
-                start_line: 46
+                start_line: 50
               }
               v: "temp_c"
             }
@@ -1128,64 +1351,57 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 15
-            }
+            id: 19
           }
         }
         src {
           end_column: 94
-          end_line: 46
+          end_line: 50
           file: 2
           start_column: 76
-          start_line: 46
+          start_line: 50
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 16
-    var_id {
-      bitfield1: 16
-    }
+    uid: 20
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_collect {
         block: true
         case_sensitive: true
-        id {
-          bitfield1: 16
+        df {
+          dataframe_ref {
+            id: 20
+          }
         }
         src {
           end_column: 104
-          end_line: 46
+          end_line: 50
           file: 2
           start_column: 95
-          start_line: 46
+          start_line: 50
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 17
-    var_id {
-      bitfield1: 17
-    }
+    uid: 21
   }
 }
 body {
   eval {
-    uid: 18
-    var_id {
-      bitfield1: 17
-    }
+    bind_id: 21
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -1194,19 +1410,19 @@ body {
               tuple_val {
                 src {
                   end_column: 153
-                  end_line: 49
+                  end_line: 53
                   file: 2
                   start_column: 13
-                  start_line: 49
+                  start_line: 53
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 1
                   }
@@ -1215,10 +1431,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "A"
                   }
@@ -1227,10 +1443,10 @@ body {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 10000
                   }
@@ -1239,10 +1455,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "JAN"
                   }
@@ -1253,19 +1469,19 @@ body {
               tuple_val {
                 src {
                   end_column: 153
-                  end_line: 49
+                  end_line: 53
                   file: 2
                   start_column: 13
-                  start_line: 49
+                  start_line: 53
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 1
                   }
@@ -1274,10 +1490,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "B"
                   }
@@ -1286,10 +1502,10 @@ body {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 400
                   }
@@ -1298,10 +1514,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "JAN"
                   }
@@ -1312,19 +1528,19 @@ body {
               tuple_val {
                 src {
                   end_column: 153
-                  end_line: 49
+                  end_line: 53
                   file: 2
                   start_column: 13
-                  start_line: 49
+                  start_line: 53
                 }
                 vs {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 1
                   }
@@ -1333,10 +1549,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "B"
                   }
@@ -1345,10 +1561,10 @@ body {
                   int64_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: 5000
                   }
@@ -1357,10 +1573,10 @@ body {
                   string_val {
                     src {
                       end_column: 153
-                      end_line: 49
+                      end_line: 53
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 53
                     }
                     v: "FEB"
                   }
@@ -1379,24 +1595,22 @@ body {
         }
         src {
           end_column: 153
-          end_line: 49
+          end_line: 53
           file: 2
           start_column: 13
-          start_line: 49
+          start_line: 53
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
-    uid: 19
-    var_id {
-      bitfield1: 19
-    }
+    uid: 22
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_group_by {
         cols {
@@ -1404,10 +1618,10 @@ body {
             string_val {
               src {
                 end_column: 28
-                end_line: 54
+                end_line: 55
                 file: 2
                 start_column: 8
-                start_line: 54
+                start_line: 55
               }
               v: "empid"
             }
@@ -1416,109 +1630,97 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 19
-            }
+            id: 22
           }
         }
         src {
           end_column: 28
-          end_line: 54
+          end_line: 55
           file: 2
           start_column: 8
-          start_line: 54
+          start_line: 55
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 20
-    var_id {
-      bitfield1: 20
-    }
+    uid: 23
   }
 }
 body {
-  assign {
+  bind {
     expr {
       relational_grouped_dataframe_pivot {
         grouped_df {
           relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 20
-            }
+            id: 23
           }
         }
         pivot_col {
           string_val {
             src {
               end_column: 59
-              end_line: 54
+              end_line: 55
               file: 2
               start_column: 8
-              start_line: 54
+              start_line: 55
             }
             v: "month"
           }
         }
         src {
           end_column: 59
-          end_line: 54
+          end_line: 55
           file: 2
           start_column: 8
-          start_line: 54
+          start_line: 55
         }
         values {
-          pivot_value__expr {
-            v {
-              list_val {
+          list_val {
+            src {
+              end_column: 59
+              end_line: 55
+              file: 2
+              start_column: 8
+              start_line: 55
+            }
+            vs {
+              string_val {
                 src {
                   end_column: 59
-                  end_line: 54
+                  end_line: 55
                   file: 2
                   start_column: 8
-                  start_line: 54
+                  start_line: 55
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 59
-                      end_line: 54
-                      file: 2
-                      start_column: 8
-                      start_line: 54
-                    }
-                    v: "JAN"
-                  }
+                v: "JAN"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 59
+                  end_line: 55
+                  file: 2
+                  start_column: 8
+                  start_line: 55
                 }
-                vs {
-                  string_val {
-                    src {
-                      end_column: 59
-                      end_line: 54
-                      file: 2
-                      start_column: 8
-                      start_line: 54
-                    }
-                    v: "FEB"
-                  }
-                }
+                v: "FEB"
               }
             }
           }
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 21
-    var_id {
-      bitfield1: 21
-    }
+    uid: 24
   }
 }
 body {
-  assign {
+  bind {
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "sum"
@@ -1527,10 +1729,10 @@ body {
             string_val {
               src {
                 end_column: 73
-                end_line: 54
+                end_line: 55
                 file: 2
                 start_column: 8
-                start_line: 54
+                start_line: 55
               }
               v: "amount"
             }
@@ -1539,56 +1741,280 @@ body {
         }
         grouped_df {
           relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 21
-            }
+            id: 24
           }
         }
         src {
           end_column: 73
-          end_line: 54
+          end_line: 55
           file: 2
           start_column: 8
-          start_line: 54
+          start_line: 55
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 22
-    var_id {
-      bitfield1: 22
-    }
+    uid: 25
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      dataframe_show {
-        id {
-          bitfield1: 22
+      dataframe_sort {
+        cols {
+          args {
+            dataframe_col {
+              col_name: "empid"
+              df {
+                dataframe_ref {
+                  id: 22
+                }
+              }
+              src {
+                end_column: 90
+                end_line: 55
+                file: 2
+                start_column: 79
+                start_line: 55
+              }
+            }
+          }
+          variadic: true
         }
-        n: 10
+        df {
+          dataframe_ref {
+            id: 25
+          }
+        }
+        src {
+          end_column: 91
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 23
-    var_id {
-      bitfield1: 23
+    uid: 26
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_show {
+        df {
+          dataframe_ref {
+            id: 26
+          }
+        }
+        n: 10
+        src {
+          end_column: 98
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
+      }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 27
   }
 }
 body {
   eval {
-    uid: 24
-    var_id {
-      bitfield1: 23
-    }
+    bind_id: 27
   }
 }
 body {
-  assign {
+  bind {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 28
+                end_line: 57
+                file: 2
+                start_column: 8
+                start_line: 57
+              }
+              v: "empid"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 22
+          }
+        }
+        src {
+          end_column: 28
+          end_line: 57
+          file: 2
+          start_column: 8
+          start_line: 57
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 28
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_pivot {
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 28
+          }
+        }
+        pivot_col {
+          string_val {
+            src {
+              end_column: 59
+              end_line: 57
+              file: 2
+              start_column: 8
+              start_line: 57
+            }
+            v: "month"
+          }
+        }
+        src {
+          end_column: 59
+          end_line: 57
+          file: 2
+          start_column: 8
+          start_line: 57
+        }
+        values {
+          list_val {
+            src {
+              end_column: 59
+              end_line: 57
+              file: 2
+              start_column: 8
+              start_line: 57
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 59
+                  end_line: 57
+                  file: 2
+                  start_column: 8
+                  start_line: 57
+                }
+                v: "JAN"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 59
+                  end_line: 57
+                  file: 2
+                  start_column: 8
+                  start_line: 57
+                }
+                v: "FEB"
+              }
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 29
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_builtin {
+        agg_name: "sum"
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 73
+                end_line: 57
+                file: 2
+                start_column: 8
+                start_line: 57
+              }
+              v: "amount"
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 29
+          }
+        }
+        src {
+          end_column: 73
+          end_line: 57
+          file: 2
+          start_column: 8
+          start_line: 57
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 30
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_show {
+        df {
+          dataframe_ref {
+            id: 30
+          }
+        }
+        n: 10
+        src {
+          end_column: 80
+          end_line: 57
+          file: 2
+          start_column: 8
+          start_line: 57
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 31
+  }
+}
+body {
+  eval {
+    bind_id: 31
+  }
+}
+body {
+  bind {
     expr {
       dataframe_group_by {
         cols {
@@ -1596,10 +2022,10 @@ body {
             string_val {
               src {
                 end_column: 38
-                end_line: 56
+                end_line: 59
                 file: 2
                 start_column: 8
-                start_line: 56
+                start_line: 59
               }
               v: "empid"
             }
@@ -1608,10 +2034,10 @@ body {
             string_val {
               src {
                 end_column: 38
-                end_line: 56
+                end_line: 59
                 file: 2
                 start_column: 8
-                start_line: 56
+                start_line: 59
               }
               v: "team"
             }
@@ -1619,70 +2045,73 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 19
-            }
+            id: 22
           }
         }
         src {
           end_column: 38
-          end_line: 56
+          end_line: 59
           file: 2
           start_column: 8
-          start_line: 56
+          start_line: 59
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 25
-    var_id {
-      bitfield1: 25
-    }
+    uid: 32
   }
 }
 body {
-  assign {
+  bind {
     expr {
       relational_grouped_dataframe_pivot {
         grouped_df {
           relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 25
-            }
+            id: 32
           }
         }
         pivot_col {
           string_val {
             src {
               end_column: 53
-              end_line: 56
+              end_line: 59
               file: 2
               start_column: 8
-              start_line: 56
+              start_line: 59
             }
             v: "month"
           }
         }
         src {
           end_column: 53
-          end_line: 56
+          end_line: 59
           file: 2
           start_column: 8
-          start_line: 56
+          start_line: 59
+        }
+        values {
+          null_val {
+            src {
+              end_column: 53
+              end_line: 59
+              file: 2
+              start_column: 8
+              start_line: 59
+            }
+          }
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 26
-    var_id {
-      bitfield1: 26
-    }
+    uid: 33
   }
 }
 body {
-  assign {
+  bind {
     expr {
       relational_grouped_dataframe_builtin {
         agg_name: "sum"
@@ -1691,10 +2120,10 @@ body {
             string_val {
               src {
                 end_column: 67
-                end_line: 56
+                end_line: 59
                 file: 2
                 start_column: 8
-                start_line: 56
+                start_line: 59
               }
               v: "amount"
             }
@@ -1703,30 +2132,26 @@ body {
         }
         grouped_df {
           relational_grouped_dataframe_ref {
-            id {
-              bitfield1: 26
-            }
+            id: 33
           }
         }
         src {
           end_column: 67
-          end_line: 56
+          end_line: 59
           file: 2
           start_column: 8
-          start_line: 56
+          start_line: 59
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 27
-    var_id {
-      bitfield1: 27
-    }
+    uid: 34
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_sort {
         cols {
@@ -1734,10 +2159,10 @@ body {
             string_val {
               src {
                 end_column: 89
-                end_line: 56
+                end_line: 59
                 file: 2
                 start_column: 8
-                start_line: 56
+                start_line: 59
               }
               v: "empid"
             }
@@ -1746,10 +2171,10 @@ body {
             string_val {
               src {
                 end_column: 89
-                end_line: 56
+                end_line: 59
                 file: 2
                 start_column: 8
-                start_line: 56
+                start_line: 59
               }
               v: "team"
             }
@@ -1758,52 +2183,52 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 27
-            }
+            id: 34
           }
         }
         src {
           end_column: 89
-          end_line: 56
+          end_line: 59
           file: 2
           start_column: 8
-          start_line: 56
+          start_line: 59
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 28
-    var_id {
-      bitfield1: 28
-    }
+    uid: 35
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_show {
-        id {
-          bitfield1: 28
+        df {
+          dataframe_ref {
+            id: 35
+          }
         }
         n: 10
+        src {
+          end_column: 96
+          end_line: 59
+          file: 2
+          start_column: 8
+          start_line: 59
+        }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 29
-    var_id {
-      bitfield1: 29
-    }
+    uid: 36
   }
 }
 body {
   eval {
-    uid: 30
-    var_id {
-      bitfield1: 29
-    }
+    bind_id: 36
   }
 }
 client_ast_version: 1
@@ -1819,5 +2244,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
+  minor: 30
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

@@ -3,7 +3,7 @@
 #
 from enum import Enum
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression, Star
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeValues,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
+from snowflake.snowpark._internal.utils import ExprAliasUpdateDict
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -46,7 +47,9 @@ class PlanMetadata:
 def infer_quoted_identifiers_from_expressions(
     expressions: List[Expression],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
 ) -> Optional[List[str]]:
     """
     Infer quoted identifiers from (named) expressions.
@@ -76,7 +79,9 @@ def infer_quoted_identifiers_from_expressions(
 def infer_metadata(
     source_plan: Optional[LogicalPlan],
     analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    df_aliased_col_name_to_real_col_name: Union[
+        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+    ],
 ) -> PlanMetadata:
     """
     Infer metadata from the source plan.
