@@ -157,6 +157,7 @@ from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
     register_pd_accessor,
     register_series_accessor,
     register_dataframe_accessor,
+    register_base_accessor,
 )
 from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
 from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402,F401
@@ -175,30 +176,11 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
 _TELEMETRY_BLACKLIST = ("modin",)
 
 
-def _get_df_or_series_attr(cls: Union[DataFrame, Series], name: str) -> Any:
-    # If we already defined the method via the extensions system, then we need to retrieve it from
-    # the extensions dictionary directly to circumvent modin's caster dispatch wrapper.
-    # Note that unlike prior versions of Snowpark pandas, we check BasePandasDataset's extensions
-    # ONLY if the method was not already defined on Series/DataFrame.
-    # Note that inherited methods are not present in a subclass's __dict__.
-    if name in cls.__dict__:
-        attr_value = cls._extensions["Snowflake"].get(name, getattr(cls, name))
-    else:
-        # if the attribute isn't in __dict__, it was defined on BasePandasDataset
-        attr_value = BasePandasDataset._extensions["Snowflake"].get(
-            name, getattr(cls, name)
-        )
-    # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
-    # backend, we must use the __wrapped__ property of the originally-defined attribute to avoid
-    # infinite recursion.
-    if hasattr(attr_value, "__wrapped__"):
-        attr_value = attr_value.__wrapped__
-    return attr_value
-
-
-for attr_name in dir(Series):
-    # Since Series is defined in upstream Modin, all of its members were either defined upstream
-    # or overridden by extension.
+def _maybe_apply_telemetry(
+    cls: Union[DataFrame, Series, BasePandasDataset],
+    register_method: callable,
+    attr_name: str,
+) -> Any:
     if (
         attr_name not in _TELEMETRY_BLACKLIST
         and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
@@ -206,27 +188,44 @@ for attr_name in dir(Series):
             not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
         )
     ):
-        register_series_accessor(attr_name, backend="Snowflake")(
-            try_add_telemetry_to_attribute(
-                attr_name, _get_df_or_series_attr(Series, attr_name)
-            )
+        # If we already defined the method via the extensions system, then we need to retrieve it from
+        # the extensions dictionary directly to circumvent modin's caster dispatch wrapper. If the
+        # method was not defined by extension, then just use the original upstream definition.
+        # Note that unlike prior versions of Snowpark pandas, we check BasePandasDataset extensions
+        # separately from child Series/DataFrame extensions.
+        attr_value = cls._extensions["Snowflake"].get(
+            attr_name, getattr(cls, attr_name)
+        )
+        # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
+        # backend, we must use the __wrapped__ property of the originally-defined attribute to avoid
+        # infinite recursion.
+        if hasattr(attr_value, "__wrapped__"):
+            attr_value = attr_value.__wrapped__
+
+        register_method(attr_name, backend="Snowflake")(
+            try_add_telemetry_to_attribute(attr_name, attr_value)
         )
 
-for attr_name in dir(DataFrame):
-    # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
-    # or overridden by extension.
+
+# Iterating over __dict__ will skip over any methods defined by BasePandasDataset, while
+# still picking up methods like to_Snowflake defined via the extensions system.
+for attr_name in Series.__dict__:
+    _maybe_apply_telemetry(Series, register_series_accessor, attr_name)
+
+for attr_name in DataFrame.__dict__:
+    _maybe_apply_telemetry(DataFrame, register_dataframe_accessor, attr_name)
+
+for attr_name in BasePandasDataset.__dict__:
+    # To prevent double-counting of APIs, only record telemetry if Series/DataFrame BOTH do not
+    # define the method as extensions themselves. This will create underreporting in certain edge cases
+    # where BasePandasDataset and DataFrame define both a method but Series does not, but few APIs
+    # are affected by this.
     if (
-        attr_name not in _TELEMETRY_BLACKLIST
-        and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
-        and (
-            not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
-        )
+        attr_name not in DataFrame._extensions["Snowflake"]
+        and attr_name not in Series._extensions["Snowflake"]
     ):
-        register_dataframe_accessor(attr_name, backend="Snowflake")(
-            try_add_telemetry_to_attribute(
-                attr_name, _get_df_or_series_attr(DataFrame, attr_name)
-            )
-        )
+        _maybe_apply_telemetry(BasePandasDataset, register_base_accessor, attr_name)
+
 
 # Apply telemetry to all top-level functions in the pd namespace.
 
@@ -247,7 +246,7 @@ for attr_name in dir(modin.pandas):
             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
         )
 
-del _get_df_or_series_attr
+del _maybe_apply_telemetry
 
 # enable Modin's metrics system to collect API data for hybrid execution in parallel with
 # Snowpark-pandas specific information
