@@ -4,6 +4,7 @@
 
 # this module houses classes for IO and interacting with Snowflake engine
 
+from contextlib import contextmanager
 import os
 import tempfile
 
@@ -161,12 +162,13 @@ def _validate_read_staged_csv_and_read_table_args(fn_name, **kwargs):
         warn_not_supported_parameter(kw, parameter_set, fn_name)
 
 
-def _download_file_from_stage(filepath_or_buffer, local_temp_dir):
+@contextmanager
+def _file_from_stage(filepath_or_buffer):
     session = get_active_session()
-    session.file.get(filepath_or_buffer, local_temp_dir)
-    _, stripped_filepath = extract_stage_name_and_prefix(filepath_or_buffer)
-    local_filepath = os.path.join(local_temp_dir, stripped_filepath)
-    return local_filepath
+    with tempfile.TemporaryDirectory() as local_temp_dir:
+        session.file.get(filepath_or_buffer, local_temp_dir)
+        _, stripped_filepath = extract_stage_name_and_prefix(filepath_or_buffer)
+        yield os.path.join(local_temp_dir, stripped_filepath)
 
 
 class PandasOnSnowflakeIO(BaseIO):
@@ -622,13 +624,9 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         io = kwargs["io"]
         if is_snowflake_stage_path(io):
-            with tempfile.TemporaryDirectory() as local_temp_dir:
-                local_filepath = _download_file_from_stage(
-                    io,
-                    local_temp_dir,
-                )
+            with _file_from_stage(io) as local_filepath:
                 kwargs["io"] = local_filepath
-                # We have to return here because the temp directory is deleted
+                # We have to return here because the temp file is deleted
                 # after exiting this block
                 return [cls.from_pandas(df) for df in pandas.read_html(**kwargs)]
 
@@ -641,13 +639,9 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         path_or_buffer = kwargs["path_or_buffer"]
         if is_snowflake_stage_path(path_or_buffer):
-            with tempfile.TemporaryDirectory() as local_temp_dir:
-                local_filepath = _download_file_from_stage(
-                    path_or_buffer,
-                    local_temp_dir,
-                )
+            with _file_from_stage(path_or_buffer) as local_filepath:
                 kwargs["path_or_buffer"] = local_filepath
-                # We have to return here because the temp directory is deleted
+                # We have to return here because the temp file is deleted
                 # after exiting this block
                 return cls.from_pandas(pandas.read_xml(**kwargs))
 
@@ -701,13 +695,9 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         filepath_or_buffer = kwargs["filepath_or_buffer"]
         if is_snowflake_stage_path(filepath_or_buffer):
-            with tempfile.TemporaryDirectory() as local_temp_dir:
-                local_filepath = _download_file_from_stage(
-                    filepath_or_buffer,
-                    local_temp_dir,
-                )
+            with _file_from_stage(filepath_or_buffer) as local_filepath:
                 kwargs["filepath_or_buffer"] = local_filepath
-                # We have to return here because the temp directory is deleted
+                # We have to return here because the temp file is deleted
                 # after exiting this block
                 return cls.from_pandas(pandas.read_sas(**kwargs))
 
