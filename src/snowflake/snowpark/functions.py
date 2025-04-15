@@ -208,7 +208,6 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     validate_object_name,
     check_create_map_parameter,
-    deprecated,
     private_preview,
     validate_stage_location,
 )
