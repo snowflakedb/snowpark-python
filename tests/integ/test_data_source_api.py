@@ -585,9 +585,9 @@ def test_database_detector():
 def test_type_conversion():
     invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
     with pytest.raises(NotImplementedError, match="sql server type not supported"):
-        PyodbcDriver(sql_server_create_connection).to_snow_type(
-            [("test_col", invalid_type, None, None, 0, 0, True)]
-        )
+        PyodbcDriver(
+            sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
+        ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
 
     with pytest.raises(NotImplementedError, match="oracledb type not supported"):
         OracledbDriver(oracledb_create_connection).to_snow_type([invalid_type])
@@ -774,7 +774,9 @@ def test_empty_table(session):
 
 
 def test_oracledb_driver_coverage(caplog):
-    oracledb_driver = OracledbDriver(oracledb_create_connection_small_data)
+    oracledb_driver = OracledbDriver(
+        oracledb_create_connection_small_data, DBMS_TYPE.ORACLE_DB
+    )
     conn = oracledb_driver.prepare_connection(oracledb_driver.create_connection(), 0)
     assert conn.outputtypehandler == output_type_handler
 
