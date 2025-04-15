@@ -590,7 +590,9 @@ def test_type_conversion():
         ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
 
     with pytest.raises(NotImplementedError, match="oracledb type not supported"):
-        OracledbDriver(oracledb_create_connection).to_snow_type([invalid_type])
+        OracledbDriver(oracledb_create_connection, DBMS_TYPE.ORACLE_DB).to_snow_type(
+            [invalid_type]
+        )
 
 
 def test_custom_schema_false(session):
