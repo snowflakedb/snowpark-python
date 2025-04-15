@@ -126,6 +126,10 @@ def test_generate_random_alphanumeric():
             '"quoted with ""embedded.and.some.dots"" quotes escaped".end',
             ['"quoted with ""embedded.and.some.dots"" quotes escaped"', "end"],
         ),
+        (
+            '"open.quotes.end',
+            ['"open', "quotes", "end"],
+        ),
     ],
 )
 def test_split_dot_string(string, expected_result):
