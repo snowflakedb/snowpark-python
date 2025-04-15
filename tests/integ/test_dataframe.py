@@ -1962,6 +1962,9 @@ def test_show_dataframe_spark(session):
             bytearray("a", "utf-16"),
         ],
         {"a": "foo"},
+        {"Street": "123 Elm St", "ZipCode": 12345},
+        [1, 2, 3],
+        {"a": "foo"},
     ]
 
     with structured_types_enabled_session(session) as session:
@@ -1982,6 +1985,17 @@ def test_show_dataframe_spark(session):
                 StructField("col_13", ArrayType(IntegerType())),
                 StructField("col_14", ArrayType(BinaryType())),
                 StructField("col_15", MapType(StringType(), StringType())),
+                StructField(
+                    "col_16",
+                    StructType(
+                        [
+                            StructField("Street", StringType(), True),
+                            StructField("ZipCode", IntegerType(), True),
+                        ]
+                    ),
+                ),
+                StructField("col_17", ArrayType()),
+                StructField("col_18", MapType()),
             ]
         )
         df = session.create_dataframe([data], schema=schema)
@@ -1990,41 +2004,43 @@ def test_show_dataframe_spark(session):
         def assert_show_string_equals(actual: str, expected: str):
             actual_lines = actual.strip().split("\n")
             expected_lines = expected.strip().split("\n")
+            if len(actual_lines) != len(expected_lines):
+                print(
+                    f"\nactual_lines:\n{actual_lines}\nexpected_lines:\n{expected_lines}"
+                )
+                pytest.fail()
             for a, e in zip(actual_lines, expected_lines):
                 if a.strip() != e.strip():
                     print(f"\nactual:\n{actual}\nexpected:{expected}")
                     pytest.fail()
 
         assert_show_string_equals(
-            df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
+            df._show_string_spark().strip(),
             dedent(
                 """
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+
-            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|            "COL_11"|"COL_12"| "COL_13"|            "COL_14"|  "COL_15"|
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+
-            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [61]|[FF FE 61 00 62 0...|       1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|            "COL_11"|"COL_12"| "COL_13"|            "COL_14"|  "COL_15"|           "COL_16"|            "COL_17"|          "COL_18"|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [61]|[FF FE 61 00 62 0...|       1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
             """
             ),
         )
         assert_show_string_equals(
-            df._show_string_spark(
-                _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
-            ),
+            df._show_string_spark(_spark_column_names=spark_col_names),
             dedent(
                 """
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+
-            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|              col_11|col_12|   col_13|              col_14|    col_15|
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+
-            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE 61 00 62 0...|     1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|              col_11|col_12|   col_13|              col_14|    col_15|             col_16|              col_17|            col_18|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE 61 00 62 0...|     1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 vertical=True,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2045,6 +2061,9 @@ def test_show_dataframe_spark(session):
              col_13 | [1, 2, 3]
              col_14 | [[61 62 63], [FF ...
              col_15 | {a -> foo}
+             col_16 | {123 Elm St, 12345}
+             col_17 | [\\n  1,\\n  2,\\n  ...
+             col_18 | {\\n  "a": "foo"\\n}
             """
             ),
         )
@@ -2052,7 +2071,6 @@ def test_show_dataframe_spark(session):
             df._show_string_spark(
                 vertical=True,
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2073,38 +2091,39 @@ def test_show_dataframe_spark(session):
             col_13 | [1, 2, 3]
             col_14 | [[61 62 63], [FF FE 61 00]]
             col_15 | {a -> foo}
+            col_16 | {123 Elm St, 12345}
+            col_17 | [\\n  1,\\n  2,\\n  3\\n]
+            col_18 | {\\n  "a": "foo"\\n}
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
                 """
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+
-            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11                   |col_12|col_13   |col_14                     |col_15    |
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+
-            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[61]  |[FF FE 61 00 62 00 63 00]|1     |[1, 2, 3]|[[61 62 63], [FF FE 61 00]]|{a -> foo}|
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
+            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11                   |col_12|col_13   |col_14                     |col_15    |col_16             |col_17               |col_18            |
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
+            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[61]  |[FF FE 61 00 62 00 63 00]|1     |[1, 2, 3]|[[61 62 63], [FF FE 61 00]]|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  3\\n]|{\\n  "a": "foo"\\n}|
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=10,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
                 """
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
-            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
-            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE ...|     1|[1, 2, 3]|[[61 62...|{a -> foo}|
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
+            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|    col_16|    col_17|    col_18|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
+            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE ...|     1|[1, 2, 3]|[[61 62...|{a -> foo}|{123 El...|[\\n  1,...|{\\n  "a...|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
             """
             ),
         )
@@ -4493,48 +4512,54 @@ def test_drop_columns_special_names(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="TODO: Interval Expression is not supported in Local Testing",
-)
 def test_dataframe_interval_operation(session):
     df = session.create_dataframe(
         [
-            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
-            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+            [datetime.datetime(2010, 1, 1)],
+            [datetime.datetime(2012, 1, 1)],
         ],
-        schema=["a", "b"],
+        schema=["a"],
     )
-    df2 = df.with_column(
-        "TWO_DAYS_AHEAD",
-        df["a"]
-        + make_interval(
-            years=1,
-            quarters=1,
-            months=1,
-            weeks=2,
-            days=2,
-            hours=2,
-            minutes=3,
-            seconds=3,
-            milliseconds=3,
-            microseconds=4,
-            nanoseconds=4,
-        ),
+    interval = make_interval(
+        years=1,
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+        microseconds=4,
+        nanoseconds=4,
     )
     Utils.check_answer(
-        df2,
+        df.select(df.a + interval),
         [
             Row(
-                datetime.datetime(2010, 1, 1, 0, 0, 0),
-                datetime.datetime(2011, 1, 1, 0, 0, 0),
                 datetime.datetime(2011, 5, 17, 2, 3, 3, 3004),
             ),
             Row(
-                datetime.datetime(2012, 1, 1, 0, 0, 0),
-                datetime.datetime(2013, 1, 1, 0, 0, 0),
                 datetime.datetime(2013, 5, 17, 2, 3, 3, 3004),
             ),
+        ],
+    )
+    interval = make_interval(
+        years=1,
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+    )
+    Utils.check_answer(
+        df.select(df.a - interval),
+        [
+            Row(datetime.datetime(2008, 8, 15, 21, 56, 56, 997000)),
+            Row(datetime.datetime(2010, 8, 15, 21, 56, 56, 997000)),
         ],
     )
 

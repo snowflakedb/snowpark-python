@@ -1357,11 +1357,12 @@ def test_udtf_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
 )
-# @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 @pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )

@@ -142,7 +142,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     check_agg_exprs,
     check_flatten_mode,
-    check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
@@ -1040,7 +1039,8 @@ class DataFrame:
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
         if block:
-            check_is_pandas_dataframe_in_to_pandas(result)
+            if not isinstance(result, pandas.DataFrame):
+                return pandas.DataFrame(result)
 
         return result
 
@@ -4738,13 +4738,12 @@ class DataFrame:
         truncate: Union[bool, int] = True,
         vertical: bool = False,
         _spark_column_names: List[str] = None,
-        _emit_ast: bool = True,
         **kwargs,
     ) -> str:
         """Spark's show() logic - translated from scala to python."""
         # Fetch one more rows to check whether the result is truncated.
         result, meta = self._get_result_and_meta_for_show(
-            num_rows + 1, _emit_ast, **kwargs
+            num_rows + 1, _emit_ast=False, **kwargs
         )
 
         # handle empty dataframe
@@ -4753,7 +4752,7 @@ class DataFrame:
             result = []
             _spark_column_names = []
 
-        def cell_to_str(cell: Any) -> str:
+        def cell_to_str(cell: Any, datatype: DataType) -> str:
             # Special handling for cell printing in Spark
             # TODO: this operation can be pushed down to Snowflake for execution.
             if cell is None:
@@ -4762,15 +4761,35 @@ class DataFrame:
                 res = "true" if cell else "false"
             elif isinstance(cell, bytes) or isinstance(cell, bytearray):
                 res = f"[{' '.join([format(b, '02X') for b in cell])}]"
-            elif isinstance(cell, list):
-                res = "[" + ", ".join([cell_to_str(v) for v in cell]) + "]"
-            elif isinstance(cell, dict):
+            elif isinstance(cell, list) and isinstance(datatype, ArrayType):
+                res = (
+                    "["
+                    + ", ".join(
+                        [
+                            cell_to_str(v, datatype.element_type or StringType())
+                            for v in cell
+                        ]
+                    )
+                    + "]"
+                )
+            elif isinstance(cell, dict) and isinstance(datatype, MapType):
                 res = (
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k)} -> {cell_to_str(v)}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
                             for k, v in sorted(cell.items())
+                        ]
+                    )
+                    + "}"
+                )
+            elif isinstance(cell, dict) and isinstance(datatype, StructType):
+                res = (
+                    "{"
+                    + ", ".join(
+                        [
+                            f"{cell_to_str(cell[field.name], field.datatype or StringType())}"
+                            for field in datatype.fields
                         ]
                     )
                     + "}"
@@ -4790,9 +4809,9 @@ class DataFrame:
         res_rows = []
         for res_row in result:
             processed_row = []
-            for res_cell in res_row:
+            for i, res_cell in enumerate(res_row):
                 # Convert res_cell to string and escape meta-characters
-                str_value = cell_to_str(res_cell)
+                str_value = cell_to_str(res_cell, self.schema.fields[i].datatype)
                 # Truncate string if necessary
                 if isinstance(truncate, bool):
                     truncate_length = 20 if truncate else 0

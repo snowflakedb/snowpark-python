@@ -2,13 +2,64 @@
 
 ## 1.31.0 (YYYY-MM-DD)
 
+### Snowpark pandas API Updates
+
+### Improvements
+
+- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
+- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
+
 ### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+- Added support for non-select statement in `DataFrame.to_pandas()`.
+- Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`
+- Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
+- Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
+- Fixed a bug where `df.limit(0)` call would not properly apply.
 
 #### Deprecations
 
 - Deprecated support for Python3.8.
 
-## 1.30.0 (2024-03-27)
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for Interval experssion to `Window.range_between`.
+
+#### Bug Fixes
+
+- Fixed a bug in local testing that created incorrect result for `Column.like` calls.
+- Fixed a bug in local testing that caused `Column.getItem` and `snowpark.snowflake.functions.get` to raise `IndexError` rather than return null.
+- Fixed a bug in local testing where `df.limit(0)` call would not properly apply.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
+- Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
+- Added support for `DataFrame.to_view` and `Series.to_view`.
+- Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
+- Added support for `DataFrame.groupby.resample` for aggregations `max`, `mean`, `median`, `min`, and `sum`.
+
+#### Improvements
+
+- Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
+
+#### Bug Fixes
+
+- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `relaxed_ordering=False`.
+
+## 1.30.0 (2025-03-27)
 
 ### Snowpark Python API Updates
 
@@ -52,7 +103,6 @@
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
 - Added support for relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources by introducing the new parameter `relaxed_ordering`.
-- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
 
 #### Improvements
 

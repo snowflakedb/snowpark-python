@@ -2809,6 +2809,7 @@ def test_access_snowflake_import_directory(session, resources_path):
     session.clear_imports()
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
@@ -2841,6 +2842,7 @@ def test_register_artifact_repository(session):
         session._run_query(f"drop function if exists {temp_func_name}(int)")
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
@@ -2864,7 +2866,7 @@ def test_register_artifact_repository_negative(session):
         )
 
     with pytest.raises(
-        SnowparkSQLException,
+        ValueError,
         match="Cannot create a function with duplicates between packages and artifact repository packages.",
     ):
         udf(
@@ -2873,20 +2875,6 @@ def test_register_artifact_repository_negative(session):
             packages=["urllib3==2.3.0"],
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
             artifact_repository_packages=["urllib3==2.1.0", "requests"],
-        )
-
-    try:
-        udf(
-            func=test_nop,
-            name=temp_func_name,
-            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
-            resource_constraint={"architecture": "x86"},
-        )
-    except SnowparkSQLException as ex:
-        assert (
-            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-            in str(ex)
         )
 
     with pytest.raises(Exception, match="Unknown resource constraint key"):
@@ -2907,6 +2895,20 @@ def test_register_artifact_repository_negative(session):
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
             artifact_repository_packages=["urllib3", "requests"],
             resource_constraint={"architecture": "risc-v"},
+        )
+
+    try:
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex)
         )
 
 

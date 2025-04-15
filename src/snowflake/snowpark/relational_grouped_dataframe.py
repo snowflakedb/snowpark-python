@@ -74,7 +74,9 @@ def _expr_to_func(expr: str, input_expr: Expression, _emit_ast: bool) -> Express
     elif lowered in ["count", "size"]:
         return functions.count(create_column(input_expr))._expression
     else:
-        return functions.function(expr, _emit_ast=_emit_ast)(input_expr)._expression
+        return functions._call_function(
+            expr, input_expr, _emit_ast=_emit_ast
+        )._expression
 
 
 def _str_to_expr(expr: str, _emit_ast: bool) -> Callable:
@@ -637,7 +639,9 @@ class RelationalGroupedDataFrame:
         df = self._to_df(
             [
                 Alias(
-                    functions.builtin("count")(Literal(1))._expression,
+                    functions._call_function(
+                        "count", Literal(1), _emit_ast=False
+                    )._expression,
                     "count",
                 )
             ],
@@ -666,13 +670,16 @@ class RelationalGroupedDataFrame:
 
     builtin = function
 
+    @publicapi
     def _function(
         self, agg_name: str, *cols: ColumnOrName, _emit_ast: bool = True
     ) -> DataFrame:
         agg_exprs = []
         for c in cols:
             c_expr = Column(c)._expression if isinstance(c, str) else c._expression
-            expr = functions.builtin(agg_name)(c_expr)._expression
+            expr = functions._call_function(
+                agg_name, c_expr, _emit_ast=False
+            )._expression
             agg_exprs.append(expr)
         df = self._to_df(agg_exprs)
 
@@ -692,6 +699,7 @@ class RelationalGroupedDataFrame:
 
         return df
 
+    @publicapi
     def _non_empty_argument_function(
         self, func_name: str, *cols: ColumnOrName, _emit_ast: bool = True
     ) -> DataFrame:

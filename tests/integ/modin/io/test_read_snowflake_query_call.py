@@ -30,7 +30,7 @@ from tests.utils import Utils
     ],
 )
 def test_read_snowflake_call_sproc(session, relaxed_ordering):
-    expected_query_count = 7 if not relaxed_ordering else 5
+    expected_query_count = 9 if not relaxed_ordering else 5
     with SqlCounter(query_count=expected_query_count, sproc_count=1):
         session.sql(
             """
@@ -103,7 +103,7 @@ def filter_by_role(session, table_name, role):
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
 def test_read_snowflake_system_function(session, relaxed_ordering):
-    expected_query_count = 4 if not relaxed_ordering else 2
+    expected_query_count = 6 if not relaxed_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         df = pd.read_snowflake(
             "SELECT SYSTEM$TYPEOF(TRUE)",

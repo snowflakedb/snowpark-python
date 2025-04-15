@@ -39,6 +39,9 @@ DataFrame
     DataFrame.to_snowpark
     DataFrame.cache_result
     DataFrame.create_or_replace_view
+    DataFrame.create_or_replace_dynamic_table
+    DataFrame.to_view
+    DataFrame.to_dynamic_table
 
 .. rubric:: Conversion
 

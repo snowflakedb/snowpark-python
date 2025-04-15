@@ -144,7 +144,7 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
     )
 
 
-# For almost all test cases, the query count is either 5 or 6,
+# For almost all test cases, the query count is 4,
 # the join count is 1, and the UDTF count is 1:
 
 # 0. Create temporary stage for UDTF (we filter this out when counting queries)
@@ -154,14 +154,9 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
 # 2. Put a zip file with the UDTF definition in the temporary stage (we filter this out when counting queries)
 # 3. Create the UDTF (increasing UDTF count by 1)
 # 3. Apply the UDTF using a join (increasing join count by 1)
-# 4. Save UDTF result as temp table to work around SNOW-1060191
-# 5. convert result to pandas
+# 4. convert result to pandas
 
-# For cases where we need to check whether we have a transform, we add an extra
-# query between 4) and 5) to check whether the function acted as a transform.
-
-QUERY_COUNT_WITHOUT_TRANSFORM_CHECK = 5
-QUERY_COUNT_WITH_TRANSFORM_CHECK = 6
+QUERY_COUNT = 4
 JOIN_COUNT = 1
 UDTF_COUNT = 1
 
@@ -201,7 +196,7 @@ class TestFuncReturnsDataFrame:
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -216,7 +211,7 @@ class TestFuncReturnsDataFrame:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -231,7 +226,7 @@ class TestFuncReturnsDataFrame:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -245,7 +240,7 @@ class TestFuncReturnsDataFrame:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -268,7 +263,7 @@ class TestFuncReturnsDataFrame:
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -294,7 +289,7 @@ class TestFuncReturnsDataFrame:
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -325,12 +320,12 @@ class TestFuncReturnsDataFrame:
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT,
         ):
+            pandas_result = operation(pandas_df)
             snow_result = operation(snow_df)
-        pandas_result = operation(pandas_df)
-        # results are equal if we ignore index
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            snow_result.reset_index(drop=True), pandas_result.reset_index(drop=True)
-        )
+            # results are equal if we ignore index
+            assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+                snow_result.reset_index(drop=True), pandas_result.reset_index(drop=True)
+            )
         # pandas index is not equal to snow index due to https://github.com/pandas-dev/pandas/issues/29111,
         # so hardcode the index for comparison
         assert_values_equal(
@@ -349,7 +344,7 @@ class TestFuncReturnsDataFrame:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         join_count=JOIN_COUNT,
         udtf_count=UDTF_COUNT,
     )
@@ -376,7 +371,7 @@ class TestFuncReturnsDataFrame:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -396,7 +391,7 @@ class TestFuncReturnsDataFrame:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -427,7 +422,7 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         # when group_keys=False, we have to check whether the function was a
         # transform because we only reindex to the original ordering if
-        query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -517,13 +512,7 @@ class TestFuncReturnsDataFrame:
 
         pandas_result = operation(pdf)
         with SqlCounter(
-            # group_keys=False requires an extra query to check whether we're
-            # applying a transform.
-            query_count=(
-                QUERY_COUNT_WITHOUT_TRANSFORM_CHECK
-                if group_keys
-                else QUERY_COUNT_WITH_TRANSFORM_CHECK
-            ),
+            query_count=QUERY_COUNT,
             join_count=JOIN_COUNT + 1,
             udtf_count=UDTF_COUNT,
         ):
@@ -583,8 +572,7 @@ class TestFuncReturnsDataFrame:
 
     @pytest.mark.parametrize("set_sql_simplifier", [True, False], indirect=True)
     @sql_count_checker(
-        # we need a transform check because group_keys=False.
-        query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         join_count=JOIN_COUNT,
         udtf_count=UDTF_COUNT,
     )
@@ -617,7 +605,7 @@ class TestFuncReturnsDataFrame:
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         join_count=JOIN_COUNT,
         udtf_count=UDTF_COUNT,
     )
@@ -632,9 +620,10 @@ class TestFuncReturnsDataFrame:
         )
 
     @pytest.mark.xfail(
-        strict=True,
-        raises=NotImplementedError,
-        reason="No support for applying a function that returns two dataframes that have different labels for the column at a given position",
+        raises=AssertionError,
+        reason="If function that returns different labels for different groups, we"
+        + " pick the labels based on dummy input. This should be very rare in"
+        + " practice",
     )
     def test_mismatched_data_column_positions(
         self, grouping_dfs_with_multiindexes, include_groups
@@ -649,10 +638,10 @@ class TestFuncReturnsDataFrame:
             ),
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=NotImplementedError,
-        reason="No support for applying a function that returns two dataframes that have different names for a given index level",
+    @sql_count_checker(
+        query_count=QUERY_COUNT,
+        join_count=JOIN_COUNT,
+        udtf_count=UDTF_COUNT,
     )
     def test_mismatched_index_column_positions(
         self, grouping_dfs_with_multiindexes, include_groups
@@ -699,7 +688,7 @@ class TestFuncReturnsDataFrame:
         # 57906.
         with pytest.raises(AssertionError) as ex:
             with SqlCounter(
-                query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+                query_count=QUERY_COUNT,
                 udtf_count=UDTF_COUNT,
                 join_count=JOIN_COUNT,
             ):
@@ -714,7 +703,7 @@ class TestFuncReturnsDataFrame:
         # a deterministic order.
         assert pandas_result.is_unique
         with SqlCounter(
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+            query_count=QUERY_COUNT,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT + 1,
         ):
@@ -735,7 +724,7 @@ class TestFuncReturnsScalar:
     )
     @pytest.mark.parametrize("dropna", [True, False], ids=lambda v: f"dropna_{v}")
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -777,7 +766,7 @@ class TestFuncReturnsScalar:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -803,7 +792,7 @@ class TestFuncReturnsScalar:
     @pytest.mark.parametrize("sort", [True, False], ids=lambda v: f"sort_{v}")
     @pytest.mark.parametrize("as_index", [True, False], ids=lambda v: f"as_index_{v}")
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -840,7 +829,7 @@ class TestFuncReturnsScalar:
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -872,7 +861,7 @@ class TestFuncReturnsScalar:
             )
 
     @sql_count_checker(
-        query_count=8,
+        query_count=7,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -951,7 +940,7 @@ class TestFuncReturnsSeries:
         "group_keys", [True, False], ids=lambda v: f"group_keys={v}"
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -984,7 +973,7 @@ class TestFuncReturnsSeries:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -1011,7 +1000,7 @@ class TestFuncReturnsSeries:
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
         # One extra query to convert index to native pandas in dataframe constructor to create test dataframes
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT + 1,
     )
@@ -1052,9 +1041,14 @@ class TestFuncReturnsSeries:
             ),
         )
 
-    @pytest.mark.xfail(raises=NotImplementedError, strict=True, reason="SNOW-1232201")
+    @pytest.mark.xfail(
+        raises=AssertionError,
+        strict=True,
+        reason="Snowpark pandas uses name returned from first group, while pandas "
+        + "returns None. This should be very rare in practice",
+    )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -1075,9 +1069,14 @@ class TestFuncReturnsSeries:
             ),
         )
 
-    @pytest.mark.xfail(raises=NotImplementedError, strict=True, reason="SNOW-1232208")
+    @pytest.mark.xfail(
+        raises=AssertionError,
+        strict=True,
+        reason="Snowpark pandas return a DataFrame but native pandas returns a"
+        + " Series. This should be very rare in practice.",
+    )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -1123,11 +1122,6 @@ class TestSeriesGroupBy:
         self, by, func, dropna, group_keys, sort, include_groups
     ):
         """Test apply() on a SeriesGroupBy that we get by DataFrameGroupBy.__getitem__"""
-        qc = (
-            QUERY_COUNT_WITH_TRANSFORM_CHECK
-            if group_keys is False and not func == get_scalar_from_numeric_series
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK
-        )
         if (
             func in (get_dataframe_from_numeric_series, get_series_from_numeric_series)
             and not dropna
@@ -1137,7 +1131,7 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            query_count=qc,
+            query_count=QUERY_COUNT,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT + 1,
         ):
@@ -1257,8 +1251,9 @@ class TestCallableWithMixedReturnTypes:
 
     @pytest.mark.xfail(
         strict=True,
-        raises=NotImplementedError,
-        reason="NotImplementedError in Snowpark pandas. see SNOW-1236959",
+        raises=SnowparkSQLException,
+        reason="Results in mismatch between udtf schema and the actual result."
+        + " This should be rare in practice.",
     )
     def test_scalar_then_dataframe(self):
         eval_snowpark_pandas_result(
@@ -1273,7 +1268,8 @@ class TestCallableWithMixedReturnTypes:
     @pytest.mark.xfail(
         strict=True,
         raises=AssertionError,
-        reason="Snowpark pandas transposes the series, but pandas doesn't. See SNOW-1236959",
+        reason="Results in mismatch between udtf schema and the actual result."
+        + " This should be rare in practice.",
     )
     def test_series_then_dataframe(self):
         eval_snowpark_pandas_result(
@@ -1319,7 +1315,7 @@ class TestCallableWithMixedReturnTypes:
 
 
 @sql_count_checker(
-    query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+    query_count=QUERY_COUNT,
     join_count=JOIN_COUNT,
     udtf_count=UDTF_COUNT,
 )

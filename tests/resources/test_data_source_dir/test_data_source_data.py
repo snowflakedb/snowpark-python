@@ -9,6 +9,26 @@ from collections import namedtuple
 from decimal import Decimal
 from dateutil import parser
 
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    IntegerType,
+    FloatType,
+    StringType,
+    BinaryType,
+    LongType,
+    VariantType,
+    ArrayType,
+    MapType,
+    DecimalType,
+    DoubleType,
+    ShortType,
+    TimeType,
+    DateType,
+    TimestampType,
+    NullType,
+)
+
 
 # we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
 class FakeConnection:
@@ -651,6 +671,35 @@ def sql_server_create_connection_with_exception():
     )
 
 
+def unknown_dbms_create_connection():
+    return FakeConnection(
+        sql_server_all_type_small_data, sql_server_all_type_schema, "unknown"
+    )
+
+
+SQLITE3_DB_CUSTOM_SCHEMA_STRING = "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT"
+SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE = StructType(
+    [
+        StructField("id", IntegerType()),
+        StructField("int_col", IntegerType()),
+        StructField("real_col", FloatType()),
+        StructField("text_col", StringType()),
+        StructField("blob_col", BinaryType()),
+        StructField("null_col", NullType()),
+        StructField("ts_col", TimestampType()),
+        StructField("date_col", DateType()),
+        StructField("time_col", TimeType()),
+        StructField("short_col", ShortType()),
+        StructField("long_col", LongType()),
+        StructField("double_col", DoubleType()),
+        StructField("decimal_col", DecimalType()),
+        StructField("map_col", MapType()),
+        StructField("array_col", ArrayType()),
+        StructField("var_col", VariantType()),
+    ]
+)
+
+
 def sqlite3_db(db_path):
     conn = create_connection_to_sqlite3_db(db_path)
     cursor = conn.cursor()
@@ -773,6 +822,60 @@ def sqlite3_db(db_path):
             "[1, 2, 3]",
             "4",
         ),
+        (
+            5,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "5",
+        ),
+        (
+            6,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "6",
+        ),
+        (
+            7,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "7",
+        ),
     ]
     assert_data = [
         (
@@ -846,6 +949,60 @@ def sqlite3_db(db_path):
             '{\n  "a": 1,\n  "b": 2\n}',
             '[\n  "[1, 2, 3]"\n]',
             '"4"',
+        ),
+        (
+            5,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"5"',
+        ),
+        (
+            6,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"6"',
+        ),
+        (
+            7,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"7"',
         ),
     ]
     cursor.executemany(

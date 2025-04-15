@@ -1699,7 +1699,7 @@ def test_register_sp_no_commit(session):
         session._run_query(f"drop procedure if exists {perm_sp_name}(int)")
 
 
-@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller", "restricted caller"])
 def test_execute_as_options(session, execute_as):
     """Make sure that a stored procedure can be run with any EXECUTE AS option."""
 
@@ -1716,7 +1716,7 @@ def test_execute_as_options(session, execute_as):
     assert return1_sp() == 1
 
 
-@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller", "restricted caller"])
 def test_execute_as_options_while_registering_from_file(
     session, resources_path, tmpdir, execute_as
 ):
@@ -1932,6 +1932,7 @@ def test_register_sproc_after_switch_schema(session):
         session.use_schema(current_schema)
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",

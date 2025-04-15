@@ -185,24 +185,25 @@ from snowflake.snowpark.modin.plugin._internal.align_utils import (
     align_axis_1,
 )
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS,
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
     APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
     DEFAULT_UDTF_PARTITION_SIZE,
     GroupbyApplySortMethod,
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
     check_return_variant_and_get_return_type,
     create_udf_for_series_apply,
     create_udtf_for_apply_axis_1,
     create_udtf_for_groupby_apply,
+    create_internal_frame_for_groupby_apply_no_pivot_result,
     deduce_return_type_from_function,
     get_metadata_from_groupby_apply_pivot_result_column_names,
     groupby_apply_create_internal_frame_from_final_ordered_dataframe,
     groupby_apply_pivot_result_to_final_ordered_dataframe,
     groupby_apply_sort_method,
     is_supported_snowpark_python_function,
-    sort_apply_udtf_result_columns_by_pandas_positions,
     make_series_map_snowpark_function,
-    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
-    ALL_SNOWFLAKE_CORTEX_FUNCTIONS,
+    sort_apply_udtf_result_columns_by_pandas_positions,
 )
 from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
@@ -229,6 +230,9 @@ from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     get_groups_for_ordered_dataframe,
     make_groupby_rank_col_for_method,
     validate_groupby_columns,
+    extract_groupby_column_pandas_labels,
+    fill_missing_groupby_resample_bins_for_frame,
+    validate_groupby_resample_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     ValidIndex,
@@ -380,6 +384,7 @@ from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
     NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION,
 )
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
@@ -4120,7 +4125,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             input_data_column_positions
         ]
         is_transform = groupby_kwargs.get("apply_op") == "transform"
-        udtf = create_udtf_for_groupby_apply(
+        output_schema, udtf = create_udtf_for_groupby_apply(
             agg_func,
             agg_args,
             agg_kwargs,
@@ -4146,6 +4151,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             existing_identifiers=_modin_frame.ordered_dataframe._dataframe_ref.snowflake_quoted_identifiers,
             force_list_like_to_series=force_list_like_to_series,
             is_transform=is_transform,
+            force_single_group=force_single_group,
         )
 
         new_internal_df = _modin_frame.ensure_row_position_column()
@@ -4200,7 +4206,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         |        1 |        2 | k1                   |                 14 | b                     |                  1 |
         |        0 |        0 | k0                   |                 15 | c                     |                  2 |
         """
-        if is_transform:
+        if output_schema is not None:
             x = udtf(
                 row_position_snowflake_quoted_identifier,
                 *by_snowflake_quoted_identifiers_list,
@@ -4213,30 +4219,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 order_by=row_position_snowflake_quoted_identifier,
             )
             ordered_dataframe = ordered_dataframe.select(x)
-            # output frame has the following columns in order
-            # 1. row position column
-            # 2. index columns
-            # 3. data columns (excluding by columns)
-            ids = ordered_dataframe.projected_column_snowflake_quoted_identifiers
-            data_col_labels = [
-                col for col in data_columns_index if col not in by_pandas_labels
-            ]
-            return SnowflakeQueryCompiler(
-                InternalFrame.create(
-                    ordered_dataframe=ordered_dataframe,
-                    data_column_pandas_labels=data_col_labels,
-                    data_column_pandas_index_names=_modin_frame.data_column_pandas_index_names,
-                    data_column_snowflake_quoted_identifiers=ids[
-                        1 + _modin_frame.num_index_levels() :
-                    ],
-                    index_column_pandas_labels=_modin_frame.index_column_pandas_labels,
-                    index_column_snowflake_quoted_identifiers=ids[
-                        1 : 1 + _modin_frame.num_index_levels()
-                    ],
-                    data_column_types=None,
-                    index_column_types=None,
-                )
+            num_by = len(by_snowflake_quoted_identifiers_list)
+            result_frame = create_internal_frame_for_groupby_apply_no_pivot_result(
+                _modin_frame,
+                ordered_dataframe,
+                output_schema,
+                num_by,
+                is_transform,
+                group_keys,
+                as_index,
+                sort,
             )
+            return SnowflakeQueryCompiler(result_frame)
 
         # NOTE we are keeping the cache_result for performance reasons. DO NOT
         # REMOVE the cache_result unless you can prove that doing so will not
@@ -4770,6 +4764,159 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(
             query_compiler._modin_frame.project_columns(pandas_labels, new_cols)
         )
+
+    def groupby_resample(
+        self,
+        resample_kwargs: dict[str, Any],
+        resample_method: AggFuncType,
+        groupby_kwargs: dict[str, Any],
+        is_series: bool,
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+
+        validate_groupby_resample_supported_by_snowflake(resample_kwargs)
+        level = groupby_kwargs.get("level", None)
+        by = groupby_kwargs.get("by", None)
+
+        axis = resample_kwargs.get("axis", 0)
+        rule = resample_kwargs.get("rule")
+        on = resample_kwargs.get("on")
+
+        if not check_is_groupby_supported_by_snowflake(by, level, axis):
+            ErrorMessage.not_implemented(
+                f"GroupBy resample with by = {by}, level = {level} and axis = {axis} is not supported yet in Snowpark pandas."
+            )
+
+        by_list = extract_groupby_column_pandas_labels(self, by, level)
+
+        if on is not None:
+            if on not in self._modin_frame.data_column_pandas_labels:
+                raise KeyError(f"{on}")
+            frame = self.set_index(keys=[on])._modin_frame
+        else:
+            frame = self._modin_frame
+        snowflake_index_column_identifier = (
+            get_snowflake_quoted_identifier_for_resample_index_col(frame)
+        )
+        orig_datetime_index_col_label = frame.index_column_pandas_labels[0]
+        slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
+
+        start_date, end_date = compute_resample_start_and_end_date(
+            frame,
+            snowflake_index_column_identifier,
+            rule,
+        )
+        # Say this is the original frame with start_date = 2000-01-01 00:00:00 and end_date = 2000-01-01 00:07:00
+        #                      a  b  c
+        # index
+        # 2000-01-01 00:00:00  0  1  2
+        # 2000-01-01 00:01:00  0  1  2
+        # 2000-01-01 00:02:00  5  1  2
+        # 2000-01-01 00:06:00  0  1  2
+        # 2000-01-01 00:07:00  5  1  2
+
+        if resample_method in IMPLEMENTED_AGG_METHODS:
+            resampled_frame = perform_resample_binning_on_frame(
+                frame=frame,
+                datetime_index_col_identifier=snowflake_index_column_identifier,
+                start_date=start_date,
+                slice_width=slice_width,
+                slice_unit=slice_unit,
+            )
+
+            # resampled_frame is the frame with index column items set to its resampled bin
+            # With rule='3min', resampled_frame will look like this:
+
+            #                      a  b  c
+            # index
+            # 2000-01-01 00:00:00  0  1  2
+            # 2000-01-01 00:00:00  0  1  2
+            # 2000-01-01 00:00:00  5  1  2
+            # 2000-01-01 00:06:00  0  1  2
+            # 2000-01-01 00:06:00  5  1  2
+
+            agg_by_list = by_list + frame.index_column_pandas_labels
+            qc = SnowflakeQueryCompiler(resampled_frame).groupby_agg(
+                by=agg_by_list,
+                agg_func=resample_method,
+                axis=axis,
+                groupby_kwargs=dict(),
+                agg_args=agg_args,
+                agg_kwargs=agg_kwargs,
+                numeric_only=agg_kwargs.get("numeric_only", False),
+                is_series_groupby=is_series,
+            )
+
+        # after the groupby_agg grouping by 'a', the frame will look like this:
+        #                        b  c
+        # a index
+        # 0 2000-01-01 00:00:00  2  4
+        #   2000-01-01 00:06:00  1  2
+        # 5 2000-01-01 00:00:00  1  2
+        #   2000-01-01 00:06:00  1  2
+
+        quoted_by_list = (
+            qc._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                by_list
+            )
+        )
+        resampled_quoted_ids = qc._modin_frame.index_column_snowflake_quoted_identifiers
+
+        for x in quoted_by_list:
+            if x[0] in resampled_quoted_ids:
+                resampled_quoted_ids.remove(x[0])
+
+        frame = qc._modin_frame
+        datetime_index_col_identifier = resampled_quoted_ids[0]
+
+        # the aggregated frame with index column items set to its resampled bin may still be missing resampled bins
+        # based on the frequency.
+        # fill_missing_groupby_resample_bins_for_frame will fill in those missing bins with NaN values.
+
+        resampled_frame_all_bins = fill_missing_groupby_resample_bins_for_frame(
+            frame,
+            rule,
+            by_list,
+            orig_datetime_index_col_label,
+            datetime_index_col_identifier,
+        )
+
+        # after filling in the missing bins, the frame will look like this:
+
+        #                        b  c
+        # a index
+        # 0 2000-01-01 00:00:00  2  4
+        #   2000-01-01 00:03:00  NaN  NaN
+        #   2000-01-01 00:06:00  1  2
+        # 5 2000-01-01 00:00:00  1  2
+        #   2000-01-01 00:03:00  NaN  NaN
+        #   2000-01-01 00:06:00  1  2
+
+        if resample_method in ("sum", "count", "size", "nunique"):
+            values_arg: Union[int, dict]
+            if resample_method == "sum":
+                values_arg = {}
+                for pandas_label in resampled_frame_all_bins.data_column_pandas_labels:
+                    label_dtypes: native_pd.Series = self.dtypes[[pandas_label]]
+                    values_arg[pandas_label] = (
+                        native_pd.Timedelta(0)
+                        if len(set(label_dtypes)) == 1
+                        and is_timedelta64_dtype(label_dtypes.iloc[0])
+                        else 0
+                    )
+                if is_series:
+                    # For series, fillna() can't handle a dictionary, but
+                    # there should only be one column, so pass a scalar fill
+                    # value.
+                    assert len(values_arg) == 1
+                    values_arg = list(values_arg.values())[0]
+            else:
+                values_arg = 0
+            return SnowflakeQueryCompiler(resampled_frame_all_bins).fillna(
+                value=values_arg, self_is_series=is_series
+            )
+        return SnowflakeQueryCompiler(resampled_frame_all_bins)
 
     def groupby_shift(
         self,
@@ -20068,3 +20215,59 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
         return (qc, min_val, max_val, bin_size)
+
+    def create_or_replace_view(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        comment: Optional[str] = None,
+        index: bool = True,
+        index_label: Optional[IndexLabel] = None,
+    ) -> List[Row]:
+        snowpark_df = self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
+            index, index_label
+        )
+
+        return snowpark_df.create_or_replace_view(
+            name=name,
+            comment=comment,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+        )
+
+    def create_or_replace_dynamic_table(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        warehouse: str,
+        lag: str,
+        comment: Optional[str] = None,
+        mode: str = "overwrite",
+        refresh_mode: Optional[str] = None,
+        initialize: Optional[str] = None,
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        is_transient: bool = False,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        iceberg_config: Optional[dict] = None,
+        index: bool = True,
+        index_label: Optional[IndexLabel] = None,
+    ) -> List[Row]:
+        snowpark_df = self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
+            index, index_label
+        )
+
+        return snowpark_df.create_or_replace_dynamic_table(
+            name=name,
+            warehouse=warehouse,
+            lag=lag,
+            comment=comment,
+            mode=mode,
+            refresh_mode=refresh_mode,
+            initialize=initialize,
+            clustering_keys=clustering_keys,
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+            iceberg_config=iceberg_config,
+        )

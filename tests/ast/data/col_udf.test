@@ -52,27 +52,27 @@ df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect()
 
 ## EXPECTED UNPARSER OUTPUT
 
-add_one = udf("<lambda>", return_type=IntegerType(), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
+add_one = udf("<lambda>", return_type=IntegerType(), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
 
 df = session.create_dataframe([1, 2, 3], schema=["a"])
 
 df.select(add_one(col("a")).as_("ans")).collect()
 
-add_two = udf("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\"")
+add_two = udf("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\"")
 
 df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
 
-param_udf = udf("<lambda [2]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", force_inline_code=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\"")
+param_udf = udf("<lambda [2]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", artifact_repository=None, artifact_repository_packages=None, force_inline_code=True, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\"")
 
-param_udf2 = udf("<lambda [3]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", force_inline_code=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\"")
+param_udf2 = udf("<lambda [3]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", artifact_repository=None, artifact_repository_packages=None, force_inline_code=True, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\"")
 
 res5 = df.select(param_udf(col("A"), col("A")))
 
-mod5_udf = udf("mod5", return_type=IntegerType(), input_types=[IntegerType()], max_batch_size=0, immutable=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
+mod5_udf = udf("mod5", return_type=IntegerType(), input_types=[IntegerType()], max_batch_size=0, immutable=True, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
 
 df.select(mod5_udf("a"), mod5_udf("b")).collect()
 
-mod5_pandas_udf = udf("pandas_apply_mod5", return_type=IntegerType(), input_types=[IntegerType()], max_batch_size=0, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
+mod5_pandas_udf = udf("pandas_apply_mod5", return_type=IntegerType(), input_types=[IntegerType()], max_batch_size=0, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
 
 df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect()
 
@@ -103,6 +103,48 @@ body {
         }
         input_types {
           integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 94
+                end_line: 29
+                file: 2
+                start_column: 18
+                start_line: 29
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 94
+                end_line: 29
+                file: 2
+                start_column: 18
+                start_line: 29
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 94
+                end_line: 29
+                file: 2
+                start_column: 18
+                start_line: 29
+              }
+            }
+          }
         }
         parallel: 4
         return_type {
@@ -331,6 +373,48 @@ body {
         input_types {
           integer_type: true
         }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 37
+                file: 2
+                start_column: 18
+                start_line: 37
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 37
+                file: 2
+                start_column: 18
+                start_line: 37
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 124
+                end_line: 37
+                file: 2
+                start_column: 18
+                start_line: 37
+              }
+            }
+          }
+        }
         name {
           name {
             name_flat {
@@ -536,6 +620,34 @@ body {
         }
         is_permanent: true
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 83
+                end_line: 45
+                file: 2
+                start_column: 20
+                start_line: 41
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 83
+                end_line: 45
+                file: 2
+                start_column: 20
+                start_line: 41
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "force_inline_code"
           _2 {
             bool_val {
@@ -547,6 +659,20 @@ body {
                 start_line: 41
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 83
+                end_line: 45
+                file: 2
+                start_column: 20
+                start_line: 41
+              }
             }
           }
         }
@@ -629,6 +755,34 @@ body {
         }
         is_permanent: true
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 84
+                end_line: 52
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 84
+                end_line: 52
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "force_inline_code"
           _2 {
             bool_val {
@@ -640,6 +794,20 @@ body {
                 start_line: 48
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 84
+                end_line: 52
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
             }
           }
         }
@@ -815,6 +983,48 @@ body {
         input_types {
           integer_type: true
         }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 63
+                file: 2
+                start_column: 19
+                start_line: 57
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 63
+                file: 2
+                start_column: 19
+                start_line: 57
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 63
+                file: 2
+                start_column: 19
+                start_line: 57
+              }
+            }
+          }
+        }
         max_batch_size {
         }
         parallel: 4
@@ -969,6 +1179,48 @@ body {
         }
         input_types {
           integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 72
+                file: 2
+                start_column: 26
+                start_line: 67
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 72
+                file: 2
+                start_column: 26
+                start_line: 67
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 72
+                file: 2
+                start_column: 26
+                start_line: 67
+              }
+            }
+          }
         }
         max_batch_size {
         }

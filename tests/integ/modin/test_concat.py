@@ -1108,7 +1108,7 @@ def test_concat_none_index_name(index1, index2):
     )
 
 
-@sql_count_checker(query_count=3, union_count=1)
+@sql_count_checker(query_count=5, union_count=1)
 def test_concat_from_file(resources_path):
     test_files = TestFiles(resources_path)
     df1 = native_pd.read_csv(test_files.test_concat_file1_csv)
@@ -1190,7 +1190,7 @@ def test_concat_object_with_same_index_with_dup_sort(join):
     assert_frame_equal(snow_res, expected_result)
 
 
-@sql_count_checker(query_count=4, join_count=0)
+@sql_count_checker(query_count=6, join_count=0)
 def test_concat_series_from_same_df(join):
     num_cols = 4
     select_data = [f'{i} as "{i}"' for i in range(num_cols)]
@@ -1213,7 +1213,7 @@ def test_concat_series_from_same_df(join):
     assert_frame_equal(df, final_df)
 
 
-@sql_count_checker(query_count=4, join_count=0)
+@sql_count_checker(query_count=6, join_count=0)
 def test_df_creation_from_series_from_same_df():
     num_cols = 6
     select_data = [f'{i} as "{i}"' for i in range(num_cols)]

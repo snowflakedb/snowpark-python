@@ -1,8 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import time
-from abc import ABC, abstractmethod
 from typing import List, Callable, Any, Optional
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
@@ -18,14 +16,11 @@ PARTITION_TABLE_COLUMN_NAME = "partition"
 logger = logging.getLogger(__name__)
 
 
-class BaseDriver(ABC):
-    def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: str
-    ) -> None:
+class BaseDriver:
+    def __init__(self, create_connection: Callable[[], "Connection"]) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
 
-    @abstractmethod
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
             f"{self.__class__.__name__} has not implemented to_snow_type function"

@@ -17,8 +17,9 @@ from tests.utils import Utils
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
 def test_read_snowflake_query_basic_cte(session, relaxed_ordering):
-    expected_query_count = 4 if not relaxed_ordering else 2
-    with SqlCounter(query_count=expected_query_count, union_count=2):
+    expected_query_count = 6 if not relaxed_ordering else 3
+    expected_union_count = 2 if not relaxed_ordering else 4
+    with SqlCounter(query_count=expected_query_count, union_count=expected_union_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -36,8 +37,9 @@ def test_read_snowflake_query_basic_cte(session, relaxed_ordering):
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
 def test_read_snowflake_query_recursive_cte(relaxed_ordering):
-    expected_query_count = 3 if not relaxed_ordering else 1
-    with SqlCounter(query_count=expected_query_count, union_count=1):
+    expected_query_count = 5 if not relaxed_ordering else 2
+    expected_union_count = 1 if not relaxed_ordering else 2
+    with SqlCounter(query_count=expected_query_count, union_count=expected_union_count):
         SQL_QUERY = """WITH RECURSIVE current_f (current_val, previous_val) AS
                         (
                         SELECT 0, 1
@@ -62,8 +64,14 @@ def test_read_snowflake_query_recursive_cte(relaxed_ordering):
 
 @pytest.mark.parametrize("relaxed_ordering", [True, False])
 def test_read_snowflake_query_complex_recursive_cte(session, relaxed_ordering):
-    expected_query_count = 4 if not relaxed_ordering else 2
-    with SqlCounter(query_count=expected_query_count, join_count=1, union_count=1):
+    expected_query_count = 6 if not relaxed_ordering else 3
+    expected_join_count = 1 if not relaxed_ordering else 2
+    expected_union_count = 1 if not relaxed_ordering else 2
+    with SqlCounter(
+        query_count=expected_query_count,
+        join_count=expected_join_count,
+        union_count=expected_union_count,
+    ):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.sql(
@@ -152,7 +160,7 @@ def test_read_snowflake_query_complex_recursive_cte(session, relaxed_ordering):
     ],
 )
 def test_read_snowflake_query_cte_with_cross_language_sproc(session, relaxed_ordering):
-    expected_query_count = 5 if not relaxed_ordering else 3
+    expected_query_count = 7 if not relaxed_ordering else 3
     with SqlCounter(query_count=expected_query_count, sproc_count=1):
         # create table name
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -207,7 +215,7 @@ def test_read_snowflake_query_cte_with_cross_language_sproc(session, relaxed_ord
 def test_read_snowflake_query_cte_with_python_anonymous_sproc(
     session, relaxed_ordering
 ):
-    expected_query_count = 5 if not relaxed_ordering else 3
+    expected_query_count = 7 if not relaxed_ordering else 3
     with SqlCounter(query_count=expected_query_count, sproc_count=1):
         # create table name
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)

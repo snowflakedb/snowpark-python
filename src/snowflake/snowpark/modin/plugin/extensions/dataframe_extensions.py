@@ -8,13 +8,14 @@ as `DataFrame.to_snowflake`.
 """
 
 from collections.abc import Iterable
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import modin.pandas as pd
 import pandas
 from modin.pandas.api.extensions import register_dataframe_accessor
 from pandas._typing import IndexLabel
 
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
@@ -261,7 +262,8 @@ def create_or_replace_view(
     name: Union[str, Iterable[str]],
     *,
     comment: Optional[str] = None,
-    statement_params: Optional[Dict[str, str]] = None,
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
     Creates a view that captures the computation expressed by this DataFrame.
@@ -277,10 +279,230 @@ def create_or_replace_view(
             that specifies the database name, schema name, and view name.
         comment: Adds a comment for the created view. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
-        statement_params: Dictionary of statement level parameters to be set while executing this action.
+        index: default True
+            If true, save DataFrame index columns in view columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
     """
-    return self.to_snowpark().create_or_replace_view(
+    return self._query_compiler.create_or_replace_view(
         name=name,
         comment=comment,
-        statement_params=statement_params,
+        index=index,
+        index_label=index_label,
+    )
+
+
+@register_dataframe_accessor("create_or_replace_dynamic_table")
+def create_or_replace_dynamic_table(
+    self,
+    name: Union[str, Iterable[str]],
+    *,
+    warehouse: str,
+    lag: str,
+    comment: Optional[str] = None,
+    mode: str = "overwrite",
+    refresh_mode: Optional[str] = None,
+    initialize: Optional[str] = None,
+    clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+    is_transient: bool = False,
+    data_retention_time: Optional[int] = None,
+    max_data_extension_time: Optional[int] = None,
+    iceberg_config: Optional[dict] = None,
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
+) -> List[Row]:
+    """
+    Creates a dynamic table that captures the computation expressed by this DataFrame.
+
+    For ``name``, you can include the database and schema name (i.e. specify a
+    fully-qualified name). If no database name or schema name are specified, the
+    dynamic table will be created in the current database or schema.
+
+    ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+    Args:
+        name: The name of the dynamic table to create or replace. Can be a list of strings
+            that specifies the database name, schema name, and view name.
+        warehouse: The name of the warehouse used to refresh the dynamic table.
+        lag: specifies the target data freshness
+        comment: Adds a comment for the created table. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+        mode: Specifies the behavior of create dynamic table. Allowed values are:
+            - "overwrite" (default): Overwrite the table by dropping the old table.
+            - "errorifexists": Throw and exception if the table already exists.
+            - "ignore": Ignore the operation if table already exists.
+        refresh_mode: Specifies the refresh mode of the dynamic table. The value can be "AUTO",
+            "FULL", or "INCREMENTAL".
+        initialize: Specifies the behavior of initial refresh. The value can be "ON_CREATE" or
+            "ON_SCHEDULE".
+        clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
+            See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys>`_
+            for more details.
+        is_transient: A boolean value that specifies whether the dynamic table is transient.
+        data_retention_time: Specifies the retention period for the dynamic table in days so that
+            Time Travel actions can be performed on historical data in the dynamic table.
+        max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend
+            the data retention period of the dynamic table to prevent streams on the dynamic table
+            from becoming stale.
+        iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+            - external_volume: specifies the identifier for the external volume where
+                the Iceberg table stores its metadata files and data in Parquet format.
+            - catalog: specifies either Snowflake or a catalog integration to use for this table.
+            - base_location: the base directory that snowflake can write iceberg metadata and files to.
+            - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
+            - storage_serialization_policy: specifies the storage serialization policy for the table.
+        index: default True
+            If true, save DataFrame index columns as table columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+
+
+    Note:
+        See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
+        for more details on refresh mode.
+    """
+    return self._query_compiler.create_or_replace_dynamic_table(
+        name=name,
+        warehouse=warehouse,
+        lag=lag,
+        comment=comment,
+        mode=mode,
+        refresh_mode=refresh_mode,
+        initialize=initialize,
+        clustering_keys=clustering_keys,
+        is_transient=is_transient,
+        data_retention_time=data_retention_time,
+        max_data_extension_time=max_data_extension_time,
+        iceberg_config=iceberg_config,
+        index=index,
+        index_label=index_label,
+    )
+
+
+@register_dataframe_accessor("to_view")
+def to_view(
+    self,
+    name: Union[str, Iterable[str]],
+    *,
+    comment: Optional[str] = None,
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
+) -> List[Row]:
+    """
+    Creates a view that captures the computation expressed by this DataFrame.
+
+    For ``name``, you can include the database and schema name (i.e. specify a
+    fully-qualified name). If no database name or schema name are specified, the
+    view will be created in the current database or schema.
+
+    ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+    Args:
+        name: The name of the view to create or replace. Can be a list of strings
+            that specifies the database name, schema name, and view name.
+        comment: Adds a comment for the created view. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+        index: default True
+            If true, save DataFrame index columns in view columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+    """
+    return self.create_or_replace_view(
+        name=name,
+        comment=comment,
+        index=index,
+        index_label=index_label,
+    )
+
+
+@register_dataframe_accessor("to_dynamic_table")
+def to_dynamic_table(
+    self,
+    name: Union[str, Iterable[str]],
+    *,
+    warehouse: str,
+    lag: str,
+    comment: Optional[str] = None,
+    mode: str = "overwrite",
+    refresh_mode: Optional[str] = None,
+    initialize: Optional[str] = None,
+    clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+    is_transient: bool = False,
+    data_retention_time: Optional[int] = None,
+    max_data_extension_time: Optional[int] = None,
+    iceberg_config: Optional[dict] = None,
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
+) -> List[Row]:
+    """
+    Creates a dynamic table that captures the computation expressed by this DataFrame.
+
+    For ``name``, you can include the database and schema name (i.e. specify a
+    fully-qualified name). If no database name or schema name are specified, the
+    dynamic table will be created in the current database or schema.
+
+    ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+    Args:
+        name: The name of the dynamic table to create or replace. Can be a list of strings
+            that specifies the database name, schema name, and view name.
+        warehouse: The name of the warehouse used to refresh the dynamic table.
+        lag: specifies the target data freshness
+        comment: Adds a comment for the created table. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+        mode: Specifies the behavior of create dynamic table. Allowed values are:
+            - "overwrite" (default): Overwrite the table by dropping the old table.
+            - "errorifexists": Throw and exception if the table already exists.
+            - "ignore": Ignore the operation if table already exists.
+        refresh_mode: Specifies the refresh mode of the dynamic table. The value can be "AUTO",
+            "FULL", or "INCREMENTAL".
+        initialize: Specifies the behavior of initial refresh. The value can be "ON_CREATE" or
+            "ON_SCHEDULE".
+        clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
+            See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys>`_
+            for more details.
+        is_transient: A boolean value that specifies whether the dynamic table is transient.
+        data_retention_time: Specifies the retention period for the dynamic table in days so that
+            Time Travel actions can be performed on historical data in the dynamic table.
+        max_data_extension_time: Specifies the maximum number of days for which Snowflake can extend
+            the data retention period of the dynamic table to prevent streams on the dynamic table
+            from becoming stale.
+        iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+            - external_volume: specifies the identifier for the external volume where
+                the Iceberg table stores its metadata files and data in Parquet format.
+            - catalog: specifies either Snowflake or a catalog integration to use for this table.
+            - base_location: the base directory that snowflake can write iceberg metadata and files to.
+            - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
+            - storage_serialization_policy: specifies the storage serialization policy for the table.
+        index: default True
+            If true, save DataFrame index columns as table columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+
+
+    Note:
+        See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
+        for more details on refresh mode.
+    """
+    return self.create_or_replace_dynamic_table(
+        name=name,
+        warehouse=warehouse,
+        lag=lag,
+        comment=comment,
+        mode=mode,
+        refresh_mode=refresh_mode,
+        initialize=initialize,
+        clustering_keys=clustering_keys,
+        is_transient=is_transient,
+        data_retention_time=data_retention_time,
+        max_data_extension_time=max_data_extension_time,
+        iceberg_config=iceberg_config,
+        index=index,
+        index_label=index_label,
     )
