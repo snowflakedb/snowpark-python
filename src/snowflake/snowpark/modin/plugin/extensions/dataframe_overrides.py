@@ -10,6 +10,7 @@ pandas, such as `DataFrame.memory_usage`.
 from __future__ import annotations
 
 import collections
+import copy
 import datetime
 import functools
 import itertools
@@ -851,6 +852,24 @@ def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs)
         stacklevel=2,
     )
     return self.map(func, na_action=na_action, **kwargs)
+
+
+# In older versions of Snowpark pandas, overrides to base methods would automatically override
+# corresponding DataFrame/Series API definitions as well. For consistency between methods, this
+# is no longer the case, and DataFrame/Series must separately apply this override.
+
+
+def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+    # a column named "_attrs"
+    self._query_compiler._attrs = copy.deepcopy(value)
+
+
+def _get_attrs(self) -> dict:  # noqa: RT01, D200
+    return self._query_compiler._attrs
+
+
+register_dataframe_accessor_with_telemetry("attrs")(property(_get_attrs, _set_attrs))
 
 
 # We need to override _get_columns to satisfy
