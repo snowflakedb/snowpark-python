@@ -480,6 +480,8 @@ class SelectableEntity(Selectable):
         assert isinstance(entity, SnowflakeTable)
         super().__init__(analyzer)
         self.entity = entity
+        # Metadata/Attributes for the plan
+        self._attributes: Optional[List[Attribute]] = None
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
         copied = SelectableEntity(
@@ -515,6 +517,16 @@ class SelectableEntity(Selectable):
         # the SelectableEntity only allows select from base table. No
         # CTE table will be referred.
         return dict()
+
+    @property
+    def attributes(self) -> Optional[List[Attribute]]:
+        return self._attributes
+
+    @attributes.setter
+    def attributes(self, value: Optional[List[Attribute]]):
+        self._attributes = value
+        if self._session.reduce_describe_query_enabled and value is not None:
+            self._schema_query = analyzer_utils.schema_value_statement(value)
 
 
 class SelectSQL(Selectable):
