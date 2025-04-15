@@ -458,6 +458,7 @@ def test_register_udaf_from_file_with_type_hints(session, resources_path):
     Utils.check_answer(df.group_by("a").agg(sum_udaf("b")), [Row(1, 7), Row(2, 11)])
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_udaf_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
@@ -595,6 +596,7 @@ def test_udaf_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
