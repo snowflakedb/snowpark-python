@@ -1,6 +1,6 @@
-==============
+========================
 StoredProcedureProfiler
-==============
+========================
 
 .. currentmodule:: snowflake.snowpark
 
