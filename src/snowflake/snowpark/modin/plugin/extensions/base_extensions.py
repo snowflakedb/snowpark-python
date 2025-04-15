@@ -7,6 +7,7 @@ File containing BasePandasDataset APIs defined in Snowpark pandas but not the Mo
 """
 
 from .base_overrides import register_base_override_with_telemetry
+from snowflake.snowpark.modin.plugin.extensions.utils import is_autoswitch_enabled
 
 
 @register_base_override_with_telemetry(name="__array_function__")
@@ -43,6 +44,8 @@ def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: 
 
 @register_base_override_with_telemetry(name="__switcheroo__")
 def __switcheroo__(self, inplace=False, operation=""):
+    if not is_autoswitch_enabled():
+        return self
     from modin.core.storage_formats.pandas.native_query_compiler import (
         NativeQueryCompiler,
     )
