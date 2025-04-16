@@ -7,6 +7,7 @@
 #### New Features
 
 - Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+- Added support for Databricks in `DataFrameReader.dbapi` (PrPr).
 
 #### Bug Fixes
 
