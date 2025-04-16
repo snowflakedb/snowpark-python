@@ -1116,7 +1116,10 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
+        imports: Optional[List[str]] = None,
+        packages: Optional[List[str]] = None,
         external_access_integration: Optional[str] = None,
+        use_udtf_ingestion: bool = False,
         fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -1174,8 +1177,11 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+            imports: Name of stage files to import for udtf ingestion.
+            packages: The name and version number of packages required as dependencies.
             external_access_integration: A string of name of external access integration, if is not None, a server
                 ingestion using UDTF will be used.
+            use_udtf_ingestion: A bool value decide whether to use udtf to ingest external data source, default is False.
             fetch_merge_count: The number of fetched batches to merge into a single Parquet file
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
@@ -1217,7 +1223,11 @@ class DataFrameReader:
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
 
-        if external_access_integration:
+        if use_udtf_ingestion:
+            if not external_access_integration:
+                raise ValueError(
+                    "external_access_integration cannot be None when udtf ingestion is used."
+                )
             partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
             self._session.create_dataframe(
                 [[query] for query in partitioned_queries], schema=["partition"]
@@ -1227,6 +1237,9 @@ class DataFrameReader:
                 struct_schema,
                 partitions_table,
                 external_access_integration,
+                fetch_size=fetch_size,
+                imports=imports,
+                packages=packages,
             )
             return df
 

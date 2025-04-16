@@ -84,6 +84,30 @@ class PyodbcDriver(BaseDriver):
             fields.append(StructField(name, data_type, null_ok))
         return StructType(fields)
 
+    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+        create_connection = self.create_connection
+
+        def binary_converter(value):
+            return value.hex() if value is not None else None
+
+        class UDTFIngestion:
+            def process(self, query: str):
+                import pyodbc
+
+                conn = create_connection()
+                conn.add_output_converter(pyodbc.SQL_BINARY, binary_converter)
+                conn.add_output_converter(pyodbc.SQL_VARBINARY, binary_converter)
+                conn.add_output_converter(pyodbc.SQL_LONGVARBINARY, binary_converter)
+                cursor = conn.cursor()
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    yield from rows
+
+        return UDTFIngestion
+
     def prepare_connection(
         self,
         conn: "Connection",

@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import decimal
 import functools
 import logging
 import math
@@ -12,7 +13,7 @@ from unittest.mock import patch, MagicMock, PropertyMock
 
 import oracledb
 import pytest
-
+from decimal import Decimal
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
@@ -35,7 +36,10 @@ from snowflake.snowpark._internal.data_source.utils import (
     detect_dbms,
     DBMS_TYPE,
 )
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -810,6 +814,116 @@ def test_udtf_ingestion_oracledb(session):
         external_access_integration=ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
     ).order_by("ID")
     Utils.check_answer(df, oracledb_real_data)
+
+
+def test_sql_server_udtf_ingestion(session):
+    raw_schema = [
+        ("Id", int, None, None, 10, 0, False),
+        ("SmallIntCol", int, None, None, 5, 0, True),
+        ("TinyIntCol", int, None, None, 3, 0, True),
+        ("BigIntCol", int, None, None, 19, None, True),
+        ("DecimalCol", decimal.Decimal, None, None, 10, 2, True),
+        ("FloatCol", float, None, None, 53, None, True),
+        ("RealCol", float, None, None, 24, None, True),
+        ("MoneyCol", decimal.Decimal, None, None, 19, 4, True),
+        ("SmallMoneyCol", decimal.Decimal, None, None, 10, 4, True),
+        ("CharCol", str, None, None, None, None, True),
+        ("VarCharCol", str, None, None, None, None, True),
+        ("TextCol", str, None, None, None, None, True),
+        ("NCharCol", str, None, None, None, None, True),
+        ("NVarCharCol", str, None, None, None, None, True),
+        ("NTextCol", str, None, None, None, None, True),
+        ("DateCol", datetime.date, None, None, None, None, True),
+        ("TimeCol", datetime.time, None, None, None, None, True),
+        ("DateTimeCol", datetime.datetime, None, None, None, None, True),
+        ("DateTime2Col", datetime.datetime, None, None, None, None, True),
+        ("SmallDateTimeCol", datetime.datetime, None, None, None, None, True),
+        ("BinaryCol", bytes, None, None, None, None, True),
+        ("VarBinaryCol", bytes, None, None, None, None, True),
+        ("BitCol", bool, None, 1, None, None, True),
+        ("UniqueIdentifierCol", bytes, None, None, None, None, True),
+    ]
+
+    def create_connection_udtf_sql_server():
+        class FakeConnection:
+            def __init__(self) -> None:
+                self.sql = ""
+                self.start_index = 0
+                self.data = [
+                    (
+                        1,
+                        100,
+                        10,
+                        100000,
+                        Decimal("12345.67"),
+                        1.23,
+                        0.4560000002384186,
+                        Decimal("1234.5600"),
+                        Decimal("12.3400"),
+                        "FixedStr1 ",
+                        "VarStr1",
+                        "Text1",
+                        "UniFix1   ",
+                        "UniVar1",
+                        "UniText1",
+                        datetime.date(2023, 1, 1),
+                        datetime.time(12, 0),
+                        datetime.datetime(2023, 1, 1, 12, 0),
+                        datetime.datetime(2023, 1, 1, 12, 0, 0, 123000),
+                        datetime.datetime(2023, 1, 1, 12, 0),
+                        b"\x01\x02\x03\x04\x05".hex(),
+                        b"\x01\x02\x03\x04".hex(),
+                        True,
+                        b"06D48351-6EA7-4E64-81A2-9921F0EC42A5".hex(),
+                    ),
+                ]
+
+            def cursor(self):
+                return self
+
+            def execute(self, sql: str):
+                self.sql = sql
+                return self
+
+            def add_output_converter(self, need_convert_type, function):
+                pass
+
+            def fetchmany(self, row_count: int):
+                end_index = self.start_index + row_count
+                res = (
+                    self.data[self.start_index : end_index]
+                    if end_index < len(self.data)
+                    else self.data[self.start_index :]
+                )
+                self.start_index = end_index
+                return res
+
+        return FakeConnection()
+
+    partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        [["SELECT * FROM ALL_TYPE_DATA"]], schema=["partition"]
+    ).write.save_as_table(partitions_table, table_type="temp")
+
+    driver = PyodbcDriver(create_connection_udtf_sql_server, DBMS_TYPE.SQL_SERVER_DB)
+    df = driver.udtf_ingestion(
+        session,
+        driver.to_snow_type(raw_schema),
+        partitions_table,
+        "",
+        packages=["pyodbc"],
+    )
+    df.show()
+
+
+def test_external_access_integration_not_set(session):
+    with pytest.raises(
+        ValueError,
+        match="external_access_integration cannot be None when udtf ingestion is used.",
+    ):
+        session.read.dbapi(
+            oracledb_create_connection, table="fake", use_udtf_ingestion=True
+        )
 
 
 def test_unknown_driver_with_custom_schema(session):

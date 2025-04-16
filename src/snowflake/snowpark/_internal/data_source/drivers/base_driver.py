@@ -61,6 +61,8 @@ class BaseDriver:
         partition_table: str,
         external_access_integrations: str,
         fetch_size: int = 1000,
+        imports: Optional[List[str]] = None,
+        packages: Optional[List[str]] = None,
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
@@ -75,7 +77,8 @@ class BaseDriver:
                 ]
             ),
             external_access_integrations=[external_access_integrations],
-            packages=UDTF_PACKAGE_MAP.get(self.dbms_type),
+            packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
+            imports=imports,
         )
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
