@@ -1944,7 +1944,7 @@ def test_read_multiple_csvs(session):
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
-    reason="Flaky in stored procedure test",
+    reason="SNOW-2044853: Flaky in stored procedure test",
 )
 @pytest.mark.parametrize(
     "file,row_tag,expected_row_count,expected_column_count",
@@ -1969,7 +1969,7 @@ def test_read_xml_row_tag(
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
-    reason="Flaky in stored procedure test",
+    reason="SNOW-2044853: Flaky in stored procedure test",
 )
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
