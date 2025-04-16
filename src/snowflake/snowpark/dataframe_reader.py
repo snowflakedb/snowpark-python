@@ -1343,6 +1343,8 @@ class DataFrameReader:
             # with the new name for the temporary table into which the external db data was ingressed.
             # Leaving this functionality as client-side only means capturing an AST specifically for
             # this API in a new entity is not valuable from a server-side execution or AST perspective.
-            res_df = self.table(snowflake_table_name, _emit_ast=_emit_ast)
+            res_df = partitioner.driver.to_result_snowpark_df(
+                self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
+            )
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df
