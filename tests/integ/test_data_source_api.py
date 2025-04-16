@@ -65,6 +65,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_all_type_schema,
     SQLITE3_DB_CUSTOM_SCHEMA_STRING,
     SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
+    oracledb_real_data,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -807,8 +808,8 @@ def test_udtf_ingestion_oracledb(session):
         create_connection_oracledb,
         table="ALL_TYPE_TABLE",
         external_access_integration=ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
-    )
-    print(df.collect())
+    ).order_by("ID")
+    Utils.check_answer(df, oracledb_real_data)
 
 
 def test_unknown_driver_with_custom_schema(session):
