@@ -749,7 +749,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @classmethod
-    def _linear_row_cost_fn(cls, query_compiler: BaseQueryCompiler) -> float:
+    def _get_rows(cls, query_compiler: BaseQueryCompiler) -> int:
         if isinstance(query_compiler, SnowflakeQueryCompiler):
             internal_frame = query_compiler._modin_frame
             ordered_dataframe = internal_frame.ordered_dataframe
@@ -761,9 +761,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ):
                 num_rows = query_compiler.get_axis_len(0)
             if num_rows is None:
-                return 1.0
+                return 1000000000
         else:
             num_rows = query_compiler.get_axis_len(0)
+        return num_rows
+
+    @classmethod
+    def _linear_row_cost_fn(cls, query_compiler: BaseQueryCompiler) -> float:
+        num_rows = cls._get_rows(query_compiler)
 
         # one million rows is considered the point at which
         # Snowflake has an advantage
