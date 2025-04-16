@@ -8,11 +8,14 @@ as `Series.to_snowflake`.
 """
 
 from collections.abc import Iterable
+import functools
 from typing import Any, List, Literal, Optional, Union
 
 import modin.pandas as pd
+from modin.pandas.api.extensions import (
+    register_series_accessor as _register_series_accessor,
+)
 import pandas
-from .series_overrides import register_series_accessor_with_telemetry
 from pandas._typing import Axis, IndexLabel
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
@@ -24,7 +27,12 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.row import Row
 
 
-@register_series_accessor_with_telemetry("_set_axis_name")
+register_series_accessor = functools.partial(
+    _register_series_accessor, backend="Snowflake"
+)
+
+
+@register_series_accessor("_set_axis_name")
 def _set_axis_name(
     self, name: Union[str, Iterable[str]], axis: Axis = 0, inplace: bool = False
 ) -> Union[pd.Series, None]:
@@ -52,7 +60,7 @@ def _set_axis_name(
         return renamed
 
 
-@register_series_accessor_with_telemetry("to_snowflake")
+@register_series_accessor("to_snowflake")
 def to_snowflake(
     self,
     name: Union[str, Iterable[str]],
@@ -90,7 +98,7 @@ def to_snowflake(
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
 
 
-@register_series_accessor_with_telemetry("to_snowpark")
+@register_series_accessor("to_snowpark")
 def to_snowpark(
     self, index: bool = True, index_label: Optional[IndexLabel] = None
 ) -> SnowparkDataFrame:
@@ -199,7 +207,7 @@ def to_snowpark(
     return self._query_compiler.to_snowpark(index, index_label)
 
 
-@register_series_accessor_with_telemetry("to_pandas")
+@register_series_accessor("to_pandas")
 @materialization_warning
 def to_pandas(
     self,
@@ -232,7 +240,7 @@ def to_pandas(
     return self._to_pandas(statement_params=statement_params, **kwargs)
 
 
-@register_series_accessor_with_telemetry("cache_result")
+@register_series_accessor("cache_result")
 @add_cache_result_docstring
 @materialization_warning
 def cache_result(self, inplace: bool = False) -> Optional[pd.Series]:
@@ -246,7 +254,7 @@ def cache_result(self, inplace: bool = False) -> Optional[pd.Series]:
         return pd.Series(query_compiler=new_qc)
 
 
-@register_series_accessor_with_telemetry("create_or_replace_view")
+@register_series_accessor("create_or_replace_view")
 def create_or_replace_view(
     self,
     name: Union[str, Iterable[str]],
@@ -283,7 +291,7 @@ def create_or_replace_view(
     )
 
 
-@register_series_accessor_with_telemetry("create_or_replace_dynamic_table")
+@register_series_accessor("create_or_replace_dynamic_table")
 def create_or_replace_dynamic_table(
     self,
     name: Union[str, Iterable[str]],
@@ -372,7 +380,7 @@ def create_or_replace_dynamic_table(
     )
 
 
-@register_series_accessor_with_telemetry("to_view")
+@register_series_accessor("to_view")
 def to_view(
     self,
     name: Union[str, Iterable[str]],
@@ -409,7 +417,7 @@ def to_view(
     )
 
 
-@register_series_accessor_with_telemetry("to_dynamic_table")
+@register_series_accessor("to_dynamic_table")
 def to_dynamic_table(
     self,
     name: Union[str, Iterable[str]],

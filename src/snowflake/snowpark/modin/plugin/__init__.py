@@ -172,9 +172,6 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
     connect_modin_telemetry,
 )
 
-# Skip the `modin` accessor object.
-_TELEMETRY_BLACKLIST = ("modin",)
-
 
 def _maybe_apply_telemetry(
     cls: Union[DataFrame, Series, BasePandasDataset],
@@ -182,7 +179,8 @@ def _maybe_apply_telemetry(
     attr_name: str,
 ) -> Any:
     if (
-        attr_name not in _TELEMETRY_BLACKLIST
+        # Skip the `modin` accessor object.
+        attr_name != "modin"
         and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
         and (
             not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
@@ -199,7 +197,11 @@ def _maybe_apply_telemetry(
         # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
         # backend, we must use the __wrapped__ property of the originally-defined attribute to avoid
         # infinite recursion.
-        if hasattr(attr_value, "__wrapped__"):
+        # Do not check for __wrapped__ if this was defined as a Snowflake extension, since we use
+        # decorators to raise NotImplementedError and apply exceptions.
+        if attr_name not in cls._extensions["Snowflake"] and hasattr(
+            attr_value, "__wrapped__"
+        ):
             attr_value = attr_value.__wrapped__
 
         register_method(attr_name, backend="Snowflake")(
@@ -227,26 +229,35 @@ for attr_name in BasePandasDataset.__dict__:
         _maybe_apply_telemetry(BasePandasDataset, register_base_accessor, attr_name)
 
 
-# Apply telemetry to all top-level functions in the pd namespace.
+# Apply telemetry to top-level functions in the pd namespace.
 
 for attr_name in dir(modin.pandas):
     # Upstream modin creates a dispatch wrapper for top-level methods, so we need to read
     # from the extensions dict instead of directly calling getattr to prevent recursion.
-    # This assumes that all extension top-level methods are registered without a backend specified.
-    attr_value = _GENERAL_EXTENSIONS[None].get(
+    if attr_name in _GENERAL_EXTENSIONS["Snowflake"]:
+        defined_backend = "Snowflake"
+    else:
+        # We can't call register_pd_accessor(backend="Snowflake")(attr_value) if the object was not
+        # defined on the Snowflake backend because this causes infinite mutual recursion.
+        defined_backend = None
+        continue
+    attr_value = _GENERAL_EXTENSIONS[defined_backend].get(
         attr_name, getattr(modin.pandas, attr_name)
     )
+    # Do not check for __wrapped__ if this was defined as a Snowflake extension, since we use
+    # decorators to raise NotImplementedError and apply exceptions.
+    if defined_backend != "Snowflake" and hasattr(attr_value, "__wrapped__"):
+        attr_value = attr_value.__wrapped__
     # Do not add telemetry to any method that is mirrored from native pandas
     if (
         inspect.isfunction(attr_value)
         and not attr_name.startswith("_")
         and attr_value is not getattr(pandas, attr_name, None)
     ):
-        register_pd_accessor(attr_name)(
+        register_pd_accessor(attr_name, backend=defined_backend)(
             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
         )
 
-del _maybe_apply_telemetry
 
 # enable Modin's metrics system to collect API data for hybrid execution in parallel with
 # Snowpark-pandas specific information
