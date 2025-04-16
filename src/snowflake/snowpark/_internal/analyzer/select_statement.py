@@ -334,6 +334,14 @@ class Selectable(LogicalPlan, ABC):
 
     def get_snowflake_plan(self, skip_schema_query) -> SnowflakePlan:
         if self._snowflake_plan is None:
+            # The query generation step can trigger analyzer.analyze(), so we need
+            # to initialize alias related fields here similar to how we do it in
+            # analyzer.resolve()
+            self.analyzer.generated_alias_maps = (
+                ExprAliasUpdateDict() if self._session._join_alias_fix else {}
+            )
+            self.analyzer.alias_maps_to_use = self.expr_to_alias.copy()
+
             query = Query(self.sql_query, params=self.query_params)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
             schema_query = None if skip_schema_query else self.schema_query
@@ -351,6 +359,9 @@ class Selectable(LogicalPlan, ABC):
             # because the constructor copy api_calls.
             # We want Selectable and SnowflakePlan to share the same api_calls.
             self._snowflake_plan.api_calls = self.api_calls
+            # We update the alias maps for the snowflake plan similar to how it is
+            # updated after analyzer.resolve() step.
+            self._snowflake_plan.add_aliases(self.analyzer.generated_alias_maps)
         return self._snowflake_plan
 
     @property

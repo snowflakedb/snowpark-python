@@ -263,6 +263,30 @@ def test_join_with_alias_dataframe(session):
             assert last_query.count(WITH) == 1
 
 
+def test_join_with_set_operation(session):
+    df1 = session.create_dataframe([[1, 2, 3], [4, 5, 6]], "a: int, b: int, c: int")
+    df2 = session.create_dataframe([[1, 1], [4, 5]], "a: int, b: int")
+
+    df1 = df1.filter(df1.a > 1)
+    df1 = df1.union_all(df1)
+
+    df3 = df1.join(df2, (df1.a == df2.a) & (df1.b == df2.b)).select(
+        df2.a.as_("a"), df2.b.as_("b"), df1.c
+    )
+    df4 = df3.except_(df1)
+
+    check_result(
+        session,
+        df4,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=2,
+        cte_union_count=1,
+        join_count=1,
+    )
+
+
 @pytest.mark.parametrize("type, action", binary_operations)
 def test_variable_binding_binary(session, type, action):
     df1 = session.sql(
