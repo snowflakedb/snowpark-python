@@ -35,6 +35,53 @@ def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
         raise TypeError("obj must be a Snowpark pandas DataFrame or Series")
 
 
+import pandas as native_pd
+
+switcheroo_log = native_pd.DataFrame(
+    {
+        "location": [],
+        "operation": [],
+        "engine": [],
+        "est. rows": [],
+        "stay_cost": [],
+        "move_cost": [],
+        "decision": [],
+    }
+)
+
+
+@register_pd_accessor_helper("explain")
+def explain(last=5) -> native_pd.DataFrame:
+    global switcheroo_log
+    return switcheroo_log.tail(last).set_index("location")
+
+
+@register_pd_accessor_helper("add_switcheroo_log")
+def add_switcheroo_log(
+    location: str,
+    operation: str,
+    engine: str,
+    rows: int,
+    stay_cost: int,
+    move_cost: int,
+    decision: str,
+):
+    global switcheroo_log
+    decision = native_pd.DataFrame(
+        {
+            "location": [location],
+            "operation": [operation],
+            "engine": [engine],
+            "est. rows": [rows],
+            "stay_cost": [stay_cost],
+            "move_cost": [move_cost],
+            "decision": [decision],
+        }
+    )
+    switcheroo_log = native_pd.concat([switcheroo_log, decision])
+    switcheroo_log.style.set_caption("Hybrid DataFrame Switch Point Log (Last 5)")
+
+
 @register_pd_accessor_helper("read_snowflake")
 def read_snowflake(
     name_or_query: Union[str, Iterable[str]],
