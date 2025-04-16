@@ -22,6 +22,7 @@
 """Implement pandas general API."""
 from __future__ import annotations
 
+import functools
 import datetime as dt
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta, tzinfo
@@ -33,7 +34,7 @@ import numpy as np
 import pandas
 import pandas.core.common as common
 from modin.pandas import DataFrame, Series
-from modin.pandas.api.extensions import register_pd_accessor
+from modin.pandas.api.extensions import register_pd_accessor as _register_pd_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas import IntervalIndex, NaT, Timedelta, Timestamp
@@ -83,9 +84,6 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
-from snowflake.snowpark.modin.plugin._internal.telemetry import (
-    try_add_telemetry_to_attribute,
-)
 
 
 # To prevent cross-reference warnings when building documentation and prevent erroneously
@@ -105,13 +103,10 @@ VALID_DATE_TYPE = Union[
 ###########################################################################
 
 
-def register_pd_accessor_helper(name: str):
-    return lambda func: register_pd_accessor(name=name, backend="Snowflake")(
-        try_add_telemetry_to_attribute(name, func)
-    )
+register_pd_accessor = functools.partial(_register_pd_accessor, backend="Snowflake")
 
 
-@register_pd_accessor_helper("melt")
+@register_pd_accessor("melt")
 @_inherit_docstrings(pandas.melt)
 def melt(
     frame,
@@ -133,7 +128,7 @@ def melt(
     )
 
 
-@register_pd_accessor_helper("pivot")
+@register_pd_accessor("pivot")
 @_inherit_docstrings(pandas.pivot)
 def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D200
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
@@ -144,7 +139,7 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
     return data.pivot(index=index, columns=columns, values=values)
 
 
-@register_pd_accessor_helper("pivot_table")
+@register_pd_accessor("pivot_table")
 @_inherit_docstrings(pandas.pivot_table)
 def pivot_table(
     data,
@@ -178,7 +173,7 @@ def pivot_table(
     )
 
 
-@register_pd_accessor_helper("crosstab")
+@register_pd_accessor("crosstab")
 @_inherit_docstrings(pandas.crosstab)
 def crosstab(
     index,
@@ -449,7 +444,7 @@ def crosstab(
     return table
 
 
-@register_pd_accessor_helper("cut")
+@register_pd_accessor("cut")
 @_inherit_docstrings(pandas.cut)
 def cut(
     x: AnyArrayLike,
@@ -510,7 +505,7 @@ def cut(
         # )
 
 
-@register_pd_accessor_helper("qcut")
+@register_pd_accessor("qcut")
 @_inherit_docstrings(pandas.qcut)
 def qcut(
     x: np.ndarray | Series,
@@ -573,7 +568,7 @@ def qcut(
     return ans
 
 
-@register_pd_accessor_helper("merge")
+@register_pd_accessor("merge")
 @_inherit_docstrings(pandas.merge)
 def merge(
     left: pd.DataFrame | Series,
@@ -624,7 +619,7 @@ def merge(
     )
 
 
-@register_pd_accessor_helper("merge_ordered")
+@register_pd_accessor("merge_ordered")
 @pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.merge_ordered, apilink="pandas.merge_ordered")
 def merge_ordered(
@@ -662,7 +657,7 @@ def merge_ordered(
     )
 
 
-@register_pd_accessor_helper("merge_asof")
+@register_pd_accessor("merge_asof")
 @_inherit_docstrings(pandas.merge_asof, apilink="pandas.merge_asof")
 def merge_asof(
     left,
@@ -755,7 +750,7 @@ def merge_asof(
     )
 
 
-@register_pd_accessor_helper("concat")
+@register_pd_accessor("concat")
 @_inherit_docstrings(pandas.concat)
 def concat(
     objs: (Iterable[pd.DataFrame | Series] | Mapping[Hashable, pd.DataFrame | Series]),
@@ -891,7 +886,7 @@ def concat(
     return DataFrame(query_compiler=result)
 
 
-@register_pd_accessor_helper("get_dummies")
+@register_pd_accessor("get_dummies")
 @_inherit_docstrings(pandas.get_dummies)
 def get_dummies(
     data,
@@ -916,7 +911,7 @@ def get_dummies(
     return DataFrame(query_compiler=new_qc)
 
 
-@register_pd_accessor_helper("unique")
+@register_pd_accessor("unique")
 @_inherit_docstrings(pandas.unique)
 def unique(values) -> np.ndarray:
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
@@ -929,7 +924,7 @@ def unique(values) -> np.ndarray:
 # Adding docstring since pandas docs don't have web section for this function.
 
 
-@register_pd_accessor_helper("lreshape")
+@register_pd_accessor("lreshape")
 @pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.lreshape)
 def lreshape(data: DataFrame, groups, dropna=True, label=None):
@@ -943,7 +938,7 @@ def lreshape(data: DataFrame, groups, dropna=True, label=None):
     )
 
 
-@register_pd_accessor_helper("wide_to_long")
+@register_pd_accessor("wide_to_long")
 @_inherit_docstrings(pandas.wide_to_long, apilink="pandas.wide_to_long")
 @pandas_module_level_function_not_implemented()
 def wide_to_long(
@@ -965,7 +960,7 @@ def wide_to_long(
 ###########################################################################
 
 
-@register_pd_accessor_helper("isna")
+@register_pd_accessor("isna")
 @_inherit_docstrings(pandas.isna, apilink="pandas.isna")
 def isna(obj):  # noqa: PR01, RT01, D200
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
@@ -975,10 +970,10 @@ def isna(obj):  # noqa: PR01, RT01, D200
         return pandas.isna(obj)
 
 
-register_pd_accessor_helper("isnull")(isna)
+register_pd_accessor("isnull")(isna)
 
 
-@register_pd_accessor_helper("notna")
+@register_pd_accessor("notna")
 @_inherit_docstrings(pandas.notna, apilink="pandas.notna")
 def notna(obj):  # noqa: PR01, RT01, D200
     # TODO: SNOW-1063345: Modin upgrade - modin.pandas functions in general.py
@@ -996,7 +991,7 @@ notnull = notna
 ###########################################################################
 
 
-@register_pd_accessor_helper("to_numeric")
+@register_pd_accessor("to_numeric")
 @_inherit_docstrings(pandas.to_numeric)
 def to_numeric(
     arg: Scalar | Series | ArrayConvertible,
@@ -1045,7 +1040,7 @@ def to_numeric(
 ###########################################################################
 
 
-@register_pd_accessor_helper("to_datetime")
+@register_pd_accessor("to_datetime")
 @_inherit_docstrings(pandas.to_datetime)
 def to_datetime(
     arg: DatetimeScalarOrArrayConvertible | DictConvertible | pd.DataFrame | Series,
@@ -1108,7 +1103,7 @@ def to_datetime(
     )
 
 
-@register_pd_accessor_helper("to_timedelta")
+@register_pd_accessor("to_timedelta")
 @_inherit_docstrings(pandas.to_timedelta)
 def to_timedelta(
     arg: str
@@ -1147,7 +1142,7 @@ def to_timedelta(
     return result
 
 
-@register_pd_accessor_helper("date_range")
+@register_pd_accessor("date_range")
 @_inherit_docstrings(pandas.date_range)
 def date_range(
     start: VALID_DATE_TYPE | None = None,
@@ -1226,7 +1221,7 @@ def date_range(
     return idx
 
 
-@register_pd_accessor_helper("bdate_range")
+@register_pd_accessor("bdate_range")
 @_inherit_docstrings(pandas.bdate_range)
 def bdate_range(
     start: VALID_DATE_TYPE | None = None,
@@ -1270,7 +1265,7 @@ def bdate_range(
 # Adding docstring since pandas docs don't have web section for this function.
 
 
-@register_pd_accessor_helper("value_counts")
+@register_pd_accessor("value_counts")
 @pandas_module_level_function_not_implemented()
 @_inherit_docstrings(pandas.value_counts)
 def value_counts(
