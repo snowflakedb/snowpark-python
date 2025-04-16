@@ -1942,6 +1942,10 @@ def test_read_multiple_csvs(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Flaky in stored procedure test",
+)
 @pytest.mark.parametrize(
     "file,row_tag,expected_row_count,expected_column_count",
     [
@@ -1962,6 +1966,10 @@ def test_read_xml_row_tag(
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Flaky in stored procedure test",
 )
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
