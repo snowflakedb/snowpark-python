@@ -12,7 +12,6 @@ and if possible, whether this can be reconciled with upstream Modin.
 """
 from __future__ import annotations
 
-import copy
 import pickle as pkl
 import warnings
 from collections.abc import Sequence
@@ -808,19 +807,6 @@ def var(
         numeric_only=numeric_only,
         **kwargs,
     )
-
-
-def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
-    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
-    # a column named "_attrs"
-    self._query_compiler._attrs = copy.deepcopy(value)
-
-
-def _get_attrs(self) -> dict:  # noqa: RT01, D200
-    return self._query_compiler._attrs
-
-
-register_base_override_with_telemetry("attrs")(property(_get_attrs, _set_attrs))
 
 
 @register_base_override_with_telemetry("align")
