@@ -52,7 +52,12 @@
 - Added support for `DataFrame.to_view` and `Series.to_view`.
 - Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
 - Added support for `DataFrame.groupby.resample` for aggregations `max`, `mean`, `median`, `min`, and `sum`.
-- Added support for reading stage files for `pd.read_html`, `pd.read_sas`, and `pd.read_xml`.
+- Added support for reading stage files using:
+  - `pd.read_excel`
+  - `pd.read_html`
+  - `pd.read_pickle`
+  - `pd.read_sas`
+  - `pd.read_xml`
 
 #### Improvements
 
