@@ -3,6 +3,7 @@
 #
 
 import copy
+import logging
 import math
 import os
 import re
@@ -864,8 +865,10 @@ def test_df_stat_sampleBy_seed(session, caplog, use_simplified_query_gen):
 
     # DataFrame doesn't work with seed
     caplog.clear()
-    sample_by_action(TestData.monthly_sales(session))
-    assert "`seed` argument is ignored on `DataFrame` object" in caplog.text
+    if not IS_IN_STORED_PROC:
+        with caplog.at_level(logging.WARNING):
+            sample_by_action(TestData.monthly_sales(session))
+        assert "`seed` argument is ignored on `DataFrame` object" in caplog.text
 
 
 @pytest.mark.skipif(
