@@ -393,6 +393,19 @@ def test_cache_metadata_on_select_statement_from(
         df.select("*")
 
 
+def test_cache_metadata_on_selectable_entity(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df.schema
+    with SqlCounter(
+        query_count=0,
+        describe_count=0
+        if session.reduce_describe_query_enabled or not session.sql_simplifier_enabled
+        else 1,
+    ):
+        _ = df.col("a")
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_reduce_describe_query_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:

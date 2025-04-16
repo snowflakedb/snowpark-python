@@ -92,7 +92,10 @@ def infer_metadata(
         LeftAnti,
         LeftSemi,
     )
-    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        SelectStatement,
+        SelectableEntity,
+    )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
     from snowflake.snowpark._internal.analyzer.unary_plan_node import (
         Aggregate,
@@ -150,7 +153,10 @@ def infer_metadata(
                 # if there is common quoted identifier, reset it to None
                 if len(quoted_identifiers) != len(set(quoted_identifiers)):
                     quoted_identifiers = None
-        # If source_plan is a SelectStatement, SQL simplifier is enabled
+        # If source_plan is a SelectableEntity or SelectStatement, SQL simplifier is enabled
+        if isinstance(source_plan, SelectableEntity):
+            if source_plan.attributes is not None:
+                attributes = source_plan.attributes
         elif isinstance(source_plan, SelectStatement):
             # When attributes is cached on source_plan, just use it
             if source_plan.attributes is not None:
@@ -165,25 +171,32 @@ def infer_metadata(
                 ]
             # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
             # which means source_plan has the same metadata as its child plan, we can use it directly
-            if (
-                source_plan.projection is None
-                and source_plan.from_._snowflake_plan is not None
-            ):
-                # only set attributes and quoted_identifiers if they are not set in previous step
-                if (
-                    attributes is None
-                    and source_plan.from_._snowflake_plan._metadata.attributes
-                    is not None
-                ):
-                    attributes = source_plan.from_._snowflake_plan._metadata.attributes
+            if source_plan.projection is None:
+                # We can only retrieve the cached metadata when there is an underlying SnowflakePlan
+                # or it's a SelectableEntity
+                if source_plan.from_._snowflake_plan is not None:
+                    # only set attributes and quoted_identifiers if they are not set in previous step
+                    if (
+                        attributes is None
+                        and source_plan.from_._snowflake_plan._metadata.attributes
+                        is not None
+                    ):
+                        attributes = (
+                            source_plan.from_._snowflake_plan._metadata.attributes
+                        )
+                    elif (
+                        quoted_identifiers is None
+                        and source_plan.from_._snowflake_plan._metadata.quoted_identifiers
+                        is not None
+                    ):
+                        quoted_identifiers = (
+                            source_plan.from_._snowflake_plan._metadata.quoted_identifiers
+                        )
                 elif (
-                    quoted_identifiers is None
-                    and source_plan.from_._snowflake_plan._metadata.quoted_identifiers
-                    is not None
+                    isinstance(source_plan.from_, SelectableEntity)
+                    and source_plan.from_.attributes is not None
                 ):
-                    quoted_identifiers = (
-                        source_plan.from_._snowflake_plan._metadata.quoted_identifiers
-                    )
+                    attributes = source_plan.from_.attributes
 
         # If attributes is available, we always set quoted_identifiers to None
         # as it can be retrieved later from attributes
@@ -193,26 +206,33 @@ def infer_metadata(
     return PlanMetadata(attributes=attributes, quoted_identifiers=quoted_identifiers)
 
 
-def cache_metadata_if_select_statement(
+def cache_metadata_if_selectable(
     source_plan: Optional[LogicalPlan], metadata: PlanMetadata
 ) -> None:
     """
-    Cache metadata on a SelectStatement source plan.
+    Cache metadata on a Selectable source plan.
     """
-    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        SelectStatement,
+        SelectableEntity,
+        Selectable,
+    )
 
     if (
-        isinstance(source_plan, SelectStatement)
+        isinstance(source_plan, Selectable)
         and source_plan._session.reduce_describe_query_enabled
     ):
-        source_plan.attributes = metadata.attributes
-        # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
-        # which means source_plan has the same metadata as its child plan,
-        # we should cache it on the child plan too.
-        # This is necessary SelectStatement.select() will need the column states of the child plan
-        # (check the implementation of derive_column_states_from_subquery().
-        if (
-            source_plan.projection is None
-            and source_plan.from_._snowflake_plan is not None
-        ):
-            source_plan.from_._snowflake_plan._metadata = metadata
+        if isinstance(source_plan, SelectableEntity):
+            source_plan.attributes = metadata.attributes
+        elif isinstance(source_plan, SelectStatement):
+            source_plan.attributes = metadata.attributes
+            # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
+            # which means source_plan has the same metadata as its child plan,
+            # we should cache it on the child plan too.
+            # This is necessary SelectStatement.select() will need the column states of the child plan
+            # (check the implementation of derive_column_states_from_subquery().
+            if source_plan.projection is None:
+                if source_plan.from_._snowflake_plan is not None:
+                    source_plan.from_._snowflake_plan._metadata = metadata
+                elif isinstance(source_plan.from_, SelectableEntity):
+                    source_plan.from_.attributes = metadata.attributes

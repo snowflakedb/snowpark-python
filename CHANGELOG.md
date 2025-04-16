@@ -14,7 +14,7 @@
 #### Improvements
 
 - Renamed the `relaxed_ordering` param into `enforce_ordering` for `DataFrame.to_snowpark_pandas`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
-
+- Reduced the number of describe queries issued when creating a DataFrame from a Snowflake table using `session.table`.
 
 #### Bug Fixes
 
