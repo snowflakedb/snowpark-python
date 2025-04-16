@@ -543,7 +543,7 @@ class Table(DataFrame):
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         new_df = self._with_plan(
             TableUpdate(
@@ -669,7 +669,7 @@ class Table(DataFrame):
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         new_df = self._with_plan(
             TableDelete(
@@ -855,7 +855,7 @@ class Table(DataFrame):
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         new_df = self._with_plan(
             TableMerge(
@@ -911,7 +911,7 @@ class Table(DataFrame):
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         if isinstance(self._session._conn, MockServerConnection):
             # only mock connection has entity_registry

@@ -130,7 +130,7 @@ class DataFrameStatFunctions:
             (
                 _,
                 kwargs[DATAFRAME_AST_PARAMETER],
-            ) = self._dataframe._session._ast_batch.flush()
+            ) = self._dataframe._session._ast_batch.flush(stmt)
 
         temp_col_name = "t"
         if isinstance(col, (Column, str)):
@@ -227,7 +227,7 @@ class DataFrameStatFunctions:
             (
                 _,
                 kwargs[DATAFRAME_AST_PARAMETER],
-            ) = self._dataframe._session._ast_batch.flush()
+            ) = self._dataframe._session._ast_batch.flush(stmt)
 
         df = self._dataframe.select(corr_func(col1, col2), _emit_ast=False)
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
@@ -284,7 +284,7 @@ class DataFrameStatFunctions:
             (
                 _,
                 kwargs[DATAFRAME_AST_PARAMETER],
-            ) = self._dataframe._session._ast_batch.flush()
+            ) = self._dataframe._session._ast_batch.flush(stmt)
 
         df = self._dataframe.select(covar_samp(col1, col2), _emit_ast=False)
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
