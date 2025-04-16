@@ -8,6 +8,7 @@ under the `pd` namespace, such as `pd.read_snowflake`.
 """
 from typing import Any, Iterable, Literal, Optional, Union
 
+import pandas as native_pd
 from modin.pandas import DataFrame, Series
 from pandas._typing import IndexLabel
 
@@ -23,19 +24,17 @@ from snowflake.snowpark.modin.plugin.extensions.utils import is_autoswitch_enabl
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
-from .general_overrides import register_pd_accessor_helper
+from .general_overrides import register_pd_accessor
 
-register_pd_accessor_helper("Index")(Index)
-register_pd_accessor_helper("DatetimeIndex")(DatetimeIndex)
-register_pd_accessor_helper("TimedeltaIndex")(TimedeltaIndex)
+register_pd_accessor("Index")(Index)
+register_pd_accessor("DatetimeIndex")(DatetimeIndex)
+register_pd_accessor("TimedeltaIndex")(TimedeltaIndex)
 
 
 def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
     if not isinstance(obj, (DataFrame, Series)):
         raise TypeError("obj must be a Snowpark pandas DataFrame or Series")
 
-
-import pandas as native_pd
 
 switcheroo_log = native_pd.DataFrame(
     {
@@ -50,13 +49,13 @@ switcheroo_log = native_pd.DataFrame(
 )
 
 
-@register_pd_accessor_helper("explain")
+@register_pd_accessor("explain")
 def explain(last=5) -> native_pd.DataFrame:
     global switcheroo_log
     return switcheroo_log.tail(last).set_index("location")
 
 
-@register_pd_accessor_helper("add_switcheroo_log")
+@register_pd_accessor("add_switcheroo_log")
 def add_switcheroo_log(
     location: str,
     operation: str,
@@ -82,7 +81,7 @@ def add_switcheroo_log(
     switcheroo_log.style.set_caption("Hybrid DataFrame Switch Point Log (Last 5)")
 
 
-@register_pd_accessor_helper("read_snowflake")
+@register_pd_accessor("read_snowflake")
 def read_snowflake(
     name_or_query: Union[str, Iterable[str]],
     index_col: Union[str, list[str], None] = None,
@@ -450,7 +449,7 @@ def read_snowflake(
     return snow_df.__switcheroo__(operation="read_snowflake")
 
 
-@register_pd_accessor_helper("to_snowflake")
+@register_pd_accessor("to_snowflake")
 def to_snowflake(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -493,7 +492,7 @@ def to_snowflake(
     )
 
 
-@register_pd_accessor_helper("to_snowpark")
+@register_pd_accessor("to_snowpark")
 def to_snowpark(
     obj: Union[DataFrame, Series],
     index: bool = True,
@@ -642,7 +641,7 @@ def to_snowpark(
     return obj._query_compiler.to_snowpark(index, index_label)
 
 
-@register_pd_accessor_helper("to_pandas")
+@register_pd_accessor("to_pandas")
 @materialization_warning
 def to_pandas(
     obj: Union[DataFrame, Series],

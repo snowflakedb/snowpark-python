@@ -9,11 +9,11 @@ File containing BasePandasDataset APIs defined in Snowpark pandas but not the Mo
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from .base_overrides import register_base_override_with_telemetry
+from .base_overrides import register_base_override
 from snowflake.snowpark.modin.plugin.extensions.utils import is_autoswitch_enabled
 
 
-@register_base_override_with_telemetry(name="__array_function__")
+@register_base_override(name="__array_function__")
 def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: dict):
     """
     Apply the `func` to the `BasePandasDataset`.
@@ -45,7 +45,7 @@ def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: 
         return NotImplemented  # pragma: no cover
 
 
-@register_base_override_with_telemetry(name="__switcheroo__")
+@register_base_override(name="__switcheroo__")
 def __switcheroo__(self, inplace=False, operation=""):
     if not is_autoswitch_enabled():
         return self
@@ -71,7 +71,7 @@ def __switcheroo__(self, inplace=False, operation=""):
     stack = inspect.stack()
     frame_before_snowpandas = None
     location = "<unknown>"
-    for i, f in enumerate(reversed(stack)):
+    for _i, f in enumerate(reversed(stack)):
         if f.filename is None:
             continue
         if "snowpark" in f.filename or "modin" in f.filename:
