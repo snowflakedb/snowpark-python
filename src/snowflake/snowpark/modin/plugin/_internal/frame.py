@@ -738,7 +738,10 @@ class InternalFrame:
         Returns:
             Number of rows in this frame.
         """
-        return count_rows(self.ordered_dataframe)
+        num_rows = count_rows(self.ordered_dataframe)
+        self.ordered_dataframe.row_count = num_rows
+        self.ordered_dataframe.row_count_upper_bound = num_rows
+        return num_rows
 
     def has_unique_index(self, axis: Optional[int] = 0) -> bool:
         """

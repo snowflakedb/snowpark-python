@@ -161,39 +161,39 @@ df = session.table_function(
 
 ## EXPECTED UNPARSER OUTPUT
 
-prime_udtf = udtf("PrimeSieve", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+prime_udtf = udtf("PrimeSieve", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf("sum_udtf", output_schema=StructType(fields=[StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
+df.with_column("total", udtf("sum_udtf", output_schema=StructType(fields=[StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
 
-generator_udtf = udtf("GeneratorUDTF", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+generator_udtf = udtf("GeneratorUDTF", output_schema=StructType(fields=[StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(generator_udtf(lit(3))).collect()
 
-foo = udtf("Foo", output_schema=StructType(fields=[StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", copy_grants=False, force_inline_code=True, _registered_object_name="foo")
+foo = udtf("Foo", output_schema=StructType(fields=[StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", artifact_repository=None, artifact_repository_packages=None, copy_grants=False, force_inline_code=True, resource_constraint=None, _registered_object_name="foo")
 
 df = session.create_dataframe([(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)])
 
 df = df.to_df(["a", "b", "c"])
 
-twox_udtf = udtf("TwoXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twox_udtf = udtf("TwoXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select((twox_udtf("a"))).collect()
 
-twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType(fields=[StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select(df["a"], (twoxsix_udtf(df["a"]))).collect()
 
 df.select("a", (twoxsix_udtf("a").alias("double", "six_x")), "c").collect()
 
-my_udtf = udtf("MyUDTFWithoutTypeHints", output_schema=StructType(fields=[StructField("int_", IntegerType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(10, 2), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[IntegerType(), FloatType(), BooleanType(), DecimalType(10, 2), StringType(), BinaryType(), BinaryType()], immutable=True, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+my_udtf = udtf("MyUDTFWithoutTypeHints", output_schema=StructType(fields=[StructField("int_", IntegerType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(10, 2), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[IntegerType(), FloatType(), BooleanType(), DecimalType(10, 2), StringType(), BinaryType(), BinaryType()], immutable=True, artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df = session.table_function(my_udtf(lit(1), lit(2.2), lit(True), lit(Decimal("3.33")).cast(DecimalType(10, 2)), lit("python"), lit(bytes("bytes", "utf-8")), lit(bytes("bytearray", "utf-8"))))
 
-my_udtf = udtf("MyUDTFWithTypeHints", output_schema=StructType(fields=[StructField("int_", LongType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(38, 18), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[LongType(), FloatType(), BooleanType(), DecimalType(38, 18), StringType(), BinaryType(), BinaryType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+my_udtf = udtf("MyUDTFWithTypeHints", output_schema=StructType(fields=[StructField("int_", LongType(), nullable=True), StructField("float_", FloatType(), nullable=True), StructField("bool_", BooleanType(), nullable=True), StructField("decimal_", DecimalType(38, 18), nullable=True), StructField("str_", StringType(), nullable=True), StructField("bytes_", BinaryType(), nullable=True), StructField("bytearray_", BinaryType(), nullable=True)], structured=False), input_types=[LongType(), FloatType(), BooleanType(), DecimalType(38, 18), StringType(), BinaryType(), BinaryType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df = session.table_function(my_udtf(lit(1), lit(2.2), lit(True), lit(Decimal("3.33")), lit("python"), lit(bytes("bytes", "utf-8")), lit(bytes("bytearray", "utf-8"))))
 
@@ -226,9 +226,51 @@ body {
           integer_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 132
+                end_line: 48
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 132
+                end_line: 48
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 132
+                end_line: 48
+                file: 2
+                start_column: 21
+                start_line: 48
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 132
                 end_line: 48
@@ -421,9 +463,51 @@ body {
           long_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 39
+                end_line: 52
+                file: 2
+                start_column: 9
+                start_line: 52
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 39
+                end_line: 52
+                file: 2
+                start_column: 9
+                start_line: 52
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 39
+                end_line: 52
+                file: 2
+                start_column: 9
+                start_line: 52
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 39
                 end_line: 52
@@ -737,9 +821,51 @@ body {
           integer_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 139
+                end_line: 65
+                file: 2
+                start_column: 25
+                start_line: 65
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 139
+                end_line: 65
+                file: 2
+                start_column: 25
+                start_line: 65
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 139
+                end_line: 65
+                file: 2
+                start_column: 25
+                start_line: 65
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 139
                 end_line: 65
@@ -953,6 +1079,34 @@ body {
         }
         is_permanent: true
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 40
+                end_line: 91
+                file: 2
+                start_column: 14
+                start_line: 74
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 40
+                end_line: 91
+                file: 2
+                start_column: 14
+                start_line: 74
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
@@ -978,6 +1132,20 @@ body {
                 start_line: 74
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 40
+                end_line: 91
+                file: 2
+                start_column: 14
+                start_line: 74
+              }
             }
           }
         }
@@ -1295,9 +1463,51 @@ body {
           integer_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 106
+                file: 2
+                start_column: 20
+                start_line: 102
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 106
+                file: 2
+                start_column: 20
+                start_line: 102
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 9
+                end_line: 106
+                file: 2
+                start_column: 20
+                start_line: 102
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 9
                 end_line: 106
@@ -1473,9 +1683,51 @@ body {
           integer_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 120
+                file: 2
+                start_column: 23
+                start_line: 114
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 120
+                file: 2
+                start_column: 23
+                start_line: 114
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 9
+                end_line: 120
+                file: 2
+                start_column: 23
+                start_line: 114
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 9
                 end_line: 120
@@ -1881,9 +2133,51 @@ body {
           binary_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 152
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 152
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 9
+                end_line: 152
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 9
                 end_line: 152
@@ -2361,9 +2655,51 @@ body {
           binary_type: true
         }
         kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 171
+                file: 2
+                start_column: 18
+                start_line: 167
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 171
+                file: 2
+                start_column: 18
+                start_line: 167
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
+              src {
+                end_column: 9
+                end_line: 171
+                file: 2
+                start_column: 18
+                start_line: 167
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
               src {
                 end_column: 9
                 end_line: 171

@@ -142,7 +142,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     check_agg_exprs,
     check_flatten_mode,
-    check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
@@ -1040,7 +1039,8 @@ class DataFrame:
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
         if block:
-            check_is_pandas_dataframe_in_to_pandas(result)
+            if not isinstance(result, pandas.DataFrame):
+                return pandas.DataFrame(result)
 
         return result
 
@@ -1283,7 +1283,7 @@ class DataFrame:
         self,
         index_col: Optional[Union[str, List[str]]] = None,
         columns: Optional[List[str]] = None,
-        relaxed_ordering: bool = False,
+        enforce_ordering: bool = False,
         _emit_ast: bool = True,
     ) -> "modin.pandas.DataFrame":
         """
@@ -1293,7 +1293,7 @@ class DataFrame:
             index_col: A column name or a list of column names to use as index.
             columns: A list of column names for the columns to select from the Snowpark DataFrame. If not specified, select
                 all columns except ones configured in index_col.
-            relaxed_ordering: If True, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
+            enforce_ordering: If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
                 DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
                 documentation of :func:`~modin.pandas.read_snowflake` for more details.
 
@@ -1378,7 +1378,7 @@ class DataFrame:
             if columns is not None:
                 ast.columns.extend(columns if isinstance(columns, list) else [columns])
 
-        if not relaxed_ordering:
+        if enforce_ordering:
             # create a temporary table out of the current snowpark dataframe
             temporary_table_name = random_name_for_temp_object(
                 TempObjectType.TABLE
@@ -1394,19 +1394,22 @@ class DataFrame:
             self._ast_id = ast_id  # reset the AST ID.
 
             snowpandas_df = pd.read_snowflake(
-                name_or_query=temporary_table_name, index_col=index_col, columns=columns
+                name_or_query=temporary_table_name,
+                index_col=index_col,
+                columns=columns,
+                enforce_ordering=True,
             )  # pragma: no cover
         else:
             if len(self.queries["queries"]) > 1:
                 raise NotImplementedError(
-                    "Setting 'relaxed_ordering=True' in 'to_snowpark_pandas' is not supported when the input "
-                    "dataframe includes DDL or DML operations. Please use 'relaxed_ordering=False' instead."
+                    "Setting 'enforce_ordering=False' in 'to_snowpark_pandas' is not supported when the input "
+                    "dataframe includes DDL or DML operations. Please use 'enforce_ordering=True' instead."
                 )
             snowpandas_df = pd.read_snowflake(
                 name_or_query=self.queries["queries"][0],
                 index_col=index_col,
                 columns=columns,
-                relaxed_ordering=True,
+                enforce_ordering=False,
             )  # pragma: no cover
 
         if _emit_ast:
@@ -4738,13 +4741,12 @@ class DataFrame:
         truncate: Union[bool, int] = True,
         vertical: bool = False,
         _spark_column_names: List[str] = None,
-        _emit_ast: bool = True,
         **kwargs,
     ) -> str:
         """Spark's show() logic - translated from scala to python."""
         # Fetch one more rows to check whether the result is truncated.
         result, meta = self._get_result_and_meta_for_show(
-            num_rows + 1, _emit_ast, **kwargs
+            num_rows + 1, _emit_ast=False, **kwargs
         )
 
         # handle empty dataframe

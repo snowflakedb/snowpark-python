@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from abc import ABC, abstractmethod
 import datetime
 from typing import List, Callable, Any, Optional, TYPE_CHECKING
 from snowflake.snowpark._internal.data_source.datasource_typing import (
@@ -18,11 +17,10 @@ if TYPE_CHECKING:
     from snowflake.snowpark.dataframe import DataFrame
 
 
-class BaseDriver(ABC):
+class BaseDriver:
     def __init__(self, create_connection: Callable[[], "Connection"]) -> None:
         self.create_connection = create_connection
 
-    @abstractmethod
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
             f"{self.__class__.__name__} has not implemented to_snow_type function"

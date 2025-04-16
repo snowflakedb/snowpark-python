@@ -23,12 +23,14 @@ class DataSourceReader:
         fetch_size: Optional[int] = 0,
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
+        fetch_merge_count: Optional[int] = 1,
     ) -> None:
         self.driver = driver_class(create_connection)
         self.schema = schema
         self.fetch_size = fetch_size
         self.query_timeout = query_timeout
         self.session_init_statement = session_init_statement
+        self.fetch_merge_count = fetch_merge_count
 
     def read(self, partition: str) -> Iterator[List[Any]]:
         conn = self.driver.prepare_connection(
@@ -49,12 +51,19 @@ class DataSourceReader:
                 result = cursor.fetchall()
                 yield result
             elif self.fetch_size > 0:
+                cap_size = self.fetch_merge_count * self.fetch_size
                 cursor = cursor.execute(partition)
+                batch = []
                 while True:
                     rows = cursor.fetchmany(self.fetch_size)
                     if not rows:
+                        if batch:
+                            yield batch
                         break
-                    yield rows
+                    batch.extend(rows)
+                    if len(batch) >= cap_size:
+                        yield batch
+                        batch = []
             else:
                 raise ValueError("fetch size cannot be smaller than 0")
         finally:

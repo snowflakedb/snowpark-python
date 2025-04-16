@@ -17,20 +17,20 @@ from tests.utils import Utils
 
 
 @pytest.mark.parametrize(
-    "relaxed_ordering",
+    "enforce_ordering",
     [
+        True,
         pytest.param(
-            True,
+            False,
             marks=pytest.mark.skip(
                 "Queries with CALL statements raise a SQL compilation "
-                "error when relaxed_ordering=True"
+                "error when enforce_ordering=False"
             ),
         ),
-        False,
     ],
 )
-def test_read_snowflake_call_sproc(session, relaxed_ordering):
-    expected_query_count = 7 if not relaxed_ordering else 5
+def test_read_snowflake_call_sproc(session, enforce_ordering):
+    expected_query_count = 9 if enforce_ordering else 5
     with SqlCounter(query_count=expected_query_count, sproc_count=1):
         session.sql(
             """
@@ -53,7 +53,7 @@ def filter_by_role(session, table_name, role):
             ).collect()
             df = pd.read_snowflake(
                 f"CALL filter_by_role('{table_name}', 'op')",
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
             native_df = native_pd.DataFrame(
                 [[1, "Alice", "op"]], columns=["ID", "NAME", "ROLE"]
@@ -64,7 +64,7 @@ def filter_by_role(session, table_name, role):
 
 
 @sql_count_checker(query_count=3)
-def test_read_snowflake_call_sproc_relaxed_ordering_neg(session):
+def test_read_snowflake_call_sproc_enforce_ordering_neg(session):
     session.sql(
         """
         CREATE OR REPLACE PROCEDURE filter_by_role(tableName VARCHAR, role VARCHAR)
@@ -94,20 +94,20 @@ def filter_by_role(session, table_name, role):
         ):
             pd.read_snowflake(
                 f"CALL filter_by_role('{table_name}', 'op')",
-                relaxed_ordering=True,
+                enforce_ordering=False,
             ).head()
     finally:
         session.sql_simplifier_enabled = sql_simplifier_enabled_original
         session.sql("DROP PROCEDURE filter_by_role(VARCHAR, VARCHAR)").collect()
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_read_snowflake_system_function(session, relaxed_ordering):
-    expected_query_count = 4 if not relaxed_ordering else 2
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_read_snowflake_system_function(session, enforce_ordering):
+    expected_query_count = 6 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         df = pd.read_snowflake(
             "SELECT SYSTEM$TYPEOF(TRUE)",
-            relaxed_ordering=relaxed_ordering,
+            enforce_ordering=enforce_ordering,
         )
         native_df = session.sql("SELECT SYSTEM$TYPEOF(TRUE)").to_pandas()
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, native_df)

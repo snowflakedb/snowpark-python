@@ -114,6 +114,11 @@ def test_single_group_row_groupby_with_variant(
     snowpark_pandas_df = create_snow_df_with_table_and_data(
         session, test_table_name, column_schema, pandas_df.values.tolist()
     )
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+    pandas_df = pandas_df.sort_values(pandas_df.columns.to_list())
 
     by = "COL_0"
     with SqlCounter(query_count=1):
@@ -140,6 +145,11 @@ def test_groupby_agg_with_decimal_dtype(session, agg_method) -> None:
     session.sql(f"insert into {table_name} values ('B', 5)").collect()
 
     snowpark_pandas_df = pd.read_snowflake(table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+
     pandas_df = snowpark_pandas_df.to_pandas()
 
     by = "COL_G"
@@ -162,6 +172,11 @@ def test_groupby_agg_with_decimal_dtype_named_agg(session) -> None:
     session.sql(f"insert into {table_name} values ('B', 5)").collect()
 
     snowpark_pandas_df = pd.read_snowflake(table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+
     pandas_df = snowpark_pandas_df.to_pandas()
 
     by = "COL_G"
@@ -1164,6 +1179,11 @@ def test_groupby_agg_on_valid_variant_column(session, test_table_name):
     snowpark_pandas_df = create_snow_df_with_table_and_data(
         session, test_table_name, column_schema, pandas_df.values.tolist()
     )
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+    pandas_df = pandas_df.sort_values(pandas_df.columns.to_list())
 
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(

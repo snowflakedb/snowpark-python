@@ -24,7 +24,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
     num_rows = 10
     data = [[0] * len(columns) for _ in range(num_rows)]
@@ -35,7 +35,7 @@ def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
     (
         ordered_df,
         row_position_quoted_identifier,
-    ) = create_initial_ordered_dataframe(test_table_name, relaxed_ordering=False)
+    ) = create_initial_ordered_dataframe(test_table_name, enforce_ordering=True)
 
     # verify the ordered df columns are row_position_quoted_identifier + quoted_identifiers
     assert ordered_df.projected_column_snowflake_quoted_identifiers == [
@@ -47,7 +47,7 @@ def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_create_snowpark_dataframe_with_no_readonly_temp_table(session, columns):
     num_rows = 10
     data = [[0] * len(columns) for _ in range(num_rows)]
@@ -58,7 +58,7 @@ def test_create_snowpark_dataframe_with_no_readonly_temp_table(session, columns)
     (
         ordered_df,
         row_position_quoted_identifier,
-    ) = create_initial_ordered_dataframe(test_table_name, relaxed_ordering=True)
+    ) = create_initial_ordered_dataframe(test_table_name, enforce_ordering=False)
 
     # verify the ordered df columns are row_position_quoted_identifier + quoted_identifiers
     assert ordered_df.projected_column_snowflake_quoted_identifiers == [

@@ -53,6 +53,9 @@ def native_pandas_df_basic():
 @sql_count_checker(query_count=2)
 def test_to_snowpark_with_read_snowflake(tmp_table_basic, index) -> None:
     snow_dataframe = pd.read_snowflake(tmp_table_basic)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snow_dataframe = snow_dataframe.sort_values(snow_dataframe.columns.to_list())
+
     index_label = None
     if index:
         index_label = "row_number"
@@ -149,6 +152,9 @@ def test_to_snowpark_with_multiindex(tmp_table_basic, index, index_labels) -> No
 @sql_count_checker(query_count=1)
 def test_to_snowpark_with_operations(session, tmp_table_basic) -> None:
     snowpandas_df = pd.read_snowflake(tmp_table_basic)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpandas_df = snowpandas_df.sort_values(snowpandas_df.columns.to_list())
+
     # rename FOOT_SIZE to size and SHOE_MODEL to model
     snowpandas_df = snowpandas_df.rename(
         columns={"FOOT_SIZE": "size", "SHOE_MODEL": "model"}
@@ -186,6 +192,8 @@ def test_to_snowpark_with_duplicated_columns_raise(native_pandas_df_basic) -> No
 @sql_count_checker(query_count=1)
 def test_to_snowpark_with_none_index_label(tmp_table_basic) -> None:
     snowpandas_df = pd.read_snowflake(tmp_table_basic)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpandas_df = snowpandas_df.sort_values(snowpandas_df.columns.to_list())
 
     snowpark_df = snowpandas_df.to_snowpark()
 

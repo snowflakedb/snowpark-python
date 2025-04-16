@@ -637,6 +637,8 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         session.sql(f"insert into {table_name} values (NULL)").collect()
 
         df = pd.read_snowflake(table_name)
+        # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+        df = df.sort_values(df.columns.to_list(), ignore_index=True)
 
         def compute_num_shared_card_users(x):
             """
