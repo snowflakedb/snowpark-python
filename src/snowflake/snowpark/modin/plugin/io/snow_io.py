@@ -200,12 +200,7 @@ class PandasOnSnowflakeIO(BaseIO):
         return cls.from_pandas(pandas.json_normalize(**kwargs))
 
     @classmethod
-    def read_excel(cls, **kwargs):  # noqa: PR01
-        """
-        Read an excel file into a query compiler.
-
-        Snowpark pandas has a slightly different error message from the upstream modin version.
-        """
+    def _read_excel_locally(cls, **kwargs):
         try:
             intermediate = pandas.read_excel(**kwargs)
         except ImportError as e:
@@ -220,6 +215,23 @@ class PandasOnSnowflakeIO(BaseIO):
             return parsed
         else:
             return cls.from_pandas(intermediate)
+
+    @classmethod
+    def read_excel(cls, **kwargs):  # noqa: PR01
+        """
+        Read an excel file into a query compiler.
+
+        Snowpark pandas has a slightly different error message from the upstream modin version.
+        """
+        io = kwargs["io"]
+        if is_snowflake_stage_path(io):
+            with _file_from_stage(io) as local_filepath:
+                kwargs["io"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls._read_excel_locally(**kwargs)
+
+        return cls._read_excel_locally(**kwargs)
 
     @classmethod
     def read_snowflake(
@@ -708,6 +720,14 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Load pickled pandas object (or any object) from file into a query compiler.
         """
+        filepath_or_buffer = kwargs["filepath_or_buffer"]
+        if is_snowflake_stage_path(filepath_or_buffer):
+            with _file_from_stage(filepath_or_buffer) as local_filepath:
+                kwargs["filepath_or_buffer"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_pickle(**kwargs))
+
         return cls.from_pandas(pandas.read_pickle(**kwargs))
 
     @classmethod
