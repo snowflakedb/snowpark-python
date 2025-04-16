@@ -26,8 +26,18 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
-from tests.parameters_dbapi import DATABRICKS_CONNECTION_PARAMETERS
+from tests.parameters import DATABRICKS_CONNECTION_PARAMETERS
 from tests.utils import IS_IN_STORED_PROC
+
+
+DATABRICKS_PACKAGE_UNAVAILABLE = True
+try:
+    import databricks  # noqa: F401
+
+    DATABRICKS_PACKAGE_UNAVAILABLE = False
+except ImportError:
+    pass
+
 
 TEST_TABLE_NAME = "ALL_TYPE_TABLE"
 EXPECTED_TEST_DATA = [
@@ -170,9 +180,17 @@ def create_databricks_connection():
     return databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
 
 
+@pytest.mark.skipif(DATABRICKS_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration")
-def test_basic_databricks(session):
-    df = session.read.dbapi(create_databricks_connection, table=TEST_TABLE_NAME)
+@pytest.mark.parametrize(
+    "input_type, input_value",
+    [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
+)
+def test_basic_databricks(session, input_type, input_value):
+    input_dict = {
+        input_type: input_value,
+    }
+    df = session.read.dbapi(create_databricks_connection, **input_dict)
     ret = df.collect()
     assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 

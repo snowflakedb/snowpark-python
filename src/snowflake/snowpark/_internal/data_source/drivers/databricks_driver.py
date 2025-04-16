@@ -32,6 +32,8 @@ class DatabricksDriver(BaseDriver):
         conn = self.create_connection()
         cursor = conn.cursor()
         try:
+            # The following query gives a more detailed schema information than
+            # just running "SELECT * FROM {table_or_query} WHERE 1 = 0"
             query = f"DESCRIBE QUERY SELECT * FROM ({table_or_query})"
             logger.debug(f"trying to get schema using query: {query}")
             raw_schema = cursor.execute(query).fetchall()
