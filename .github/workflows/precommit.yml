@@ -697,20 +697,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-    matrix:
-      include:
-        - os: ubuntu-latest
-          python-version: "3.12"
-          cloud-provider: aws
-        - os: windows-latest
-          python-version: "3.11"
-          cloud-provider: azure
-        - os: macos-latest
-          python-version: "3.10"
-          cloud-provider: gcp
-        - os: ubuntu-latest
-          python-version: "3.9"
-          cloud-provider: aws
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.12"
+            cloud-provider: aws
+          - os: macos-latest
+            python-version: "3.11"
+            cloud-provider: azure
+          - os: windows-latest
+            python-version: "3.9"
+            cloud-provider: gcp
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
