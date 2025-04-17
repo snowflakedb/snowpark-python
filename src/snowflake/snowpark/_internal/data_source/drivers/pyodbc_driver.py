@@ -96,11 +96,13 @@ class PyodbcDriver(BaseDriver):
                 import pyodbc
 
                 conn = create_connection()
-                if conn.get_output_converter(pyodbc.SQL_BINARY) is None:
+                if (
+                    conn.get_output_converter(pyodbc.SQL_BINARY) is None
+                    and conn.get_output_converter(pyodbc.SQL_VARBINARY) is None
+                    and conn.get_output_converter(pyodbc.SQL_LONGVARBINARY) is None
+                ):
                     conn.add_output_converter(pyodbc.SQL_BINARY, binary_converter)
-                if conn.get_output_converter(pyodbc.SQL_VARBINARY) is None:
                     conn.add_output_converter(pyodbc.SQL_VARBINARY, binary_converter)
-                if conn.get_output_converter(pyodbc.SQL_LONGVARBINARY) is None:
                     conn.add_output_converter(
                         pyodbc.SQL_LONGVARBINARY, binary_converter
                     )

@@ -56,7 +56,11 @@ DRIVER_MAP = {
 UDTF_PACKAGE_MAP = {
     DBMS_TYPE.ORACLE_DB: ["oracledb", "snowflake-snowpark-python"],
     DBMS_TYPE.SQLITE_DB: ["snowflake-snowpark-python"],
-    DBMS_TYPE.SQL_SERVER_DB: ["pyodbc", "msodbcsql", "snowflake-snowpark-python"],
+    DBMS_TYPE.SQL_SERVER_DB: [
+        "pyodbc>=4.0.26",
+        "msodbcsql",
+        "snowflake-snowpark-python",
+    ],
 }
 
 

@@ -3,6 +3,7 @@
 #
 
 import datetime
+from enum import Enum
 
 from typing import List, Any, Iterator, Type, Callable, Optional
 
@@ -25,7 +26,7 @@ class DataSourceReader:
         driver_class: Type[BaseDriver],
         create_connection: Callable[[], "Connection"],
         schema: StructType,
-        dbms_type: str,
+        dbms_type: Enum,
         fetch_size: Optional[int] = 0,
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
