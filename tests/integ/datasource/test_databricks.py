@@ -195,6 +195,6 @@ def test_basic_databricks(session, input_type, input_value):
     assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
-    df.write.save_as_table(table_name, mode="overwrite")
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
     df2 = session.table(table_name)
     assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
