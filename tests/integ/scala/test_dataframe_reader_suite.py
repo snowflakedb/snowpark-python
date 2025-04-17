@@ -1968,3 +1968,63 @@ def test_read_xml_no_xxe(session):
     stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
     df = session.read.option("rowTag", row_tag).xml(stage_file_path)
     Utils.check_answer(df, [Row("null")])
+
+
+@pytest.mark.parametrize(
+    "file_format_name",
+    [
+        "ab_c1",
+        "ABC",
+        '"a$B12""cD"',
+    ],
+)
+def test_read_file_with_enforced_existing_file_format(session, file_format_name):
+    try:
+        session.sql(
+            f"CREATE OR REPLACE TEMP FILE FORMAT {file_format_name} TYPE = 'CSV' FIELD_DELIMITER = ','"
+        ).collect()
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+        df = (
+            session.read.option("FORMAT_NAME", file_format_name)
+            .option("ENFORCE_EXISTING_FILE_FORMAT", True)
+            .option(
+                "DELIMITER", "!"
+            )  # should be ignored due to ENFORCE_EXISTING_FILE_FORMAT
+            .csv(test_file_on_stage)
+        )
+
+        # Verify there are no queries related to temp file format creation or removal
+        assert len(df.queries["queries"]) == 1
+        assert len(df.queries["post_actions"]) == 0
+
+        result = df.collect()
+
+        assert len(result) == 2
+
+        # If .option("DELIMITER", "!") was not ignored, this would be equal to 1
+        assert len(result[0]) == 3
+    finally:
+        session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
+
+
+def test_enforce_existing_file_format_without_providing_format_name(session):
+    file_format_name = "ABC"
+
+    try:
+        session.sql(
+            f"CREATE OR REPLACE TEMP FILE FORMAT {file_format_name} TYPE = 'CSV' FIELD_DELIMITER = ','"
+        ).collect()
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+        with pytest.raises(
+            ValueError,
+            match="Setting the ENFORCE_EXISTING_FILE_FORMAT option requires providing FORMAT_NAME.",
+        ):
+            (
+                session.read.option("ENFORCE_EXISTING_FILE_FORMAT", True).csv(
+                    test_file_on_stage
+                )
+            )
+    finally:
+        session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
