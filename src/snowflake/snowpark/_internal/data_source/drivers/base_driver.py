@@ -2,13 +2,14 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import time
+from enum import Enum
 from typing import List, Callable, Any, Optional
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.types import StructType, StructField, VariantType
 import snowflake.snowpark
 import logging
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class BaseDriver:
     def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: str
+        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
     ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
@@ -67,12 +68,13 @@ class BaseDriver:
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
         udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
+        start = time.time()
         session.udtf.register(
             self.udtf_class_builder(fetch_size=fetch_size),
             name=udtf_name,
             output_schema=StructType(
                 [
-                    StructField(field.name, StringType(), field.nullable)
+                    StructField(field.name, VariantType(), field.nullable)
                     for field in schema.fields
                 ]
             ),
@@ -80,14 +82,11 @@ class BaseDriver:
             packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
             imports=imports,
         )
+        logger.debug(f"register ingestion udtf takes: {time.time() - start} seconds")
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """
-        start = time.time()
         res = session.sql(call_udtf_sql)
-        logger.info(
-            f"ingest data to snowflake udtf takes: {time.time() - start} seconds"
-        )
         cols = [
             res[field.name].cast(field.datatype).alias(field.name)
             for field in schema.fields
@@ -96,19 +95,25 @@ class BaseDriver:
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
+        fetch_in_batches = self.fetch_in_batches
 
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                cursor = conn.cursor()
-                cursor.execute(query)
-                while True:
-                    rows = cursor.fetchmany(fetch_size)
-                    if not rows:
-                        break
-                    yield from rows
+                yield from fetch_in_batches(conn, query, fetch_size)
 
         return UDTFIngestion
+
+    def fetch_in_batches(
+        self, conn: "Connection", query: str, single_fetch_size: int = 1000
+    ):
+        cursor = conn.cursor()
+        cursor.execute(query)
+        while True:
+            rows = cursor.fetchmany(single_fetch_size)
+            if not rows:
+                break
+            yield from rows
 
     @staticmethod
     def validate_numeric_precision_scale(

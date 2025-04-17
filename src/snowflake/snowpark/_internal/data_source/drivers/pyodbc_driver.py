@@ -4,6 +4,7 @@
 
 import datetime
 import decimal
+from enum import Enum
 from typing import List, Callable, Any
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
@@ -40,7 +41,7 @@ BASE_PYODBC_TYPE_TO_SNOW_TYPE = {
 
 class PyodbcDriver(BaseDriver):
     def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: str
+        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
     ) -> None:
         super().__init__(create_connection, dbms_type)
 
@@ -86,6 +87,7 @@ class PyodbcDriver(BaseDriver):
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
+        fetch_in_batches = self.fetch_in_batches
 
         def binary_converter(value):
             return value.hex() if value is not None else None
@@ -95,16 +97,15 @@ class PyodbcDriver(BaseDriver):
                 import pyodbc
 
                 conn = create_connection()
-                conn.add_output_converter(pyodbc.SQL_BINARY, binary_converter)
-                conn.add_output_converter(pyodbc.SQL_VARBINARY, binary_converter)
-                conn.add_output_converter(pyodbc.SQL_LONGVARBINARY, binary_converter)
-                cursor = conn.cursor()
-                cursor.execute(query)
-                while True:
-                    rows = cursor.fetchmany(fetch_size)
-                    if not rows:
-                        break
-                    yield from rows
+                if conn.get_output_converter(pyodbc.SQL_BINARY) is None:
+                    conn.add_output_converter(pyodbc.SQL_BINARY, binary_converter)
+                if conn.get_output_converter(pyodbc.SQL_VARBINARY) is None:
+                    conn.add_output_converter(pyodbc.SQL_VARBINARY, binary_converter)
+                if conn.get_output_converter(pyodbc.SQL_LONGVARBINARY) is None:
+                    conn.add_output_converter(
+                        pyodbc.SQL_LONGVARBINARY, binary_converter
+                    )
+                yield from fetch_in_batches(conn, query, fetch_size)
 
         return UDTFIngestion
 

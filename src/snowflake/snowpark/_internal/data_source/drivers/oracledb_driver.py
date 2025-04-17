@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+from enum import Enum
 from typing import List, Callable, Any
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 class OracledbDriver(BaseDriver):
     def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: str
+        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
     ) -> None:
         super().__init__(create_connection, dbms_type)
 
@@ -120,6 +121,7 @@ class OracledbDriver(BaseDriver):
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
+        fetch_in_batches = self.fetch_in_batches
 
         def udtf_handler(cursor, metadata):
             from oracledb import (
@@ -144,14 +146,9 @@ class OracledbDriver(BaseDriver):
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                conn.outputtypehandler = udtf_handler
-                cursor = conn.cursor()
-                cursor.execute(query)
-                while True:
-                    rows = cursor.fetchmany(fetch_size)
-                    if not rows:
-                        break
-                    yield from rows
+                if conn.outputtypehandler is None:
+                    conn.outputtypehandler = udtf_handler
+                yield from fetch_in_batches(conn, query, fetch_size)
 
         return UDTFIngestion
 

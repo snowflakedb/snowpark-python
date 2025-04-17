@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+from enum import Enum
 from typing import Callable, List, Any
 
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
@@ -11,7 +11,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import Connectio
 
 class SqliteDriver(BaseDriver):
     def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: str
+        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
     ) -> None:
         super().__init__(create_connection, dbms_type)
 
