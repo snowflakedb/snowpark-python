@@ -811,7 +811,7 @@ def test_udtf_ingestion_oracledb(session):
     df = session.read.dbapi(
         create_connection_oracledb,
         table="ALL_TYPE_TABLE",
-        use_udtf_ingestion=True,
+        ingestion_mode="udtf_mode",
         external_access_integration=ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
     ).order_by("ID")
     Utils.check_answer(df, oracledb_real_data)

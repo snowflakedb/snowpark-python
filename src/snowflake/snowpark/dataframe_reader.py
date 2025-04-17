@@ -1119,7 +1119,7 @@ class DataFrameReader:
         imports: Optional[List[str]] = None,
         packages: Optional[List[str]] = None,
         external_access_integration: Optional[str] = None,
-        use_udtf_ingestion: bool = False,
+        ingestion_mode: Literal["udtf_mode", "parquet_mode"] = "parquet_mode",
         fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -1181,7 +1181,10 @@ class DataFrameReader:
             packages: The name and version number of packages required as dependencies.
             external_access_integration: A string of name of external access integration, if is not None, a server
                 ingestion using UDTF will be used.
-            use_udtf_ingestion: A bool value decide whether to use udtf to ingest external data source, default is False.
+            ingestion_mode: Specifies the ingestion method for the data source API.
+                Choose one of the following:
+                - `'parquet_mode'`: Fetches data to a local Parquet file, then uploads it to Snowflake.
+                - `'udtf_mode'`: Performs the entire ingestion within a Snowflake UDTF on the Snowflake server.
             fetch_merge_count: The number of fetched batches to merge into a single Parquet file
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
@@ -1223,7 +1226,7 @@ class DataFrameReader:
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
 
-        if use_udtf_ingestion:
+        if ingestion_mode == "udtf_mode":
             if not external_access_integration:
                 raise ValueError(
                     "external_access_integration cannot be None when udtf ingestion is used."
