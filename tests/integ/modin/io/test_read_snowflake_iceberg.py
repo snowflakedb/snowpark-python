@@ -11,15 +11,13 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
 from tests.integ.utils.sql_counter import SqlCounter
-from tests.utils import Utils
+from tests.utils import Utils, iceberg_supported
 
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
-def test_read_snowflake_iceberg(session, enforce_ordering):
-    if "azure" in session.connection.host.split("."):
-        pytest.skip("This test doesn't work for Azure.")
-    if "gcp" in session.connection.host.split("."):
-        pytest.skip("This test doesn't work for GCP.")
+def test_read_snowflake_iceberg(session, enforce_ordering, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
 
     with SqlCounter(query_count=2):
         # create iceberg table
