@@ -1403,7 +1403,7 @@ def split_dot_string(s: str) -> list:
           -> ['"a.b"', 'c', '"d.e.f"', 'g']
     """
     # ensures that dots inside quotes are not used for splitting.
-    parts = re.split(r'\.(?=(?:[^"]*"[^"]*")*[^"]*$)', s)
+    parts = re.compile(r'"(?:[^"]|"")*"|[^.]+').findall(s)
     return parts
 
 
