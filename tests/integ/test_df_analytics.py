@@ -568,10 +568,6 @@ def test_time_series_aggregation_grouping_bug_fix(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: add_month not supported",
-)
 def test_time_series_agg_month_sliding_window(session):
     """Tests time_series_agg function with month window sizes."""
 
@@ -632,10 +628,6 @@ def test_time_series_agg_month_sliding_window(session):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: add_month function not supported",
-)
 def test_time_series_agg_year_sliding_window(session):
     """Tests time_series_agg function with year window sizes."""
 

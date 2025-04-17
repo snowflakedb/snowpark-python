@@ -10,7 +10,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
 )
-from snowflake.snowpark._internal.utils import experimental, publicapi
+from snowflake.snowpark._internal.utils import experimental, publicapi, warning
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
     _call_function,
@@ -637,7 +637,7 @@ class DataFrameAnalyticsFunctions:
         aggs: Dict[str, List[str]],
         windows: List[str],
         group_by: List[str],
-        sliding_interval: str = None,  # Ignored. TODO: deprecate or remove.
+        sliding_interval: str = None,
         col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
@@ -650,6 +650,7 @@ class DataFrameAnalyticsFunctions:
             windows: Time windows for aggregations using strings such as '7D' for 7 days, where the units are
                 S: Seconds, M: Minutes, H: Hours, D: Days, W: Weeks, MM: Months, Y: Years. For future-oriented analysis, use positive numbers,
                 and for past-oriented analysis, use negative numbers.
+            sliding_interval: (Deprecated) Interval at which the window slides, specified in the same format as the windows.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<agg>_<window>'.
                         This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
@@ -685,14 +686,14 @@ class DataFrameAnalyticsFunctions:
             ...     col_formatter=custom_formatter,
             ... )
             >>> res.show()
-            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-            |"PRODUCTKEY"  |"ORDERDATE"          |"SALESAMOUNT"  |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
-            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-            |101           |2023-01-01 00:00:00  |200            |300                   |200                   |200                    |200                    |
-            |101           |2023-01-02 00:00:00  |100            |400                   |300                   |300                    |200                    |
-            |101           |2023-01-03 00:00:00  |300            |300                   |300                   |400                    |300                    |
-            |102           |2023-01-04 00:00:00  |250            |250                   |250                   |250                    |250                    |
-            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            ----------------------------------------------------------------------------------------------------------------------------------------------------
+            |"PRODUCTKEY"  |"SALESAMOUNT"  |"ORDERDATE"          |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
+            ----------------------------------------------------------------------------------------------------------------------------------------------------
+            |102           |250            |2023-01-04 00:00:00  |250                   |250                   |250                    |250                    |
+            |101           |200            |2023-01-01 00:00:00  |300                   |200                   |200                    |200                    |
+            |101           |100            |2023-01-02 00:00:00  |400                   |300                   |300                    |200                    |
+            |101           |300            |2023-01-03 00:00:00  |300                   |300                   |400                    |300                    |
+            ----------------------------------------------------------------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
         self._validate_aggs_argument(aggs)
@@ -704,6 +705,12 @@ class DataFrameAnalyticsFunctions:
 
         if not time_col or not isinstance(time_col, str):
             raise ValueError("time_col must be a string")
+
+        if sliding_interval:
+            warning(
+                "time_series_agg.sliding_interval",
+                "sliding_interval is obsolete and deprecated. It does not affect the behavior.",
+            )
 
         # AST.
         stmt = None
