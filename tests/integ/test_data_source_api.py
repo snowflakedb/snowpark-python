@@ -927,7 +927,7 @@ def test_external_access_integration_not_set(session):
         match="external_access_integration cannot be None when udtf ingestion is used.",
     ):
         session.read.dbapi(
-            oracledb_create_connection, table="fake", use_udtf_ingestion=True
+            oracledb_create_connection, table="fake", ingestion_mode="udtf_mode"
         )
 
 
