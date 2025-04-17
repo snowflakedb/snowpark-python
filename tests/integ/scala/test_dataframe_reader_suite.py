@@ -1855,7 +1855,7 @@ def test_read_csv_alternate_time_formats(session):
     schema = StructType(
         [
             StructField("date", DateType()),
-            StructField("timestamp", TimestampType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
             StructField("time", TimeType()),
         ]
     )
