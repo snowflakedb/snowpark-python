@@ -60,6 +60,7 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+- Fixed a bug duplicated `native_app_params` parameters in register udaf function.
 
 ### Snowpark Local Testing Updates
 
