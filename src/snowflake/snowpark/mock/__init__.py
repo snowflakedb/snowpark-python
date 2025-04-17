@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from json import JSONEncoder
-from uuid import uuid4
 
 from ._functions import patch
 from ._snowflake_data_type import ColumnEmulator, ColumnType, TableEmulator
@@ -22,16 +21,6 @@ class NumpyEncoder(JSONEncoder):
             return bool(obj)
 
         return super().default(obj)
-
-    def encode(self, obj):
-        # Snowflake encodes null values inside of lists as 'undefined' rather than 'null'
-        if isinstance(obj, list):
-            sentinel = uuid4().hex
-            obj = [sentinel if item is None else item for item in obj]
-            result = super().encode(obj)
-            return result.replace(f'"{sentinel}"', "undefined")
-
-        return super().encode(obj)
 
 
 CUSTOM_JSON_ENCODER = NumpyEncoder
