@@ -58,6 +58,7 @@
   - `pd.read_pickle`
   - `pd.read_sas`
   - `pd.read_xml`
+- Added support for `DataFrame.to_iceberg` and `Series.to_iceberg`.
 
 #### Improvements
 
