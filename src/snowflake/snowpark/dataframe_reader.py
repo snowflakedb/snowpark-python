@@ -1119,7 +1119,7 @@ class DataFrameReader:
         imports: Optional[List[str]] = None,
         packages: Optional[List[str]] = None,
         external_access_integration: Optional[str] = None,
-        ingestion_mode: Literal["udtf_mode", "parquet_mode"] = "parquet_mode",
+        ingestion_mode: Literal["cloud_mode", "local_mode"] = "parquet_mode",
         fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -1183,8 +1183,8 @@ class DataFrameReader:
                 ingestion using UDTF will be used.
             ingestion_mode: Specifies the ingestion method for the data source API.
                 Choose one of the following:
-                - `'parquet_mode'`: Fetches data to a local Parquet file, then uploads it to Snowflake.
-                - `'udtf_mode'`: Performs the entire ingestion within a Snowflake UDTF on the Snowflake server.
+                - `'local_mode'`: Fetches data to a local Parquet file, then uploads it to Snowflake.
+                - `'cloud_mode'`: Performs the entire ingestion within a Snowflake UDTF on the Snowflake server.
             fetch_merge_count: The number of fetched batches to merge into a single Parquet file
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
