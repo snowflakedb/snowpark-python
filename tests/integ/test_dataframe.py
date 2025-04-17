@@ -1325,7 +1325,7 @@ def test_join_on_order(session, local_testing_mode):
     """
     Test that an 'on' clause in a different order from the data frame re-orders the columns correctly.
     """
-    length = 134217728 if local_testing_mode else None
+    length = 134217728 if not local_testing_mode else None
     df1 = session.create_dataframe([(1, "A", 3)], schema=["A", "B", "C"])
     df2 = session.create_dataframe([(1, "A", 4)], schema=["A", "B", "D"])
 

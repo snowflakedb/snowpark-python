@@ -865,6 +865,7 @@ def test_df_stat_sampleBy_seed(session, caplog, use_simplified_query_gen):
 
     # DataFrame doesn't work with seed
     caplog.clear()
+    # TODO: SNOW-2046468 check if there is a bug in the code
     if not IS_IN_STORED_PROC:
         with caplog.at_level(logging.WARNING):
             sample_by_action(TestData.monthly_sales(session))
