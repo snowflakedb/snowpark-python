@@ -320,6 +320,34 @@ oracledb_real_data = [
         GUID_COL=bytearray(b"1\xe6\x92\xc1\x7f\xb6\x1dv\xe0c\x01\x00\x00\x7f\x1c\xb6"),
     ),
 ]
+sql_server_udtf_ingestion_data = [
+    Row(
+        ID=1,
+        SMALLINTCOL=100,
+        TINYINTCOL=10,
+        BIGINTCOL=100000,
+        DECIMALCOL=Decimal("12345.67"),
+        FLOATCOL=1.23,
+        REALCOL=0.4560000002384186,
+        MONEYCOL=Decimal("1234.5600"),
+        SMALLMONEYCOL=Decimal("12.3400"),
+        CHARCOL="FixedStr1 ",
+        VARCHARCOL="VarStr1",
+        TEXTCOL="Text1",
+        NCHARCOL="UniFix1   ",
+        NVARCHARCOL="UniVar1",
+        NTEXTCOL="UniText1",
+        DATECOL=datetime.date(2023, 1, 1),
+        TIMECOL=datetime.time(12, 0),
+        DATETIMECOL=datetime.datetime(2023, 1, 1, 12, 0),
+        DATETIME2COL=datetime.datetime(2023, 1, 1, 12, 0, 0, 123000),
+        SMALLDATETIMECOL=datetime.datetime(2023, 1, 1, 12, 0),
+        BINARYCOL=bytearray(b"\x01\x02\x03\x04\x05"),
+        VARBINARYCOL=bytearray(b"\x01\x02\x03\x04"),
+        BITCOL=True,
+        UNIQUEIDENTIFIERCOL=bytearray(b"06D48351-6EA7-4E64-81A2-9921F0EC42A5"),
+    )
+]
 
 
 sql_server_all_type_schema = [

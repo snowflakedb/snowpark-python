@@ -87,7 +87,6 @@ class PyodbcDriver(BaseDriver):
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
-        fetch_in_batches = self.fetch_in_batches
 
         def binary_converter(value):
             return value.hex() if value is not None else None
@@ -105,7 +104,13 @@ class PyodbcDriver(BaseDriver):
                     conn.add_output_converter(
                         pyodbc.SQL_LONGVARBINARY, binary_converter
                     )
-                yield from fetch_in_batches(conn, query, fetch_size)
+                cursor = conn.cursor()
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    yield from rows
 
         return UDTFIngestion
 

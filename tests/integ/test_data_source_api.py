@@ -70,6 +70,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     SQLITE3_DB_CUSTOM_SCHEMA_STRING,
     SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
     oracledb_real_data,
+    sql_server_udtf_ingestion_data,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -889,6 +890,9 @@ def test_sql_server_udtf_ingestion(session):
             def add_output_converter(self, need_convert_type, function):
                 pass
 
+            def get_output_converter(self, convert_type):
+                return None
+
             def fetchmany(self, row_count: int):
                 end_index = self.start_index + row_count
                 res = (
@@ -914,7 +918,7 @@ def test_sql_server_udtf_ingestion(session):
         "",
         packages=["pyodbc"],
     )
-    df.show()
+    Utils.check_answer(df, sql_server_udtf_ingestion_data)
 
 
 def test_external_access_integration_not_set(session):

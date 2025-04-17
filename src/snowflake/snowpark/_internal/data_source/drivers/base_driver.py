@@ -95,25 +95,19 @@ class BaseDriver:
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
-        fetch_in_batches = self.fetch_in_batches
 
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                yield from fetch_in_batches(conn, query, fetch_size)
+                cursor = conn.cursor()
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    yield from rows
 
         return UDTFIngestion
-
-    def fetch_in_batches(
-        self, conn: "Connection", query: str, single_fetch_size: int = 1000
-    ):
-        cursor = conn.cursor()
-        cursor.execute(query)
-        while True:
-            rows = cursor.fetchmany(single_fetch_size)
-            if not rows:
-                break
-            yield from rows
 
     @staticmethod
     def validate_numeric_precision_scale(

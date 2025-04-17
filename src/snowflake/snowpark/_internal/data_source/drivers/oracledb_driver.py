@@ -121,7 +121,6 @@ class OracledbDriver(BaseDriver):
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
-        fetch_in_batches = self.fetch_in_batches
 
         def udtf_handler(cursor, metadata):
             from oracledb import (
@@ -148,7 +147,13 @@ class OracledbDriver(BaseDriver):
                 conn = create_connection()
                 if conn.outputtypehandler is None:
                     conn.outputtypehandler = udtf_handler
-                yield from fetch_in_batches(conn, query, fetch_size)
+                cursor = conn.cursor()
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    yield from rows
 
         return UDTFIngestion
 
