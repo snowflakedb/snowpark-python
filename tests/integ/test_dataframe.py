@@ -1321,7 +1321,7 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-def test_join_on_order(session):
+def test_join_on_order(session, local_testing_mode):
     """
     Test that an 'on' clause in a different order from the data frame re-orders the columns correctly.
     """
