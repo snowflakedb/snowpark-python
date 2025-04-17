@@ -1128,11 +1128,11 @@ def test_ordered_dataframe_row_count(session, columns):
     (
         ordered_df1,
         row_position_quoted_identifier,
-    ) = create_initial_ordered_dataframe(test_table_name, relaxed_ordering=False)
+    ) = create_initial_ordered_dataframe(test_table_name, enforce_ordering=True)
     (
         ordered_df2,
         row_position_quoted_identifier,
-    ) = create_initial_ordered_dataframe(test_table_name, relaxed_ordering=False)
+    ) = create_initial_ordered_dataframe(test_table_name, enforce_ordering=True)
 
     # Ensure that the row_count and row_count_upper_bound are being set correctly
     assert ordered_df1.row_count == 10

@@ -2,13 +2,6 @@
 
 ## 1.31.0 (YYYY-MM-DD)
 
-### Snowpark pandas API Updates
-
-### Improvements
-
-- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
-- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
-
 ### Snowpark Python API Updates
 
 #### New Features
@@ -18,12 +11,21 @@
 - Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`
 - Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
 
+#### Improvements
+
+- Renamed the `relaxed_ordering` param into `enforce_ordering` for `DataFrame.to_snowpark_pandas`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
+
+
 #### Bug Fixes
 
 - Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
 - Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
 - Fixed a bug where `df.limit(0)` call would not properly apply.
+
+#### Improvements
+
+- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
 
 #### Deprecations
 
@@ -51,14 +53,22 @@
 - Added support for `DataFrame.to_view` and `Series.to_view`.
 - Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
 - Added support for `DataFrame.groupby.resample` for aggregations `max`, `mean`, `median`, `min`, and `sum`.
+- Added support for reading stage files using:
+  - `pd.read_excel`
+  - `pd.read_html`
+  - `pd.read_pickle`
+  - `pd.read_sas`
+  - `pd.read_xml`
 
 #### Improvements
 
 - Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
+- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
+- Renamed the `relaxed_ordering` param into `enforce_ordering` for `pd.read_snowflake`. Also the new default value is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
 
 #### Bug Fixes
 
-- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `relaxed_ordering=False`.
+- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `enforce_ordering=True`.
 
 ## 1.30.0 (2025-03-27)
 
