@@ -637,7 +637,7 @@ class DataFrameAnalyticsFunctions:
         aggs: Dict[str, List[str]],
         windows: List[str],
         group_by: List[str],
-        sliding_interval: str = None,
+        sliding_interval: str = "",
         col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
