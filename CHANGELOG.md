@@ -22,6 +22,7 @@
 - Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
 - Fixed a bug where `df.limit(0)` call would not properly apply.
+- Fixed a bug duplicated `native_app_params` parameters in register udaf function.
 
 #### Improvements
 
