@@ -644,7 +644,6 @@ jobs:
           path: |
             .tox/.coverage
             .tox/coverage.xml
-
   combine-coverage:
     if: ${{ success() || failure() }}
     name: Combine coverage

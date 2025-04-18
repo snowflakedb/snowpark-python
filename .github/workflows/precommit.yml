@@ -699,7 +699,6 @@ jobs:
             .tox/.coverage
             .tox/coverage.xml
 
-
   combine-coverage:
     if: ${{ success() || failure() }}
     name: Combine coverage
@@ -709,7 +708,6 @@ jobs:
       - test-snowpark-pandas
       - test-modin-extra-without-pandas-extra
       - test-ast-encoding
-      - test-datasource
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
