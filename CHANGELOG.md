@@ -42,6 +42,7 @@
 - Fixed a bug in local testing that created incorrect result for `Column.like` calls.
 - Fixed a bug in local testing that caused `Column.getItem` and `snowpark.snowflake.functions.get` to raise `IndexError` rather than return null.
 - Fixed a bug in local testing where `df.limit(0)` call would not properly apply.
+- Fixed a bug in local testing where a `Table.merge` into an empty table would cause an exception.
 
 ### Snowpark pandas API Updates
 

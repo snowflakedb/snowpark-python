@@ -789,3 +789,24 @@ def test_snow_1707286_repro_merge_with_(session):
         source=df2,
     )
     assert table.to_pandas().eq(pd.DataFrame({"A": [9, 9, 5]})).all().item()
+
+
+def test_merge_into_empty_table(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    schema = StructType([StructField("id", IntegerType())])
+
+    try:
+        df = session.create_dataframe([], schema=schema)
+        df.write.save_as_table(table_name, mode="overwrite")
+        table = session.table(table_name)
+        df_to_append = session.create_dataframe([1], schema=schema)
+
+        table.merge(
+            df_to_append,
+            lit(literal=False),
+            [
+                when_not_matched().insert(df_to_append),
+            ],
+        )
+    finally:
+        Utils.drop_table(session, table_name)
