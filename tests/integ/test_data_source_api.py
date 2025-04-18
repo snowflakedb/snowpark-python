@@ -812,7 +812,7 @@ def test_udtf_ingestion_oracledb(session):
     df = session.read.dbapi(
         create_connection_oracledb,
         table="ALL_TYPE_TABLE",
-        ingestion_mode="cloud_mode",
+        ingestion_mode="udtf_mode",
         external_access_integration=ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
     ).order_by("ID")
     Utils.check_answer(df, oracledb_real_data)
@@ -927,7 +927,7 @@ def test_external_access_integration_not_set(session):
         match="external_access_integration cannot be None when udtf ingestion is used.",
     ):
         session.read.dbapi(
-            oracledb_create_connection, table="fake", ingestion_mode="cloud_mode"
+            oracledb_create_connection, table="fake", ingestion_mode="udtf_mode"
         )
 
 
