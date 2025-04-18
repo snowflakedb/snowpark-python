@@ -395,8 +395,9 @@ def test_telemetry_getitem_setitem():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     s = df["a"]
     assert len(df._query_compiler.snowpark_pandas_api_calls) == 0
+    # Override of __getitem__ is defined on BasePandasDataset
     assert s._query_compiler.snowpark_pandas_api_calls == [
-        {"name": "DataFrame.__getitem__"}
+        {"name": "DataFrame.BasePandasDataset.__getitem__"}
     ]
     df["a"] = 0
     df["b"] = 0
@@ -410,12 +411,12 @@ def test_telemetry_getitem_setitem():
     # the telemetry log from the connector to validate
     _ = s[0]
     data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name="Series.__getitem__",
+        expected_func_name="Series.BasePandasDataset.__getitem__",
         session=s._query_compiler._modin_frame.ordered_dataframe.session,
     )
     assert data["api_calls"] == [
-        {"name": "DataFrame.__getitem__"},
-        {"name": "Series.__getitem__"},
+        {"name": "DataFrame.BasePandasDataset.__getitem__"},
+        {"name": "Series.BasePandasDataset.__getitem__"},
     ]
 
 
