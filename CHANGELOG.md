@@ -14,7 +14,8 @@
 #### Improvements
 
 - Renamed the `relaxed_ordering` param into `enforce_ordering` for `DataFrame.to_snowpark_pandas`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
-
+- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
+- Improve the error message for invalid identifier SQL error by suggesting the potentially matching identifiers.
 
 #### Bug Fixes
 
@@ -23,10 +24,6 @@
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
 - Fixed a bug where `df.limit(0)` call would not properly apply.
 - Fixed a bug in `DataFrameWriter.save_as_table` that caused reserved names to throw errors when using append mode.
-
-#### Improvements
-
-- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
 
 #### Deprecations
 
