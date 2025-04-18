@@ -4,6 +4,7 @@
 
 import datetime
 import re
+import sys
 
 import modin.pandas as pd
 import numpy as np
@@ -886,7 +887,14 @@ import scipy.stats  # noqa: E402
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 7),
-        (["scipy>1.1", "numpy<2.0"], 7),
+        param(
+            ["scipy>1.1", "numpy<2.0"],
+            7,
+            marks=pytest.mark.skipif(
+                sys.version_info.major == 3 and sys.version_info.minor == 12,
+                reason="SNOW-2046982: test raises ModuleNotFoundError when run in python 3.12",
+            ),
+        ),
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],

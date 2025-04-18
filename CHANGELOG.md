@@ -45,6 +45,11 @@
 
 ### Snowpark pandas API Updates
 
+#### Dependency Updates
+
+- Updated `modin` from 0.30.1 to 0.32.0.
+- Added support for `numpy` 2.0 and above.
+
 #### New Features
 
 - Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
