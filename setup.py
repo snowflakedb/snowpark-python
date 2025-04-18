@@ -62,6 +62,8 @@ DEVELOPMENT_REQUIREMENTS = [
     "snowflake.core>=1.0.0, <2",  # Catalog
     "oracledb",  # used in data source
     "psutil",  # testing for telemetry
+    "protoc-wheel-0==21.1",  # protoc 3.20.0
+    "mypy-protobuf",
 ]
 
 # read the version

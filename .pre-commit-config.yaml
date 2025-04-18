@@ -1,4 +1,4 @@
-exclude: '^(.*egg.info.*|.*/parameters.py|docs/).*$'
+exclude: '^(.*egg.info.*|.*/parameters.py|docs/|.*ast_pb2\.pyi?).*$'
 default_language_version:
     python: python3.9
 repos:
