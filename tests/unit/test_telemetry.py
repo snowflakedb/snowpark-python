@@ -13,7 +13,6 @@ from snowflake.snowpark._internal.telemetry import (
     safe_telemetry,
     ResourceUsageCollector,
 )
-from tests.utils import IS_MACOS
 
 
 @safe_telemetry
@@ -47,17 +46,22 @@ def test_resource_usage_time():
     assert cpu_time > 0.0, cpu_time
 
 
-@pytest.mark.skipif(
-    IS_MACOS, reason="SNOW-2005276: fix macos environment for telemetry tests"
-)
-def test_resource_usage_memory():
+@patch("psutil.Process")
+def test_resource_usage_memory(mock_process):
+    # Configure the mock Process object
+    mock_process_instance = mock_process.return_value
+    mock_memory_info = mock_process_instance.memory_info.return_value
+    mock_memory_info.rss = 0  # Set the start value mocked RSS value
+
     with ResourceUsageCollector() as resource_usage_collector:
         _ = [1] * 10**6
+        mock_memory_info.rss = 500 * 1024.0
+
     resource_usage = resource_usage_collector.get_resource_usage()
     # ideally we would assert that the memory usage increased by 8* 10**6 bytes
     # but the memory usage is not guaranteed to increase by exactly that amount
     # so we just check that it increased by some amount
-    assert resource_usage["memory_rss_kib"] > 1000, resource_usage["memory_rss_kib"]
+    assert resource_usage["memory_rss_kib"] == 500, resource_usage["memory_rss_kib"]
 
 
 @patch("psutil.net_io_counters")
