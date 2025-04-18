@@ -16,6 +16,7 @@
 - Renamed the `relaxed_ordering` param into `enforce_ordering` for `DataFrame.to_snowpark_pandas`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
 - Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
 - Improve the error message for invalid identifier SQL error by suggesting the potentially matching identifiers.
+- Improved performance and accuracy of `DataFrameAnalyticsFunctions.time_series_agg()`.
 
 #### Bug Fixes
 
@@ -28,6 +29,7 @@
 #### Deprecations
 
 - Deprecated support for Python3.8.
+- Deprecated argument `sliding_interval` in `DataFrameAnalyticsFunctions.time_series_agg()`.
 
 ### Snowpark Local Testing Updates
 

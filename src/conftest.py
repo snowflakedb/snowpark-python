@@ -11,6 +11,7 @@ import uuid
 import pytest
 
 from snowflake.snowpark import Session
+from snowflake.snowpark.functions import to_timestamp
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
@@ -70,3 +71,11 @@ def add_snowpark_session(doctest_namespace, pytestconfig):
         LOCAL_TESTING_MODE = False
         if RUNNING_ON_GH:
             session.sql(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}").collect()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def add_doctest_imports(doctest_namespace) -> None:
+    """
+    Make `to_timestamp` name available for doctests.
+    """
+    doctest_namespace["to_timestamp"] = to_timestamp
