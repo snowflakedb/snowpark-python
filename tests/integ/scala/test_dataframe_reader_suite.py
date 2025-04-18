@@ -64,6 +64,7 @@ test_file_orc = "test.orc"
 test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
 test_file_books_xml = "books.xml"
+test_file_books2_xml = "books2.xml"
 test_file_house_xml = "fias_house.xml"
 test_file_house_large_xml = "fias_house.large.xml"
 test_file_xxe_xml = "xxe.xml"
@@ -244,6 +245,9 @@ def setup(session, resources_path, local_testing_mode):
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_books_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_books2_xml, compress=False
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_house_xml, compress=False
@@ -1954,6 +1958,7 @@ def test_read_multiple_csvs(session):
     "file,row_tag,expected_row_count,expected_column_count",
     [
         [test_file_books_xml, "book", 12, 7],
+        [test_file_books2_xml, "book", 2, 6],
         [test_file_house_xml, "House", 37, 22],
         [test_file_house_large_xml, "House", 740, 22],
     ],

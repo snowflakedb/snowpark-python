@@ -1534,6 +1534,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "books.xml")
 
     @property
+    def test_books2_xml(self):
+        return os.path.join(self.resources_path, "books2.xml")
+
+    @property
     def test_house_xml(self):
         return os.path.join(self.resources_path, "fias_house.xml")
 
