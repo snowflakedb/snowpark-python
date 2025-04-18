@@ -336,13 +336,9 @@ df321 = df.select(map_keys("M"), map_keys(col("A")))
 
 df322 = df.select(nullifzero(col("A")), nullifzero("B"))
 
-df323 = df.select(snowflake_cortex_summarize(col("A")), snowflake_cortex_summarize("Test string"))
+df323 = df.select(normal(1, 2, "A"))
 
-df324 = df.select(snowflake_cortex_sentiment(col("A")), snowflake_cortex_sentiment("Test string"))
-
-df325 = df.select(normal(1, 2, "A"))
-
-df326 = df.select(randn(1))
+df324 = df.select(randn(1))
 
 df327 = df.select(ai_filter("A", "B"))
 
@@ -784,13 +780,9 @@ df321 = df.select(map_keys("M"), map_keys(col("A")))
 
 df322 = df.select(nullifzero(col("A")), nullifzero("B"))
 
-df323 = df.select(snowflake_cortex_summarize(col("A")), snowflake_cortex_summarize("Test string"))
+df323 = df.select(normal(1, 2, "A"))
 
-df324 = df.select(snowflake_cortex_sentiment(col("A")), snowflake_cortex_sentiment("Test string"))
-
-df325 = df.select(normal(1, 2, "A"))
-
-df326 = df.select(randn(1))
+df324 = df.select(randn(1))
 
 df327 = df.select(ai_filter("A", "B"))
 

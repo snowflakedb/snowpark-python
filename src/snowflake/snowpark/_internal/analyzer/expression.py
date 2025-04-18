@@ -292,6 +292,25 @@ class Star(Expression):
         )
 
 
+class UnresolvedColumnRegex(Expression):
+    def __init__(self, expressions: List[Attribute]) -> None:
+        super().__init__()
+        assert len(expressions) > 0
+        self.expressions = expressions
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(*self.expressions)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(*self.expressions)
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # expressions contain column names that match given regex. The generated sql is
+        # SELECT col1, col2, .... FROM child
+        return {PlanNodeCategory.COLUMN: len(self.expressions)}
+
+
 class UnresolvedAttribute(Expression, NamedExpression):
     def __init__(
         self, name: str, is_sql_text: bool = False, df_alias: Optional[str] = None

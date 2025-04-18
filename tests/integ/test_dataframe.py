@@ -17,7 +17,6 @@ from textwrap import dedent
 from typing import Tuple
 from unittest import mock
 
-from snowflake.snowpark.dataframe import map
 from snowflake.snowpark.session import Session
 from tests.conftest import local_testing_mode
 
@@ -1740,6 +1739,19 @@ def test_create_dataframe_with_dict(session):
     )
 
 
+def test_dataframe_transform_negative(session):
+    def ret_int_fn(input_df):
+        return 2
+
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+
+    with pytest.raises(
+        AssertionError,
+        match="Expected return value to be an instance of class DataFrame, got <class 'int'> instead.",
+    ):
+        df.transform(ret_int_fn)
+
+
 def test_create_dataframe_with_dict_given_schema(session):
     schema = StructType(
         [
@@ -2932,6 +2944,172 @@ def test_describe(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data2(session).describe("c")
     assert "invalid identifier" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.summary is not supported in Local Testing",
+)
+def test_summary(session):
+    assert TestData.test_data2(session).summary().columns == [
+        "SUMMARY",
+        "A",
+        "B",
+    ]
+    Utils.check_answer(
+        TestData.test_data2(session).summary().collect(),
+        [
+            Row("count", 6, 6),
+            Row("mean", 2.0, 1.5),
+            Row("stddev", 0.8944271909999159, 0.5477225575051661),
+            Row("min", 1, 1),
+            Row("25%", 1.25, 1),
+            Row("50%", 2, 1.5),
+            Row("75%", 2.75, 2),
+            Row("max", 3, 2),
+        ],
+    )
+    Utils.check_answer(
+        TestData.test_data2(session).summary("mean", "5%", "61.8%").collect(),
+        [Row("5%", 1.0, 1.0), Row("61.8%", 2.09, 2.0), Row("mean", 2.0, 1.5)],
+    )
+    Utils.check_answer(
+        TestData.test_data3(session).summary().collect(),
+        [
+            Row("count", 2, 1),
+            Row("mean", 1.5, 2.0),
+            Row("stddev", 0.7071067811865476, None),
+            Row("min", 1, 2),
+            Row("25%", 1.25, 2),
+            Row("50%", 1.5, 2),
+            Row("75%", 1.75, 2),
+            Row("max", 2, 2),
+        ],
+    )
+    Utils.check_answer(
+        TestData.test_data3(session).summary("MAX", "0%", "100%").collect(),
+        [Row("0%", 1.0, 2.0), Row("100%", 2.0, 2.0), Row("MAX", 2.0, 2.0)],
+    )
+
+    Utils.check_answer(
+        session.create_dataframe(["a", "a", "c", "z", "b", "a"]).summary(),
+        [
+            Row("count", "6"),
+            Row("mean", None),
+            Row("stddev", None),
+            Row("min", "a"),
+            Row("25%", None),
+            Row("50%", None),
+            Row("75%", None),
+            Row("max", "z"),
+        ],
+    )
+
+    # summary() will ignore all non-numeric and non-string columns
+    data = [
+        1,
+        "one",
+        1.0,
+        Decimal(0.5),
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        bytearray("a", "utf-8"),
+    ]
+    assert session.create_dataframe([data]).summary().columns == [
+        "SUMMARY",
+        "_1",
+        "_2",
+        "_3",
+        "_4",
+    ]
+
+    # summary() will still work when there are more than two string columns
+    # ambiguity will be eliminated
+    Utils.check_answer(
+        TestData.string1(session).summary(),
+        [
+            Row("count", "3", "3"),
+            Row("mean", None, None),
+            Row("stddev", None, None),
+            Row("min", "test1", "a"),
+            Row("25%", None, None),
+            Row("50%", None, None),
+            Row("75%", None, None),
+            Row("max", "test3", "c"),
+        ],
+    )
+
+    # return an "empty" dataframe if no numeric or string column is present
+    Utils.check_answer(
+        TestData.timestamp1(session).summary(),
+        [
+            Row("count"),
+            Row("mean"),
+            Row("stddev"),
+            Row("min"),
+            Row("25%"),
+            Row("50%"),
+            Row("75%"),
+            Row("max"),
+        ],
+    )
+
+    mixed_identifiers_dataframe = session.create_dataframe(
+        data=[
+            [1, Decimal("1.0"), "a", 1, 1, "aa"],
+            [2, Decimal("2.0"), "b", None, 2, "bb"],
+        ],
+        schema=["ほげ", "ふが", "a_ほげ", "ふが_1", "a", "b"],
+    )
+
+    assert mixed_identifiers_dataframe.summary().columns == [
+        "SUMMARY",
+        '"ほげ"',
+        '"ふが"',
+        '"a_ほげ"',
+        '"ふが_1"',
+        "A",
+        "B",
+    ]
+
+    Utils.check_answer(
+        mixed_identifiers_dataframe.summary(),
+        [
+            Row("count", 2.0, 2.0, "2", 1.0, 2.0, "2"),
+            Row("mean", 1.5, 1.5, None, 1.0, 1.5, None),
+            Row(
+                "stddev",
+                0.7071067811865476,
+                0.7071067811865476,
+                None,
+                None,
+                0.7071067811865476,
+                None,
+            ),
+            Row("min", 1.0, 1.0, "a", 1.0, 1.0, "aa"),
+            Row("25%", 1.25, 1.25, None, 1.0, 1.25, None),
+            Row("50%", 1.5, 1.5, None, 1.0, 1.5, None),
+            Row("75%", 1.75, 1.75, None, 1.0, 1.75, None),
+            Row("max", 2.0, 2.0, "b", 1.0, 2.0, "bb"),
+        ],
+    )
+
+
+def test_summary_negative(session):
+    with pytest.raises(ValueError, match="is not a recognised statistic"):
+        TestData.test_data2(session).summary("40")
+    with pytest.raises(ValueError, match="Unable to parse"):
+        TestData.test_data2(session).summary("40.x%")
+    with pytest.raises(
+        ValueError, match="requirement failed: Percentiles must be in the range"
+    ):
+        TestData.test_data2(session).summary("100.1%")
+    with pytest.raises(
+        ValueError, match="requirement failed: Percentiles must be in the range"
+    ):
+        TestData.test_data2(session).summary("-0.1%")
 
 
 def test_truncate_preserves_schema(session, local_testing_mode):
@@ -4688,12 +4866,70 @@ def test_map_basic(
         row = Row(*output_col_names)
         expected = [row(*e) for e in expected]
         Utils.check_answer(
-            map(df, func, output_types, output_column_names=output_col_names), expected
+            df.map(func, output_types, output_column_names=output_col_names), expected
         )
     else:
         row = Row(*[f"c_{i+1}" for i in range(len(output_types))])
         expected = [row(*e) for e in expected]
-        Utils.check_answer(map(df, func, output_types), expected)
+        Utils.check_answer(df.map(func, output_types), expected)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.udf
+@pytest.mark.parametrize("overlapping_columns", [True, False])
+@pytest.mark.parametrize(
+    "func,output_types,output_column_names,expected",
+    [
+        (
+            lambda row: (row[1] + 1, row[1] + 2),
+            [IntegerType()],
+            ["A"],
+            [(i + 1,) for i in range(5)] + [(i + 2,) for i in range(5)],
+        ),
+        (
+            lambda row: [(row.B * 2, row.C)],
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [
+                (
+                    i * 2,
+                    f"w{i}",
+                )
+                for i in range(5)
+            ],
+        ),
+        (
+            lambda row: [
+                Row(row.B * row.B, f"-{row.C}"),
+                Row(row.B + row.B, f"+{row.C}"),
+            ],
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [(i * i, f"-w{i}") for i in range(5)]
+            + [(i + i, f"+w{i}") for i in range(5)],
+        ),
+    ],
+)
+def test_flat_map_basic(
+    session, func, output_types, output_column_names, expected, overlapping_columns
+):
+    df = session.create_dataframe(
+        [(True, i, f"w{i}") for i in range(5)], schema=["a", "b", "c"]
+    )
+    if overlapping_columns:
+        row = Row(*output_column_names)
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(
+            df.flat_map(func, output_types, output_column_names=output_column_names),
+            expected,
+        )
+    else:
+        row = Row(*[f"C_{i+1}" for i in range(len(output_types))])
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(df.flat_map(func, output_types), expected)
 
 
 @pytest.mark.skipif(
@@ -4733,7 +4969,75 @@ def test_map_vectorized(session, func, output_types, expected):
     )
 
     Utils.check_answer(
-        map(df, func, output_types, vectorized=True, packages=["pandas"]), expected
+        df.map(func, output_types, vectorized=True, packages=["pandas"]), expected
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+@pytest.mark.parametrize(
+    "func,data,output_types,partition_by,expected_lambda",
+    [
+        (lambda df: df, [["a"], ["b"], ["c"]], [StringType()], None, lambda row: [row]),
+        (
+            lambda df: df.explode("_1"),
+            [
+                [["A", "B", "C"], "Guard", 7],
+                [["D"], "Forward", 15],
+                [["E", "F"], "Center", 20],
+            ],
+            [StringType(), StringType(), IntegerType()],
+            None,
+            lambda row: [(row[0][i], row[1], row[2]) for i in range(len(row[0]))],
+        ),
+        (
+            lambda df: df.explode("_1"),
+            [
+                [["A", "B", "C"], "Guard", 7],
+                [["D"], "Forward", 15],
+                [["E", "F"], "Center", 20],
+            ],
+            [StringType(), StringType(), IntegerType()],
+            "_2",
+            lambda row: [(row[0][i], row[1], row[2]) for i in range(len(row[0]))],
+        ),
+        (
+            lambda df: ((len(df.iloc[0]["_1"]),), (df.iloc[0]["_2"],)),
+            [
+                [["A", "B", "C"], "Guard", 7],
+                [["D"], "Forward", 15],
+                [["E", "F"], "Center", 20],
+            ],
+            [
+                IntegerType(),
+                StringType(),
+            ],
+            "_2",
+            lambda row: [(len(row[0]), row[1])],
+        ),
+    ],
+)
+def test_flat_map_vectorized(
+    session, func, data, output_types, partition_by, expected_lambda
+):
+    df = session.create_dataframe(data=data)
+    expected = []
+    for row in data:
+        expected.extend(expected_lambda(row))
+    print(expected)
+    Utils.check_answer(
+        df.flat_map(
+            func,
+            output_types,
+            vectorized=True,
+            partition_by=partition_by,
+            packages=["pandas"],
+        ),
+        expected,
     )
 
 
@@ -4747,12 +5051,10 @@ def test_map_chained(session):
         [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
     )
 
-    new_df = map(
-        map(
-            df,
-            lambda x: (x.B * x.B, f"_{x.C}_"),
-            output_types=[IntegerType(), StringType()],
-        ),
+    new_df = df.map(
+        lambda x: (x.B * x.B, f"_{x.C}_"),
+        output_types=[IntegerType(), StringType()],
+    ).map(
         lambda x: len(x[1]) + x[0],
         output_types=[IntegerType()],
     )
@@ -4761,13 +5063,11 @@ def test_map_chained(session):
     Utils.check_answer(new_df, expected)
 
     # chained calls with repeated column names
-    new_df = map(
-        map(
-            df,
-            lambda x: Row(x.B * x.B, f"_{x.C}_"),
-            output_types=[IntegerType(), StringType()],
-            output_column_names=["A", "B"],
-        ),
+    new_df = df.map(
+        lambda x: Row(x.B * x.B, f"_{x.C}_"),
+        output_types=[IntegerType(), StringType()],
+        output_column_names=["A", "B"],
+    ).map(
         lambda x: Row(len(x.B) + x.A),
         output_types=[IntegerType()],
         output_column_names=["A"],
@@ -4776,24 +5076,68 @@ def test_map_chained(session):
     Utils.check_answer(new_df, expected)
 
 
-def test_map_negative(session):
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+def test_flat_map_chained(session):
+    # explode, partitiiton by _2 and apply len
+    data = [
+        [["A", "B", "C"], "Guard", 7],
+        [["D"], "Forward", 15],
+        [["E", "F"], "Center", 20],
+    ]
+    schema = ["Team", "Position", "Points"]
+    df = session.create_dataframe(data, schema=schema)
+    new_df = df.flat_map(
+        lambda pdf: pdf.explode("TEAM"),
+        output_types=[StringType(), StringType(), IntegerType()],
+        output_column_names=schema,
+        vectorized=True,
+        packages=["pandas"],
+    ).flat_map(
+        lambda pdf: (
+            (len(pdf),),
+            (pdf.iloc[0]["POSITION"],),
+        ),
+        output_types=[IntegerType(), StringType()],
+        output_column_names=["SIZE", "POSITION"],
+        vectorized=True,
+        partition_by="POSITION",
+    )
+    Utils.check_answer(new_df, [(3, "Guard"), (1, "Forward"), (2, "Center")])
+
+
+@pytest.mark.parametrize("test_flat_map", [True, False])
+def test_map_negative(session, test_flat_map):
     df1 = session.create_dataframe(
         [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
     )
 
     with pytest.raises(ValueError, match="output_types cannot be empty."):
-        map(df1, lambda row: [row.B, row.C], output_types=[])
+        if test_flat_map:
+            df1.flat_map(lambda row: [row.B, row.C], output_types=[])
+        else:
+            df1.map(lambda row: [row.B, row.C], output_types=[])
 
     with pytest.raises(
         ValueError,
         match="'output_column_names' and 'output_types' must be of the same size.",
     ):
-        map(
-            df1,
-            lambda row: [row.B, row.C],
-            output_types=[IntegerType(), StringType()],
-            output_column_names=["a", "b", "c"],
-        )
+        if test_flat_map:
+            df1.flat_map(
+                lambda row: [row.B, row.C],
+                output_types=[IntegerType(), StringType()],
+                output_column_names=["a", "b", "c"],
+            )
+        else:
+            df1.map(
+                lambda row: [row.B, row.C],
+                output_types=[IntegerType(), StringType()],
+                output_column_names=["a", "b", "c"],
+            )
 
 
 def test_with_column_keep_column_order(session):
