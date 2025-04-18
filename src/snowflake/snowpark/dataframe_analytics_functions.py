@@ -709,7 +709,7 @@ class DataFrameAnalyticsFunctions:
         if sliding_interval:
             warning(
                 "time_series_agg.sliding_interval",
-                "sliding_interval is obsolete and deprecated. It does not affect the behavior.",
+                "sliding_interval is deprecated since 1.31.0. Do not use in production.",
             )
 
         # AST.
