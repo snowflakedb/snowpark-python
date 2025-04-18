@@ -182,9 +182,7 @@ def _maybe_apply_telemetry(
         # Skip the `modin` accessor object.
         attr_name != "modin"
         and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
-        and (
-            not attr_name.startswith("_") or attr_name not in TELEMETRY_PRIVATE_METHODS
-        )
+        and (not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS)
     ):
         # If we already defined the method via the extensions system, then we need to retrieve it from
         # the extensions dictionary directly to circumvent modin's caster dispatch wrapper. If the
