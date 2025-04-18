@@ -1226,7 +1226,7 @@ class DataFrameReader:
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
 
-        if ingestion_mode == "udtf_mode":
+        if ingestion_mode == "could_mode":
             if not external_access_integration:
                 raise ValueError(
                     "external_access_integration cannot be None when udtf ingestion is used."
