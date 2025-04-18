@@ -6,12 +6,12 @@ import os
 import re
 import html.entities
 import logging
+import struct
 import xml.etree.ElementTree as ET
-from typing import Optional, Dict, Any, Iterator, BinaryIO, Union
+from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
 from snowflake.snowpark.files import SnowflakeFile
 
 
-SELF_CLOSING_TAG: bytes = b"/>"
 DEFAULT_CHUNK_SIZE: int = 1024
 
 
@@ -52,6 +52,36 @@ def get_file_size(filename: str) -> Optional[int]:
         return file_obj.tell()
 
 
+def tag_is_self_closing(
+    file_obj: Union[BinaryIO, SnowflakeFile],
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+) -> Tuple[bool, int]:
+    """
+    Return ``(is_self_closing, end_pos)`` for the opening tag at `start_pos`.
+    ``end_pos`` is the byte offset one past the terminating ``>`` of that
+    same tag.
+    """
+    in_quote = False
+    last_byte = b""
+
+    while True:
+        chunk_start_pos = file_obj.tell()
+        chunk = file_obj.read(chunk_size)
+        if not chunk:
+            raise EOFError("EOF reached before end of opening tag")
+
+        for idx, b in enumerate(struct.unpack(f"{len(chunk)}c", chunk)):
+            # '>' inside quote should not be considered as the end of the tag
+            if b == b'"':
+                in_quote = not in_quote
+            # '>' outside quotes
+            elif b == b">" and not in_quote:
+                is_self = last_byte == b"/"
+                absolute_pos = chunk_start_pos + idx + 1
+                return is_self, absolute_pos
+            last_byte = b
+
+
 def find_next_closing_tag_pos(
     file_obj: Union[BinaryIO, SnowflakeFile],
     closing_tag: bytes,
@@ -73,8 +103,7 @@ def find_next_closing_tag_pos(
     Raises:
         EOFError: If end of file is reached before finding a closing tag.
     """
-    # We'll use the maximum length among our tags as our overlap.
-    overlap_size = max(len(closing_tag), len(SELF_CLOSING_TAG))
+    overlap_size = len(closing_tag)
     # Ensure chunk_size is at least the overlap size + 2, which ensures no infinite loop.
     chunk_size = max(overlap_size + 2, chunk_size)
 
@@ -87,33 +116,13 @@ def find_next_closing_tag_pos(
         # If the chunk is smaller than the requested chunk_size, we may be at the file end.
         if len(chunk) < chunk_size:
             # Check if the tag exists in this last chunk.
-            if chunk.find(SELF_CLOSING_TAG) == -1 and chunk.find(closing_tag) == -1:
+            if chunk.find(closing_tag) == -1:
                 raise EOFError("Reached end of file before finding tag end")
         data = chunk
 
-        # Look for both self-closing and normal closing tag occurrences.
-        self_close_pos = data.find(SELF_CLOSING_TAG)
-        close_pos = data.find(closing_tag)
-
-        # Determine the earliest occurrence (if any).
-        chosen = None
-        tag_len = 0
-        if self_close_pos != -1 and close_pos != -1:
-            if self_close_pos < close_pos:
-                chosen = self_close_pos
-                tag_len = len(SELF_CLOSING_TAG)
-            else:
-                chosen = close_pos
-                tag_len = len(closing_tag)
-        elif self_close_pos != -1:
-            chosen = self_close_pos
-            tag_len = len(SELF_CLOSING_TAG)
-        elif close_pos != -1:
-            chosen = close_pos
-            tag_len = len(closing_tag)
-
-        if chosen is not None:
-            absolute_pos = file_obj.tell() - len(data) + chosen + tag_len
+        idx = data.find(closing_tag)
+        if idx != -1:
+            absolute_pos = file_obj.tell() - len(data) + idx + overlap_size
             file_obj.seek(absolute_pos)
             return absolute_pos
 
@@ -317,10 +326,23 @@ def process_xml_range(
 
             record_start = open_pos
             f.seek(record_start)
+
+            # decide whether the row element is self‑closing
             try:
-                record_end = find_next_closing_tag_pos(f, closing_tag, chunk_size)
+                is_self_close, tag_end = tag_is_self_closing(f, record_start)
             except EOFError:
+                # malformed XML record
                 break
+
+            if is_self_close:
+                record_end = tag_end
+            else:
+                f.seek(tag_end)
+                try:
+                    record_end = find_next_closing_tag_pos(f, closing_tag, chunk_size)
+                except EOFError:
+                    # incomplete XML record
+                    break
 
             # Read the complete XML record.
             f.seek(record_start)
