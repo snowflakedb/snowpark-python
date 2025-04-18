@@ -1978,6 +1978,10 @@ def test_read_xml_no_xxe(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2044853: Flaky in stored procedure test",
+)
 def test_read_xml_query_nested_data(session):
     row_tag = "tag"
     df = session.read.option("rowTag", row_tag).xml(

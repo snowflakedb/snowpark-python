@@ -10,7 +10,7 @@ from snowflake.snowpark._internal import utils
 from snowflake.snowpark._internal.utils import (
     _pandas_importer,
     generate_random_alphanumeric,
-    split_dot_string,
+    split_snowflake_identifier_with_dot,
 )
 
 
@@ -130,7 +130,11 @@ def test_generate_random_alphanumeric():
             '"open.quotes.end',
             ['"open', "quotes", "end"],
         ),
+        (
+            'a."b.""c".d."e.f.g".h.i.j."k"".""l."',
+            ["a", '"b.""c"', "d", '"e.f.g"', "h", "i", "j", '"k"".""l."'],
+        ),
     ],
 )
-def test_split_dot_string(string, expected_result):
-    assert split_dot_string(string) == expected_result
+def test_split_snowflake_identifier_with_dot(string, expected_result):
+    assert split_snowflake_identifier_with_dot(string) == expected_result

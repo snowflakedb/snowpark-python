@@ -86,7 +86,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     publicapi,
     quote_name,
-    split_dot_string,
+    split_snowflake_identifier_with_dot,
 )
 from snowflake.snowpark.types import (
     DataType,
@@ -270,7 +270,7 @@ class Column:
             expr: str, df_alias: Optional[str] = None
         ) -> UnresolvedAttribute:
             """Note that this method does not work for full column name like <db>.<schema>.<table>.column."""
-            parts = split_dot_string(expr)
+            parts = split_snowflake_identifier_with_dot(expr)
             if len(parts) == 1:
                 return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
             else:

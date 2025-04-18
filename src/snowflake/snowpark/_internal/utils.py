@@ -1391,10 +1391,11 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
-def split_dot_string(s: str) -> list:
+def split_snowflake_identifier_with_dot(s: str) -> list:
     """
-    Splits the string by dots that are not within double-quoted parts.
+    Splits the Snowflake identifier by dots that are not within double-quoted parts.
     Tokens that appear quoted in the input remain unchanged (quotes are kept).
+    See details in https://docs.snowflake.com/en/sql-reference/identifiers-syntax.
 
     Examples:
       'foo.bar."hello.world".baz'
