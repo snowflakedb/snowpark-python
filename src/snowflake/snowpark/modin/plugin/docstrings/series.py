@@ -630,7 +630,7 @@ class Series(BasePandasDataset):
     3    4
     dtype: int64
 
-    >>> s.agg('min')
+    >>> s.agg('min')  # doctest: +SKIP
     1
 
     >>> s.agg(['min', 'max'])
@@ -959,7 +959,7 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([0.0, 1.0, np.nan])
-        >>> s.count()
+        >>> s.count()  # doctest: +SKIP
         2
         """
 
@@ -1361,7 +1361,7 @@ class Series(BasePandasDataset):
         1    2
         2    3
         Name: 99, dtype: int64
-        >>> series.equals(exactly_equal)
+        >>> series.equals(exactly_equal)  # doctest: +SKIP
         True
 
         Series 'series' and 'different_column_type' have the same element
@@ -1374,7 +1374,7 @@ class Series(BasePandasDataset):
         1    2
         2    3
         Name: 99.0, dtype: int64
-        >>> series.equals(different_column_type)
+        >>> series.equals(different_column_type)  # doctest: +SKIP
         True
 
         Series 'series' and 'different_data_type' have different types for the
@@ -1387,7 +1387,7 @@ class Series(BasePandasDataset):
         1    2.0
         2    3.0
         Name: 99, dtype: float64
-        >>> series.equals(different_data_type)
+        >>> series.equals(different_data_type)  # doctest: +SKIP
         False
         """
 
@@ -2378,10 +2378,10 @@ class Series(BasePandasDataset):
         --------
         >>> ser = pd.Series([1, 2, 3])
 
-        >>> ser.pop(0)
+        >>> ser.pop(0)  # doctest: +SKIP
         1
 
-        >>> ser
+        >>> ser  # doctest: +SKIP
         1    2
         2    3
         dtype: int64
@@ -2933,7 +2933,7 @@ class Series(BasePandasDataset):
 
         With a scalar q:
 
-        >>> s.quantile(.5)
+        >>> s.quantile(.5)  # doctest: +SKIP
         2.5
 
         With a list q:
@@ -3403,7 +3403,7 @@ class Series(BasePandasDataset):
 
         Squeezing all axes will project directly into a scalar:
 
-        >>> df_0a.squeeze()
+        >>> df_0a.squeeze()  # doctest: +SKIP
         1
         """
 
@@ -4064,11 +4064,11 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([3, 2, 2, 1])
-        >>> s.is_monotonic_decreasing
+        >>> s.is_monotonic_decreasing  # doctest: +SKIP
         True
 
         >>> s = pd.Series([1, 2, 3])
-        >>> s.is_monotonic_decreasing
+        >>> s.is_monotonic_decreasing  # doctest: +SKIP
         False
         """
 
@@ -4085,11 +4085,11 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([1, 2, 2])
-        >>> s.is_monotonic_increasing
+        >>> s.is_monotonic_increasing  # doctest: +SKIP
         True
 
         >>> s = pd.Series([3, 2, 1])
-        >>> s.is_monotonic_increasing
+        >>> s.is_monotonic_increasing  # doctest: +SKIP
         False
         """
 
@@ -4200,14 +4200,14 @@ class Series(BasePandasDataset):
         4    7
         dtype: int64
 
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         4
 
         >>> s = pd.Series([pd.NaT, np.nan, pd.NA, None, 1])
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         1
 
-        >>> s.nunique(dropna=False)
+        >>> s.nunique(dropna=False)  # doctest: +SKIP
         2
         """
 

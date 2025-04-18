@@ -547,19 +547,6 @@ def __init__(
         self.name = name
 
 
-# With numpy 2.0, functions that previously returned a native Python scalar (True, 0, np.nan)
-# are now sometimes wrapped in a numpy dtype (np.True_, np.int64(0), np.float64(nan)). This causes
-# issues in doctests, and pandas isn't entirely consistent about when this change is propagated
-# and when it would return a native Python type instead. To prevent this from causing issues
-# in doctests, we modify _reduce_dimension to unwrap these numpy types when encountered.
-@register_series_accessor("_reduce_dimension")
-def _reduce_dimension(self, query_compiler) -> Series | Scalar:
-    result = query_compiler.to_pandas().squeeze()
-    if isinstance(result, np.generic):
-        return result.item()
-    return result
-
-
 @register_series_accessor("_update_inplace")
 def _update_inplace(self, new_query_compiler) -> None:
     """
