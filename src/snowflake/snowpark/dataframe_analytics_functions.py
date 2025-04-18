@@ -725,6 +725,7 @@ class DataFrameAnalyticsFunctions:
                 ast.aggs.append(agg_func_tuple_ast)
             ast.windows.extend(windows)
             ast.group_by.extend(group_by)
+            ast.sliding_interval = sliding_interval
             self._dataframe._set_ast_ref(ast.df)
 
             if col_formatter != DataFrameAnalyticsFunctions._default_col_formatter:
