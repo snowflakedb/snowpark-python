@@ -2986,16 +2986,15 @@ def test_array_compact(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="array_construct is not yet supported in local testing mode.",
-)
-def test_array_construct(session):
+def test_array_construct(session, local_testing_mode):
+    # SNOW-2046349: Local testing down not encode Null values the same
+    null_value = "null" if local_testing_mode else "undefined"
+
     assert (
         TestData.zero1(session)
         .select(array_construct(lit(1), lit(1.2), lit("string"), lit(""), lit(None)))
         .collect()[0][0]
-        == '[\n  1,\n  1.2,\n  "string",\n  "",\n  undefined\n]'
+        == f'[\n  1,\n  1.2,\n  "string",\n  "",\n  {null_value}\n]'
     )
 
     assert TestData.zero1(session).select(array_construct()).collect()[0][0] == "[]"
@@ -3005,9 +3004,9 @@ def test_array_construct(session):
             array_construct(col("a"), lit(1.2), lit(None))
         ),
         [
-            Row("[\n  1,\n  1.2,\n  undefined\n]"),
-            Row("[\n  2,\n  1.2,\n  undefined\n]"),
-            Row("[\n  3,\n  1.2,\n  undefined\n]"),
+            Row(f"[\n  1,\n  1.2,\n  {null_value}\n]"),
+            Row(f"[\n  2,\n  1.2,\n  {null_value}\n]"),
+            Row(f"[\n  3,\n  1.2,\n  {null_value}\n]"),
         ],
         sort=False,
     )
@@ -3016,9 +3015,9 @@ def test_array_construct(session):
     Utils.check_answer(
         TestData.integer1(session).select(array_construct("a", lit(1.2), lit(None))),
         [
-            Row("[\n  1,\n  1.2,\n  undefined\n]"),
-            Row("[\n  2,\n  1.2,\n  undefined\n]"),
-            Row("[\n  3,\n  1.2,\n  undefined\n]"),
+            Row(f"[\n  1,\n  1.2,\n  {null_value}\n]"),
+            Row(f"[\n  2,\n  1.2,\n  {null_value}\n]"),
+            Row(f"[\n  3,\n  1.2,\n  {null_value}\n]"),
         ],
         sort=False,
     )
