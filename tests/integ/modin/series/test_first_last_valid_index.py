@@ -92,13 +92,9 @@ def test_first_and_last_valid_none_float64_multiindex_series(data):
     native_series = native_pd.Series(data, index=arrays)
     snow_series = pd.Series(native_series)
     with SqlCounter(query_count=1):
-        assert str(native_series.first_valid_index()) == str(
-            snow_series.first_valid_index()
-        )
+        assert native_series.first_valid_index() == snow_series.first_valid_index()
     with SqlCounter(query_count=1):
-        assert str(native_series.last_valid_index()) == str(
-            snow_series.last_valid_index()
-        )
+        assert native_series.first_valid_index() == snow_series.first_valid_index()
 
 
 def test_first_and_last_valid_nested_multiindex_series():

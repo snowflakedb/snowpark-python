@@ -22,6 +22,7 @@
 - Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
 - Fixed a bug where `df.limit(0)` call would not properly apply.
+- Fixed a bug in `DataFrameWriter.save_as_table` that caused reserved names to throw errors when using append mode.
 
 #### Improvements
 
@@ -45,6 +46,11 @@
 - Fixed a bug in local testing where `df.limit(0)` call would not properly apply.
 
 ### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Updated `modin` from 0.30.1 to 0.32.0.
+- Added support for `numpy` 2.0 and above.
 
 #### New Features
 
