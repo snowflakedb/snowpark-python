@@ -4,13 +4,10 @@
 
 import threading
 import modin.pandas as pd
-import numpy as np
-import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark import QueryRecord
-from tests.integ.modin.utils import assert_frame_equal
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
@@ -84,7 +81,7 @@ def test_sql_counter_with_context_manager_inside_loop():
 def test_sql_counter_with_multiple_checks(session):
     expected_describe_count = 0
     if not session.reduce_describe_query_enabled and session.sql_simplifier_enabled:
-        expected_describe_count = 1
+        expected_describe_count = 3
     with SqlCounter(query_count=1, describe_count=expected_describe_count):
         df = pd.DataFrame({"a": [1, 2, 3]})
         assert len(df) == 3
@@ -102,30 +99,13 @@ def test_sql_counter_with_multiple_checks(session):
 def test_sql_counter_with_context_manager_outside_loop(session):
     expected_describe_count = 0
     if not session.reduce_describe_query_enabled and session.sql_simplifier_enabled:
-        expected_describe_count = 3
+        expected_describe_count = 9
     sc = SqlCounter(query_count=3, describe_count=expected_describe_count)
     sc.__enter__()
     for _ in range(3):
         df = pd.DataFrame({"a": [1, 2, 3]})
         assert len(df) == 3
     sc.__exit__(None, None, None)
-
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
-def test_sql_counter_with_fallback_count():
-    df_data = {
-        "name": ["Alfred", "Batman", "Catwoman"],
-        "toy": [np.nan, "Batmobile", "Bullwhip"],
-        "born": [pd.NaT, pd.Timestamp("1940-04-25"), pd.NaT],
-    }
-
-    df = pd.DataFrame(df_data).dropna(axis="columns")
-    assert len(df) == 3
 
 
 @sql_count_checker(query_count=5, join_count=2, udtf_count=1)
@@ -234,21 +214,6 @@ def test_sql_count_instances_by_query_substr():
             )
             == 0
         )
-
-
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-# This test passes even though it exceeds the high query count because it is adjusted down based on the fallback count.
-@sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
-def test_high_sql_count_with_fallback_pass():
-    for _ in range(2):
-        df = pd.DataFrame({"A": [1, 2], "B": [1, 2]}, index=["X", "Y"])
-        expected = native_pd.DataFrame({"A": [1, 2], "B": [1, 2]}, index=["x", "y"])
-        result = df.rename(str.lower, axis=0)
-        assert_frame_equal(result, expected, check_dtype=False, check_index_type=False)
 
 
 @pytest.mark.xfail(

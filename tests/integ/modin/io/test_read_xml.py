@@ -3,12 +3,15 @@
 #
 
 from io import BytesIO, StringIO
+import os
+import tempfile
 
 import modin.pandas as pd
 import pandas as native_pd
 
 from tests.integ.modin.utils import assert_frame_equal
 from tests.integ.utils.sql_counter import SqlCounter
+from tests.utils import Utils
 
 xml = """<?xml version='1.0' encoding='utf-8'?>
 <doc:data xmlns:doc="https://example.com">
@@ -67,3 +70,23 @@ def test_read_xml_xpath():
             ),
             check_dtype=False,
         )
+
+
+def test_read_xml_from_stage(session, resources_path):
+    df = native_pd.DataFrame({"foo": range(5), "bar": range(5, 10)})
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp_file:
+        filename = tmp_file.name
+        df.to_xml(filename)
+        tmp_file.close()
+
+        stage_name = Utils.random_stage_name()
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        Utils.upload_to_stage(session, "@" + stage_name, filename, compress=False)
+
+        with SqlCounter(query_count=2):
+            assert_frame_equal(
+                pd.read_xml(f"@{stage_name}/{os.path.basename(filename)}"),
+                native_pd.read_xml(filename),
+                check_dtype=False,
+            )

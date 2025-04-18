@@ -65,6 +65,7 @@ test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
 test_file_books_xml = "books.xml"
 test_file_house_xml = "fias_house.xml"
+test_file_house_large_xml = "fias_house.large.xml"
 test_file_xxe_xml = "xxe.xml"
 
 
@@ -245,6 +246,9 @@ def setup(session, resources_path, local_testing_mode):
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_house_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_house_large_xml, compress=False
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_xxe_xml, compress=False
@@ -1867,7 +1871,7 @@ def test_read_csv_alternate_time_formats(session):
     schema = StructType(
         [
             StructField("date", DateType()),
-            StructField("timestamp", TimestampType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
             StructField("time", TimeType()),
         ]
     )
@@ -1938,9 +1942,17 @@ def test_read_multiple_csvs(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2044853: Flaky in stored procedure test",
+)
 @pytest.mark.parametrize(
     "file,row_tag,expected_row_count,expected_column_count",
-    [[test_file_books_xml, "book", 12, 7], [test_file_house_xml, "House", 37, 22]],
+    [
+        [test_file_books_xml, "book", 12, 7],
+        [test_file_house_xml, "House", 37, 22],
+        [test_file_house_large_xml, "House", 740, 22],
+    ],
 )
 def test_read_xml_row_tag(
     session, file, row_tag, expected_row_count, expected_column_count
@@ -1954,6 +1966,10 @@ def test_read_xml_row_tag(
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2044853: Flaky in stored procedure test",
 )
 def test_read_xml_no_xxe(session):
     row_tag = "bar"

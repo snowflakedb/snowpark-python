@@ -444,6 +444,10 @@ df375 = df.select(try_to_binary("A"), try_to_binary("A", "BASE64"), try_to_binar
 
 df376 = df.select(build_stage_file_url("@images_stage", "/us/yosemite/half_dome.jpg"))
 
+df350 = df.select(call_function("avg", col("B")))
+
+df351 = df.select(function("avg")("B"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -502,7 +506,7 @@ df182 = df.select(arrays_to_object("A", "B"), arrays_to_object("A", col("A")))
 
 df183 = df.select(array_generate_range("A", "B"), array_generate_range("A", col("B")), array_generate_range(col("A"), "B", "C"))
 
-df184 = df.select(sequence("A", "B", None), sequence("A", col("B"), None), sequence(col("A"), "B", "C"))
+df184 = df.select(sequence("A", "B"), sequence("A", col("B")), sequence(col("A"), "B", "C"))
 
 df185 = df.select(date_add("A", "B"), date_add("A", 10), date_add(col("A"), 0), date_add(col("A"), col("B")))
 
@@ -560,7 +564,7 @@ df211 = df.select(is_timestamp_ntz("A"))
 
 df212 = df.select(is_timestamp_tz("A"))
 
-df213 = df.select(time_from_parts(1, 2, 3, None), time_from_parts("A", "B", "A", None), time_from_parts(1, "A", col("B"), None))
+df213 = df.select(time_from_parts(1, 2, 3), time_from_parts("A", "B", "A"), time_from_parts(1, "A", col("B")))
 
 df214 = df.select(timestamp_from_parts("A", "A"), timestamp_from_parts(col("A"), "B"), timestamp_from_parts(col("A"), col("B")))
 
@@ -568,11 +572,11 @@ df215 = df.select(timestamp_from_parts(2000, 12, 0, 12, 3, 1), timestamp_from_pa
 
 df216 = df.select(timestamp_from_parts("year", "month", "day", "hour", "minute", "second"), timestamp_from_parts(to_date("date"), to_time("time")))
 
-df217 = df.select(timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, None), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, 12))
+df217 = df.select(timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ltz_from_parts(2000, 12, 0, 12, 3, 1, 12))
 
 df218 = df.select(timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1, "A"), timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1, timestamp_ntz_from_parts(2000, 12, 0, 12, 3, 1, 12)))
 
-df219 = df.select(timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, None, None), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, None, None), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, None, None), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, None, "us"))
+df219 = df.select(timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1), timestamp_tz_from_parts(2000, 12, 0, 12, 3, 1, "us"))
 
 df220 = df.select(weekofyear("A"))
 
@@ -662,9 +666,9 @@ df262 = df.select(cast("A", "int"), cast("A", LongType()))
 
 df263 = df.select(try_cast("A", "int"), try_cast("A", LongType()))
 
-df264 = df.select(as_decimal("A", None, None), as_decimal("A", None, None), as_decimal("A", 10, None), as_decimal(col("A"), 10, 2))
+df264 = df.select(as_decimal("A"), as_decimal("A"), as_decimal("A", 10), as_decimal(col("A"), 10, 2))
 
-df265 = df.select(as_decimal("A", None, None), as_decimal("A", None, None), as_decimal("A", 10, None), as_decimal(col("A"), 10, 2))
+df265 = df.select(as_decimal("A"), as_decimal("A"), as_decimal("A", 10), as_decimal(col("A"), 10, 2))
 
 df266 = df.select(as_double("A"))
 
@@ -740,15 +744,15 @@ df301 = df.select(listagg("A", "", False), listagg(col("B"), "", False), listagg
 
 df302 = df.select(call_udf("name"), call_udf("test", col("A"), lit(10)))
 
-df303 = df.select(unix_timestamp("A", None), unix_timestamp("A", None), unix_timestamp(col("B"), lit("YYYY")))
+df303 = df.select(unix_timestamp("A"), unix_timestamp("A"), unix_timestamp(col("B"), lit("YYYY")))
 
-df304 = df.select(charindex(lit("needle"), col("expr"), lit(1)), charindex(lit("needle"), lit("test string"), lit(2)))
+df304 = df.select(locate("needle", col("expr"), 1), locate("needle", lit("test string"), 2))
 
 df305 = df.select(size(col("expr")), size("A"))
 
-df306 = df.select(base64_encode("A", 0, None))
+df306 = df.select(base64_encode("A", 0))
 
-df307 = df.select(base64_decode_string("A", None))
+df307 = df.select(base64_decode_string("A"))
 
 df308 = df.select(hex_encode("A", 1))
 
@@ -826,7 +830,7 @@ df344 = df.select(fl_is_video("A"))
 
 df345 = df.select(arrays_zip("A", lit(1)), arrays_zip("A", "B"), arrays_zip(col("A"), col("B")))
 
-df346 = df.select(window("A", "1 minute", None, None), window(col("A"), "1 minute", None, "2 minutes"))
+df346 = df.select(window("A", "1 minute"), window(col("A"), "1 minute", "2 minutes"))
 
 df347 = df.select(from_json(col("B"), StringType()), from_json("A", "array<integer>"))
 
@@ -834,9 +838,9 @@ df348 = df.select(array_remove("A", lit(1)), array_remove("A", "B"), array_remov
 
 df349 = df.select(ln("A"))
 
-df350 = df.select(avg(col("B")))
+df350 = df.select(call_function("avg", col("B")))
 
-df351 = df.select(avg("B"))
+df351 = df.select(call_function("avg", "B"))
 
 df352 = df.select(acosh("A"), acosh(col("B")))
 
@@ -860,7 +864,7 @@ df361 = df.select(localtimestamp(9), localtimestamp(0), localtimestamp(1), local
 
 df362 = df.select(max_by("A", "B"), max_by(col("A"), "B", 3))
 
-df363 = df.select(min_by("A", "B"), max_by(col("A"), "B", 3))
+df363 = df.select(min_by("A", "B"), min_by(col("A"), "B", 3))
 
 df364 = df.select(octet_length("A"), octet_length(col("B")))
 
@@ -887,6 +891,10 @@ df374 = df.select(regr_syy("A", "B"), regr_syy(col("A"), col("B")))
 df375 = df.select(try_to_binary("A"), try_to_binary("A", "BASE64"), try_to_binary(col("A"), "UTF-8"))
 
 df376 = df.select(build_stage_file_url("@images_stage", "/us/yosemite/half_dome.jpg"))
+
+df350 = df.select(call_function("avg", col("B")))
+
+df351 = df.select(call_function("avg", "B"))
 
 ## EXPECTED ENCODED AST
 
@@ -3995,17 +4003,6 @@ body {
                   v: "B"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 44
-                    end_line: 83
-                    file: 2
-                    start_column: 26
-                    start_line: 83
-                  }
-                }
-              }
               src {
                 end_column: 44
                 end_line: 83
@@ -4070,17 +4067,6 @@ body {
                     end_line: 83
                     file: 2
                     start_column: 60
-                    start_line: 83
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 75
-                    end_line: 83
-                    file: 2
-                    start_column: 46
                     start_line: 83
                   }
                 }
@@ -7345,17 +7331,6 @@ body {
                   v: 3
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 50
-                    end_line: 141
-                    file: 2
-                    start_column: 26
-                    start_line: 141
-                  }
-                }
-              }
               src {
                 end_column: 50
                 end_line: 141
@@ -7412,17 +7387,6 @@ body {
                     start_line: 141
                   }
                   v: "A"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 82
-                    end_line: 141
-                    file: 2
-                    start_column: 52
-                    start_line: 141
-                  }
                 }
               }
               src {
@@ -7501,17 +7465,6 @@ body {
                     end_line: 141
                     file: 2
                     start_column: 108
-                    start_line: 141
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 117
-                    end_line: 141
-                    file: 2
-                    start_column: 84
                     start_line: 141
                   }
                 }
@@ -8537,17 +8490,6 @@ body {
                   v: 1
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 73
-                    end_line: 149
-                    file: 2
-                    start_column: 26
-                    start_line: 149
-                  }
-                }
-              }
               src {
                 end_column: 73
                 end_line: 149
@@ -8641,17 +8583,6 @@ body {
                   v: 1
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 128
-                    end_line: 149
-                    file: 2
-                    start_column: 75
-                    start_line: 149
-                  }
-                }
-              }
               src {
                 end_column: 128
                 end_line: 149
@@ -8743,17 +8674,6 @@ body {
                     start_line: 149
                   }
                   v: 1
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 183
-                    end_line: 149
-                    file: 2
-                    start_column: 130
-                    start_line: 149
-                  }
                 }
               }
               src {
@@ -9406,28 +9326,6 @@ body {
                   v: 1
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 72
-                    end_line: 153
-                    file: 2
-                    start_column: 26
-                    start_line: 153
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 72
-                    end_line: 153
-                    file: 2
-                    start_column: 26
-                    start_line: 153
-                  }
-                }
-              }
               src {
                 end_column: 72
                 end_line: 153
@@ -9519,28 +9417,6 @@ body {
                     start_line: 153
                   }
                   v: 1
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 126
-                    end_line: 153
-                    file: 2
-                    start_column: 74
-                    start_line: 153
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 126
-                    end_line: 153
-                    file: 2
-                    start_column: 74
-                    start_line: 153
-                  }
                 }
               }
               src {
@@ -9636,28 +9512,6 @@ body {
                   v: 1
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 186
-                    end_line: 153
-                    file: 2
-                    start_column: 128
-                    start_line: 153
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 186
-                    end_line: 153
-                    file: 2
-                    start_column: 128
-                    start_line: 153
-                  }
-                }
-              }
               src {
                 end_column: 186
                 end_line: 153
@@ -9749,17 +9603,6 @@ body {
                     start_line: 153
                   }
                   v: 1
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 246
-                    end_line: 153
-                    file: 2
-                    start_column: 188
-                    start_line: 153
-                  }
                 }
               }
               pos_args {
@@ -15094,28 +14937,6 @@ body {
                   v: "A"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 41
-                    end_line: 243
-                    file: 2
-                    start_column: 26
-                    start_line: 243
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 41
-                    end_line: 243
-                    file: 2
-                    start_column: 26
-                    start_line: 243
-                  }
-                }
-              }
               src {
                 end_column: 41
                 end_line: 243
@@ -15148,28 +14969,6 @@ body {
                     start_line: 243
                   }
                   v: "A"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 64
-                    end_line: 243
-                    file: 2
-                    start_column: 43
-                    start_line: 243
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 64
-                    end_line: 243
-                    file: 2
-                    start_column: 43
-                    start_line: 243
-                  }
                 }
               }
               src {
@@ -15216,17 +15015,6 @@ body {
                     start_line: 243
                   }
                   v: 10
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 85
-                    end_line: 243
-                    file: 2
-                    start_column: 66
-                    start_line: 243
-                  }
                 }
               }
               src {
@@ -15371,28 +15159,6 @@ body {
                   v: "A"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 40
-                    end_line: 245
-                    file: 2
-                    start_column: 26
-                    start_line: 245
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 40
-                    end_line: 245
-                    file: 2
-                    start_column: 26
-                    start_line: 245
-                  }
-                }
-              }
               src {
                 end_column: 40
                 end_line: 245
@@ -15425,28 +15191,6 @@ body {
                     start_line: 245
                   }
                   v: "A"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 62
-                    end_line: 245
-                    file: 2
-                    start_column: 42
-                    start_line: 245
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 62
-                    end_line: 245
-                    file: 2
-                    start_column: 42
-                    start_line: 245
-                  }
                 }
               }
               src {
@@ -15493,17 +15237,6 @@ body {
                     start_line: 245
                   }
                   v: 10
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 82
-                    end_line: 245
-                    file: 2
-                    start_column: 64
-                    start_line: 245
-                  }
                 }
               }
               src {
@@ -20847,17 +20580,6 @@ body {
                   v: "A"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 45
-                    end_line: 321
-                    file: 2
-                    start_column: 26
-                    start_line: 321
-                  }
-                }
-              }
               src {
                 end_column: 45
                 end_line: 321
@@ -20890,17 +20612,6 @@ body {
                     start_line: 321
                   }
                   v: "A"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 72
-                    end_line: 321
-                    file: 2
-                    start_column: 47
-                    start_line: 321
-                  }
                 }
               }
               src {
@@ -21037,37 +20748,14 @@ body {
                   name {
                     name {
                       name_flat {
-                        name: "charindex"
+                        name: "locate"
                       }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 55
-                        end_line: 323
-                        file: 2
-                        start_column: 26
-                        start_line: 323
-                      }
-                      v: "needle"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 55
                     end_line: 323
@@ -21075,6 +20763,7 @@ body {
                     start_column: 26
                     start_line: 323
                   }
+                  v: "needle"
                 }
               }
               pos_args {
@@ -21112,30 +20801,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    int64_val {
-                      src {
-                        end_column: 55
-                        end_line: 323
-                        file: 2
-                        start_column: 26
-                        start_line: 323
-                      }
-                      v: 1
-                    }
-                  }
+                int64_val {
                   src {
                     end_column: 55
                     end_line: 323
@@ -21143,6 +20809,7 @@ body {
                     start_column: 26
                     start_line: 323
                   }
+                  v: 1
                 }
               }
               src {
@@ -21161,37 +20828,14 @@ body {
                   name {
                     name {
                       name_flat {
-                        name: "charindex"
+                        name: "locate"
                       }
                     }
                   }
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 96
-                        end_line: 323
-                        file: 2
-                        start_column: 57
-                        start_line: 323
-                      }
-                      v: "needle"
-                    }
-                  }
+                string_val {
                   src {
                     end_column: 96
                     end_line: 323
@@ -21199,6 +20843,7 @@ body {
                     start_column: 57
                     start_line: 323
                   }
+                  v: "needle"
                 }
               }
               pos_args {
@@ -21236,30 +20881,7 @@ body {
                 }
               }
               pos_args {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        name {
-                          name_flat {
-                            name: "lit"
-                          }
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    int64_val {
-                      src {
-                        end_column: 96
-                        end_line: 323
-                        file: 2
-                        start_column: 57
-                        start_line: 323
-                      }
-                      v: 2
-                    }
-                  }
+                int64_val {
                   src {
                     end_column: 96
                     end_line: 323
@@ -21267,6 +20889,7 @@ body {
                     start_column: 57
                     start_line: 323
                   }
+                  v: 2
                 }
               }
               src {
@@ -21460,17 +21083,6 @@ body {
                   }
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 44
-                    end_line: 327
-                    file: 2
-                    start_column: 26
-                    start_line: 327
-                  }
-                }
-              }
               src {
                 end_column: 44
                 end_line: 327
@@ -21531,17 +21143,6 @@ body {
                     start_line: 329
                   }
                   v: "A"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 51
-                    end_line: 329
-                    file: 2
-                    start_column: 26
-                    start_line: 329
-                  }
                 }
               }
               src {
@@ -25092,28 +24693,6 @@ body {
                   v: "1 minute"
                 }
               }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 49
-                    end_line: 407
-                    file: 2
-                    start_column: 26
-                    start_line: 407
-                  }
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 49
-                    end_line: 407
-                    file: 2
-                    start_column: 26
-                    start_line: 407
-                  }
-                }
-              }
               src {
                 end_column: 49
                 end_line: 407
@@ -25180,17 +24759,6 @@ body {
                     start_line: 407
                   }
                   v: "1 minute"
-                }
-              }
-              pos_args {
-                null_val {
-                  src {
-                    end_column: 119
-                    end_line: 407
-                    file: 2
-                    start_column: 51
-                    start_line: 407
-                  }
                 }
               }
               pos_args {
@@ -25690,10 +25258,22 @@ body {
                   name {
                     name {
                       name_flat {
-                        name: "avg"
+                        name: "call_function"
                       }
                     }
                   }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 55
+                    end_line: 415
+                    file: 2
+                    start_column: 26
+                    start_line: 415
+                  }
+                  v: "avg"
                 }
               }
               pos_args {
@@ -25774,10 +25354,22 @@ body {
                   name {
                     name {
                       name_flat {
-                        name: "avg"
+                        name: "call_function"
                       }
                     }
                   }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 45
+                    end_line: 417
+                    file: 2
+                    start_column: 26
+                    start_line: 417
+                  }
+                  v: "avg"
                 }
               }
               pos_args {
@@ -27307,7 +26899,7 @@ body {
                   name {
                     name {
                       name_flat {
-                        name: "max_by"
+                        name: "min_by"
                       }
                     }
                   }
@@ -29411,6 +29003,176 @@ body {
       value: "df376"
     }
     uid: 221
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "call_function"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 56
+                    end_line: 469
+                    file: 2
+                    start_column: 26
+                    start_line: 469
+                  }
+                  v: "avg"
+                }
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 55
+                        end_line: 469
+                        file: 2
+                        start_column: 47
+                        start_line: 469
+                      }
+                      v: "B"
+                    }
+                  }
+                  src {
+                    end_column: 55
+                    end_line: 469
+                    file: 2
+                    start_column: 47
+                    start_line: 469
+                  }
+                }
+              }
+              src {
+                end_column: 56
+                end_line: 469
+                file: 2
+                start_column: 26
+                start_line: 469
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 57
+          end_line: 469
+          file: 2
+          start_column: 16
+          start_line: 469
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df350"
+    }
+    uid: 222
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "call_function"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 46
+                    end_line: 471
+                    file: 2
+                    start_column: 26
+                    start_line: 471
+                  }
+                  v: "avg"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 46
+                    end_line: 471
+                    file: 2
+                    start_column: 26
+                    start_line: 471
+                  }
+                  v: "B"
+                }
+              }
+              src {
+                end_column: 46
+                end_line: 471
+                file: 2
+                start_column: 26
+                start_line: 471
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 47
+          end_line: 471
+          file: 2
+          start_column: 16
+          start_line: 471
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df351"
+    }
+    uid: 223
   }
 }
 client_ast_version: 1

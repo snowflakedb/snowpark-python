@@ -169,6 +169,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
+    DateType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -177,6 +178,7 @@ from snowflake.snowpark.types import (
     NullType,
     ShortType,
     StringType,
+    TimestampType,
     VariantType,
     _NumericType,
 )
@@ -314,6 +316,80 @@ def handle_order_by_clause(
     return result_df
 
 
+def validate_interval(interval: Optional[Union[Interval, int]]) -> bool:
+    """
+    Validates that the input value is valid for use as an interval.
+        None -> Unbounded interval either before or after the current row.
+        0 -> Use the current row and the bound.
+        Interval -> Use the Interval when calculating the bound.
+    """
+    if interval is None or interval == 0 or isinstance(interval, Interval):
+        return True
+    return False
+
+
+def negate_interval(interval: Interval) -> Interval:
+    """
+    Negates each value in an interval. Returns a new Interval object.
+    """
+    return Interval(
+        **{key.lower(): -value for key, value in interval.values_dict.items()}
+    )
+
+
+def compare_intervals(
+    lower: Optional[Union[Interval, int]], upper: Optional[Union[Interval, int]]
+) -> bool:
+    """
+    Returns true if lower >= upper.
+    """
+    if lower is None or upper is None:
+        return True
+
+    lower = lower or Interval()
+    upper = upper or Interval()
+
+    for part in [
+        "YEAR",
+        "QUARTER",
+        "MONTH",
+        "WEEK",
+        "DAY",
+        "HOUR",
+        "MINUTE",
+        "SECOND",
+        "MILLISECOND",
+        "MICROSECOND",
+        "NANOSECOND",
+    ]:
+        lower_part = lower.values_dict.get(part)
+        upper_part = upper.values_dict.get(part)
+
+        if lower_part or upper_part:
+            lower_part = lower_part or 0
+            upper_part = upper_part or 0
+            if (lower_part + upper_part) != 0:
+                return lower_part >= upper_part
+    return True
+
+
+def apply_interval(
+    column: ColumnEmulator,
+    interval: Interval,
+    registry: Optional[MockedFunctionRegistry] = None,
+) -> ColumnEmulator:
+    """
+    Applies an interval object to a datetime column by repeatedly calling dateadd on the interval parts.
+    """
+    # The expression `select to_date ('2019-02-28') + INTERVAL '1 day, 1 year';`
+    # is rewritten to `select dateadd(DAY, 1, dateadd(YEAR, 1, to_date ('2019-02-28')))`.
+    registry = registry or MockedFunctionRegistry.get_or_create()
+    new_column = column
+    for k, v in interval.values_dict.items():
+        new_column = registry.get_function("dateadd")(k, v, new_column)
+    return new_column
+
+
 def handle_range_frame_indexing(
     order_spec: List[SortOrder],
     res_index: "pd.Index",
@@ -353,22 +429,70 @@ def handle_range_frame_indexing(
         if range_bounds:
             group_col = analyzer.analyze(order_spec[0].child, expr_to_alias)
             lower, upper = range_bounds
-            if not isinstance(types[group_col].datatype, _NumericType):
+            if isinstance(types[group_col].datatype, (DateType, TimestampType)):
+                # Intervals are handled by adding the interval to the window and then
+                # comparing to the current rows value. Normally the interval would be applied to
+                # the value rather than the window data, but it's more efficient to do it this way.
+                # Therefore intervals are expected to be passed negated.
+
+                if (
+                    isinstance(types[group_col].datatype, DateType)
+                    and (lower is None or isinstance(lower, int))
+                    and (upper is None or isinstance(upper, int))
+                ):
+                    if lower:
+                        lower = Interval(day=-lower)
+                    if upper:
+                        upper = Interval(day=-upper)
+                if not (validate_interval(lower) and validate_interval(upper)):
+                    raise SnowparkLocalTestingException(
+                        "Mixing numeric and interval frames is not supported"
+                    )
+                if not compare_intervals(lower, upper):
+                    raise SnowparkLocalTestingException("Invalid window frame")
+                for current_row, win in zip(res_index, ordered_windows):
+                    cond = pd.Series([True] * len(win), index=win.index)
+                    if lower is not None:
+                        bound = (
+                            win[group_col]
+                            if lower == 0
+                            else apply_interval(win[group_col], lower)
+                        )
+                        cond &= pd.Series(bound) >= win.loc[current_row][group_col]
+                    if upper is not None:
+                        bound = (
+                            win[group_col]
+                            if upper == 0
+                            else apply_interval(win[group_col], upper)
+                        )
+                        cond &= pd.Series(bound) <= win.loc[current_row][group_col]
+                    windows.append(
+                        TableEmulator(pd.DataFrame(win).loc[cond], sf_types=types)
+                    )
+            elif isinstance(types[group_col].datatype, _NumericType):
+                if isinstance(lower, Interval) or isinstance(upper, Interval):
+                    raise SnowparkLocalTestingException(
+                        "numeric ORDER BY clause only allows numeric window frame boundaries"
+                    )
+                # TableEmulator breaks loc comparisons
+                cast_windows = [pd.DataFrame(win) for win in ordered_windows]
+                for current_row, win in zip(res_index, cast_windows):
+                    cond = pd.Series([True] * len(win), index=win.index)
+                    if lower is not None:
+                        cond &= (
+                            win[group_col] >= win.loc[current_row][group_col] + lower
+                        )
+                    if upper is not None:
+                        cond &= (
+                            win[group_col] <= win.loc[current_row][group_col] + upper
+                        )
+
+                    # Cast back to TableEmulator so downstream can infer types correctly
+                    windows.append(TableEmulator(win.loc[cond], sf_types=types))
+            else:
                 raise SnowparkLocalTestingException(
-                    "range_between only operates on numeric group_by columns."
+                    "range_between only operates on numeric or datetime group_by columns."
                 )
-
-            # TableEmulator breaks loc comparisons
-            cast_windows = [pd.DataFrame(win) for win in ordered_windows]
-            for current_row, win in zip(res_index, cast_windows):
-                cond = True
-                if lower is not None:
-                    cond &= win[group_col] >= win.loc[current_row][group_col] + lower
-                if upper is not None:
-                    cond &= win[group_col] <= win.loc[current_row][group_col] + upper
-
-                # Cast back to TableEmulator so downstream can infer types correctly
-                windows.append(TableEmulator(win.loc[cond], sf_types=types))
         else:
             for current_row, win in zip(res_index, ordered_windows):
                 row_idx = list(win.index).index(current_row)
@@ -2174,15 +2298,12 @@ def calculate_expression(
             new_column = left / right
         elif isinstance(exp, Add):
             if isinstance(right, Interval):
-                # The expression `select to_date ('2019-02-28') + INTERVAL '1 day, 1 year';`
-                # is rewritten to `select dateadd(DAY, 1, dateadd(YEAR, 1, to_date ('2019-02-28')))`.
-                new_column = left
-                for k, v in right.values_dict.items():
-                    new_column = registry.get_function("dateadd")(k, v, left)
-                    left = new_column
+                return apply_interval(left, right, registry)
             else:
                 new_column = left + right
         elif isinstance(exp, Subtract):
+            if isinstance(right, Interval):
+                return apply_interval(left, negate_interval(right), registry)
             new_column = left - right
         elif isinstance(exp, Remainder):
             new_column = left % right
@@ -2316,15 +2437,11 @@ def calculate_expression(
         return result
     if isinstance(exp, Like):
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
-
-        pattern = convert_wildcard_to_regex(
-            str(
-                calculate_expression(
-                    exp.pattern, input_data, analyzer, expr_to_alias
-                ).iloc[0]
-            )
+        rhs = calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)
+        pattern = rhs.apply(lambda x: convert_wildcard_to_regex(str(x)))
+        result = pd.concat([lhs, pattern], axis=1).apply(
+            lambda x: re.match(x.iloc[1], str(x.iloc[0])) is not None, axis=1
         )
-        result = lhs.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, InExpression):
@@ -2500,11 +2617,13 @@ def calculate_expression(
             windows = [w for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
-            upper = window_spec.frame_spec.upper
             lower = window_spec.frame_spec.lower
+            upper = window_spec.frame_spec.upper
             range_bounds = None
 
-            if isinstance(upper, Literal) or isinstance(lower, Literal):
+            if isinstance(lower, (Literal, UnaryMinus, Interval)) or isinstance(
+                upper, (Literal, UnaryMinus, Interval)
+            ):
                 if len(window_spec.order_spec) > 1:
                     raise SnowparkLocalTestingException(
                         "range_between requires exactly one order_by column."
@@ -2515,6 +2634,10 @@ def calculate_expression(
                         return bound.value
                     if isinstance(bound, CurrentRow):
                         return 0
+                    if isinstance(bound, UnaryMinus):
+                        return bound.child
+                    if isinstance(bound, Interval):
+                        return negate_interval(bound)
                     return None
 
                 range_bounds = (get_bound(lower), get_bound(upper))
@@ -2795,7 +2918,9 @@ def calculate_expression(
         return res
     elif isinstance(exp, SubfieldInt):
         col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        res = col.apply(lambda x: None if x is None else x[exp.field])
+        res = col.apply(
+            lambda x: None if x is None or exp.field >= len(x) else x[exp.field]
+        )
         res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SnowflakeUDF):
