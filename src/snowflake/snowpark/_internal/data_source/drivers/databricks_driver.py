@@ -20,8 +20,8 @@ from snowflake.snowpark.functions import column, to_variant
 from snowflake.connector.options import pandas as pd
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.session import Session
-    from snowflake.snowpark.dataframe import DataFrame
+    from snowflake.snowpark.session import Session  # pragma: no cover
+    from snowflake.snowpark.dataframe import DataFrame  # pragma: no cover
 
 
 logger = logging.getLogger(__name__)

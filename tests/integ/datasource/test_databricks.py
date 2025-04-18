@@ -11,6 +11,10 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
 )
+from snowflake.snowpark._internal.data_source.drivers.databricks_driver import (
+    DatabricksDriver,
+)
+from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -24,6 +28,7 @@ from snowflake.snowpark.types import (
     DoubleType,
     TimestampTimeZone,
     VariantType,
+    MapType,
 )
 
 from tests.parameters import DATABRICKS_CONNECTION_PARAMETERS
@@ -198,3 +203,36 @@ def test_basic_databricks(session, input_type, input_value):
     df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
     df2 = session.table(table_name)
     assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
+
+
+@pytest.mark.skipif(DATABRICKS_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration")
+@pytest.mark.parametrize(
+    "input_type, input_value, error_message",
+    [
+        ("table", "NOT EXIST", "TABLE_OR_VIEW_NOT_FOUND"),
+        ("query", "SELEC ** FORM TABLE", "PARSE_SYNTAX_ERROR"),
+    ],
+)
+def test_error_case(session, input_type, input_value, error_message):
+    input_dict = {
+        input_type: input_value,
+    }
+    with pytest.raises(SnowparkDataframeReaderException, match=error_message):
+        session.read.dbapi(create_databricks_connection, **input_dict)
+
+
+def test_unit_data_source_data_to_pandas_df():
+    schema = StructType(
+        [
+            StructField("COL1", LongType(), nullable=True),
+            StructField("COL2", MapType(StringType(), StringType()), nullable=True),
+        ]
+    )
+    data = [
+        (1, [("key1", "value1"), ("key2", "value2")]),
+    ]
+    df = DatabricksDriver.data_source_data_to_pandas_df(data, schema)
+    assert df.to_dict(orient="records") == [
+        {"COL1": 1, "COL2": '{"key1": "value1", "key2": "value2"}'}
+    ]
