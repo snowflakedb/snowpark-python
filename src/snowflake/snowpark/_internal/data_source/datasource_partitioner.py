@@ -60,9 +60,9 @@ class DataSourcePartitioner:
         self.session_init_statement = session_init_statement
         self.fetch_merge_count = fetch_merge_count
         conn = create_connection()
-        dbms_type, driver = detect_dbms(conn)
+        dbms_type, driver_type = detect_dbms(conn)
         self.dialect_class = DBMS_MAP.get(dbms_type, BaseDialect)
-        self.driver_class = DRIVER_MAP.get(driver, BaseDriver)
+        self.driver_class = DRIVER_MAP.get(driver_type, BaseDriver)
         self.dialect = self.dialect_class()
         self.driver = self.driver_class(create_connection)
 
