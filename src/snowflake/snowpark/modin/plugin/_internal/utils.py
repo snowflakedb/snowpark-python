@@ -492,7 +492,9 @@ def create_initial_ordered_dataframe(
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
     # Set the materialized row count
-    materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count()
+    materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
+        _emit_ast=False
+    )
     ordered_dataframe.row_count = materialized_row_count
     ordered_dataframe.row_count_upper_bound = materialized_row_count
     return ordered_dataframe, row_position_snowflake_quoted_identifier

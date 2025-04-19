@@ -727,7 +727,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -775,7 +775,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -911,7 +911,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         return self._session._conn.execute(
             self._plan,
@@ -1031,7 +1031,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -1135,7 +1135,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         return self._session._conn.execute(
             self._plan,
@@ -4206,7 +4206,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
@@ -4375,7 +4375,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4677,7 +4677,7 @@ class DataFrame:
             ast.n = n
             self._session._ast_batch.eval(stmt)
 
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
@@ -5412,7 +5412,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         if n is None:
             df = self.limit(1, _emit_ast=False)

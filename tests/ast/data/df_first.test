@@ -20,17 +20,25 @@ df1 = df.first(n=-5)
 
 df1
 
+df = session.table("table1")
+
 df2 = df.first(n=2)
 
 df2
+
+df = session.table("table1")
 
 df3 = df.first(n=1)
 
 df3
 
+df = session.table("table1")
+
 df4 = df.first(n=1, block=False)
 
 df4
+
+df = session.table("table1")
 
 df5 = df.first(n=0, statement_params={"a": "b", "c": "d"}, block=False)
 
@@ -112,6 +120,36 @@ body {
 body {
   bind {
     expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_first {
         block: true
         df {
@@ -139,6 +177,36 @@ body {
 body {
   eval {
     bind_id: 3
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
@@ -176,6 +244,36 @@ body {
 body {
   bind {
     expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_first {
         df {
           dataframe_ref {
@@ -202,6 +300,36 @@ body {
 body {
   eval {
     bind_id: 5
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
