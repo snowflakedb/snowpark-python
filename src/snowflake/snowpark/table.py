@@ -81,7 +81,7 @@ class WhenMatchedClause:
         condition: An optional :class:`Column` object representing the
             specified condition. For example, ``col("a") == 1``.
     """
-
+    @publicapi
     def __init__(
         self, condition: Optional[Column] = None, _emit_ast: bool = True
     ) -> None:
@@ -178,7 +178,7 @@ class WhenNotMatchedClause:
         condition: An optional :class:`Column` object representing the
             specified condition.
     """
-
+    @publicapi
     def __init__(
         self, condition: Optional[Column] = None, _emit_ast: bool = True
     ) -> None:

@@ -830,6 +830,7 @@ class Column:
 
     # Note: For the operator overrides we always emit ast, it simply gets ignored in a call chain.
 
+    @publicapi
     def __neg__(self) -> "Column":
         """Unary minus."""
 
