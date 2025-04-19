@@ -57,6 +57,7 @@ from snowflake.snowpark._internal.utils import (
     create_rlock,
     create_thread_local,
     escape_quotes,
+    is_ast_enabled,
     get_application_name,
     get_version,
     is_in_stored_procedure,
@@ -430,7 +431,7 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
         notify_kwargs = {}
-        if DATAFRAME_AST_PARAMETER in kwargs:
+        if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
 
         try:
