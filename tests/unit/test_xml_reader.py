@@ -199,7 +199,16 @@ def test_tag_not_self_closing(chunk_size):
 
 @pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
 def test_tag_self_closing(chunk_size):
-    record = b'<row attr="abc"/> trailing text'
+    record = b'<row attr1="abc" attr2="cde"/> trailing text'
+    f = io.BytesIO(record)
+    is_self, end_pos = tag_is_self_closing(f, chunk_size=chunk_size)
+    assert is_self is True
+    assert end_pos == record.find(b">") + 1
+
+
+@pytest.mark.parametrize("chunk_size", [2, 5, DEFAULT_CHUNK_SIZE])
+def test_tag_with_mixed_quote_chars_self_closing(chunk_size):
+    record = b"<row note='She said \"Hi\"'/> trailing"
     f = io.BytesIO(record)
     is_self, end_pos = tag_is_self_closing(f, chunk_size=chunk_size)
     assert is_self is True

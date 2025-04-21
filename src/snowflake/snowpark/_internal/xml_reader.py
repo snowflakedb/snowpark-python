@@ -64,6 +64,7 @@ def tag_is_self_closing(
     ``<book title="a<b>c">``.
     """
     in_quote = False
+    quote_char = None
     last_byte = b""
 
     while True:
@@ -74,8 +75,12 @@ def tag_is_self_closing(
 
         for idx, b in enumerate(struct.unpack(f"{len(chunk)}c", chunk)):
             # '>' inside quote should not be considered as the end of the tag
-            if b == b'"':
-                in_quote = not in_quote
+            if not in_quote and b in [b'"', b"'"]:
+                in_quote = True
+                quote_char = b
+            elif in_quote and b == quote_char:
+                in_quote = False
+                quote_char = None
             # '>' outside quotes
             elif b == b">" and not in_quote:
                 is_self = last_byte == b"/"
@@ -331,7 +336,7 @@ def process_xml_range(
 
             # decide whether the row element is self‑closing
             try:
-                is_self_close, tag_end = tag_is_self_closing(f, record_start)
+                is_self_close, tag_end = tag_is_self_closing(f)
             except EOFError:
                 # malformed XML record
                 break
