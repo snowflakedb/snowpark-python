@@ -1376,7 +1376,10 @@ class SnowflakePlanBuilder:
 
         # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
         # Currently it's capped at 16.
-        file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
+        try:
+            file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
+        except IndexError:
+            raise ValueError(f"{file_path} does not exist")
         num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
 
         # Create a range from 0 to N-1
