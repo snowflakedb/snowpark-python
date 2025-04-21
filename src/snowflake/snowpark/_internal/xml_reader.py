@@ -62,6 +62,8 @@ def tag_is_self_closing(
     same tag.
     This method is quote-aware and will not consider a ``>`` inside a quote, e.g.,
     ``<book title="a<b>c">``.
+    Note that There is no back‑slash escaping (\") inside XML attribute values.
+    If we want to embed a double‑quote inside a double‑quoted attribute, we must use the entity ``&quot;``.
     """
     in_quote = False
     quote_char = None
