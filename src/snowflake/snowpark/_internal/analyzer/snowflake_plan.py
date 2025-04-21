@@ -42,7 +42,6 @@ if TYPE_CHECKING:
 
 import snowflake.connector
 import snowflake.snowpark
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
     TEMPORARY_STRING_SET,
@@ -273,8 +272,9 @@ class SnowflakePlan(LogicalPlan):
                                         match = [identifier]
                                     msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
 
+                            e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                ProgrammingError(msg=f"{e.msg}\n{msg}")
+                                e
                             )
                             raise ne.with_traceback(tb) from None
                     else:
