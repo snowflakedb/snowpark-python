@@ -17,6 +17,7 @@
 - Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
 - Improve the error message for invalid identifier SQL error by suggesting the potentially matching identifiers.
 - Reduced the number of describe queries issued when creating a DataFrame from a Snowflake table using `session.table`.
+- Improved performance and accuracy of `DataFrameAnalyticsFunctions.time_series_agg()`.
 
 #### Bug Fixes
 
@@ -29,6 +30,7 @@
 #### Deprecations
 
 - Deprecated support for Python3.8.
+- Deprecated argument `sliding_interval` in `DataFrameAnalyticsFunctions.time_series_agg()`.
 
 ### Snowpark Local Testing Updates
 

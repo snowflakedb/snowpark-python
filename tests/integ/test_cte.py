@@ -16,7 +16,15 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import avg, col, lit, seq1, uniform, when_matched
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    lit,
+    seq1,
+    uniform,
+    when_matched,
+    to_timestamp,
+)
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
@@ -1099,23 +1107,23 @@ def test_time_series_aggregation_grouping(session):
     df = session.create_dataframe(data).to_df(
         "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
     )
+    df = df.with_column("TS", to_timestamp("TS"))
 
     res = df.analytics.time_series_agg(
         time_col="TS",
         group_by=["PRODUCT_ID"],
         aggs={"QUANTITY": ["SUM"]},
         windows=["-1D", "-7D"],
-        sliding_interval="1D",
     )
     check_result(
         session,
         res,
-        expect_cte_optimized=True,
+        expect_cte_optimized=False,
         query_count=1,
         describe_count=0,
         union_count=0,
-        join_count=8,
-        cte_join_count=4,
+        join_count=0,
+        cte_join_count=0,
         describe_count_for_optimized=6 if session._join_alias_fix else None,
     )
 
