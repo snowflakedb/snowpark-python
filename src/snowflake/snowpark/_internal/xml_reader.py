@@ -57,9 +57,11 @@ def tag_is_self_closing(
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Tuple[bool, int]:
     """
-    Return ``(is_self_closing, end_pos)`` for the opening tag at `start_pos`.
+    Return ``(is_self_closing, end_pos)`` after searching the terminating ``>`` .
     ``end_pos`` is the byte offset one past the terminating ``>`` of that
     same tag.
+    This method is quote-aware and will not consider a ``>`` inside a quote, e.g.,
+    ``<book title="a<b>c">``.
     """
     in_quote = False
     last_byte = b""
