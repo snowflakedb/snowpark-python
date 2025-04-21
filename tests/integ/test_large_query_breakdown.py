@@ -336,7 +336,7 @@ def test_update_delete_merge(session, large_query_df):
     # update
     with session.query_history() as history:
         # 3 describe call triggered due to column state extraction
-        with SqlCounter(query_count=4, describe_count=3):
+        with SqlCounter(query_count=4, describe_count=2):
             t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
