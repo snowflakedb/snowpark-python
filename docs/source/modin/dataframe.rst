@@ -42,6 +42,7 @@ DataFrame
     DataFrame.create_or_replace_dynamic_table
     DataFrame.to_view
     DataFrame.to_dynamic_table
+    DataFrame.to_iceberg
 
 .. rubric:: Conversion
 

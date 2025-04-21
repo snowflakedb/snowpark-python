@@ -16,6 +16,7 @@ Snowpark APIs
    table
    async_job
    stored_procedures
+   stored_procedure_profiler
    udf
    udaf
    udtf

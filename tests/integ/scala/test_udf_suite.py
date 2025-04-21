@@ -122,10 +122,6 @@ def test_empty_expression(session):
     Utils.check_answer(df.select(const_udf()).collect(), [Row(1), Row(1), Row(1)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="array_construct is not yet supported in local testing mode.",
-)
 def test_udf_with_arrays(session):
     tmp_df = session.create_dataframe([("1", "2", "3"), ("4", "5", "6")]).to_df(
         ["a", "b", "c"]
@@ -161,10 +157,6 @@ def test_udf_with_map_input(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="array_construct is not yet supported in local testing mode.",
-)
 def test_udf_with_map_return(session):
     tmp_df = session.create_dataframe([("1", "2", "3"), ("4", "5", "6")]).to_df(
         ["a", "b", "c"]

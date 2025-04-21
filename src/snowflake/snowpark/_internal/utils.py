@@ -1380,6 +1380,23 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
+def split_snowflake_identifier_with_dot(s: str) -> list:
+    """
+    Splits the Snowflake identifier by dots that are not within double-quoted parts.
+    Tokens that appear quoted in the input remain unchanged (quotes are kept).
+    See details in https://docs.snowflake.com/en/sql-reference/identifiers-syntax.
+
+    Examples:
+      'foo.bar."hello.world".baz'
+          -> ['foo', 'bar', '"hello.world"', 'baz']
+      '"a.b".c."d.e.f".g'
+          -> ['"a.b"', 'c', '"d.e.f"', 'g']
+    """
+    # ensures that dots inside quotes are not used for splitting.
+    parts = re.compile(r'"(?:[^"]|"")*"|[^.]+').findall(s)
+    return parts
+
+
 # Define the full-width regex pattern, copied from Spark
 full_width_regex = re.compile(
     r"[\u1100-\u115F"
