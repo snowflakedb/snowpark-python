@@ -122,7 +122,7 @@ class OracledbDriver(BaseDriver):
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
 
-        def udtf_handler(cursor, metadata):
+        def oracledb_output_type_handler(cursor, metadata):
             from oracledb import (
                 DB_TYPE_CLOB,
                 DB_TYPE_NCLOB,
@@ -146,7 +146,7 @@ class OracledbDriver(BaseDriver):
             def process(self, query: str):
                 conn = create_connection()
                 if conn.outputtypehandler is None:
-                    conn.outputtypehandler = udtf_handler
+                    conn.outputtypehandler = oracledb_output_type_handler
                 cursor = conn.cursor()
                 cursor.execute(query)
                 while True:

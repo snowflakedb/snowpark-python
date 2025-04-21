@@ -1116,10 +1116,7 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
-        imports: Optional[List[str]] = None,
-        packages: Optional[List[str]] = None,
-        external_access_integration: Optional[str] = None,
-        ingestion_mode: Literal["udtf_mode", "client_mode"] = "client_mode",
+        udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -1177,14 +1174,19 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
-            imports: Name of stage files to import for udtf ingestion.
-            packages: The name and version number of packages required as dependencies.
-            external_access_integration: A string of name of external access integration, if is not None, a server
-                ingestion using UDTF will be used.
-            ingestion_mode: Specifies the ingestion method for the data source API.
-                Choose one of the following:
-                - `'client_mode'`: Fetches data to a local Parquet file, then uploads it to Snowflake.
-                - `'udtf_mode'`: Performs the entire ingestion within a Snowflake UDTF on the Snowflake server.
+            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
+                If this parameter is provided, the workload will be executed within a Snowflake UDTF context.
+
+                The dictionary may include the following keys:
+
+                - external_access_integration (str, required): The name of the external access integration,
+                    which allows the UDTF to access external endpoints.
+
+                - imports (List[str], optional): A list of stage file names to import into the UDTF.
+                    Use this to include any private packages required by your `create_connection()` function.
+
+                - packages (List[str], optional): A list of package names (with optional version numbers)
+                    required as dependencies for your `create_connection()` function.
             fetch_merge_count: The number of fetched batches to merge into a single Parquet file
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
@@ -1226,8 +1228,8 @@ class DataFrameReader:
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
 
-        if ingestion_mode == "udtf_mode":
-            if not external_access_integration:
+        if udtf_configs is not None:
+            if "external_access_integration" not in udtf_configs:
                 raise ValueError(
                     "external_access_integration cannot be None when udtf ingestion is used."
                 )
@@ -1239,10 +1241,10 @@ class DataFrameReader:
                 self._session,
                 struct_schema,
                 partitions_table,
-                external_access_integration,
+                udtf_configs["external_access_integration"],
                 fetch_size=fetch_size,
-                imports=imports,
-                packages=packages,
+                imports=udtf_configs.get("imports", None),
+                packages=udtf_configs.get("packages", None),
             )
             return df
 
