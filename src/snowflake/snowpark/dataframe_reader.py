@@ -1231,7 +1231,7 @@ class DataFrameReader:
         if udtf_configs is not None:
             if "external_access_integration" not in udtf_configs:
                 raise ValueError(
-                    "external_access_integration cannot be None when udtf ingestion is used."
+                    "external_access_integration cannot be None when udtf ingestion is used. Please refer to https://docs.snowflake.com/en/sql-reference/sql/create-external-access-integration to create external access integration"
                 )
             partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
             self._session.create_dataframe(
@@ -1246,6 +1246,7 @@ class DataFrameReader:
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
             )
+            set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
 
         with tempfile.TemporaryDirectory() as tmp_dir:
