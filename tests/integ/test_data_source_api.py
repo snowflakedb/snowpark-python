@@ -75,6 +75,8 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_real_data,
     sql_server_udtf_ingestion_data,
     create_connection_oracledb,
+    sql_server_create_connection_unicode_data,
+    sql_server_create_connection_double_quoted_data,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -1013,4 +1015,18 @@ def test_double_quoted_column_name_oracledb(session):
                 Notes="This is a case-sensitive example.",
             )
         ],
+    )
+
+
+def test_unicode_column_name_sql_server(session):
+    df = session.read.dbapi(sql_server_create_connection_unicode_data, table='"用户资料"')
+    Utils.check_answer(df, [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")])
+
+
+def test_double_quoted_column_name_sql_server(session):
+    df = session.read.dbapi(
+        sql_server_create_connection_double_quoted_data, table='"UserProfile"'
+    )
+    Utils.check_answer(
+        df, [Row(Id=1, FullName="John Doe", Country="USA", Notes="Fake note")]
     )
