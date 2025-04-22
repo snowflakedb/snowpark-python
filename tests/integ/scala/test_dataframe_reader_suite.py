@@ -2002,3 +2002,15 @@ def test_read_xml_query_nested_data(session):
         ),
         [Row('"1"', '"str1"', '{\n  "bool": "true",\n  "str": "str2"\n}', '"true"')],
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+def test_read_xml_non_existing_file(session):
+    row_tag = "tag"
+    with pytest.raises(ValueError, match="does not exist"):
+        session.read.option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name1}/non_existing_file.xml"
+        )
