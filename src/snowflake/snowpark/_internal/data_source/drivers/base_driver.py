@@ -6,6 +6,8 @@ import time
 import datetime
 from typing import List, Callable, Any, Optional, TYPE_CHECKING
 from snowflake.connector.options import pandas as pd
+
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
@@ -144,7 +146,7 @@ class BaseDriver:
     def data_source_data_to_pandas_df(
         data: List[Any], schema: StructType
     ) -> "pd.DataFrame":
-        columns = [col.name for col in schema.fields]
+        columns = [unquote_if_quoted(col.name) for col in schema.fields]
         # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
 

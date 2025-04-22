@@ -6,6 +6,7 @@ from enum import Enum
 
 from typing import List, Any, Iterator, Type, Callable, Optional
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
