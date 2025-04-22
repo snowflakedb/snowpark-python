@@ -1,18 +1,29 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import time
+from enum import Enum
 from typing import List, Callable, Any, Optional
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-from snowflake.snowpark.types import StructType
+from snowflake.snowpark.types import StructType, StructField, VariantType
+import snowflake.snowpark
+import logging
+
+PARTITION_TABLE_COLUMN_NAME = "partition"
+
+logger = logging.getLogger(__name__)
 
 
 class BaseDriver:
-    def __init__(self, create_connection: Callable[[], "Connection"]) -> None:
+    def __init__(
+        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
+    ) -> None:
         self.create_connection = create_connection
+        self.dbms_type = dbms_type
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
@@ -43,6 +54,60 @@ class BaseDriver:
         finally:
             cursor.close()
             conn.close()
+
+    def udtf_ingestion(
+        self,
+        session: "snowflake.snowpark.Session",
+        schema: StructType,
+        partition_table: str,
+        external_access_integrations: str,
+        fetch_size: int = 1000,
+        imports: Optional[List[str]] = None,
+        packages: Optional[List[str]] = None,
+    ) -> "snowflake.snowpark.DataFrame":
+        from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
+
+        udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
+        start = time.time()
+        session.udtf.register(
+            self.udtf_class_builder(fetch_size=fetch_size),
+            name=udtf_name,
+            output_schema=StructType(
+                [
+                    StructField(field.name, VariantType(), field.nullable)
+                    for field in schema.fields
+                ]
+            ),
+            external_access_integrations=[external_access_integrations],
+            packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
+            imports=imports,
+        )
+        logger.debug(f"register ingestion udtf takes: {time.time() - start} seconds")
+        call_udtf_sql = f"""
+            select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
+            """
+        res = session.sql(call_udtf_sql)
+        cols = [
+            res[field.name].cast(field.datatype).alias(field.name)
+            for field in schema.fields
+        ]
+        return res.select(cols)
+
+    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+        create_connection = self.create_connection
+
+        class UDTFIngestion:
+            def process(self, query: str):
+                conn = create_connection()
+                cursor = conn.cursor()
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    yield from rows
+
+        return UDTFIngestion
 
     @staticmethod
     def validate_numeric_precision_scale(
