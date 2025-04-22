@@ -12,11 +12,13 @@ from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
     OracledbDialect,
     SqlServerDialect,
+    DatabricksDialect,
 )
 from snowflake.snowpark._internal.data_source.drivers import (
     SqliteDriver,
     OracledbDriver,
     PyodbcDriver,
+    DatabricksDriver,
 )
 import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
@@ -38,19 +40,30 @@ class DBMS_TYPE(Enum):
     SQL_SERVER_DB = "SQL_SERVER_DB"
     ORACLE_DB = "ORACLE_DB"
     SQLITE_DB = "SQLITE3_DB"
+    DATABRICKS_DB = "DATABRICKS_DB"
     UNKNOWN = "UNKNOWN"
+
+
+class DRIVER_TYPE(str, Enum):
+    PYODBC = "pyodbc"
+    ORACLEDB = "oracledb"
+    SQLITE3 = "sqlite3"
+    DATABRICKS = "databricks.sql.client"
+    UNKNOWN = "unknown"
 
 
 DBMS_MAP = {
     DBMS_TYPE.SQL_SERVER_DB: SqlServerDialect,
     DBMS_TYPE.ORACLE_DB: OracledbDialect,
     DBMS_TYPE.SQLITE_DB: Sqlite3Dialect,
+    DBMS_TYPE.DATABRICKS_DB: DatabricksDialect,
 }
 
 DRIVER_MAP = {
-    "pyodbc": PyodbcDriver,
-    "oracledb": OracledbDriver,
-    "sqlite3": SqliteDriver,
+    DRIVER_TYPE.PYODBC: PyodbcDriver,
+    DRIVER_TYPE.ORACLEDB: OracledbDriver,
+    DRIVER_TYPE.SQLITE3: SqliteDriver,
+    DRIVER_TYPE.DATABRICKS: DatabricksDriver,
 }
 
 UDTF_PACKAGE_MAP = {
@@ -64,24 +77,22 @@ UDTF_PACKAGE_MAP = {
 }
 
 
-def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, str]:
+def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, DRIVER_TYPE]:
     """Detects the DBMS type from a DBAPI2 connection."""
 
     # Get the Python driver name
     python_driver_name = type(dbapi2_conn).__module__.lower()
+    driver_type = DRIVER_TYPE.UNKNOWN
+    try:
+        driver_type = DRIVER_TYPE(python_driver_name)
+    except ValueError:
+        pass
 
-    # Dictionary-based lookup for known DBMS
-    dbms_mapping = {
-        "pyodbc": detect_dbms_pyodbc,
-        "oracledb": lambda conn: DBMS_TYPE.ORACLE_DB,
-        "sqlite3": lambda conn: DBMS_TYPE.SQLITE_DB,
-    }
-
-    if python_driver_name in dbms_mapping:
-        return dbms_mapping[python_driver_name](dbapi2_conn), python_driver_name
+    if driver_type in DBMS_MAPPING:
+        return DBMS_MAPPING[python_driver_name](dbapi2_conn), driver_type
 
     logger.debug(f"Unsupported database driver: {python_driver_name}")
-    return DBMS_TYPE.UNKNOWN, python_driver_name
+    return DBMS_TYPE.UNKNOWN, driver_type
 
 
 def detect_dbms_pyodbc(dbapi2_conn):
@@ -102,6 +113,14 @@ def detect_dbms_pyodbc(dbapi2_conn):
     return DBMS_TYPE.UNKNOWN
 
 
+DBMS_MAPPING = {
+    DRIVER_TYPE.PYODBC: detect_dbms_pyodbc,
+    DRIVER_TYPE.ORACLEDB: lambda conn: DBMS_TYPE.ORACLE_DB,
+    DRIVER_TYPE.SQLITE3: lambda conn: DBMS_TYPE.SQLITE_DB,
+    DRIVER_TYPE.DATABRICKS: lambda conn: DBMS_TYPE.DATABRICKS_DB,
+}
+
+
 def _task_fetch_data_from_source(
     worker: DataSourceReader,
     partition: str,
@@ -109,7 +128,7 @@ def _task_fetch_data_from_source(
     tmp_dir: str,
 ):
     def convert_to_parquet(fetched_data, fetch_idx):
-        df = DataSourceReader.data_source_data_to_pandas_df(fetched_data, worker.schema)
+        df = worker.data_source_data_to_pandas_df(fetched_data)
         if df.empty:
             logger.debug(
                 f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."

@@ -1,13 +1,16 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import time
 from enum import Enum
-from typing import List, Callable, Any, Optional
+import time
+import datetime
+from typing import List, Callable, Any, Optional, TYPE_CHECKING
+from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
+from snowflake.snowpark._internal.utils import get_sorted_key_for_version
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType, StructField, VariantType
 import snowflake.snowpark
@@ -16,6 +19,10 @@ import logging
 PARTITION_TABLE_COLUMN_NAME = "partition"
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.session import Session
+    from snowflake.snowpark.dataframe import DataFrame
 
 
 class BaseDriver:
@@ -121,3 +128,39 @@ class BaseDriver:
         elif scale is not None:
             return False
         return True
+
+    # convert timestamp and date to string to work around SNOW-1911989
+    # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.map.html
+    # 'map' is introduced in pandas 2.1.0, before that it is 'applymap'
+    @staticmethod
+    def df_map_method(pandas_df):
+        return (
+            pandas_df.applymap
+            if get_sorted_key_for_version(str(pd.__version__)) < (2, 1, 0)
+            else pandas_df.map
+        )
+
+    @staticmethod
+    def data_source_data_to_pandas_df(
+        data: List[Any], schema: StructType
+    ) -> "pd.DataFrame":
+        columns = [col.name for col in schema.fields]
+        # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
+        df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
+
+        df = BaseDriver.df_map_method(df)(
+            lambda x: x.isoformat()
+            if isinstance(x, (datetime.datetime, datetime.date))
+            else x
+        )
+        # convert binary type to object type to work around SNOW-1912094
+        df = BaseDriver.df_map_method(df)(
+            lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
+        )
+        return df
+
+    @staticmethod
+    def to_result_snowpark_df(
+        session: "Session", table_name, schema, _emit_ast: bool = True
+    ) -> "DataFrame":
+        return session.table(table_name, _emit_ast=_emit_ast)
