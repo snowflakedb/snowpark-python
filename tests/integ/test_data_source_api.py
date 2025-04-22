@@ -35,6 +35,7 @@ from snowflake.snowpark._internal.data_source.utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
     detect_dbms,
     DBMS_TYPE,
+    DRIVER_TYPE,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -579,13 +580,13 @@ def test_database_detector():
     mock_conn = MagicMock()
     with patch.object(type(mock_conn), "__module__", "UNKNOWN_DRIVER"):
         result = detect_dbms(mock_conn)
-        assert result == (DBMS_TYPE.UNKNOWN, "unknown_driver")
+        assert result == (DBMS_TYPE.UNKNOWN, DRIVER_TYPE.UNKNOWN)
 
     mock_conn = MagicMock()
     mock_conn.getinfo.return_value = "UNKNOWN"
     with patch.object(type(mock_conn), "__module__", "pyodbc"):
         result = detect_dbms(mock_conn)
-        assert result == (DBMS_TYPE.UNKNOWN, "pyodbc")
+        assert result == (DBMS_TYPE.UNKNOWN, DRIVER_TYPE.PYODBC)
 
 
 def test_type_conversion():
