@@ -27,10 +27,14 @@ if TYPE_CHECKING:
 
 class BaseDriver:
     def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
+        self,
+        create_connection: Callable[[], "Connection"],
+        dbms_type: Enum,
+        post_process: Optional[Callable] = None,
     ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
+        self.post_process = post_process
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
@@ -102,6 +106,7 @@ class BaseDriver:
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
+        post_process = self.post_process
 
         class UDTFIngestion:
             def process(self, query: str):
@@ -110,6 +115,12 @@ class BaseDriver:
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
+                    if post_process is not None:
+                        rows = post_process(rows)
+                        if rows is None:
+                            raise ValueError(
+                                "post_process() must return data in the same form of cursor.fetchmany()"
+                            )
                     if not rows:
                         break
                     yield from rows
@@ -142,8 +153,14 @@ class BaseDriver:
 
     @staticmethod
     def data_source_data_to_pandas_df(
-        data: List[Any], schema: StructType
+        data: List[Any], schema: StructType, post_process: Optional[Callable] = None
     ) -> "pd.DataFrame":
+        if post_process is not None:
+            data = post_process(data)
+            if data is None:
+                raise ValueError(
+                    "post_process() must return data in the same form of cursor.fetchmany()"
+                )
         columns = [col.name for col in schema.fields]
         # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
