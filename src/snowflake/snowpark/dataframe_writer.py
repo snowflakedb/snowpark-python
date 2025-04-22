@@ -437,7 +437,7 @@ class DataFrameWriter:
             (
                 _,
                 kwargs[DATAFRAME_AST_PARAMETER],
-            ) = self._dataframe._session._ast_batch.flush()
+            ) = self._dataframe._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.save_as_table, self._dataframe):
             save_mode = (
@@ -683,7 +683,7 @@ class DataFrameWriter:
             (
                 _,
                 kwargs[DATAFRAME_AST_PARAMETER],
-            ) = self._dataframe._session._ast_batch.flush()
+            ) = self._dataframe._session._ast_batch.flush(stmt)
 
         stage_location = normalize_remote_file_or_dir(location)
         partition_by = partition_by if partition_by is not None else self._partition_by
@@ -1028,7 +1028,7 @@ class DataFrameWriter:
             (
                 _,
                 kwargs[DATAFRAME_AST_PARAMETER],
-            ) = self._dataframe._session._ast_batch.flush()
+            ) = self._dataframe._session._ast_batch.flush(stmt)
 
         # save_as_table will flush AST.
         self.save_as_table(
