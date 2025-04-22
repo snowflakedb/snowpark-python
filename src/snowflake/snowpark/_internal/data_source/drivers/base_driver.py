@@ -146,6 +146,7 @@ class BaseDriver:
     def data_source_data_to_pandas_df(
         data: List[Any], schema: StructType
     ) -> "pd.DataFrame":
+        # unquote column name because double quotes stored in parquet file create column mismatch during copy into table
         columns = [unquote_if_quoted(col.name) for col in schema.fields]
         # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
