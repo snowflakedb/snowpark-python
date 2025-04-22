@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import pytest
 
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
@@ -32,8 +33,7 @@ from snowflake.snowpark.types import (
 )
 
 from tests.parameters import DATABRICKS_CONNECTION_PARAMETERS
-from tests.utils import IS_IN_STORED_PROC
-
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 DATABRICKS_PACKAGE_UNAVAILABLE = True
 try:
@@ -236,3 +236,23 @@ def test_unit_data_source_data_to_pandas_df():
     assert df.to_dict(orient="records") == [
         {"COL1": 1, "COL2": '{"key1": "value1", "key2": "value2"}'}
     ]
+
+
+def test_unicode_column_databricks(session):
+    df = session.read.dbapi(create_databricks_connection, table="User_profile_unicode")
+    Utils.check_answer(df, [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")])
+
+
+def test_double_quoted_column_databricks(session):
+    df = session.read.dbapi(create_databricks_connection, table="User_profile")
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                id=1,
+                name="Yamada Taro",
+                country="Japan",
+                remarks="This is a test remark",
+            )
+        ],
+    )
