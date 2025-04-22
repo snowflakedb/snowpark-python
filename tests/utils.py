@@ -1545,6 +1545,10 @@ class TestFiles:
     def test_xxe_xml(self):
         return os.path.join(self.resources_path, "xxe.xml")
 
+    @property
+    def test_nested_xml(self):
+        return os.path.join(self.resources_path, "nested.xml")
+
 
 class TypeMap(NamedTuple):
     col_name: str

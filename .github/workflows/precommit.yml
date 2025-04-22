@@ -319,8 +319,7 @@ jobs:
             .tox/coverage.xml
 
   test-ast-encoding:
-    if: false  # SNOW-2005312: re-enable after addressing SNOW-1763185
-    name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}
+    name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -329,7 +328,7 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
         # TODO SNOW-1763185 use py39 by default
         # Protobuf encoding differs per python version, use 3.8 by default.
-        python-version: [ "3.8" ]
+        python-version: [ "3.11" ]
         cloud-provider: [aws]
         protobuf-version: ["3.20.1"]
     steps:

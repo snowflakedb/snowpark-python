@@ -75,6 +75,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
     TableCreationSource,
+    ReadFileNode,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -610,6 +611,20 @@ class DataFrame:
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
+        # Whether all columns are VARIANT data type,
+        # which support querying nested fields via dot notations
+        # If SQL simplifier is enabled, we need to get logical plan from plan.from_
+        if isinstance(plan, (SelectStatement, MockSelectStatement)):
+            self._all_variant_cols = (
+                isinstance(plan.from_, SelectSnowflakePlan)
+                and isinstance(plan.from_.snowflake_plan.source_plan, ReadFileNode)
+                and plan.from_.snowflake_plan.source_plan.xml_reader_udtf is not None
+            )
+        else:
+            self._all_variant_cols = bool(
+                isinstance(plan, ReadFileNode) and plan.xml_reader_udtf is not None
+            )
+
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
         self._writer = DataFrameWriter(self, _emit_ast=False)
 
@@ -712,7 +727,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -760,7 +775,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -896,7 +911,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         return self._session._conn.execute(
             self._plan,
@@ -1016,7 +1031,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -1120,7 +1135,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         return self._session._conn.execute(
             self._plan,
@@ -1544,7 +1559,14 @@ class DataFrame:
 
         for e in exprs:
             if isinstance(e, Column):
-                names.append(e._named())
+                if self._all_variant_cols:
+                    names.append(
+                        Column(
+                            e._expr1, e._expr2, e._ast, _is_qualified_name=True
+                        )._named()
+                    )
+                else:
+                    names.append(e._named())
                 if _emit_ast and _ast_stmt is None:
                     ast_cols.append(e._ast)
 
@@ -1555,7 +1577,9 @@ class DataFrame:
                     fill_ast_for_column(col_expr_ast, e, None)
                     ast_cols.append(col_expr_ast)
 
-                col = Column(e, _ast=col_expr_ast)
+                col = Column(
+                    e, _ast=col_expr_ast, _is_qualified_name=self._all_variant_cols
+                )
                 names.append(col._named())
 
             elif isinstance(e, TableFunctionCall):
@@ -4182,7 +4206,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
@@ -4351,7 +4375,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4653,7 +4677,7 @@ class DataFrame:
             ast.n = n
             self._session._ast_batch.eval(stmt)
 
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
@@ -5388,7 +5412,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         if n is None:
             df = self.limit(1, _emit_ast=False)

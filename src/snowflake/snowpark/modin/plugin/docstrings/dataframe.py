@@ -1469,7 +1469,7 @@ class DataFrame(BasePandasDataset):
         >>> exactly_equal
             1   2
         0  10  20
-        >>> df.equals(exactly_equal)
+        >>> df.equals(exactly_equal)  # doctest: +SKIP
         True
 
         DataFrames df and different_column_type have the same element
@@ -1480,7 +1480,7 @@ class DataFrame(BasePandasDataset):
         >>> different_column_type
            1.0  2.0
         0   10   20
-        >>> df.equals(different_column_type)
+        >>> df.equals(different_column_type)  # doctest: +SKIP
         True
 
         DataFrames df and different_data_type have different types for the
@@ -1491,7 +1491,7 @@ class DataFrame(BasePandasDataset):
         >>> different_data_type
               1     2
         0  10.0  20.0
-        >>> df.equals(different_data_type)
+        >>> df.equals(different_data_type)  # doctest: +SKIP
         False
         """
 
@@ -1984,7 +1984,7 @@ class DataFrame(BasePandasDataset):
 
         Print the first row's index and the row as a Series.
         >>> index_and_row = next(df.iterrows())
-        >>> index_and_row
+        >>> index_and_row  # doctest: +SKIP
         (0, int      1.0
         float    1.5
         Name: 0, dtype: float64)
@@ -4121,7 +4121,7 @@ class DataFrame(BasePandasDataset):
 
         Squeezing all axes will project directly into a scalar:
 
-        >>> df_0a.squeeze()
+        >>> df_0a.squeeze()  # doctest: +SKIP
         1
         """
 

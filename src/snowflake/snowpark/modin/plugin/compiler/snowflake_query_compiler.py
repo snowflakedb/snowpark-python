@@ -530,8 +530,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
 
-    # When lazy_execution=True, upstream Modin elides some length checks that would incur queries.
-    lazy_execution = True
+    # When these laziness flags are set, upstream Modin elides some length checks that would incur queries.
+    lazy_row_labels = True
+    lazy_row_count = True
+    lazy_column_types = False
+    lazy_column_labels = False
+    lazy_column_count = False
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
@@ -20269,5 +20273,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
             statement_params=get_default_snowpark_pandas_statement_params(),
+            iceberg_config=iceberg_config,
+        )
+
+    def to_iceberg(
+        self,
+        table_name: Union[str, Iterable[str]],
+        *,
+        mode: Optional[str] = None,
+        column_order: str = "index",
+        clustering_keys: Optional[Iterable[ColumnOrName]] = None,
+        block: bool = True,
+        comment: Optional[str] = None,
+        enable_schema_evolution: Optional[bool] = None,
+        data_retention_time: Optional[int] = None,
+        max_data_extension_time: Optional[int] = None,
+        change_tracking: Optional[bool] = None,
+        copy_grants: bool = False,
+        iceberg_config: Optional[dict] = None,
+        index: bool = True,
+        index_label: Optional[IndexLabel] = None,
+    ) -> List[Row]:
+        """
+        Writes the data to the specified iceberg table in a Snowflake database.
+        """
+        snowpark_df = self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
+            index, index_label
+        )
+
+        return snowpark_df.write.save_as_table(
+            table_name=table_name,
+            mode=mode,
+            column_order=column_order,
+            clustering_keys=clustering_keys,
+            statement_params=get_default_snowpark_pandas_statement_params(),
+            block=block,
+            comment=comment,
+            enable_schema_evolution=enable_schema_evolution,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
+            change_tracking=change_tracking,
+            copy_grants=copy_grants,
             iceberg_config=iceberg_config,
         )

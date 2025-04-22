@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from enum import Enum
+
 from typing import List, Any, Iterator, Type, Callable, Optional
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
@@ -20,12 +22,13 @@ class DataSourceReader:
         driver_class: Type[BaseDriver],
         create_connection: Callable[[], "Connection"],
         schema: StructType,
+        dbms_type: Enum,
         fetch_size: Optional[int] = 0,
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
     ) -> None:
-        self.driver = driver_class(create_connection)
+        self.driver = driver_class(create_connection, dbms_type)
         self.schema = schema
         self.fetch_size = fetch_size
         self.query_timeout = query_timeout

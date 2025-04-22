@@ -48,6 +48,7 @@ Series
     Series.create_or_replace_dynamic_table
     Series.to_view
     Series.to_dynamic_table
+    Series.to_iceberg
 
 .. rubric:: Conversion
 
