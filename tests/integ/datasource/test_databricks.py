@@ -43,6 +43,11 @@ try:
 except ImportError:
     pass
 
+pytestmark = [
+    pytest.mark.skipif(DATABRICKS_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'"),
+    pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration"),
+]
+
 
 TEST_TABLE_NAME = "ALL_TYPE_TABLE"
 EXPECTED_TEST_DATA = [
@@ -185,8 +190,6 @@ def create_databricks_connection():
     return databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
 
 
-@pytest.mark.skipif(DATABRICKS_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration")
 @pytest.mark.parametrize(
     "input_type, input_value",
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
@@ -205,8 +208,6 @@ def test_basic_databricks(session, input_type, input_value):
     assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
 
 
-@pytest.mark.skipif(DATABRICKS_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration")
 @pytest.mark.parametrize(
     "input_type, input_value, error_message",
     [
