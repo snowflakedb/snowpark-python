@@ -126,9 +126,12 @@ def _task_fetch_data_from_source(
     partition: str,
     partition_idx: int,
     tmp_dir: str,
+    post_process: Optional[Callable] = None,
 ):
     def convert_to_parquet(fetched_data, fetch_idx):
-        df = worker.data_source_data_to_pandas_df(fetched_data)
+        df = worker.data_source_data_to_pandas_df(
+            fetched_data, post_process=post_process
+        )
         if df.empty:
             logger.debug(
                 f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."
@@ -148,6 +151,7 @@ def _task_fetch_data_from_source_with_retry(
     partition: str,
     partition_idx: int,
     tmp_dir: str,
+    post_process: Optional[Callable] = None,
 ):
     _retry_run(
         _task_fetch_data_from_source,
@@ -155,6 +159,7 @@ def _task_fetch_data_from_source_with_retry(
         partition,
         partition_idx,
         tmp_dir,
+        post_process,
     )
 
 

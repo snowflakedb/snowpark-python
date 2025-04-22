@@ -3,7 +3,7 @@
 #
 import json
 import logging
-from typing import List, Any, TYPE_CHECKING
+from typing import List, Any, TYPE_CHECKING, Optional, Callable
 
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
@@ -68,9 +68,9 @@ class DatabricksDriver(BaseDriver):
 
     @staticmethod
     def data_source_data_to_pandas_df(
-        data: List[Any], schema: StructType
+        data: List[Any], schema: StructType, post_process: Optional[Callable] = None
     ) -> "pd.DataFrame":
-        df = BaseDriver.data_source_data_to_pandas_df(data, schema)
+        df = BaseDriver.data_source_data_to_pandas_df(data, schema, post_process)
         # 1. Regular snowflake table (compared to Iceberg Table) does not support structured data
         # type (array, map, struct), thus we store structured data as variant in regular table
         # 2. map type needs special handling because:
