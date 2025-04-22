@@ -991,3 +991,7 @@ def test_fetch_merge_count_integ(session, caplog):
             assert df.order_by("ID").collect() == assert_data
             # 2 batch + 2 fetch size = 2 parquet file
             assert caplog.text.count("Retrieved file from parquet queue") == 2
+
+
+def test_post_process_oracledb(session):
+    pass
