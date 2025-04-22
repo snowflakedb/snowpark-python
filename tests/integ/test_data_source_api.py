@@ -73,7 +73,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_real_data,
     sql_server_udtf_ingestion_data,
 )
-from tests.utils import Utils, IS_WINDOWS
+from tests.utils import RUNNING_ON_JENKINS, Utils, IS_WINDOWS
 
 try:
     import pandas  # noqa: F401
@@ -795,6 +795,9 @@ def test_oracledb_driver_coverage(caplog):
     assert "Snowpark does not support column" in caplog.text
 
 
+@pytest.mark.skipif(
+    RUNNING_ON_JENKINS, reason="Cannot connect to oracledb from jenkins"
+)
 def test_udtf_ingestion_oracledb(session):
     from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
