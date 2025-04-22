@@ -96,7 +96,7 @@ mod5_pandas_udf = udf("pandas_apply_mod5", return_type=IntegerType(), input_type
 
 df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect()
 
-res10 = udf("test_urllib", return_type=StringType(), name="artifact_repository_udf", artifactRepository="EXAMPLE_REPO", artifactRepositoryPackages=["urllib3", "requests"], resourceConstraint={"architecture": "x86"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPOSITORY_UDF\"")
+res10 = udf("test_urllib", return_type=StringType(), name="artifact_repository_udf", artifact_repository="EXAMPLE_REPO", artifact_repository_packages=["urllib3", "requests"], resource_constraint={"architecture": "x86"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPOSITORY_UDF\"")
 
 ## EXPECTED ENCODED AST
 

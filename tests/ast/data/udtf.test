@@ -222,7 +222,7 @@ my_udtf = udtf("MyUDTFWithTypeHints", output_schema=StructType(fields=[StructFie
 
 df = session.table_function(my_udtf(lit(1), lit(2.2), lit(True), lit(Decimal("3.33")), lit("python"), lit(bytes("bytes", "utf-8")), lit(bytes("bytearray", "utf-8"))))
 
-ar_udtf = udtf("ArtifactRepositoryUDTF", output_schema=StructType(fields=[StructField("a", StringType(), nullable=True)], structured=False), artifactRepository="EXAMPLE_REPO", artifactRepositoryPackages=["urllib3", "requests"], resourceConstraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+ar_udtf = udtf("ArtifactRepositoryUDTF", output_schema=StructType(fields=[StructField("a", StringType(), nullable=True)], structured=False), artifact_repository="EXAMPLE_REPO", artifact_repository_packages=["urllib3", "requests"], resource_constraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 ## EXPECTED ENCODED AST
 

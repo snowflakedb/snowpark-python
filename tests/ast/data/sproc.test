@@ -233,7 +233,7 @@ res47 = range5_sproc()
 
 res48 = session.range(5, None, 1)
 
-artifact_repo_sproc = sproc("artifact_repo_test", return_type=StringType(), name="artifact_repo_sproc", replace=True, artifactRepository="EXAMPLE_REPO", artifactRepositoryPackages=["urllib3", "requests"], resourceConstraint={"architecture": "x86"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPO_SPROC\"")
+artifact_repo_sproc = sproc("artifact_repo_test", return_type=StringType(), name="artifact_repo_sproc", replace=True, artifact_repository="EXAMPLE_REPO", artifact_repository_packages=["urllib3", "requests"], resource_constraint={"architecture": "x86"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPO_SPROC\"")
 
 ## EXPECTED ENCODED AST
 
