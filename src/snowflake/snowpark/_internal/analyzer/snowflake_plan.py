@@ -42,7 +42,6 @@ if TYPE_CHECKING:
 
 import snowflake.connector
 import snowflake.snowpark
-from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
     TEMPORARY_STRING_SET,
@@ -90,7 +89,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.metadata_utils import (
     PlanMetadata,
-    cache_metadata_if_select_statement,
+    cache_metadata_if_selectable,
     infer_metadata,
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
@@ -273,8 +272,9 @@ class SnowflakePlan(LogicalPlan):
                                         match = [identifier]
                                     msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
 
+                            e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                ProgrammingError(msg=f"{e.msg}\n{msg}")
+                                e
                             )
                             raise ne.with_traceback(tb) from None
                     else:
@@ -446,7 +446,7 @@ class SnowflakePlan(LogicalPlan):
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
-        cache_metadata_if_select_statement(self.source_plan, self._metadata)
+        cache_metadata_if_selectable(self.source_plan, self._metadata)
         # When the reduce_describe_query_enabled is enabled, we cache the attributes in
         # self._metadata using original schema query. Thus we can update the schema query
         # to simplify plans built on top of this plan.

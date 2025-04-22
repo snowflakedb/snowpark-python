@@ -143,7 +143,7 @@ ast_utils.SRC_POSITION_TEST_MODE = True
 
 def run_test(session, tables, test_files):
     # Reset the entity ID generator.
-    session._ast_batch.reset_id_gen()
+    session._ast_batch._reset_id_gen()
 
     session._ast_batch.flush()  # Clear the AST.
 

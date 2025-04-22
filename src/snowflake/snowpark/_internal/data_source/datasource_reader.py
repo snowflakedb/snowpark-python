@@ -2,15 +2,12 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import datetime
+from enum import Enum
 
 from typing import List, Any, Iterator, Type, Callable, Optional
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
-from snowflake.snowpark._internal.utils import (
-    get_sorted_key_for_version,
-)
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
 from snowflake.connector.options import pandas as pd
@@ -25,12 +22,13 @@ class DataSourceReader:
         driver_class: Type[BaseDriver],
         create_connection: Callable[[], "Connection"],
         schema: StructType,
+        dbms_type: Enum,
         fetch_size: Optional[int] = 0,
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
     ) -> None:
-        self.driver = driver_class(create_connection)
+        self.driver = driver_class(create_connection, dbms_type)
         self.schema = schema
         self.fetch_size = fetch_size
         self.query_timeout = query_timeout
@@ -75,31 +73,5 @@ class DataSourceReader:
             cursor.close()
             conn.close()
 
-    @staticmethod
-    def data_source_data_to_pandas_df(
-        data: List[Any], schema: StructType
-    ) -> "pd.DataFrame":
-        columns = [col.name for col in schema.fields]
-        # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
-        df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
-
-        # convert timestamp and date to string to work around SNOW-1911989
-        # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.map.html
-        # 'map' is introduced in pandas 2.1.0, before that it is 'applymap'
-        def df_map_method(pandas_df):
-            return (
-                pandas_df.applymap
-                if get_sorted_key_for_version(str(pd.__version__)) < (2, 1, 0)
-                else pandas_df.map
-            )
-
-        df = df_map_method(df)(
-            lambda x: x.isoformat()
-            if isinstance(x, (datetime.datetime, datetime.date))
-            else x
-        )
-        # convert binary type to object type to work around SNOW-1912094
-        df = df_map_method(df)(
-            lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
-        )
-        return df
+    def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
+        return self.driver.data_source_data_to_pandas_df(data, self.schema)
