@@ -160,7 +160,11 @@ session.table("test_to").count()
 
 add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
+res15 = add_one_sp(1)
+
 session.sql("select 1 + 1").collect()
+
+add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 add_one_sp(1)
 
@@ -184,29 +188,33 @@ session.sql("call mul_sp(5, 6)").collect()
 
 sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
 
-res30 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res31 = sproc("select_sp", return_type=StructType(fields=[StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res34 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res35 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res38 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res39 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
 mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
+res42 = mod5_sp(3)
+
 session.create_dataframe([[3]], schema=["a"]).select(col("a") % 5).collect()
+
+mod5_sp = sproc("mod5", return_type=IntegerType(), input_types=[IntegerType()], artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 mod5_sp(3)
 
 range5_sproc = sproc("range5_sproc", return_type=StructType(structured=False), artifact_repository=None, artifact_repository_packages=None, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
-res45 = range5_sproc()
+res47 = range5_sproc()
 
-res46 = session.range(5, None, 1)
+res48 = session.range(5, None, 1)
 
 ## EXPECTED ENCODED AST
 
@@ -1170,6 +1178,124 @@ body {
 body {
   eval {
     bind_id: 23
+  }
+}
+body {
+  bind {
+    expr {
+      stored_procedure {
+        execute_as: "caller"
+        func {
+          id: 1
+          name: "<lambda [1]>"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
+            }
+          }
+        }
+        input_types {
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 65
+                file: 2
+                start_column: 21
+                start_line: 59
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 65
+                file: 2
+                start_column: 21
+                start_line: 59
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 65
+                file: 2
+                start_column: 21
+                start_line: 59
+              }
+            }
+          }
+        }
+        parallel: 2
+        return_type {
+          integer_type: true
+        }
+        source_code_display: true
+        src {
+          end_column: 9
+          end_line: 65
+          file: 2
+          start_column: 21
+          start_line: 59
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "add_one_sp"
+    }
+    uid: 20
+  }
+}
+body {
+  bind {
+    expr {
+      apply_expr {
+        fn {
+          fn_ref {
+            id: 20
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              end_column: 21
+              end_line: 66
+              file: 2
+              start_column: 8
+              start_line: 66
+            }
+            v: 1
+          }
+        }
+        src {
+          end_column: 21
+          end_line: 66
+          file: 2
+          start_column: 8
+          start_line: 66
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 21
   }
 }
 body {
@@ -2708,6 +2834,124 @@ body {
 body {
   eval {
     bind_id: 55
+  }
+}
+body {
+  bind {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 9
+          name: "mod5"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
+            }
+          }
+        }
+        input_types {
+          integer_type: true
+        }
+        kwargs {
+          _1: "artifact_repository"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 143
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "artifact_repository_packages"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 143
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "resource_constraint"
+          _2 {
+            null_val {
+              src {
+                end_column: 9
+                end_line: 143
+                file: 2
+                start_column: 18
+                start_line: 138
+              }
+            }
+          }
+        }
+        parallel: 4
+        return_type {
+          integer_type: true
+        }
+        source_code_display: true
+        src {
+          end_column: 9
+          end_line: 143
+          file: 2
+          start_column: 18
+          start_line: 138
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "mod5_sp"
+    }
+    uid: 51
+  }
+}
+body {
+  bind {
+    expr {
+      apply_expr {
+        fn {
+          fn_ref {
+            id: 51
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              end_column: 18
+              end_line: 144
+              file: 2
+              start_column: 8
+              start_line: 144
+            }
+            v: 3
+          }
+        }
+        src {
+          end_column: 18
+          end_line: 144
+          file: 2
+          start_column: 8
+          start_line: 144
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 52
   }
 }
 body {
