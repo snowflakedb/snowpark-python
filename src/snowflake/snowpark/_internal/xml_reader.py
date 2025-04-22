@@ -64,6 +64,9 @@ def tag_is_self_closing(
     ``<book title="a<b>c">``.
     Note that There is no back‑slash escaping (\") inside XML attribute values.
     If we want to embed a double‑quote inside a double‑quoted attribute, we must use the entity ``&quot;``.
+
+    Note that this function will change the position of file pointer, which is expected for next processing
+    operation in ``process_xml_range``.
     """
     in_quote = False
     quote_char = None
@@ -100,6 +103,9 @@ def find_next_closing_tag_pos(
     Efficiently finds the next closing tag position by reading chunks of data.
     It searches for both self-closing tags (b"/>") and normal closing tags,
     and returns the position immediately after the earliest occurrence.
+
+    Note that this function will change the position of file pointer, which is expected for next processing
+    operation in ``process_xml_range``.
 
     Args:
         file_obj (BinaryIO): Binary file object to read from.
@@ -157,7 +163,8 @@ def find_next_opening_tag_pos(
     Efficiently finds the next opening tag position by reading chunks of data.
     Stops searching if the file pointer reaches or exceeds end_limit.
 
-    This revised version avoids the infinite loop issue in the last chunk.
+    Note that this function will change the position of file pointer, which is expected for next processing
+    operation in ``process_xml_range``.
 
     Args:
         file_obj (BinaryIO or SnowflakeFile): Binary file object to read from.
@@ -319,6 +326,11 @@ def process_xml_range(
     tag_start_2 = f"<{tag_name} ".encode()
     closing_tag = f"</{tag_name}>".encode()
 
+    # We perform raw byte‑level scanning here because we must split the file into independent
+    # chunks by byte ranges for parallel processing. A streaming parser like xml.etree.ElementTree.iterparse
+    # only yields element events (not byte offsets), requires well‑formed XML over the full stream,
+    # and incurs extra overhead parsing every element sequentially—none of which allow us to locate
+    # matching tag positions as raw byte ranges for chunking.
     with SnowflakeFile.open(file_path, "rb", require_scoped_url=False) as f:
         f.seek(approx_start)
         while True:
