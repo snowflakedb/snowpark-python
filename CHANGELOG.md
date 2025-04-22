@@ -14,6 +14,7 @@
   - Each XML record is extracted as a separate row.
   - Each field within that record becomes a separate column of type VARIANT, which can be further queried using dot notation, e.g., `col(a.b.c)`.
 - Added support for Databricks in `DataFrameReader.dbapi` (PrPr).
+- Added support for ingestion with snowflake UDTF in `DataFrameReader.dbapi` (PrPr).
 
 #### Improvements
 
