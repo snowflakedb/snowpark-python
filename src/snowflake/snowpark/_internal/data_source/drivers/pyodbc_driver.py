@@ -9,6 +9,7 @@ from typing import List, Callable, Any
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
+from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.types import (
     StructType,
     StringType,
@@ -82,7 +83,9 @@ class PyodbcDriver(BaseDriver):
                 )
             else:
                 data_type = snow_type()
-            fields.append(StructField(name, data_type, null_ok))
+            fields.append(
+                StructField(quote_name(name, keep_case=True), data_type, null_ok)
+            )
         return StructType(fields)
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:

@@ -14,6 +14,8 @@ from unittest.mock import patch, MagicMock, PropertyMock
 import oracledb
 import pytest
 from decimal import Decimal
+
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
@@ -72,6 +74,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
     oracledb_real_data,
     sql_server_udtf_ingestion_data,
+    create_connection_oracledb,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -991,3 +994,23 @@ def test_fetch_merge_count_integ(session, caplog):
             assert df.order_by("ID").collect() == assert_data
             # 2 batch + 2 fetch size = 2 parquet file
             assert caplog.text.count("Retrieved file from parquet queue") == 2
+
+
+def test_unicode_column_name_oracledb(session):
+    df = session.read.dbapi(create_connection_oracledb, table='"用户資料"')
+    Utils.check_answer(df, [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")])
+
+
+def test_double_quoted_column_name_oracledb(session):
+    df = session.read.dbapi(create_connection_oracledb, table='"UserProfile"')
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                Id=1,
+                FullName="John Doe",
+                Country="USA",
+                Notes="This is a case-sensitive example.",
+            )
+        ],
+    )
