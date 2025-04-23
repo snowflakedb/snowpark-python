@@ -17,7 +17,7 @@
 - Added support for ingestion with snowflake UDTF in `DataFrameReader.dbapi` (PrPr).
 - Added support for the following AI-powered functions in `functions.py` (Private Preview):
   - `prompt`
-  - `ai_filter` (added support for `prompt()` function and image files)
+  - `ai_filter` (added support for `prompt()` function and image files, and changed the second argument name from `expr` to `file`)
   - `ai_classify`
 
 #### Improvements
