@@ -72,6 +72,7 @@
   - `pd.read_sas`
   - `pd.read_xml`
 - Added support for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+- Added support for dict values in `Series.str.len`.
 - Added support for dict values in `Series.str.get`.
 
 #### Improvements
