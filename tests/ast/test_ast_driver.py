@@ -95,11 +95,15 @@ def load_test_cases():
     Returns: a list of test cases.
     """
     test_files = DATA_DIR.glob("*.test")
-    if sys.version_info[0] == 3 and sys.version_info[1] < 9:
+    major_version, minor_version = sys.version_info[0], sys.version_info[1]
+    if major_version == 3 and minor_version < 9:
         # Remove the `to_snowpark_pandas` test since Snowpark pandas is only supported in Python 3.9+.
         test_files = filter(
             lambda file: "to_snowpark_pandas" not in file.name, test_files
         )
+    if major_version == 3 and minor_version == 12:
+        # Skip df_copy when run in Python 3.12 due to differences in reported source positions.
+        test_files = filter(lambda file: "df_copy" not in file.name, test_files)
     return [parse_file(file) for file in test_files]
 
 
@@ -143,7 +147,7 @@ ast_utils.SRC_POSITION_TEST_MODE = True
 
 def run_test(session, tables, test_files):
     # Reset the entity ID generator.
-    session._ast_batch.reset_id_gen()
+    session._ast_batch._reset_id_gen()
 
     session._ast_batch.flush()  # Clear the AST.
 

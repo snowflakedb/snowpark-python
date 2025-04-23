@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import decimal
 import functools
 import logging
 import math
@@ -12,7 +13,7 @@ from unittest.mock import patch, MagicMock, PropertyMock
 
 import oracledb
 import pytest
-
+from decimal import Decimal
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
@@ -34,8 +35,12 @@ from snowflake.snowpark._internal.data_source.utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
     detect_dbms,
     DBMS_TYPE,
+    DRIVER_TYPE,
 )
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -65,8 +70,10 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_all_type_schema,
     SQLITE3_DB_CUSTOM_SCHEMA_STRING,
     SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
+    oracledb_real_data,
+    sql_server_udtf_ingestion_data,
 )
-from tests.utils import Utils, IS_WINDOWS
+from tests.utils import RUNNING_ON_JENKINS, Utils, IS_WINDOWS
 
 try:
     import pandas  # noqa: F401
@@ -89,6 +96,7 @@ pytestmark = [
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
+ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integration"
 
 
 def test_dbapi_with_temp_table(session, caplog):
@@ -162,6 +170,7 @@ def test_dbapi_retry(session):
                     PyodbcDriver,
                     sql_server_create_connection,
                     StructType([StructField("col1", IntegerType(), False)]),
+                    DBMS_TYPE.SQL_SERVER_DB,
                 ),
                 partition="SELECT * FROM test_table",
                 partition_idx=0,
@@ -542,6 +551,7 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 PyodbcDriver,
                 sql_server_create_connection_small_data,
                 schema=schema,
+                dbms_type=DBMS_TYPE.SQL_SERVER_DB,
                 fetch_size=fetch_size,
             ),
             "partition": "SELECT * FROM test_table",
@@ -570,24 +580,26 @@ def test_database_detector():
     mock_conn = MagicMock()
     with patch.object(type(mock_conn), "__module__", "UNKNOWN_DRIVER"):
         result = detect_dbms(mock_conn)
-        assert result == (DBMS_TYPE.UNKNOWN, "unknown_driver")
+        assert result == (DBMS_TYPE.UNKNOWN, DRIVER_TYPE.UNKNOWN)
 
     mock_conn = MagicMock()
     mock_conn.getinfo.return_value = "UNKNOWN"
     with patch.object(type(mock_conn), "__module__", "pyodbc"):
         result = detect_dbms(mock_conn)
-        assert result == (DBMS_TYPE.UNKNOWN, "pyodbc")
+        assert result == (DBMS_TYPE.UNKNOWN, DRIVER_TYPE.PYODBC)
 
 
 def test_type_conversion():
     invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
     with pytest.raises(NotImplementedError, match="sql server type not supported"):
-        PyodbcDriver(sql_server_create_connection).to_snow_type(
-            [("test_col", invalid_type, None, None, 0, 0, True)]
-        )
+        PyodbcDriver(
+            sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
+        ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
 
     with pytest.raises(NotImplementedError, match="oracledb type not supported"):
-        OracledbDriver(oracledb_create_connection).to_snow_type([invalid_type])
+        OracledbDriver(oracledb_create_connection, DBMS_TYPE.ORACLE_DB).to_snow_type(
+            [invalid_type]
+        )
 
 
 def test_custom_schema_false(session):
@@ -771,7 +783,9 @@ def test_empty_table(session):
 
 
 def test_oracledb_driver_coverage(caplog):
-    oracledb_driver = OracledbDriver(oracledb_create_connection_small_data)
+    oracledb_driver = OracledbDriver(
+        oracledb_create_connection_small_data, DBMS_TYPE.ORACLE_DB
+    )
     conn = oracledb_driver.prepare_connection(oracledb_driver.create_connection(), 0)
     assert conn.outputtypehandler == output_type_handler
 
@@ -779,6 +793,145 @@ def test_oracledb_driver_coverage(caplog):
         [OracleDBType("NUMBER_COL", oracledb.DB_TYPE_NUMBER, 40, 2, True)]
     )
     assert "Snowpark does not support column" in caplog.text
+
+
+@pytest.mark.skipif(
+    RUNNING_ON_JENKINS, reason="Cannot connect to oracledb from jenkins"
+)
+def test_udtf_ingestion_oracledb(session):
+    from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
+
+    def create_connection_oracledb():
+        import oracledb
+
+        host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+        port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+        service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+        username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+        password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+        dsn = f"{host}:{port}/{service_name}"
+        connection = oracledb.connect(user=username, password=password, dsn=dsn)
+        return connection
+
+    df = session.read.dbapi(
+        create_connection_oracledb,
+        table="ALL_TYPE_TABLE",
+        udtf_configs={
+            "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION
+        },
+    ).order_by("ID")
+    Utils.check_answer(df, oracledb_real_data)
+
+
+def test_sql_server_udtf_ingestion(session):
+    raw_schema = [
+        ("Id", int, None, None, 10, 0, False),
+        ("SmallIntCol", int, None, None, 5, 0, True),
+        ("TinyIntCol", int, None, None, 3, 0, True),
+        ("BigIntCol", int, None, None, 19, None, True),
+        ("DecimalCol", decimal.Decimal, None, None, 10, 2, True),
+        ("FloatCol", float, None, None, 53, None, True),
+        ("RealCol", float, None, None, 24, None, True),
+        ("MoneyCol", decimal.Decimal, None, None, 19, 4, True),
+        ("SmallMoneyCol", decimal.Decimal, None, None, 10, 4, True),
+        ("CharCol", str, None, None, None, None, True),
+        ("VarCharCol", str, None, None, None, None, True),
+        ("TextCol", str, None, None, None, None, True),
+        ("NCharCol", str, None, None, None, None, True),
+        ("NVarCharCol", str, None, None, None, None, True),
+        ("NTextCol", str, None, None, None, None, True),
+        ("DateCol", datetime.date, None, None, None, None, True),
+        ("TimeCol", datetime.time, None, None, None, None, True),
+        ("DateTimeCol", datetime.datetime, None, None, None, None, True),
+        ("DateTime2Col", datetime.datetime, None, None, None, None, True),
+        ("SmallDateTimeCol", datetime.datetime, None, None, None, None, True),
+        ("BinaryCol", bytes, None, None, None, None, True),
+        ("VarBinaryCol", bytes, None, None, None, None, True),
+        ("BitCol", bool, None, 1, None, None, True),
+        ("UniqueIdentifierCol", bytes, None, None, None, None, True),
+    ]
+
+    def create_connection_udtf_sql_server():
+        class FakeConnection:
+            def __init__(self) -> None:
+                self.sql = ""
+                self.start_index = 0
+                self.data = [
+                    (
+                        1,
+                        100,
+                        10,
+                        100000,
+                        Decimal("12345.67"),
+                        1.23,
+                        0.4560000002384186,
+                        Decimal("1234.5600"),
+                        Decimal("12.3400"),
+                        "FixedStr1 ",
+                        "VarStr1",
+                        "Text1",
+                        "UniFix1   ",
+                        "UniVar1",
+                        "UniText1",
+                        datetime.date(2023, 1, 1),
+                        datetime.time(12, 0),
+                        datetime.datetime(2023, 1, 1, 12, 0),
+                        datetime.datetime(2023, 1, 1, 12, 0, 0, 123000),
+                        datetime.datetime(2023, 1, 1, 12, 0),
+                        b"\x01\x02\x03\x04\x05".hex(),
+                        b"\x01\x02\x03\x04".hex(),
+                        True,
+                        b"06D48351-6EA7-4E64-81A2-9921F0EC42A5".hex(),
+                    ),
+                ]
+
+            def cursor(self):
+                return self
+
+            def execute(self, sql: str):
+                self.sql = sql
+                return self
+
+            def add_output_converter(self, need_convert_type, function):
+                pass
+
+            def get_output_converter(self, convert_type):
+                return None
+
+            def fetchmany(self, row_count: int):
+                end_index = self.start_index + row_count
+                res = (
+                    self.data[self.start_index : end_index]
+                    if end_index < len(self.data)
+                    else self.data[self.start_index :]
+                )
+                self.start_index = end_index
+                return res
+
+        return FakeConnection()
+
+    partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        [["SELECT * FROM ALL_TYPE_DATA"]], schema=["partition"]
+    ).write.save_as_table(partitions_table, table_type="temp")
+
+    driver = PyodbcDriver(create_connection_udtf_sql_server, DBMS_TYPE.SQL_SERVER_DB)
+    df = driver.udtf_ingestion(
+        session,
+        driver.to_snow_type(raw_schema),
+        partitions_table,
+        "",
+        packages=["pyodbc"],
+    )
+    Utils.check_answer(df, sql_server_udtf_ingestion_data)
+
+
+def test_external_access_integration_not_set(session):
+    with pytest.raises(
+        ValueError,
+        match="external_access_integration cannot be None when udtf ingestion is used.",
+    ):
+        session.read.dbapi(oracledb_create_connection, table="fake", udtf_configs={})
 
 
 def test_unknown_driver_with_custom_schema(session):
@@ -813,6 +966,7 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
             SqliteDriver,
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
+            dbms_type=DBMS_TYPE.SQLITE_DB,
             fetch_size=fetch_size,
             fetch_merge_count=fetch_merge_count,
         )
