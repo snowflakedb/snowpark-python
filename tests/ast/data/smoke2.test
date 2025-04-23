@@ -1,0 +1,2357 @@
+## TEST CASE
+
+import datetime
+
+# Load the tables into DataFrames
+visits_df = session.table(tables.visits)
+user_profiles_df = session.table(tables.user_profiles)
+
+# Filter the visits table
+filtered_visits_df = visits_df.filter((col("country") == "USA") & (col("page_url").like("%products%")))
+
+# Filter the user_profiles table
+filtered_profiles_df = user_profiles_df.filter(col("membership_type").in_(['Gold', 'Platinum']))
+
+# Add an age column to the user_profiles DataFrame
+current_date = datetime.date(2025, 3, 4)
+filtered_profiles_df = filtered_profiles_df.with_column(
+    "age", floor(months_between(to_date(lit(current_date)), col("dob")) / 12)
+)
+
+# Join the DataFrames
+joined_df = filtered_visits_df.join(filtered_profiles_df, "user_id")
+
+# Calculate visit duration in seconds
+joined_df = joined_df.with_column(
+    "visit_duration_seconds", datediff("second", col("start_time"), col("end_time"))
+)
+
+# Aggregate by user and calculate average visit duration
+aggregated_df = joined_df.group_by("user_id", "first_name", "last_name", "membership_type").agg(
+    avg("visit_duration_seconds").alias("average_visit_duration_seconds"),
+    count(col("visit_id")).alias("visit_count")
+)
+
+# Sort by average visit duration
+sorted_df = aggregated_df.sort("average_visit_duration_seconds", ascending=False)
+
+# Select desired columns
+result_df = sorted_df.select(
+    "user_id",
+    "first_name",
+    "last_name",
+    "membership_type",
+    round("average_visit_duration_seconds", 2).alias("average_visit_duration_seconds"),
+    "visit_count"
+)
+
+# Get the final result
+final_df = result_df.collect()
+
+# Verify that transitive closure is working as expected
+result_df.show()
+
+## EXPECTED UNPARSER OUTPUT
+
+visits_df = session.table("visits")
+
+user_profiles_df = session.table("user_profiles")
+
+filtered_visits_df = visits_df.filter((col("country") == "USA") & col("page_url").like("%products%"))
+
+filtered_profiles_df = user_profiles_df.filter(col("membership_type").in_(["Gold", "Platinum"]))
+
+filtered_profiles_df = filtered_profiles_df.with_column("age", floor(months_between(to_date(lit(datetime.date(2025, 3, 4))), col("dob")) / 12))
+
+joined_df = filtered_visits_df.join(filtered_profiles_df, on="user_id", how="inner")
+
+joined_df = joined_df.with_column("visit_duration_seconds", datediff("second", col("start_time"), col("end_time")))
+
+aggregated_df = joined_df.group_by("user_id", "first_name", "last_name", "membership_type")
+
+aggregated_df = aggregated_df.agg(avg("visit_duration_seconds").alias("average_visit_duration_seconds"), count(col("visit_id")).alias("visit_count"))
+
+sorted_df = aggregated_df.sort("average_visit_duration_seconds", ascending=False)
+
+result_df = sorted_df.select("user_id", "first_name", "last_name", "membership_type", round("average_visit_duration_seconds", 2).alias("average_visit_duration_seconds"), "visit_count")
+
+result_df.collect()
+
+visits_df = session.table("visits")
+
+user_profiles_df = session.table("user_profiles")
+
+filtered_visits_df = visits_df.filter((col("country") == "USA") & col("page_url").like("%products%"))
+
+filtered_profiles_df = user_profiles_df.filter(col("membership_type").in_(["Gold", "Platinum"]))
+
+filtered_profiles_df = filtered_profiles_df.with_column("age", floor(months_between(to_date(lit(datetime.date(2025, 3, 4))), col("dob")) / 12))
+
+joined_df = filtered_visits_df.join(filtered_profiles_df, on="user_id", how="inner")
+
+joined_df = joined_df.with_column("visit_duration_seconds", datediff("second", col("start_time"), col("end_time")))
+
+aggregated_df = joined_df.group_by("user_id", "first_name", "last_name", "membership_type")
+
+aggregated_df = aggregated_df.agg(avg("visit_duration_seconds").alias("average_visit_duration_seconds"), count(col("visit_id")).alias("visit_count"))
+
+sorted_df = aggregated_df.sort("average_visit_duration_seconds", ascending=False)
+
+result_df = sorted_df.select("user_id", "first_name", "last_name", "membership_type", round("average_visit_duration_seconds", 2).alias("average_visit_duration_seconds"), "visit_count")
+
+result_df.show()
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "visits"
+            }
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 28
+          file: 2
+          start_column: 20
+          start_line: 28
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "visits_df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "user_profiles"
+            }
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 29
+          file: 2
+          start_column: 27
+          start_line: 29
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "user_profiles_df"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_filter {
+        condition {
+          and {
+            lhs {
+              eq {
+                lhs {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          end_column: 61
+                          end_line: 32
+                          file: 2
+                          start_column: 47
+                          start_line: 32
+                        }
+                        v: "country"
+                      }
+                    }
+                    src {
+                      end_column: 61
+                      end_line: 32
+                      file: 2
+                      start_column: 47
+                      start_line: 32
+                    }
+                  }
+                }
+                rhs {
+                  string_val {
+                    src {
+                      end_column: 70
+                      end_line: 32
+                      file: 2
+                      start_column: 47
+                      start_line: 32
+                    }
+                    v: "USA"
+                  }
+                }
+                src {
+                  end_column: 70
+                  end_line: 32
+                  file: 2
+                  start_column: 47
+                  start_line: 32
+                }
+              }
+            }
+            rhs {
+              column_string_like {
+                col {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          end_column: 90
+                          end_line: 32
+                          file: 2
+                          start_column: 75
+                          start_line: 32
+                        }
+                        v: "page_url"
+                      }
+                    }
+                    src {
+                      end_column: 90
+                      end_line: 32
+                      file: 2
+                      start_column: 75
+                      start_line: 32
+                    }
+                  }
+                }
+                pattern {
+                  string_val {
+                    src {
+                      end_column: 109
+                      end_line: 32
+                      file: 2
+                      start_column: 75
+                      start_line: 32
+                    }
+                    v: "%products%"
+                  }
+                }
+                src {
+                  end_column: 109
+                  end_line: 32
+                  file: 2
+                  start_column: 75
+                  start_line: 32
+                }
+              }
+            }
+            src {
+              end_column: 110
+              end_line: 32
+              file: 2
+              start_column: 46
+              start_line: 32
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 111
+          end_line: 32
+          file: 2
+          start_column: 29
+          start_line: 32
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "filtered_visits_df"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_filter {
+        condition {
+          column_in {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 77
+                      end_line: 35
+                      file: 2
+                      start_column: 55
+                      start_line: 35
+                    }
+                    v: "membership_type"
+                  }
+                }
+                src {
+                  end_column: 77
+                  end_line: 35
+                  file: 2
+                  start_column: 55
+                  start_line: 35
+                }
+              }
+            }
+            values {
+              list_val {
+                src {
+                  end_column: 103
+                  end_line: 35
+                  file: 2
+                  start_column: 55
+                  start_line: 35
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 103
+                      end_line: 35
+                      file: 2
+                      start_column: 55
+                      start_line: 35
+                    }
+                    v: "Gold"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 103
+                      end_line: 35
+                      file: 2
+                      start_column: 55
+                      start_line: 35
+                    }
+                    v: "Platinum"
+                  }
+                }
+              }
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 2
+          }
+        }
+        src {
+          end_column: 104
+          end_line: 35
+          file: 2
+          start_column: 31
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "filtered_profiles_df"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_with_column {
+        col {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "floor"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              div {
+                lhs {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "months_between"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      apply_expr {
+                        fn {
+                          builtin_fn {
+                            name {
+                              name {
+                                name_flat {
+                                  name: "to_date"
+                                }
+                              }
+                            }
+                          }
+                        }
+                        pos_args {
+                          apply_expr {
+                            fn {
+                              builtin_fn {
+                                name {
+                                  name {
+                                    name_flat {
+                                      name: "lit"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            pos_args {
+                              python_date_val {
+                                day: 4
+                                month: 3
+                                src {
+                                  end_column: 65
+                                  end_line: 40
+                                  file: 2
+                                  start_column: 48
+                                  start_line: 40
+                                }
+                                year: 2025
+                              }
+                            }
+                            src {
+                              end_column: 65
+                              end_line: 40
+                              file: 2
+                              start_column: 48
+                              start_line: 40
+                            }
+                          }
+                        }
+                        src {
+                          end_column: 66
+                          end_line: 40
+                          file: 2
+                          start_column: 40
+                          start_line: 40
+                        }
+                      }
+                    }
+                    pos_args {
+                      apply_expr {
+                        fn {
+                          builtin_fn {
+                            name {
+                              name {
+                                name_flat {
+                                  name: "col"
+                                }
+                              }
+                            }
+                          }
+                        }
+                        pos_args {
+                          string_val {
+                            src {
+                              end_column: 78
+                              end_line: 40
+                              file: 2
+                              start_column: 68
+                              start_line: 40
+                            }
+                            v: "dob"
+                          }
+                        }
+                        src {
+                          end_column: 78
+                          end_line: 40
+                          file: 2
+                          start_column: 68
+                          start_line: 40
+                        }
+                      }
+                    }
+                    src {
+                      end_column: 79
+                      end_line: 40
+                      file: 2
+                      start_column: 25
+                      start_line: 40
+                    }
+                  }
+                }
+                rhs {
+                  int64_val {
+                    src {
+                      end_column: 84
+                      end_line: 40
+                      file: 2
+                      start_column: 25
+                      start_line: 40
+                    }
+                    v: 12
+                  }
+                }
+                src {
+                  end_column: 84
+                  end_line: 40
+                  file: 2
+                  start_column: 25
+                  start_line: 40
+                }
+              }
+            }
+            src {
+              end_column: 85
+              end_line: 40
+              file: 2
+              start_column: 19
+              start_line: 40
+            }
+          }
+        }
+        col_name: "age"
+        df {
+          dataframe_ref {
+            id: 4
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 41
+          file: 2
+          start_column: 31
+          start_line: 39
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "filtered_profiles_df"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join {
+        join_expr {
+          string_val {
+            src {
+              end_column: 76
+              end_line: 44
+              file: 2
+              start_column: 20
+              start_line: 44
+            }
+            v: "user_id"
+          }
+        }
+        join_type {
+          join_type__inner: true
+        }
+        lhs {
+          dataframe_ref {
+            id: 3
+          }
+        }
+        rhs {
+          dataframe_ref {
+            id: 5
+          }
+        }
+        src {
+          end_column: 76
+          end_line: 44
+          file: 2
+          start_column: 20
+          start_line: 44
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "joined_df"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_with_column {
+        col {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "datediff"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 92
+                  end_line: 48
+                  file: 2
+                  start_column: 38
+                  start_line: 48
+                }
+                v: "second"
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 74
+                      end_line: 48
+                      file: 2
+                      start_column: 57
+                      start_line: 48
+                    }
+                    v: "start_time"
+                  }
+                }
+                src {
+                  end_column: 74
+                  end_line: 48
+                  file: 2
+                  start_column: 57
+                  start_line: 48
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 91
+                      end_line: 48
+                      file: 2
+                      start_column: 76
+                      start_line: 48
+                    }
+                    v: "end_time"
+                  }
+                }
+                src {
+                  end_column: 91
+                  end_line: 48
+                  file: 2
+                  start_column: 76
+                  start_line: 48
+                }
+              }
+            }
+            src {
+              end_column: 92
+              end_line: 48
+              file: 2
+              start_column: 38
+              start_line: 48
+            }
+          }
+        }
+        col_name: "visit_duration_seconds"
+        df {
+          dataframe_ref {
+            id: 6
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 49
+          file: 2
+          start_column: 20
+          start_line: 47
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "joined_df"
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 99
+                end_line: 52
+                file: 2
+                start_column: 24
+                start_line: 52
+              }
+              v: "user_id"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 99
+                end_line: 52
+                file: 2
+                start_column: 24
+                start_line: 52
+              }
+              v: "first_name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 99
+                end_line: 52
+                file: 2
+                start_column: 24
+                start_line: 52
+              }
+              v: "last_name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 99
+                end_line: 52
+                file: 2
+                start_column: 24
+                start_line: 52
+              }
+              v: "membership_type"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 7
+          }
+        }
+        src {
+          end_column: 99
+          end_line: 52
+          file: 2
+          start_column: 24
+          start_line: 52
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "aggregated_df"
+    }
+    uid: 8
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_agg {
+        exprs {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "avg"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 41
+                        end_line: 53
+                        file: 2
+                        start_column: 12
+                        start_line: 53
+                      }
+                      v: "visit_duration_seconds"
+                    }
+                  }
+                  src {
+                    end_column: 41
+                    end_line: 53
+                    file: 2
+                    start_column: 12
+                    start_line: 53
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "average_visit_duration_seconds"
+              src {
+                end_column: 81
+                end_line: 53
+                file: 2
+                start_column: 12
+                start_line: 53
+              }
+            }
+          }
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "count"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            name {
+                              name_flat {
+                                name: "col"
+                              }
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            end_column: 33
+                            end_line: 54
+                            file: 2
+                            start_column: 18
+                            start_line: 54
+                          }
+                          v: "visit_id"
+                        }
+                      }
+                      src {
+                        end_column: 33
+                        end_line: 54
+                        file: 2
+                        start_column: 18
+                        start_line: 54
+                      }
+                    }
+                  }
+                  src {
+                    end_column: 34
+                    end_line: 54
+                    file: 2
+                    start_column: 12
+                    start_line: 54
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "visit_count"
+              src {
+                end_column: 55
+                end_line: 54
+                file: 2
+                start_column: 12
+                start_line: 54
+              }
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 8
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 55
+          file: 2
+          start_column: 24
+          start_line: 52
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "aggregated_df"
+    }
+    uid: 9
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_sort {
+        ascending {
+          bool_val {
+          }
+        }
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 58
+                file: 2
+                start_column: 20
+                start_line: 58
+              }
+              v: "average_visit_duration_seconds"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 9
+          }
+        }
+        src {
+          end_column: 89
+          end_line: 58
+          file: 2
+          start_column: 20
+          start_line: 58
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "sorted_df"
+    }
+    uid: 10
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "user_id"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "first_name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "last_name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "membership_type"
+            }
+          }
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "round"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 54
+                        end_line: 66
+                        file: 2
+                        start_column: 12
+                        start_line: 66
+                      }
+                      v: "average_visit_duration_seconds"
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 54
+                        end_line: 66
+                        file: 2
+                        start_column: 12
+                        start_line: 66
+                      }
+                      v: 2
+                    }
+                  }
+                  src {
+                    end_column: 54
+                    end_line: 66
+                    file: 2
+                    start_column: 12
+                    start_line: 66
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "average_visit_duration_seconds"
+              src {
+                end_column: 94
+                end_line: 66
+                file: 2
+                start_column: 12
+                start_line: 66
+              }
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "visit_count"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 10
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 68
+          file: 2
+          start_column: 20
+          start_line: 61
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "result_df"
+    }
+    uid: 11
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 11
+          }
+        }
+        src {
+          end_column: 38
+          end_line: 71
+          file: 2
+          start_column: 19
+          start_line: 71
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 12
+  }
+}
+body {
+  eval {
+    bind_id: 12
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "visits"
+            }
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 28
+          file: 2
+          start_column: 20
+          start_line: 28
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "visits_df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "user_profiles"
+            }
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 29
+          file: 2
+          start_column: 27
+          start_line: 29
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "user_profiles_df"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_filter {
+        condition {
+          and {
+            lhs {
+              eq {
+                lhs {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          end_column: 61
+                          end_line: 32
+                          file: 2
+                          start_column: 47
+                          start_line: 32
+                        }
+                        v: "country"
+                      }
+                    }
+                    src {
+                      end_column: 61
+                      end_line: 32
+                      file: 2
+                      start_column: 47
+                      start_line: 32
+                    }
+                  }
+                }
+                rhs {
+                  string_val {
+                    src {
+                      end_column: 70
+                      end_line: 32
+                      file: 2
+                      start_column: 47
+                      start_line: 32
+                    }
+                    v: "USA"
+                  }
+                }
+                src {
+                  end_column: 70
+                  end_line: 32
+                  file: 2
+                  start_column: 47
+                  start_line: 32
+                }
+              }
+            }
+            rhs {
+              column_string_like {
+                col {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          end_column: 90
+                          end_line: 32
+                          file: 2
+                          start_column: 75
+                          start_line: 32
+                        }
+                        v: "page_url"
+                      }
+                    }
+                    src {
+                      end_column: 90
+                      end_line: 32
+                      file: 2
+                      start_column: 75
+                      start_line: 32
+                    }
+                  }
+                }
+                pattern {
+                  string_val {
+                    src {
+                      end_column: 109
+                      end_line: 32
+                      file: 2
+                      start_column: 75
+                      start_line: 32
+                    }
+                    v: "%products%"
+                  }
+                }
+                src {
+                  end_column: 109
+                  end_line: 32
+                  file: 2
+                  start_column: 75
+                  start_line: 32
+                }
+              }
+            }
+            src {
+              end_column: 110
+              end_line: 32
+              file: 2
+              start_column: 46
+              start_line: 32
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 111
+          end_line: 32
+          file: 2
+          start_column: 29
+          start_line: 32
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "filtered_visits_df"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_filter {
+        condition {
+          column_in {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 77
+                      end_line: 35
+                      file: 2
+                      start_column: 55
+                      start_line: 35
+                    }
+                    v: "membership_type"
+                  }
+                }
+                src {
+                  end_column: 77
+                  end_line: 35
+                  file: 2
+                  start_column: 55
+                  start_line: 35
+                }
+              }
+            }
+            values {
+              list_val {
+                src {
+                  end_column: 103
+                  end_line: 35
+                  file: 2
+                  start_column: 55
+                  start_line: 35
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 103
+                      end_line: 35
+                      file: 2
+                      start_column: 55
+                      start_line: 35
+                    }
+                    v: "Gold"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 103
+                      end_line: 35
+                      file: 2
+                      start_column: 55
+                      start_line: 35
+                    }
+                    v: "Platinum"
+                  }
+                }
+              }
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 2
+          }
+        }
+        src {
+          end_column: 104
+          end_line: 35
+          file: 2
+          start_column: 31
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "filtered_profiles_df"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_with_column {
+        col {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "floor"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              div {
+                lhs {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          name {
+                            name_flat {
+                              name: "months_between"
+                            }
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      apply_expr {
+                        fn {
+                          builtin_fn {
+                            name {
+                              name {
+                                name_flat {
+                                  name: "to_date"
+                                }
+                              }
+                            }
+                          }
+                        }
+                        pos_args {
+                          apply_expr {
+                            fn {
+                              builtin_fn {
+                                name {
+                                  name {
+                                    name_flat {
+                                      name: "lit"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                            pos_args {
+                              python_date_val {
+                                day: 4
+                                month: 3
+                                src {
+                                  end_column: 65
+                                  end_line: 40
+                                  file: 2
+                                  start_column: 48
+                                  start_line: 40
+                                }
+                                year: 2025
+                              }
+                            }
+                            src {
+                              end_column: 65
+                              end_line: 40
+                              file: 2
+                              start_column: 48
+                              start_line: 40
+                            }
+                          }
+                        }
+                        src {
+                          end_column: 66
+                          end_line: 40
+                          file: 2
+                          start_column: 40
+                          start_line: 40
+                        }
+                      }
+                    }
+                    pos_args {
+                      apply_expr {
+                        fn {
+                          builtin_fn {
+                            name {
+                              name {
+                                name_flat {
+                                  name: "col"
+                                }
+                              }
+                            }
+                          }
+                        }
+                        pos_args {
+                          string_val {
+                            src {
+                              end_column: 78
+                              end_line: 40
+                              file: 2
+                              start_column: 68
+                              start_line: 40
+                            }
+                            v: "dob"
+                          }
+                        }
+                        src {
+                          end_column: 78
+                          end_line: 40
+                          file: 2
+                          start_column: 68
+                          start_line: 40
+                        }
+                      }
+                    }
+                    src {
+                      end_column: 79
+                      end_line: 40
+                      file: 2
+                      start_column: 25
+                      start_line: 40
+                    }
+                  }
+                }
+                rhs {
+                  int64_val {
+                    src {
+                      end_column: 84
+                      end_line: 40
+                      file: 2
+                      start_column: 25
+                      start_line: 40
+                    }
+                    v: 12
+                  }
+                }
+                src {
+                  end_column: 84
+                  end_line: 40
+                  file: 2
+                  start_column: 25
+                  start_line: 40
+                }
+              }
+            }
+            src {
+              end_column: 85
+              end_line: 40
+              file: 2
+              start_column: 19
+              start_line: 40
+            }
+          }
+        }
+        col_name: "age"
+        df {
+          dataframe_ref {
+            id: 4
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 41
+          file: 2
+          start_column: 31
+          start_line: 39
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "filtered_profiles_df"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join {
+        join_expr {
+          string_val {
+            src {
+              end_column: 76
+              end_line: 44
+              file: 2
+              start_column: 20
+              start_line: 44
+            }
+            v: "user_id"
+          }
+        }
+        join_type {
+          join_type__inner: true
+        }
+        lhs {
+          dataframe_ref {
+            id: 3
+          }
+        }
+        rhs {
+          dataframe_ref {
+            id: 5
+          }
+        }
+        src {
+          end_column: 76
+          end_line: 44
+          file: 2
+          start_column: 20
+          start_line: 44
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "joined_df"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_with_column {
+        col {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "datediff"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 92
+                  end_line: 48
+                  file: 2
+                  start_column: 38
+                  start_line: 48
+                }
+                v: "second"
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 74
+                      end_line: 48
+                      file: 2
+                      start_column: 57
+                      start_line: 48
+                    }
+                    v: "start_time"
+                  }
+                }
+                src {
+                  end_column: 74
+                  end_line: 48
+                  file: 2
+                  start_column: 57
+                  start_line: 48
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 91
+                      end_line: 48
+                      file: 2
+                      start_column: 76
+                      start_line: 48
+                    }
+                    v: "end_time"
+                  }
+                }
+                src {
+                  end_column: 91
+                  end_line: 48
+                  file: 2
+                  start_column: 76
+                  start_line: 48
+                }
+              }
+            }
+            src {
+              end_column: 92
+              end_line: 48
+              file: 2
+              start_column: 38
+              start_line: 48
+            }
+          }
+        }
+        col_name: "visit_duration_seconds"
+        df {
+          dataframe_ref {
+            id: 6
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 49
+          file: 2
+          start_column: 20
+          start_line: 47
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "joined_df"
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 99
+                end_line: 52
+                file: 2
+                start_column: 24
+                start_line: 52
+              }
+              v: "user_id"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 99
+                end_line: 52
+                file: 2
+                start_column: 24
+                start_line: 52
+              }
+              v: "first_name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 99
+                end_line: 52
+                file: 2
+                start_column: 24
+                start_line: 52
+              }
+              v: "last_name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 99
+                end_line: 52
+                file: 2
+                start_column: 24
+                start_line: 52
+              }
+              v: "membership_type"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 7
+          }
+        }
+        src {
+          end_column: 99
+          end_line: 52
+          file: 2
+          start_column: 24
+          start_line: 52
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "aggregated_df"
+    }
+    uid: 8
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_agg {
+        exprs {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "avg"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 41
+                        end_line: 53
+                        file: 2
+                        start_column: 12
+                        start_line: 53
+                      }
+                      v: "visit_duration_seconds"
+                    }
+                  }
+                  src {
+                    end_column: 41
+                    end_line: 53
+                    file: 2
+                    start_column: 12
+                    start_line: 53
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "average_visit_duration_seconds"
+              src {
+                end_column: 81
+                end_line: 53
+                file: 2
+                start_column: 12
+                start_line: 53
+              }
+            }
+          }
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "count"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            name {
+                              name_flat {
+                                name: "col"
+                              }
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            end_column: 33
+                            end_line: 54
+                            file: 2
+                            start_column: 18
+                            start_line: 54
+                          }
+                          v: "visit_id"
+                        }
+                      }
+                      src {
+                        end_column: 33
+                        end_line: 54
+                        file: 2
+                        start_column: 18
+                        start_line: 54
+                      }
+                    }
+                  }
+                  src {
+                    end_column: 34
+                    end_line: 54
+                    file: 2
+                    start_column: 12
+                    start_line: 54
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "visit_count"
+              src {
+                end_column: 55
+                end_line: 54
+                file: 2
+                start_column: 12
+                start_line: 54
+              }
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 8
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 55
+          file: 2
+          start_column: 24
+          start_line: 52
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "aggregated_df"
+    }
+    uid: 9
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_sort {
+        ascending {
+          bool_val {
+          }
+        }
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 58
+                file: 2
+                start_column: 20
+                start_line: 58
+              }
+              v: "average_visit_duration_seconds"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 9
+          }
+        }
+        src {
+          end_column: 89
+          end_line: 58
+          file: 2
+          start_column: 20
+          start_line: 58
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "sorted_df"
+    }
+    uid: 10
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "user_id"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "first_name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "last_name"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "membership_type"
+            }
+          }
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "round"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 54
+                        end_line: 66
+                        file: 2
+                        start_column: 12
+                        start_line: 66
+                      }
+                      v: "average_visit_duration_seconds"
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 54
+                        end_line: 66
+                        file: 2
+                        start_column: 12
+                        start_line: 66
+                      }
+                      v: 2
+                    }
+                  }
+                  src {
+                    end_column: 54
+                    end_line: 66
+                    file: 2
+                    start_column: 12
+                    start_line: 66
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "average_visit_duration_seconds"
+              src {
+                end_column: 94
+                end_line: 66
+                file: 2
+                start_column: 12
+                start_line: 66
+              }
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 68
+                file: 2
+                start_column: 20
+                start_line: 61
+              }
+              v: "visit_count"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 10
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 68
+          file: 2
+          start_column: 20
+          start_line: 61
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "result_df"
+    }
+    uid: 11
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_show {
+        df {
+          dataframe_ref {
+            id: 11
+          }
+        }
+        n: 10
+        src {
+          end_column: 24
+          end_line: 74
+          file: 2
+          start_column: 8
+          start_line: 74
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 13
+  }
+}
+body {
+  eval {
+    bind_id: 13
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 30
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

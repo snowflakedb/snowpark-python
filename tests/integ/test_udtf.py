@@ -4,12 +4,14 @@
 
 import datetime
 import decimal
+import os
 import sys
+from textwrap import dedent
 from typing import Dict, List, Tuple
 
 import pytest
 
-from snowflake.snowpark import Row, Table
+from snowflake.snowpark import Row, Table, context
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
@@ -529,6 +531,54 @@ def test_apply_in_pandas(session):
             Row(GRADE="A", DIVISION=2, SUM=24.9),
             Row(GRADE="B", DIVISION=2, SUM=12.1),
             Row(GRADE="B", DIVISION=5, SUM=5.0),
+        ],
+    )
+
+    class Column:
+        def __init__(self, spark_name: str) -> None:
+            self.spark_name = spark_name
+
+    class ColumnMap:
+        def __init__(self) -> None:
+            self.columns: List[Column] = []
+
+    # test with multiple columns in group by
+    df = session.createDataFrame(
+        [(1, 1.0), (1, 2.0), (2, 3.0), (2, 5.0), (2, 10.0)], ("id", "v")
+    )
+
+    # this is to mock the current behavior
+    df._column_map = ColumnMap()
+    df._column_map.columns = [Column("id"), Column("v")]
+
+    context._is_snowpark_connect_compatible_mode = True
+
+    def normalize(pdf):
+        v = pdf.v
+        return pdf.assign(v=(v - v.mean()) / v.std())
+
+    df = (
+        df.group_by("id")
+        .applyInPandas(
+            normalize,
+            output_schema=StructType(
+                [
+                    StructField("id", IntegerType()),
+                    StructField("v", DoubleType()),
+                ]
+            ),
+        )
+        .orderBy(["id", "v"])
+    )
+
+    Utils.check_answer(
+        df,
+        [
+            Row(ID=1, V=-0.7071067811865475),
+            Row(ID=1, V=0.7071067811865475),
+            Row(ID=2, V=-0.8320502943378437),
+            Row(ID=2, V=-0.2773500981126146),
+            Row(ID=2, V=1.1094003924504583),
         ],
     )
 
@@ -1305,3 +1355,90 @@ def test_udtf_external_access_integration(session, db_parameters):
         )
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udtf_artifact_repository(session, resources_path):
+    class ArtifactRepositoryUDTF:
+        def process(self) -> Iterable[Tuple[str]]:
+            import urllib3
+
+            return [(str(urllib3.exceptions.HTTPError("test")),)]
+
+    ar_udtf = session.udtf.register(
+        ArtifactRepositoryUDTF,
+        output_schema=StructType([StructField("a", StringType())]),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+
+    Utils.check_answer(
+        session.table_function(ar_udtf()),
+        [
+            Row(
+                "test",
+            )
+        ],
+    )
+
+    try:
+        ar_udtf = session.udtf.register(
+            ArtifactRepositoryUDTF,
+            output_schema=StructType([StructField("a", StringType())]),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex)
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udtf_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import urllib3
+    from typing import Iterable, Tuple
+    class ArtifactRepositoryUDTF:
+        def process(self) -> Iterable[Tuple[str]]:
+            return [(str(urllib3.exceptions.HTTPError("test")),)]
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_udtf.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    ar_udtf = session.udtf.register_from_file(
+        file_path,
+        "ArtifactRepositoryUDTF",
+        output_schema=StructType([StructField("a", StringType())]),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+
+    Utils.check_answer(
+        session.table_function(ar_udtf()),
+        [
+            Row(
+                "test",
+            )
+        ],
+    )

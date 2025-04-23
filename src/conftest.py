@@ -11,6 +11,7 @@ import uuid
 import pytest
 
 from snowflake.snowpark import Session
+from snowflake.snowpark.functions import to_timestamp
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
@@ -39,27 +40,6 @@ def pytest_runtest_makereport(item, call):
             tr.wasxfail = "[Local Testing] Function has not been implemented yet."
 
     return tr
-
-
-# These tests require python packages that are no longer built for python 3.8
-PYTHON_38_SKIPS = {
-    "snowpark.session.Session.replicate_local_environment",
-    "snowpark.session.Session.table_function",
-}
-
-DocTestFinder = doctest.DocTestFinder
-
-
-class CustomDocTestFinder(DocTestFinder):
-    def _find(self, tests, obj, name, module, source_lines, globs, seen):
-        if name in PYTHON_38_SKIPS and sys.version_info < (3, 9):
-            return
-        return DocTestFinder._find(
-            self, tests, obj, name, module, source_lines, globs, seen
-        )
-
-
-doctest.DocTestFinder = CustomDocTestFinder
 
 
 # scope is module so that we ensure we delete the session before
@@ -91,3 +71,11 @@ def add_snowpark_session(doctest_namespace, pytestconfig):
         LOCAL_TESTING_MODE = False
         if RUNNING_ON_GH:
             session.sql(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}").collect()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def add_doctest_imports(doctest_namespace) -> None:
+    """
+    Make `to_timestamp` name available for doctests.
+    """
+    doctest_namespace["to_timestamp"] = to_timestamp

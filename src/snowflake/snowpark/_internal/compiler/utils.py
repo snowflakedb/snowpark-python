@@ -100,8 +100,8 @@ def resolve_and_update_snowflake_plan(
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
     node._output_dict = new_snowflake_plan._output_dict
-    node.df_aliased_col_name_to_real_col_name.update(
-        new_snowflake_plan.df_aliased_col_name_to_real_col_name
+    node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+        new_snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
     )
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
@@ -246,13 +246,20 @@ def update_resolvable_node(
         # update the pre_actions and post_actions for the select statement
         node.pre_actions = node.from_.pre_actions
         node.post_actions = node.from_.post_actions
-        node.expr_to_alias = node.from_.expr_to_alias
+        node.expr_to_alias = node.from_.expr_to_alias.copy()
+
         # df_aliased_col_name_to_real_col_name is updated at the frontend api
         # layer when alias is called, not produced during code generation. Should
         # always retain the original value of the map.
         node.df_aliased_col_name_to_real_col_name.update(
             node.from_.df_aliased_col_name_to_real_col_name
         )
+        # projection_in_str for SelectStatement runs a analyzer.analyze() which
+        # needs the correct expr_to_alias map setup. This map is setup during
+        # snowflake plan generation and cached for later use. Calling snowflake_plan
+        # here to get the map setup correctly.
+        node.get_snowflake_plan(skip_schema_query=True)
+        node.expr_to_alias.update(node.snowflake_plan.expr_to_alias)
 
     elif isinstance(node, SetStatement):
         # clean up the cached sql query and snowflake plan to allow
@@ -283,8 +290,8 @@ def update_resolvable_node(
 
         if isinstance(node, SelectSnowflakePlan):
             node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
-            node.df_aliased_col_name_to_real_col_name.update(
-                node._snowflake_plan.df_aliased_col_name_to_real_col_name
+            node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+                node._snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
             )
             node._query_params = []
             for query in node._snowflake_plan.queries:
@@ -439,7 +446,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         if isinstance(node, SnowflakePlan):
             name = f"{name} :: ({get_name(node.source_plan)})"
         elif isinstance(node, SelectSnowflakePlan):
-            name = f"{name} :: ({get_name(node.snowflake_plan.source_plan)})"
+            name = f"{name} :: ({get_name(node.snowflake_plan)}) :: ({get_name(node.snowflake_plan.source_plan)})"
         elif isinstance(node, SetStatement):
             name = f"{name} :: ({node.set_operands[1].operator})"
         elif isinstance(node, SelectStatement):
@@ -503,6 +510,10 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             )
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
+                if isinstance(node, SnowflakePlan) and isinstance(
+                    node.source_plan, Selectable
+                ):
+                    children.append(node.source_plan)
             else:
                 children = node.children  # pragma: no cover
             for child in children:

@@ -327,7 +327,8 @@ def test_update_delete_merge(session, large_query_df):
     # There is one SELECT CURRENT_TRANSACTION() query and one save_as_table query since large
     # query breakdown is not triggered.
     # There are two describe queries triggered, one from save_as_table, one from session.table
-    with SqlCounter(query_count=2, describe_count=2):
+    expected_describe_count = 1 if session.reduce_describe_query_enabled else 2
+    with SqlCounter(query_count=2, describe_count=expected_describe_count):
         df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
         df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
         t = session.table(table_name)
@@ -335,7 +336,7 @@ def test_update_delete_merge(session, large_query_df):
     # update
     with session.query_history() as history:
         # 3 describe call triggered due to column state extraction
-        with SqlCounter(query_count=4, describe_count=3):
+        with SqlCounter(query_count=4, describe_count=2):
             t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -520,7 +521,7 @@ def test_multiple_query_plan(session):
         final_df = union_df.with_column("A", col("A") + lit(1))
 
         with SqlCounter(
-            query_count=15,
+            query_count=11,
             describe_count=0,
             high_count_expected=True,
             high_count_reason="low array bind threshold",

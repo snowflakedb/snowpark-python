@@ -24,6 +24,11 @@ class CompilationStageTelemetryField(Enum):
         "snowpark_large_query_breakdown_update_complexity_bounds"
     )
 
+    # categories
+    CAT_COMPILATION_STAGE_STATS = "query_compilation_stage_statistics"
+    CAT_COMPILATION_STAGE_ERROR = "query_compilation_stage_error"
+    CAT_SNOWFLAKE_PLAN_METRICS = "snowflake_plan_metrics"
+
     # keys
     KEY_REASON = "reason"
     PLAN_UUID = "plan_uuid"

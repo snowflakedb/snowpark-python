@@ -35,6 +35,7 @@ WITH = "WITH "
 CREATE_TEMP_TABLE = "CREATE  TEMPORARY  TABLE"
 UNION = " UNION "
 WINDOW = " OVER "
+WITH_SNOWPARK_TEMP_CTE = "WITH SNOWPARK_TEMP_CTE_"
 
 NO_CHECK = "no_check"
 
@@ -82,6 +83,8 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # These cases should be excluded in our query counts.
 # 6. Unused temp tables to be dropped to temp table cleaner may happen any time when garbage collection kicks in,
 # so we should not count it
+# 7. SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION ... is to validate at the beginning of the session
+# that this parameter is unset, as currently required by Snowpark pandas.
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
@@ -89,6 +92,7 @@ FILTER_OUT_QUERIES = [
     ['SELECT "PACKAGE_NAME"', 'array_agg("VERSION")'],
     ["drop table if exists", "TESTTABLENAME"],
     ["drop table if exists", "/* internal query to drop unused temp table */"],
+    ["SHOW PARAMETERS LIKE", "QUOTED_IDENTIFIERS_IGNORE_CASE"],
 ]
 
 # define global at module-level
@@ -350,7 +354,8 @@ class SqlCounter(QueryListener):
 
     def actual_udtf_count(self):
         return self._count_by_query_substr(
-            [SELECT, INSERT, CREATE_TEMP_TABLE], [TEMP_TABLE_FUNCTION]
+            [SELECT, INSERT, CREATE_TEMP_TABLE, WITH_SNOWPARK_TEMP_CTE],
+            [TEMP_TABLE_FUNCTION],
         )
 
     def actual_udf_count(self):

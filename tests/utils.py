@@ -95,6 +95,7 @@ if RUNNING_ON_JENKINS:
 STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
 STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_FDN_TABLES",
     "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
     "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
     "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
@@ -416,7 +417,12 @@ class Utils:
             Utils.assert_rows(actual_rows, expected_rows, float_equality_threshold)
 
     @staticmethod
-    def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
+    def verify_schema(
+        sql: str,
+        expected_schema: StructType,
+        session: Session,
+        max_string_size: int = None,
+    ) -> None:
         session._run_query(sql)
         result_meta = session._conn._cursor.description
 
@@ -427,16 +433,17 @@ class Utils:
                 == field.column_identifier.quoted_name
             )
             assert meta.is_nullable == field.nullable
-            assert (
-                convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[meta.type_code],
-                    meta.precision,
-                    meta.scale,
-                    meta.internal_size,
-                    session._conn.max_string_size,
-                )
-                == field.datatype
+
+            sp_type = convert_sf_to_sp_type(
+                FIELD_ID_TO_NAME[meta.type_code],
+                meta.precision,
+                meta.scale,
+                meta.internal_size,
+                max_string_size or session._conn.max_string_size,
             )
+            assert (
+                sp_type == field.datatype
+            ), f"{sp_type=} is not equal to {field.datatype=}"
 
     @staticmethod
     def is_active_transaction(session: Session) -> bool:
@@ -628,6 +635,15 @@ class TestData:
                 schema=["flo", "int", "boo", "str"],
             )
         )
+
+    @classmethod
+    def null_data4(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                [Decimal(1), None],
+                [None, Decimal(2)],
+            ]
+        ).to_df(["a", "b"])
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
@@ -1380,6 +1396,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
 
     @property
+    def test_file_csv_timestamps(self):
+        return os.path.join(self.resources_path, "testCSVformattedTime.csv")
+
+    @property
     def test_file_excel(self):
         return os.path.join(self.resources_path, "test_excel.xlsx")
 
@@ -1508,6 +1528,30 @@ class TestFiles:
     @property
     def test_concat_file2_csv(self):
         return os.path.join(self.resources_path, "test_concat_file2.csv")
+
+    @property
+    def test_books_xml(self):
+        return os.path.join(self.resources_path, "books.xml")
+
+    @property
+    def test_books2_xml(self):
+        return os.path.join(self.resources_path, "books2.xml")
+
+    @property
+    def test_house_xml(self):
+        return os.path.join(self.resources_path, "fias_house.xml")
+
+    @property
+    def test_house_large_xml(self):
+        return os.path.join(self.resources_path, "fias_house.large.xml")
+
+    @property
+    def test_xxe_xml(self):
+        return os.path.join(self.resources_path, "xxe.xml")
+
+    @property
+    def test_nested_xml(self):
+        return os.path.join(self.resources_path, "nested.xml")
 
 
 class TypeMap(NamedTuple):

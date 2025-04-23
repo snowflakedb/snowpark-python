@@ -175,6 +175,14 @@ def test_str_get(i):
     )
 
 
+@pytest.mark.parametrize("i", [None, -100, -2, -1, 0, 1, 2, 100])
+@sql_count_checker(query_count=1)
+def test_str_get_list(i):
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.get(i=i))
+
+
 @sql_count_checker(query_count=0)
 def test_str_get_neg():
     native_ser = native_pd.Series(TEST_DATA)
@@ -243,6 +251,47 @@ def test_str___getitem___string_key():
 
 
 @pytest.mark.parametrize(
+    "key",
+    [
+        None,
+        [1, 2],
+        (1, 2),
+        {1: "a", 2: "b"},
+        -100,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        100,
+        slice(None, None, None),
+        slice(0, -1, 1),
+        slice(-100, 100, 1),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_str___getitem___list(key):
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str[key],
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_str___getitem___list_neg():
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="does not yet support 'step!=1' for list values",
+    ):
+        snow_ser.str[slice(None, None, 2)]
+
+
+@pytest.mark.parametrize(
     "pat",
     [
         "",
@@ -294,6 +343,20 @@ def test_str_slice(start, stop, step):
     )
 
 
+@pytest.mark.parametrize("start", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("stop", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("step", [None, 1])
+@sql_count_checker(query_count=1)
+def test_str_slice_list(start, stop, step):
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.slice(start=start, stop=stop, step=step),
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_str_slice_neg():
     native_ser = native_pd.Series(TEST_DATA)
@@ -303,6 +366,17 @@ def test_str_slice_neg():
         match="slice step cannot be zero",
     ):
         snow_ser.str.slice(start=None, stop=None, step=0)
+
+
+@sql_count_checker(query_count=0)
+def test_str_slice_list_neg():
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas method 'Series.str.slice' does not yet support 'step!=1' for list values",
+    ):
+        snow_ser.str.slice(start=None, stop=None, step=2)
 
 
 @pytest.mark.parametrize("func", ["strip", "lstrip", "rstrip"])
@@ -563,6 +637,8 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         session.sql(f"insert into {table_name} values (NULL)").collect()
 
         df = pd.read_snowflake(table_name)
+        # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+        df = df.sort_values(df.columns.to_list(), ignore_index=True)
 
         def compute_num_shared_card_users(x):
             """

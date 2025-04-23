@@ -9,7 +9,16 @@ from pytest import param
 
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_jenkins
-from snowflake.cortex import Sentiment, Summarize, Translate
+
+# snowflake-ml-python, which provides snowflake.cortex, may not be available in
+# the test environment. If it's not available, skip all tests in this module.
+cortex = pytest.importorskip("snowflake.cortex")
+Sentiment = cortex.Sentiment
+Summarize = cortex.Summarize
+Translate = cortex.Translate
+ClassifyText = cortex.ClassifyText
+Complete = cortex.Complete
+ExtractAnswer = cortex.ExtractAnswer
 
 
 @pytest.mark.skipif(
@@ -57,6 +66,10 @@ def test_apply_snowflake_cortex_sentiment_series(session):
         assert -1 <= sentiment <= 0
 
 
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
 def test_apply_snowflake_cortex_sentiment_df(session):
 
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
@@ -82,23 +95,145 @@ def test_apply_snowflake_cortex_sentiment_df(session):
     running_on_jenkins(),
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
+@pytest.mark.parametrize(
+    "is_series, operation, query_count",
+    [
+        param(
+            True,
+            (lambda s: s.apply(ClassifyText, categories=["travel", "cooking"])),
+            1,
+            id="series_classify_text_kwargs",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(ClassifyText, categories=["travel", "cooking"])),
+            2,
+            id="df_classify_text_kwargs",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_classify_text(
+    session, is_series, operation, query_count
+):
+
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    with SqlCounter(query_count=0):
+        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+            return
+
+    with SqlCounter(query_count=query_count):
+        content = "One day I will see the world."
+
+        modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+        text_class = operation(modin_input)
+        if is_series:
+            text_class_label = text_class.iloc[0]["label"]
+        else:
+            text_class_label = text_class[0][0]["label"]
+        assert text_class_label == "travel"
+
+
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
+@pytest.mark.parametrize(
+    "is_series, operation, query_count",
+    [
+        param(
+            True,
+            (lambda s: s.apply(Translate, from_language="en", to_language="de")),
+            1,
+            id="series",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(Translate, from_language="en", to_language="de")),
+            2,
+            id="dataframe",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_translate(session, is_series, operation, query_count):
+
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    with SqlCounter(query_count=0):
+        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+            return
+    with SqlCounter(query_count=query_count):
+        content = "Good Morning"
+
+        modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+        res = operation(modin_input)
+        if is_series:
+            translated_text = res.iloc[0]
+        else:
+            translated_text = res[0][0]
+        assert translated_text.lower() == "guten morgen"
+
+
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
+@pytest.mark.parametrize(
+    "is_series, operation, query_count",
+    [
+        param(
+            True,
+            (lambda s: s.apply(ExtractAnswer, question="When was Snowflake founded?")),
+            1,
+            id="series_cortex_extract_answer",
+        ),
+        param(
+            False,
+            (
+                lambda df: df.apply(
+                    ExtractAnswer, question="When was Snowflake founded?"
+                )
+            ),
+            2,
+            id="df_cortex_classify_extract_answer",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_extract_answer(
+    session, is_series, operation, query_count
+):
+
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    with SqlCounter(query_count=0):
+        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+            return
+    with SqlCounter(query_count=query_count):
+        content = "The Snowflake company was co-founded by Thierry Cruanes, Marcin Zukowski, and Benoit Dageville in 2012 and is headquartered in Bozeman, Montana."
+
+        modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+        res = operation(modin_input)
+        if is_series:
+            extracted_text = res.iloc[0][0]["answer"]
+        else:
+            extracted_text = res[0][0][0]["answer"]
+        assert extracted_text == "2012"
+
+
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
     "is_series, operation",
     [
         param(
             True,
-            (lambda s: s.apply(Translate, source_language="en", target_language="de")),
-            id="series_cortex_unsupported_function_translate",
+            (lambda s: s.apply(Complete, model="mistral-large2")),
+            id="series_cortex_unsupported_function_complete",
         ),
         param(
             False,
-            (
-                lambda df: df.apply(
-                    Translate, source_language="en", target_language="de"
-                )
-            ),
-            id="df_cortex_unsupported_function_translate",
+            (lambda df: df.apply(Complete, model="mistral-large2")),
+            id="df_cortex_unsupported_function_complete",
         ),
         param(
             True,

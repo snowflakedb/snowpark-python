@@ -91,6 +91,7 @@ class UserDefinedAggregateFunction:
         self._ast = _ast
         self._ast_id = _ast_id
 
+    @publicapi
     def __call__(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -334,7 +335,8 @@ class UDAFRegistration:
         """
         func_args = [convert_sp_to_sf_type(t) for t in udaf_obj._input_types]
         return self._session.sql(
-            f"describe function {udaf_obj.name}({','.join(func_args)})"
+            f"describe function {udaf_obj.name}({','.join(func_args)})",
+            _emit_ast=False,
         )
 
     # TODO: Support strict/secure once the server side supports these keywords in Python UDAF
@@ -360,6 +362,9 @@ class UDAFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         immutable: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
@@ -438,6 +443,13 @@ class UDAFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE FUNCTION.
+            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+                parameter will search for packages in.
+            artifact_repository_packages: A list of packages to search for within the pypi repository
+                set in the above parameter.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
@@ -486,6 +498,9 @@ class UDAFRegistration:
                 comment=comment,
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                artifact_repository_packages=artifact_repository_packages,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -514,7 +529,11 @@ class UDAFRegistration:
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
         immutable: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedAggregateFunction:
         """
         Registers a Python class as a Snowflake Python UDAF from a Python or zip file,
@@ -600,6 +619,13 @@ class UDAFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE FUNCTION.
+            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
+                parameter will search for packages in.
+            artifact_repository_packages: A list of packages to search for within the pypi repository
+                set in the above parameter.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -648,7 +674,11 @@ class UDAFRegistration:
                 immutable=immutable,
                 comment=comment,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                artifact_repository_packages=artifact_repository_packages,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udaf(
@@ -675,15 +705,18 @@ class UDAFRegistration:
         is_permanent: bool = False,
         immutable: bool = False,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        artifact_repository_packages: Optional[List[str]] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.udaf, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
 
             return UserDefinedAggregateFunction(
                 handler,
@@ -721,9 +754,9 @@ class UDAFRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.udaf, stmt)
-            ast_id = stmt.var_id.bitfield1
+            ast_id = stmt.uid
             build_udaf(
                 ast,
                 handler,
@@ -811,6 +844,9 @@ class UDAFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
+                artifact_repository=artifact_repository,
+                artifact_repository_packages=artifact_repository_packages,
+                resource_constraint=resource_constraint,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),

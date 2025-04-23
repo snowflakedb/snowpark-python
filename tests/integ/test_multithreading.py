@@ -20,7 +20,10 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanState,
 )
 from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
-from snowflake.snowpark.session import Session
+from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION,
+    Session,
+)
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -785,44 +788,66 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
     reason="local testing does not execute sql queries",
     run=False,
 )
-def test_temp_name_placeholder_for_sync(threadsafe_session):
-    from snowflake.snowpark._internal.analyzer import analyzer
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="cannot create new session in SP")
+@pytest.mark.parametrize("thread_safe_enabled", [True, False])
+def test_temp_name_placeholder_for_sync(db_parameters, thread_safe_enabled):
+    new_db_params = db_parameters.copy()
+    new_db_params["session_parameters"] = {
+        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: thread_safe_enabled
+    }
+    with Session.builder.configs(new_db_params).create() as session:
+        from snowflake.snowpark._internal.analyzer import analyzer
 
-    original_value = analyzer.ARRAY_BIND_THRESHOLD
+        original_value = analyzer.ARRAY_BIND_THRESHOLD
 
-    def process_data(df_, thread_id):
-        df_cleaned = df_.filter(df.A == thread_id)
-        return df_cleaned.collect()
+        def process_data(df_, thread_id):
+            df_cleaned = df_.filter(df.A == thread_id)
+            try:
+                df_cleaned.collect()
+            except Exception as e:
+                if thread_safe_enabled:
+                    raise e
+                # when thread_safe is disable, this will throw an error
+                # because the temp table is already dropped by another thread
+                pass
 
-    try:
-        analyzer.ARRAY_BIND_THRESHOLD = 4
-        df = threadsafe_session.create_dataframe([[1, 2], [3, 4]], ["A", "B"])
+        try:
+            analyzer.ARRAY_BIND_THRESHOLD = 4
+            df = session.create_dataframe([[1, 2], [3, 4]], ["A", "B"])
 
-        with threadsafe_session.query_history() as history:
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                for i in range(10):
-                    executor.submit(process_data, df, i)
+            with session.query_history() as history:
+                with ThreadPoolExecutor(
+                    max_workers=(5 if thread_safe_enabled else 1)
+                ) as executor:
+                    futures = []
+                    for i in range(10):
+                        futures.append(executor.submit(process_data, df, i))
+                    for future in as_completed(futures):
+                        future.result()
 
-        queries_sent = [query.sql_text for query in history.queries]
-        unique_create_table_queries = set()
-        unique_drop_table_queries = set()
-        for query in queries_sent:
-            assert "temp_name_placeholder" not in query
-            if query.startswith("CREATE  OR  REPLACE"):
-                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
-                assert match is not None, query
-                table_name = match.group()
-                unique_create_table_queries.add(table_name)
-            elif query.startswith("DROP  TABLE"):
-                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
-                assert match is not None, query
-                table_name = match.group()
-                unique_drop_table_queries.add(table_name)
-        assert len(unique_create_table_queries) == 10, queries_sent
-        assert len(unique_drop_table_queries) == 10, queries_sent
+            queries_sent = [query.sql_text for query in history.queries]
+            unique_create_table_queries = set()
+            unique_drop_table_queries = set()
+            for query in queries_sent:
+                assert "temp_name_placeholder" not in query
+                if query.startswith("CREATE  OR  REPLACE"):
+                    match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
+                    assert match is not None, query
+                    table_name = match.group()
+                    unique_create_table_queries.add(table_name)
+                elif query.startswith("DROP  TABLE"):
+                    match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
+                    assert match is not None, query
+                    table_name = match.group()
+                    unique_drop_table_queries.add(table_name)
+            expected_num_queries = 10 if thread_safe_enabled else 1
+            assert (
+                len(unique_create_table_queries) == expected_num_queries
+            ), queries_sent
+            assert len(unique_drop_table_queries) == expected_num_queries, queries_sent
 
-    finally:
-        analyzer.ARRAY_BIND_THRESHOLD = original_value
+        finally:
+            analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
 @pytest.mark.xfail(

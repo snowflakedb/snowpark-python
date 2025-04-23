@@ -52,6 +52,7 @@ test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_header = "testCSVheader.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_csv_quotes_special = "testCSVquotesSpecial.csv"
+test_file_csv_timestamps = "testCSVformattedTime.csv"
 test_file_json = "testJson.json"
 test_file_json_same_schema = "testJsonSameSchema.json"
 test_file_json_new_schema = "testJsonNewSchema.json"
@@ -62,6 +63,12 @@ test_file_with_special_characters_parquet = "test_file_with_special_characters.p
 test_file_orc = "test.orc"
 test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
+test_file_books_xml = "books.xml"
+test_file_books2_xml = "books2.xml"
+test_file_house_xml = "fias_house.xml"
+test_file_house_large_xml = "fias_house.large.xml"
+test_file_xxe_xml = "xxe.xml"
+test_file_nested_xml = "nested.xml"
 
 
 # In the tests below, we test both scenarios: SELECT & COPY
@@ -173,6 +180,12 @@ def setup(session, resources_path, local_testing_mode):
     Utils.upload_to_stage(
         session,
         "@" + tmp_stage_name1,
+        test_files.test_file_csv_timestamps,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
         test_files.test_file_json,
         compress=False,
     )
@@ -229,6 +242,24 @@ def setup(session, resources_path, local_testing_mode):
         "@" + tmp_stage_name1,
         test_files.test_broken_csv,
         compress=False,
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_books_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_books2_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_house_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_house_large_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_xxe_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name1, test_files.test_nested_xml, compress=False
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name2, test_files.test_file_csv, compress=False
@@ -1822,3 +1853,169 @@ def test_read_json_user_input_schema(session):
     )
     with pytest.raises(SnowparkSQLException, match="Failed to cast variant value"):
         session.read.schema(schema).json(test_file).collect()
+
+
+def test_read_csv_nulls(session):
+    # Test that a csv read with NULLVALUE set loads the configured representation as None
+    reader = get_reader(session, "select")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = (
+        reader.option("NULLVALUE", ["one", "two"])
+        .schema(user_schema)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(df, [Row(A=1, B=None, C=1.2), Row(A=2, B=None, C=2.2)])
+
+
+def test_read_csv_alternate_time_formats(session):
+    # Test that a csv read with NULLVALUE set loads the configured representation as None
+    reader = get_reader(session, "copy")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_timestamps}"
+
+    time_format = "HH12.MI.SS.FF3"
+    date_format = "YYYYMONDD"
+    timestamp_format = f"{date_format}-{time_format}"
+
+    schema = StructType(
+        [
+            StructField("date", DateType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("time", TimeType()),
+        ]
+    )
+
+    df = (
+        reader.option("DATE_FORMAT", date_format)
+        .option("TIME_FORMAT", time_format)
+        .option("TIMESTAMP_FORMAT", timestamp_format)
+        .option("PARSE_HEADER", False)
+        .schema(schema)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                datetime.date(2024, 1, 1),
+                datetime.datetime(2025, 1, 1, 0, 0, 1),
+                datetime.time(0, 0, 1),
+            ),
+            Row(
+                datetime.date(2022, 2, 3),
+                datetime.datetime(2022, 2, 3, 1, 2, 3, 456),
+                datetime.time(1, 2, 3, 456),
+            ),
+            Row(
+                datetime.date(2025, 2, 13),
+                datetime.datetime(2025, 2, 13, 6, 33, 36, 348925),
+                datetime.time(6, 33, 36, 348925),
+            ),
+        ],
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+def test_read_multiple_csvs(session):
+    reader = get_reader(session, "copy")
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    user_schema = StructType(
+        [
+            StructField("A", LongType()),
+            StructField("B", StringType()),
+            StructField("C", DoubleType()),
+        ]
+    )
+    test_file_on_stage = f"@{tmp_stage_name1}/"
+    try:
+        Utils.create_table(session, table_name, "A float, B string, C double")
+        df = reader.schema(user_schema).csv(test_file_on_stage)
+        df.copy_into_table(table_name, files=[test_file_csv, test_file2_csv])
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(3.0, "three", 3.3),
+                Row(4.0, "four", 4.4),
+                Row(1.0, "one", 1.2),
+                Row(2.0, "two", 2.2),
+            ],
+        )
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2044853: Flaky in stored procedure test",
+)
+@pytest.mark.parametrize(
+    "file,row_tag,expected_row_count,expected_column_count",
+    [
+        [test_file_books_xml, "book", 12, 7],
+        [test_file_books2_xml, "book", 2, 6],
+        [test_file_house_xml, "House", 37, 22],
+        [test_file_house_large_xml, "House", 740, 22],
+    ],
+)
+def test_read_xml_row_tag(
+    session, file, row_tag, expected_row_count, expected_column_count
+):
+    df = session.read.option("rowTag", row_tag).xml(f"@{tmp_stage_name1}/{file}")
+    result = df.collect()
+    assert len(result) == expected_row_count
+    assert len(result[0]) == expected_column_count
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2044853: Flaky in stored procedure test",
+)
+def test_read_xml_no_xxe(session):
+    row_tag = "bar"
+    stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
+    df = session.read.option("rowTag", row_tag).xml(stage_file_path)
+    Utils.check_answer(df, [Row("null")])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2044853: Flaky in stored procedure test",
+)
+def test_read_xml_query_nested_data(session):
+    row_tag = "tag"
+    df = session.read.option("rowTag", row_tag).xml(
+        f"@{tmp_stage_name1}/{test_file_nested_xml}"
+    )
+    assert df._all_variant_cols is True
+    Utils.check_answer(
+        df.select(
+            "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
+        ),
+        [Row('"1"', '"str1"', '{\n  "bool": "true",\n  "str": "str2"\n}', '"true"')],
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+def test_read_xml_non_existing_file(session):
+    row_tag = "tag"
+    with pytest.raises(ValueError, match="does not exist"):
+        session.read.option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name1}/non_existing_file.xml"
+        )

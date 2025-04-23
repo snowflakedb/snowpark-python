@@ -47,14 +47,17 @@ class NopSelectStatement(MockSelectStatement):
         nop_statement.__dict__.update(statement.__dict__)
         return nop_statement
 
-    def select(self, cols: List[Expression]) -> "SelectStatement":
+    def select(self, cols: List[Expression]) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().select(cols))
 
     def filter(self, col: Expression) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().filter(col))
 
-    def sort(self, cols: List[Expression]) -> "SelectStatement":
+    def sort(self, cols: List[Expression]) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().sort(cols))
+
+    def distinct(self) -> "MockSelectStatement":
+        return self._make_nop_select_statement_copy(super().distinct())
 
     def set_operator(
         self,

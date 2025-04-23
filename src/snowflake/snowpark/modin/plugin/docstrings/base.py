@@ -33,7 +33,7 @@ cold     fish      0
          spider    8
 Name: legs, dtype: int64
 
->>> s.{stat_func}()
+>>> s.{stat_func}()  # doctest: +SKIP
 {default_output}"""
 
 _max_examples: str = _shared_docs["stat_func_example"].format(
@@ -68,22 +68,22 @@ _sum_examples += """
 
 By default, the sum of an empty or all-NA Series is ``0``.
 
->>> pd.Series([], dtype="float64").sum()  # min_count=0 is the default
+>>> pd.Series([], dtype="float64").sum()  # min_count=0 is the default  # doctest: +SKIP
 0.0
 
 This can be controlled with the ``min_count`` parameter. For example, if
 you'd like the sum of an empty series to be NaN, pass ``min_count=1``.
 
->>> pd.Series([], dtype="float64").sum(min_count=1)
+>>> pd.Series([], dtype="float64").sum(min_count=1)  # doctest: +SKIP
 nan
 
 Thanks to the ``skipna`` parameter, ``min_count`` handles all-NA and
 empty series identically.
 
->>> pd.Series([np.nan]).sum()
+>>> pd.Series([np.nan]).sum()  # doctest: +SKIP
 0.0
 
->>> pd.Series([np.nan]).sum(min_count=1)
+>>> pd.Series([np.nan]).sum(min_count=1)  # doctest: +SKIP
 nan"""
 
 _num_doc = """
@@ -226,7 +226,8 @@ _name1 = "Series"
 _name2 = "DataFrame"
 _axis_descr = "{index (0), columns (1)}"
 
-
+# running doctests with numpy 2.0+ will use np.True_ instead of python builtin True, so
+# we need to skip tests that produce a scalar
 _bool_doc = """
 {desc}
 
@@ -270,9 +271,9 @@ Examples
 --------
 **Series**
 
->>> pd.Series([True, True]).all()
+>>> pd.Series([True, True]).all()  # doctest: +SKIP
 True
->>> pd.Series([True, False]).all()
+>>> pd.Series([True, False]).all()  # doctest: +SKIP
 False
 
 **DataFrames**
@@ -301,7 +302,7 @@ dtype: bool
 
 Or ``axis=None`` for whether every value is True.
 
->>> df.all(axis=None)
+>>> df.all(axis=None)  # doctest: +SKIP
 False
 """
 
@@ -330,9 +331,9 @@ Examples
 For Series input, the output is a scalar indicating whether any element
 is True.
 
->>> pd.Series([False, False]).any()
+>>> pd.Series([False, False]).any()  # doctest: +SKIP
 False
->>> pd.Series([True, False]).any()
+>>> pd.Series([True, False]).any()  # doctest: +SKIP
 True
 
 **DataFrame**
@@ -377,7 +378,7 @@ dtype: bool
 
 Aggregating over the entire DataFrame with ``axis=None``.
 
->>> df.any(axis=None)
+>>> df.any(axis=None)  # doctest: +SKIP
 True
 
 `any` for an empty DataFrame is an empty Series.
@@ -1666,7 +1667,7 @@ class BasePandasDataset:
 
         With scalar integers.
 
-        >>> df.iloc[0, 1]
+        >>> df.iloc[0, 1]  # doctest: +SKIP
         2
 
         With lists of integers.
@@ -1839,7 +1840,7 @@ class BasePandasDataset:
 
         Single label for row and column
 
-        >>> df.loc['cobra', 'shield']
+        >>> df.loc['cobra', 'shield']  # doctest: +SKIP
         2
 
         Slice with labels for row and single label for column. As mentioned
@@ -2009,7 +2010,7 @@ class BasePandasDataset:
 
         Single tuple for the index with a single label for the column
 
-        >>> df.loc[('cobra', 'mark i'), 'shield']
+        >>> df.loc[('cobra', 'mark i'), 'shield']  # doctest: +SKIP
         2
 
         Slice from index tuple to single label

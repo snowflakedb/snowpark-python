@@ -406,7 +406,7 @@ class Series(BasePandasDataset):
         pass
 
     __iadd__ = __add__
-    __imul__ = __add__
+    __imul__ = __mul__
     __ipow__ = __pow__
     __isub__ = __sub__
     __itruediv__ = __truediv__
@@ -630,7 +630,7 @@ class Series(BasePandasDataset):
     3    4
     dtype: int64
 
-    >>> s.agg('min')
+    >>> s.agg('min')  # doctest: +SKIP
     1
 
     >>> s.agg(['min', 'max'])
@@ -959,7 +959,7 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([0.0, 1.0, np.nan])
-        >>> s.count()
+        >>> s.count()  # doctest: +SKIP
         2
         """
 
@@ -1361,7 +1361,7 @@ class Series(BasePandasDataset):
         1    2
         2    3
         Name: 99, dtype: int64
-        >>> series.equals(exactly_equal)
+        >>> series.equals(exactly_equal)  # doctest: +SKIP
         True
 
         Series 'series' and 'different_column_type' have the same element
@@ -1374,7 +1374,7 @@ class Series(BasePandasDataset):
         1    2
         2    3
         Name: 99.0, dtype: int64
-        >>> series.equals(different_column_type)
+        >>> series.equals(different_column_type)  # doctest: +SKIP
         True
 
         Series 'series' and 'different_data_type' have different types for the
@@ -1387,7 +1387,7 @@ class Series(BasePandasDataset):
         1    2.0
         2    3.0
         Name: 99, dtype: float64
-        >>> series.equals(different_data_type)
+        >>> series.equals(different_data_type)  # doctest: +SKIP
         False
         """
 
@@ -1728,6 +1728,51 @@ class Series(BasePandasDataset):
     def hist():
         """
         Draw histogram of the input series using matplotlib.
+
+        Parameters
+        ----------
+        by : object, optional
+            If passed, then used to form histograms for separate groups.
+        ax : matplotlib axis object
+            If not passed, uses gca().
+        grid : bool, default True
+            Whether to show axis grid lines.
+        xlabelsize : int, default None
+            If specified changes the x-axis label size.
+        xrot : float, default None
+            Rotation of x axis labels.
+        ylabelsize : int, default None
+            If specified changes the y-axis label size.
+        yrot : float, default None
+            Rotation of y axis labels.
+        figsize : tuple, default None
+            Figure size in inches by default.
+        bins : int or sequence, default 10
+            Number of histogram bins to be used. If an integer is given, bins + 1 bin edges are calculated and returned. If bins is a sequence, gives bin edges, including left edge of first bin and right edge of last bin. In this case, bins is returned unmodified.
+        backend : str, default None
+            Backend to use instead of the backend specified in the option plotting.backend. For instance, ‘matplotlib’. Alternatively, to specify the plotting.backend for the whole session, set pd.options.plotting.backend.
+        legend : bool, default False
+            Whether to show the legend.
+        **kwargs
+            To be passed to the actual plotting function.
+
+        Returns
+        -------
+        matplotlib.AxesSubplot
+            A histogram plot.
+
+        See also
+        --------
+        matplotlib.axes.Axes.hist
+            Plot a histogram using matplotlib.
+
+        Examples
+        --------
+
+        For Series:
+        >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
+        >>> ser = pd.Series([1, 2, 2, 4, 6, 6], index=lst)
+        >>> hist = ser.hist()
         """
 
     def idxmax():
@@ -2333,10 +2378,10 @@ class Series(BasePandasDataset):
         --------
         >>> ser = pd.Series([1, 2, 3])
 
-        >>> ser.pop(0)
+        >>> ser.pop(0)  # doctest: +SKIP
         1
 
-        >>> ser
+        >>> ser  # doctest: +SKIP
         1    2
         2    3
         dtype: int64
@@ -2594,6 +2639,23 @@ class Series(BasePandasDataset):
         -------
         Series or None
             Series, or None if ``inplace=True``.
+
+        Examples
+        --------
+        Series
+
+        >>> s = pd.Series(["dog", "cat", "monkey"])
+        >>> s
+        0       dog
+        1       cat
+        2    monkey
+        dtype: object
+        >>> s.rename_axis("animal")
+        animal
+        0       dog
+        1       cat
+        2    monkey
+        dtype: object
         """
 
     def rename():
@@ -2871,7 +2933,7 @@ class Series(BasePandasDataset):
 
         With a scalar q:
 
-        >>> s.quantile(.5)
+        >>> s.quantile(.5)  # doctest: +SKIP
         2.5
 
         With a list q:
@@ -3341,7 +3403,7 @@ class Series(BasePandasDataset):
 
         Squeezing all axes will project directly into a scalar:
 
-        >>> df_0a.squeeze()
+        >>> df_0a.squeeze()  # doctest: +SKIP
         1
         """
 
@@ -4002,11 +4064,11 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([3, 2, 2, 1])
-        >>> s.is_monotonic_decreasing
+        >>> s.is_monotonic_decreasing  # doctest: +SKIP
         True
 
         >>> s = pd.Series([1, 2, 3])
-        >>> s.is_monotonic_decreasing
+        >>> s.is_monotonic_decreasing  # doctest: +SKIP
         False
         """
 
@@ -4023,11 +4085,11 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([1, 2, 2])
-        >>> s.is_monotonic_increasing
+        >>> s.is_monotonic_increasing  # doctest: +SKIP
         True
 
         >>> s = pd.Series([3, 2, 1])
-        >>> s.is_monotonic_increasing
+        >>> s.is_monotonic_increasing  # doctest: +SKIP
         False
         """
 
@@ -4138,14 +4200,14 @@ class Series(BasePandasDataset):
         4    7
         dtype: int64
 
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         4
 
         >>> s = pd.Series([pd.NaT, np.nan, pd.NA, None, 1])
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         1
 
-        >>> s.nunique(dropna=False)
+        >>> s.nunique(dropna=False)  # doctest: +SKIP
         2
         """
 

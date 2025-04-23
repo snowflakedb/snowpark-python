@@ -24,6 +24,10 @@ df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
 
+df10 = session.create_dataframe([2**100, 2**100, 2**64 - 1, 2**64, 1, 2**64 - 2, -(2**64 - 1), -(2**64), -1, -(2**64 - 2)])
+
+df11 = session.create_dataframe([[-2**100, 2**100], [2**100, 2**100]])
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.create_dataframe([Row(a=1, b=2, c=3), Row(c=4, a=2)])
@@ -32,7 +36,7 @@ df2 = session.create_dataframe([Row(1, 3, 2), Row(1, 2, 3), Row(3, 2, 1)])
 
 df3 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df4 = session.create_dataframe([[1, "snow"], [3, "flake"]], schema=StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True)], structured=False))
+df4 = session.create_dataframe([[1, "snow"], [3, "flake"]], schema=StructType(fields=[StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True)], structured=False))
 
 df5 = session.create_dataframe([1, 2, 3, 4], schema=["a"])
 
@@ -43,6 +47,10 @@ df7 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 df8 = session.create_dataframe([Row(a=1, b=2, c=3, d=4)])
 
 df9 = session.create_dataframe([{"a": 1}, {"b": 2}])
+
+df10 = session.create_dataframe([1267650600228229401496703205376, 1267650600228229401496703205376, 18446744073709551615, 18446744073709551616, 1, 18446744073709551614, -18446744073709551615, -18446744073709551616, -1, -18446744073709551614])
+
+df11 = session.create_dataframe([[-1267650600228229401496703205376, 1267650600228229401496703205376], [1267650600228229401496703205376, 1267650600228229401496703205376]])
 
 ## EXPECTED ENCODED AST
 
@@ -56,18 +64,16 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
-              sp_row {
-                names {
-                  list: "a"
-                  list: "b"
-                  list: "c"
-                }
+              row {
+                names: "a"
+                names: "b"
+                names: "c"
                 src {
                   end_column: 74
                   end_line: 29
@@ -114,11 +120,9 @@ body {
               }
             }
             vs {
-              sp_row {
-                names {
-                  list: "c"
-                  list: "a"
-                }
+              row {
+                names: "c"
+                names: "a"
                 src {
                   end_column: 74
                   end_line: 29
@@ -163,23 +167,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
-              sp_row {
+              row {
                 src {
                   end_column: 82
                   end_line: 31
@@ -226,7 +228,7 @@ body {
               }
             }
             vs {
-              sp_row {
+              row {
                 src {
                   end_column: 82
                   end_line: 31
@@ -273,7 +275,7 @@ body {
               }
             }
             vs {
-              sp_row {
+              row {
                 src {
                   end_column: 82
                   end_line: 31
@@ -330,21 +332,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df2"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -418,7 +418,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -432,21 +432,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df3"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -520,30 +518,32 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
-                list {
-                  column_identifier {
+                column_identifier {
+                  column_name {
                     name: "a"
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
-                list {
-                  column_identifier {
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
                     name: "b"
                   }
-                  data_type {
-                    sp_string_type {
-                      length {
-                      }
+                }
+                data_type {
+                  string_type {
+                    length {
                     }
                   }
-                  nullable: true
                 }
+                nullable: true
               }
             }
           }
@@ -557,21 +557,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df4"
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               int64_val {
                 src {
@@ -623,7 +621,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
           }
         }
@@ -636,21 +634,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df5"
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -713,7 +709,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
             vs: "c"
@@ -729,21 +725,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df6"
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
@@ -817,7 +811,7 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__list {
+          dataframe_schema__list {
             vs: "a"
             vs: "b"
           }
@@ -831,29 +825,25 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df7"
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
-              sp_row {
-                names {
-                  list: "a"
-                  list: "b"
-                  list: "c"
-                  list: "d"
-                }
+              row {
+                names: "a"
+                names: "b"
+                names: "c"
+                names: "d"
                 src {
                   end_column: 65
                   end_line: 45
@@ -922,21 +912,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df8"
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               seq_map_val {
                 kvs {
@@ -1022,13 +1010,253 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df9"
     }
     uid: 9
-    var_id {
-      bitfield1: 9
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\377"
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\001\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: 1
+              }
+            }
+            vs {
+              big_int_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\376"
+              }
+            }
+            vs {
+              big_int_val {
+                is_negative: true
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\377"
+              }
+            }
+            vs {
+              big_int_val {
+                is_negative: true
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\001\000\000\000\000\000\000\000\000"
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: -1
+              }
+            }
+            vs {
+              big_int_val {
+                is_negative: true
+                src {
+                  end_column: 131
+                  end_line: 49
+                  file: 2
+                  start_column: 15
+                  start_line: 49
+                }
+                v: "\000\377\377\377\377\377\377\377\376"
+              }
+            }
+          }
+        }
+        src {
+          end_column: 131
+          end_line: 49
+          file: 2
+          start_column: 15
+          start_line: 49
+        }
+      }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df10"
+    }
+    uid: 10
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 78
+                  end_line: 51
+                  file: 2
+                  start_column: 15
+                  start_line: 51
+                }
+                vs {
+                  big_int_val {
+                    is_negative: true
+                    src {
+                      end_column: 78
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 78
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 78
+                  end_line: 51
+                  file: 2
+                  start_column: 15
+                  start_line: 51
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 78
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+                vs {
+                  big_int_val {
+                    src {
+                      end_column: 78
+                      end_line: 51
+                      file: 2
+                      start_column: 15
+                      start_line: 51
+                    }
+                    v: "\020\000\000\000\000\000\000\000\000\000\000\000\000"
+                  }
+                }
+              }
+            }
+          }
+        }
+        src {
+          end_column: 78
+          end_line: 51
+          file: 2
+          start_column: 15
+          start_line: 51
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df11"
+    }
+    uid: 11
   }
 }
 client_ast_version: 1
@@ -1044,5 +1272,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 27
+  minor: 30
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
