@@ -40,37 +40,37 @@ df6 = map_(
 
 df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
 
-df1 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+df1 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df1 = df.join_table_function(df1("COL1", "COL2", "COL3").over())
 
 df1 = df1.select(col("$4").alias("c_1"))
 
-df2 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", StringType(), nullable=True), StructField("c1", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+df2 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", StringType(), nullable=True), StructField("c1", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df2 = df.join_table_function(df2("COL1", "COL2", "COL3").over())
 
 df2 = df2.select(col("$4").alias("c_1"), col("$5").alias("c_2"))
 
-df3 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", StringType(), nullable=True), StructField("c1", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+df3 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", StringType(), nullable=True), StructField("c1", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df3 = df.join_table_function(df3("COL1", "COL2", "COL3").over())
 
 df3 = df3.select(col("$4").alias("col1"), col("$5").alias("col2"))
 
-df4 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), "c0"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+df4 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), "c0"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df4 = df.join_table_function(df4("COL1", "COL2", "COL3").over())
 
 df4 = df4.select(col("$4").alias("c_1"))
 
-df5 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), StringType(), "c0", "c1"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+df5 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), StringType(), "c0", "c1"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df5 = df.join_table_function(df5("COL1", "COL2", "COL3").over())
 
 df5 = df5.select(col("$4").alias("A"), col("$5").alias("B"))
 
-df6 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), IntegerType(), "c0", "c1"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+df6 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), IntegerType(), "c0", "c1"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df6 = df.join_table_function(df6("COL1", "COL2", "COL3").over(partition_by="col3"))
 
@@ -239,51 +239,9 @@ body {
           long_type: true
         }
         kwargs {
-          _1: "artifact_repository"
-          _2 {
-            null_val {
-              src {
-                end_column: 81
-                end_line: 29
-                file: 2
-                start_column: 14
-                start_line: 29
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "artifact_repository_packages"
-          _2 {
-            null_val {
-              src {
-                end_column: 81
-                end_line: 29
-                file: 2
-                start_column: 14
-                start_line: 29
-              }
-            }
-          }
-        }
-        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
-              src {
-                end_column: 81
-                end_line: 29
-                file: 2
-                start_column: 14
-                start_line: 29
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "resource_constraint"
-          _2 {
-            null_val {
               src {
                 end_column: 81
                 end_line: 29
@@ -548,51 +506,9 @@ body {
           long_type: true
         }
         kwargs {
-          _1: "artifact_repository"
-          _2 {
-            null_val {
-              src {
-                end_column: 100
-                end_line: 31
-                file: 2
-                start_column: 14
-                start_line: 31
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "artifact_repository_packages"
-          _2 {
-            null_val {
-              src {
-                end_column: 100
-                end_line: 31
-                file: 2
-                start_column: 14
-                start_line: 31
-              }
-            }
-          }
-        }
-        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
-              src {
-                end_column: 100
-                end_line: 31
-                file: 2
-                start_column: 14
-                start_line: 31
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "resource_constraint"
-          _2 {
-            null_val {
               src {
                 end_column: 100
                 end_line: 31
@@ -920,51 +836,9 @@ body {
           long_type: true
         }
         kwargs {
-          _1: "artifact_repository"
-          _2 {
-            null_val {
-              src {
-                end_column: 9
-                end_line: 38
-                file: 2
-                start_column: 14
-                start_line: 33
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "artifact_repository_packages"
-          _2 {
-            null_val {
-              src {
-                end_column: 9
-                end_line: 38
-                file: 2
-                start_column: 14
-                start_line: 33
-              }
-            }
-          }
-        }
-        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
-              src {
-                end_column: 9
-                end_line: 38
-                file: 2
-                start_column: 14
-                start_line: 33
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "resource_constraint"
-          _2 {
-            null_val {
               src {
                 end_column: 9
                 end_line: 38
@@ -1292,51 +1166,9 @@ body {
           long_type: true
         }
         kwargs {
-          _1: "artifact_repository"
-          _2 {
-            null_val {
-              src {
-                end_column: 117
-                end_line: 40
-                file: 2
-                start_column: 14
-                start_line: 40
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "artifact_repository_packages"
-          _2 {
-            null_val {
-              src {
-                end_column: 117
-                end_line: 40
-                file: 2
-                start_column: 14
-                start_line: 40
-              }
-            }
-          }
-        }
-        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
-              src {
-                end_column: 117
-                end_line: 40
-                file: 2
-                start_column: 14
-                start_line: 40
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "resource_constraint"
-          _2 {
-            null_val {
               src {
                 end_column: 117
                 end_line: 40
@@ -1595,51 +1427,9 @@ body {
           long_type: true
         }
         kwargs {
-          _1: "artifact_repository"
-          _2 {
-            null_val {
-              src {
-                end_column: 9
-                end_line: 49
-                file: 2
-                start_column: 14
-                start_line: 42
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "artifact_repository_packages"
-          _2 {
-            null_val {
-              src {
-                end_column: 9
-                end_line: 49
-                file: 2
-                start_column: 14
-                start_line: 42
-              }
-            }
-          }
-        }
-        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
-              src {
-                end_column: 9
-                end_line: 49
-                file: 2
-                start_column: 14
-                start_line: 42
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "resource_constraint"
-          _2 {
-            null_val {
               src {
                 end_column: 9
                 end_line: 49
@@ -1954,51 +1744,9 @@ body {
           long_type: true
         }
         kwargs {
-          _1: "artifact_repository"
-          _2 {
-            null_val {
-              src {
-                end_column: 9
-                end_line: 59
-                file: 2
-                start_column: 14
-                start_line: 51
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "artifact_repository_packages"
-          _2 {
-            null_val {
-              src {
-                end_column: 9
-                end_line: 59
-                file: 2
-                start_column: 14
-                start_line: 51
-              }
-            }
-          }
-        }
-        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
-              src {
-                end_column: 9
-                end_line: 59
-                file: 2
-                start_column: 14
-                start_line: 51
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "resource_constraint"
-          _2 {
-            null_val {
               src {
                 end_column: 9
                 end_line: 59

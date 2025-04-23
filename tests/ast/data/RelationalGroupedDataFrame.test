@@ -60,7 +60,7 @@ res14 = df.group_by("a").count()
 
 df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)], schema=["location", "temp_c"])
 
-res16 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], artifact_repository=None, artifact_repository_packages=None, copy_grants=False, resource_constraint=None, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+res16 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.group_by("location").apply_in_pandas(convert, StructType(fields=[StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
 
@@ -2059,51 +2059,9 @@ body {
           float_type: true
         }
         kwargs {
-          _1: "artifact_repository"
-          _2 {
-            null_val {
-              src {
-                end_column: 75
-                end_line: 50
-                file: 2
-                start_column: 8
-                start_line: 47
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "artifact_repository_packages"
-          _2 {
-            null_val {
-              src {
-                end_column: 75
-                end_line: 50
-                file: 2
-                start_column: 8
-                start_line: 47
-              }
-            }
-          }
-        }
-        kwargs {
           _1: "copy_grants"
           _2 {
             bool_val {
-              src {
-                end_column: 75
-                end_line: 50
-                file: 2
-                start_column: 8
-                start_line: 47
-              }
-            }
-          }
-        }
-        kwargs {
-          _1: "resource_constraint"
-          _2 {
-            null_val {
               src {
                 end_column: 75
                 end_line: 50

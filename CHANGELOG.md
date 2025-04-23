@@ -16,6 +16,10 @@
   - Added `fetch_merge_count` parameter for optimizing performance by merging multiple fetched data into a single Parquet file.
   - Added support for Databricks.
   - Added support for ingestion with Snowflake UDTF.
+- Added support for the following AI-powered functions in `functions.py` (Private Preview):
+  - `prompt`
+  - `ai_filter` (added support for `prompt()` function and image files, and changed the second argument name from `expr` to `file`)
+  - `ai_classify`
 
 #### Improvements
 
@@ -73,6 +77,7 @@
   - `pd.read_sas`
   - `pd.read_xml`
 - Added support for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+- Added support for dict values in `Series.str.len`.
 
 #### Improvements
 
