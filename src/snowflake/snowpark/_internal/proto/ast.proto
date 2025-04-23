@@ -337,7 +337,7 @@ message TimestampTimeZone {
   }
 }
 
-// fn.ir:83
+// fn.ir:89
 message UdtfSchema {
   oneof sealed_value {
     UdtfSchema_Names udtf_schema__names = 1;
@@ -345,12 +345,12 @@ message UdtfSchema {
   }
 }
 
-// fn.ir:84
+// fn.ir:90
 message UdtfSchema_Type {
   DataType return_type = 1;
 }
 
-// fn.ir:85
+// fn.ir:91
 message UdtfSchema_Names {
   repeated string schema = 1;
 }
@@ -493,7 +493,7 @@ message BuiltinFn {
   SrcPosition src = 2;
 }
 
-// fn.ir:141
+// fn.ir:153
 message CallTableFunctionExpr {
   NameRef name = 1;
   SrcPosition src = 2;
@@ -1792,13 +1792,13 @@ message HasSrcPosition {
   }
 }
 
-// fn.ir:137
+// fn.ir:149
 message IndirectTableFnIdRef {
   int64 id = 1;
   SrcPosition src = 2;
 }
 
-// fn.ir:133
+// fn.ir:145
 message IndirectTableFnNameRef {
   NameRef name = 1;
   SrcPosition src = 2;
@@ -2152,27 +2152,30 @@ message Stmt {
 
 // fn.ir:37
 message StoredProcedure {
-  google.protobuf.StringValue comment = 1;
-  string execute_as = 2;
-  repeated string external_access_integrations = 3;
-  Callable func = 4;
-  bool if_not_exists = 5;
-  repeated NameRef imports = 6;
-  repeated DataType input_types = 7;
-  bool is_permanent = 8;
-  repeated Tuple_String_Expr kwargs = 9;
-  google.protobuf.BoolValue log_on_exception = 10;
-  NameRef name = 11;
-  repeated string packages = 12;
-  int64 parallel = 13;
-  bool replace = 14;
-  DataType return_type = 15;
-  repeated Tuple_String_String secrets = 16;
-  bool source_code_display = 17;
-  SrcPosition src = 18;
-  string stage_location = 19;
-  repeated Tuple_String_String statement_params = 20;
-  bool strict = 21;
+  google.protobuf.StringValue artifact_repository = 1;
+  repeated string artifact_repository_packages = 2;
+  google.protobuf.StringValue comment = 3;
+  string execute_as = 4;
+  repeated string external_access_integrations = 5;
+  Callable func = 6;
+  bool if_not_exists = 7;
+  repeated NameRef imports = 8;
+  repeated DataType input_types = 9;
+  bool is_permanent = 10;
+  repeated Tuple_String_Expr kwargs = 11;
+  google.protobuf.BoolValue log_on_exception = 12;
+  NameRef name = 13;
+  repeated string packages = 14;
+  int64 parallel = 15;
+  bool replace = 16;
+  repeated Tuple_String_String resource_constraint = 17;
+  DataType return_type = 18;
+  repeated Tuple_String_String secrets = 19;
+  bool source_code_display = 20;
+  SrcPosition src = 21;
+  string stage_location = 22;
+  repeated Tuple_String_String statement_params = 23;
+  bool strict = 24;
 }
 
 // const.ir:41
@@ -2212,14 +2215,14 @@ message TableDropTable {
   SrcPosition src = 2;
 }
 
-// fn.ir:157
+// fn.ir:169
 message TableFnCallAlias {
   ExprArgList aliases = 1;
   Expr lhs = 2;
   SrcPosition src = 3;
 }
 
-// fn.ir:151
+// fn.ir:163
 message TableFnCallOver {
   Expr lhs = 1;
   ExprArgList order_by = 2;
@@ -2284,76 +2287,85 @@ message TupleVal {
   repeated Expr vs = 2;
 }
 
-// fn.ir:112
+// fn.ir:121
 message Udaf {
-  google.protobuf.StringValue comment = 1;
-  repeated string external_access_integrations = 2;
-  Callable handler = 3;
-  bool if_not_exists = 4;
-  bool immutable = 5;
-  repeated NameRef imports = 6;
-  repeated DataType input_types = 7;
-  bool is_permanent = 8;
-  repeated Tuple_String_Expr kwargs = 9;
-  NameRef name = 10;
-  repeated string packages = 11;
-  int64 parallel = 12;
-  bool replace = 13;
-  DataType return_type = 14;
-  repeated Tuple_String_String secrets = 15;
-  SrcPosition src = 16;
-  google.protobuf.StringValue stage_location = 17;
-  repeated Tuple_String_String statement_params = 18;
-}
-
-// fn.ir:60
-message Udf {
-  google.protobuf.StringValue comment = 1;
-  repeated string external_access_integrations = 2;
-  Callable func = 3;
-  bool if_not_exists = 4;
-  bool immutable = 5;
-  repeated NameRef imports = 6;
-  repeated DataType input_types = 7;
-  bool is_permanent = 8;
-  repeated Tuple_String_Expr kwargs = 9;
-  google.protobuf.Int64Value max_batch_size = 10;
-  NameRef name = 11;
-  repeated string packages = 12;
-  int64 parallel = 13;
-  bool replace = 14;
-  DataType return_type = 15;
-  repeated Tuple_String_String secrets = 16;
-  bool secure = 17;
-  bool source_code_display = 18;
+  google.protobuf.StringValue artifact_repository = 1;
+  repeated string artifact_repository_packages = 2;
+  google.protobuf.StringValue comment = 3;
+  repeated string external_access_integrations = 4;
+  Callable handler = 5;
+  bool if_not_exists = 6;
+  bool immutable = 7;
+  repeated NameRef imports = 8;
+  repeated DataType input_types = 9;
+  bool is_permanent = 10;
+  repeated Tuple_String_Expr kwargs = 11;
+  NameRef name = 12;
+  repeated string packages = 13;
+  int64 parallel = 14;
+  bool replace = 15;
+  repeated Tuple_String_String resource_constraint = 16;
+  DataType return_type = 17;
+  repeated Tuple_String_String secrets = 18;
   SrcPosition src = 19;
-  string stage_location = 20;
+  google.protobuf.StringValue stage_location = 20;
   repeated Tuple_String_String statement_params = 21;
-  bool strict = 22;
 }
 
-// fn.ir:89
+// fn.ir:63
+message Udf {
+  google.protobuf.StringValue artifact_repository = 1;
+  repeated string artifact_repository_packages = 2;
+  google.protobuf.StringValue comment = 3;
+  repeated string external_access_integrations = 4;
+  Callable func = 5;
+  bool if_not_exists = 6;
+  bool immutable = 7;
+  repeated NameRef imports = 8;
+  repeated DataType input_types = 9;
+  bool is_permanent = 10;
+  repeated Tuple_String_Expr kwargs = 11;
+  google.protobuf.Int64Value max_batch_size = 12;
+  NameRef name = 13;
+  repeated string packages = 14;
+  int64 parallel = 15;
+  bool replace = 16;
+  repeated Tuple_String_String resource_constraint = 17;
+  DataType return_type = 18;
+  repeated Tuple_String_String secrets = 19;
+  bool secure = 20;
+  bool source_code_display = 21;
+  SrcPosition src = 22;
+  string stage_location = 23;
+  repeated Tuple_String_String statement_params = 24;
+  bool strict = 25;
+}
+
+// fn.ir:95
 message Udtf {
-  google.protobuf.StringValue comment = 1;
-  repeated string external_access_integrations = 2;
-  Callable handler = 3;
-  bool if_not_exists = 4;
-  bool immutable = 5;
-  repeated NameRef imports = 6;
-  repeated DataType input_types = 7;
-  bool is_permanent = 8;
-  repeated Tuple_String_Expr kwargs = 9;
-  NameRef name = 10;
-  UdtfSchema output_schema = 11;
-  repeated string packages = 12;
-  int64 parallel = 13;
-  bool replace = 14;
-  repeated Tuple_String_String secrets = 15;
-  bool secure = 16;
-  SrcPosition src = 17;
-  string stage_location = 18;
-  repeated Tuple_String_String statement_params = 19;
-  bool strict = 20;
+  google.protobuf.StringValue artifact_repository = 1;
+  repeated string artifact_repository_packages = 2;
+  google.protobuf.StringValue comment = 3;
+  repeated string external_access_integrations = 4;
+  Callable handler = 5;
+  bool if_not_exists = 6;
+  bool immutable = 7;
+  repeated NameRef imports = 8;
+  repeated DataType input_types = 9;
+  bool is_permanent = 10;
+  repeated Tuple_String_Expr kwargs = 11;
+  NameRef name = 12;
+  UdtfSchema output_schema = 13;
+  repeated string packages = 14;
+  int64 parallel = 15;
+  bool replace = 16;
+  repeated Tuple_String_String resource_constraint = 17;
+  repeated Tuple_String_String secrets = 18;
+  bool secure = 19;
+  SrcPosition src = 20;
+  string stage_location = 21;
+  repeated Tuple_String_String statement_params = 22;
+  bool strict = 23;
 }
 
 message UnaryOp {
