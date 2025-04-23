@@ -14,7 +14,7 @@ from snowflake.snowpark._internal.xml_reader import (
     strip_namespaces,
     find_next_closing_tag_pos,
     find_next_opening_tag_pos,
-    SELF_CLOSING_TAG,
+    tag_is_self_closing,
     DEFAULT_CHUNK_SIZE,
 )
 
@@ -165,28 +165,6 @@ def test_find_next_closing_tag_pos_normal(chunk_size):
 
 
 @pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
-def test_find_next_closing_tag_pos_self_closing(chunk_size):
-    # Test a self-closing tag.
-    record = b"<row attr='value'/> trailing content"
-    file_obj = io.BytesIO(record)
-    closing_tag = b"</row>"  # Function should detect the self-closing tag.
-    pos = find_next_closing_tag_pos(file_obj, closing_tag, chunk_size=chunk_size)
-    expected_pos = record.find(SELF_CLOSING_TAG) + len(SELF_CLOSING_TAG)
-    assert pos == expected_pos
-
-
-@pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
-def test_find_next_closing_tag_pos_both_variants(chunk_size):
-    # When both self-closing and full closing tags exist, the earliest occurrence should be chosen.
-    record = b"start <row attr='value'/> some text </row> end"
-    file_obj = io.BytesIO(record)
-    closing_tag = b"</row>"
-    pos = find_next_closing_tag_pos(file_obj, closing_tag, chunk_size=chunk_size)
-    expected_pos = record.find(SELF_CLOSING_TAG) + len(SELF_CLOSING_TAG)
-    assert pos == expected_pos
-
-
-@pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
 def test_find_next_closing_tag_pos_split(chunk_size):
     # Simulate a closing tag (</row>) split across chunk boundaries.
     part1 = b"data <row>some content</ro"
@@ -208,6 +186,54 @@ def test_find_next_closing_tag_pos_no_tag(chunk_size):
     closing_tag = b"</row>"
     with pytest.raises(EOFError):
         find_next_closing_tag_pos(file_obj, closing_tag, chunk_size=chunk_size)
+
+
+@pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
+def test_tag_not_self_closing(chunk_size):
+    record = b'<row attr="abc">payload</row>'
+    f = io.BytesIO(record)
+    is_self, end_pos = tag_is_self_closing(f, chunk_size=chunk_size)
+    assert is_self is False
+    assert end_pos == record.find(b">") + 1
+
+
+@pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
+def test_tag_self_closing(chunk_size):
+    record = b'<row attr1="abc" attr2="cde"/> trailing text'
+    f = io.BytesIO(record)
+    is_self, end_pos = tag_is_self_closing(f, chunk_size=chunk_size)
+    assert is_self is True
+    assert end_pos == record.find(b">") + 1
+
+
+@pytest.mark.parametrize("chunk_size", [2, 5, DEFAULT_CHUNK_SIZE])
+def test_tag_with_mixed_quote_chars_self_closing(chunk_size):
+    record = b"<row note='She said \"Hi\"'/> trailing"
+    f = io.BytesIO(record)
+    is_self, end_pos = tag_is_self_closing(f, chunk_size=chunk_size)
+    assert is_self is True
+    assert end_pos == record.find(b">") + 1
+
+
+@pytest.mark.parametrize("chunk_size", [1, 4, 8, DEFAULT_CHUNK_SIZE])
+def test_tag_with_gt_inside_quotes(chunk_size):
+    record = b'<row note="1 > 0" id="42">content</row>'
+    f = io.BytesIO(record)
+    is_self, end_pos = tag_is_self_closing(f, chunk_size=chunk_size)
+    assert is_self is False
+    # '>' before 'content' is the correct end pos
+    assert end_pos == record.find(b"content")
+
+
+@pytest.mark.parametrize("chunk_size", [2, 5])
+def test_tag_split_across_chunks(chunk_size):
+    record = (
+        b'<row verylongattribute="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"/>' b" tail"
+    )
+    f = io.BytesIO(record)
+    is_self, end_pos = tag_is_self_closing(f, chunk_size=chunk_size)
+    assert is_self is True
+    assert end_pos == record.find(b">") + 1
 
 
 @pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])

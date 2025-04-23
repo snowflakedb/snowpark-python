@@ -21,13 +21,23 @@ df = session.table("table1")
 
 df.to_local_iterator()
 
+df = session.table("table1")
+
 df.to_local_iterator(block=False)
+
+df = session.table("table1")
 
 df.select("*").to_local_iterator()
 
+df = session.table("table1")
+
 df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
+df = session.table("table1")
+
 df.filter(df["num"] > 1).to_local_iterator(block=False)
+
+df = session.table("table1")
 
 df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)
 
@@ -106,6 +116,36 @@ body {
 body {
   bind {
     expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_to_local_iterator {
         case_sensitive: true
         df {
@@ -131,6 +171,36 @@ body {
 body {
   eval {
     bind_id: 3
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
@@ -206,6 +276,36 @@ body {
 body {
   bind {
     expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_to_local_iterator {
         block: true
         case_sensitive: true
@@ -236,6 +336,36 @@ body {
 body {
   eval {
     bind_id: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
@@ -330,6 +460,36 @@ body {
 body {
   eval {
     bind_id: 8
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {

@@ -1,0 +1,38 @@
+<library>
+  <book id="1">
+    <title>The Art of Snowflake</title>
+    <author>Jane Doe</author>
+    <price>29.99</price>
+    <reviews>
+      <review>
+        <user>tech_guru_87</user>
+        <rating>5</rating>
+        <comment>Very insightful and practical.</comment>
+      </review>
+      <review>
+        <user>datawizard</user>
+        <rating>4</rating>
+        <comment>Great read for data engineers.</comment>
+      </review>
+    </reviews>
+    <editions>
+      <edition year="2023" format="Hardcover"/>
+      <edition year="2024" format="eBook"/>
+    </editions>
+  </book>
+  <book id="2">
+    <title>XML for Data Engineers</title>
+    <author>John Smith</author>
+    <price>35.50</price>
+    <reviews>
+      <review>
+        <user>xml_master</user>
+        <rating>5</rating>
+        <comment>Perfect for mastering XML parsing.</comment>
+      </review>
+    </reviews>
+    <editions>
+      <edition year="2022" format="Paperback"/>
+    </editions>
+  </book>
+</library>

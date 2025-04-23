@@ -42,11 +42,19 @@ df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], 
 
 df.group_by("a").min("b").collect()
 
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
+
 df.group_by("a").max("b").collect()
+
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
 
 df.group_by("a").median("b").collect()
 
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
+
 df.group_by("a").avg("b").collect()
+
+df = session.create_dataframe([(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (3, 2)], schema=["a", "b"])
 
 res14 = df.group_by("a").count()
 
@@ -60,7 +68,11 @@ df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1,
 
 df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").sort(df["empid"]).show()
 
+df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
+
 df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").show()
+
+df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
 
 df.group_by(["empid", "team"]).pivot("month", values=None).sum("amount").sort("empid", "team").show()
 
@@ -428,6 +440,246 @@ body {
 body {
   bind {
     expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+            vs: "b"
+          }
+        }
+        src {
+          end_column: 101
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_group_by {
         cols {
           args {
@@ -533,6 +785,246 @@ body {
 body {
   eval {
     bind_id: 7
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+            vs: "b"
+          }
+        }
+        src {
+          end_column: 101
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
@@ -648,6 +1140,246 @@ body {
 body {
   bind {
     expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+            vs: "b"
+          }
+        }
+        src {
+          end_column: 101
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_group_by {
         cols {
           args {
@@ -753,6 +1485,246 @@ body {
 body {
   eval {
     bind_id: 13
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 101
+                  end_line: 25
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 101
+                      end_line: 25
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+            vs: "b"
+          }
+        }
+        src {
+          end_column: 101
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
@@ -1836,6 +2808,215 @@ body {
 body {
   bind {
     expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 153
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "A"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 10000
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "JAN"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 153
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "B"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 400
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "JAN"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 153
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "B"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 5000
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "empid"
+            vs: "team"
+            vs: "amount"
+            vs: "month"
+          }
+        }
+        src {
+          end_column: 153
+          end_line: 53
+          file: 2
+          start_column: 13
+          start_line: 53
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 22
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_group_by {
         cols {
           args {
@@ -2011,6 +3192,215 @@ body {
 body {
   eval {
     bind_id: 31
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 153
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "A"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 10000
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "JAN"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 153
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "B"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 400
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "JAN"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 153
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "B"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 5000
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 153
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "empid"
+            vs: "team"
+            vs: "amount"
+            vs: "month"
+          }
+        }
+        src {
+          end_column: 153
+          end_line: 53
+          file: 2
+          start_column: 13
+          start_line: 53
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 22
   }
 }
 body {

@@ -439,6 +439,7 @@ def test_invalid_identifier_error_message(session):
     df = session.create_dataframe([[1, 2, 3]], schema=['"abc"', '"abd"', '"def"'])
     with pytest.raises(SnowparkSQLException) as ex:
         df.select("abc").collect()
+    assert ex.value.sql_error_code == 904
     assert "invalid identifier 'ABC'" in str(ex.value)
     assert (
         "There are existing quoted column identifiers: ['\"abc\"', '\"abd\"', '\"def\"']"
