@@ -23,6 +23,7 @@ Functions
     acosh
     add_months
     ai_agg
+    ai_classify
     ai_filter
     any_value
     approx_count_distinct
@@ -291,6 +292,7 @@ Functions
     position
     pow
     previous_day
+    prompt
     quarter
     radians
     randn

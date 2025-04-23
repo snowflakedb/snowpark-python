@@ -1681,7 +1681,6 @@ def test_non_nullable_schema(structured_type_session, structured_type_support):
     )
 
 
-@pytest.mark.xfail(reason="file type is in PrPr. Not stable yet to test.")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="File type is not supported in Local Testing",
@@ -1694,10 +1693,10 @@ def test_file_type(session, resources_path):
         test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
     )
     df = session.range(1).select(to_file(f"@{stage_name}/testCSV.csv").alias("file"))
-    assert df.schema == StructType([StructField("file", FileType(), True)])
+    assert df.schema == StructType([StructField("file", FileType(), False)])
     df = session.range(1).select(
         lit(f"@{stage_name}/testCSV.csv", datatype=FileType()).alias("file")
     )
-    assert df.schema == StructType([StructField("file", FileType(), True)])
+    assert df.schema == StructType([StructField("file", FileType(), False)])
     df = session.range(1).select(lit(None, datatype=FileType()).alias("file"))
     assert df.schema == StructType([StructField("file", FileType(), True)])
