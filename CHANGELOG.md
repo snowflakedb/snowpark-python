@@ -9,12 +9,13 @@
 - Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.register()`.
 - Added support for non-select statement in `DataFrame.to_pandas()`.
 - Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`.
-- Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
 - Added support for reading an XML file using a row tag by `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` (experimental).
   - Each XML record is extracted as a separate row.
   - Each field within that record becomes a separate column of type VARIANT, which can be further queried using dot notation, e.g., `col(a.b.c)`.
-- Added support for Databricks in `DataFrameReader.dbapi` (PrPr).
-- Added support for ingestion with snowflake UDTF in `DataFrameReader.dbapi` (PrPr).
+- Added updates to `DataFrameReader.dbapi` (PrPr):
+  - Added `fetch_merge_count` parameter for optimizing performance by merging multiple fetched data into a single Parquet file.
+  - Added support for Databricks.
+  - Added support for ingestion with Snowflake UDTF.
 
 #### Improvements
 
