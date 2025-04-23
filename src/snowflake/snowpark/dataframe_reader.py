@@ -69,7 +69,6 @@ from snowflake.snowpark._internal.utils import (
     private_preview,
     random_name_for_temp_object,
     warning,
-    quote_name,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1259,7 +1258,7 @@ class DataFrameReader:
                 f"{snowflake_table_type} "
                 "TABLE "
                 f"identifier(?) "
-                f"""({" , ".join([f'{quote_name(field.name)} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
                 f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
             params = (snowflake_table_name,)
