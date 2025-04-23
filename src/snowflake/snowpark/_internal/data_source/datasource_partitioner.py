@@ -46,6 +46,7 @@ class DataSourcePartitioner:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
+        post_process: Optional[Callable] = None,
     ) -> None:
         self.create_connection = create_connection
         self.table_or_query = table_or_query
@@ -65,7 +66,7 @@ class DataSourcePartitioner:
         self.dialect_class = DBMS_MAP.get(dbms_type, BaseDialect)
         self.driver_class = DRIVER_MAP.get(driver_type, BaseDriver)
         self.dialect = self.dialect_class()
-        self.driver = self.driver_class(create_connection, dbms_type)
+        self.driver = self.driver_class(create_connection, dbms_type, post_process)
 
     def reader(self) -> DataSourceReader:
         return DataSourceReader(

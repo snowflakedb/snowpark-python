@@ -1153,6 +1153,7 @@ class DataFrameReader:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
         udtf_configs: Optional[dict] = None,
+        post_process: Optional[Callable] = None,
         fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -1223,6 +1224,13 @@ class DataFrameReader:
 
                 - packages (List[str], optional): A list of package names (with optional version numbers)
                     required as dependencies for your `create_connection()` function.
+            post_process: A function that processes data fetched from an external data source.
+                It receives input in the same format as returned by `cursor.fetchmany()`,
+                and must return the data in the same format.
+
+                It is recommended to handle any output conversion using the driver's built-in converters
+                during the `create_connection()` setup. This function should only be used when such converters
+                cannot be configured during connection initialization.
             fetch_merge_count: The number of fetched batches to merge into a single Parquet file
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
@@ -1260,6 +1268,7 @@ class DataFrameReader:
             predicates,
             session_init_statement,
             fetch_merge_count,
+            post_process,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
@@ -1333,6 +1342,7 @@ class DataFrameReader:
                             query,
                             partition_idx,
                             tmp_dir,
+                            post_process,
                         )
                         process_pool_futures.append(process_future)
                     # Monitor queue while tasks are running

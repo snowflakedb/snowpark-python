@@ -73,5 +73,9 @@ class DataSourceReader:
             cursor.close()
             conn.close()
 
-    def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
-        return self.driver.data_source_data_to_pandas_df(data, self.schema)
+    def data_source_data_to_pandas_df(
+        self, data: List[Any], post_process: Optional[Callable] = None
+    ) -> "pd.DataFrame":
+        return self.driver.data_source_data_to_pandas_df(
+            data, self.schema, post_process
+        )
