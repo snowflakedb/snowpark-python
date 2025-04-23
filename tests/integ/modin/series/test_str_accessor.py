@@ -667,6 +667,13 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         assert_series_equal(str_len_res, apply_res, check_dtype=False)
 
 
+@sql_count_checker(query_count=1)
+def test_str_len_dict():
+    native_ser = native_pd.Series([{"a": "b"}, {"c": None}, {None: "d"}, None, {}])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
+
+
 @pytest.mark.parametrize(
     "items",
     [
