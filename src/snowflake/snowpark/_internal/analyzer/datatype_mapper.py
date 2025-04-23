@@ -232,7 +232,7 @@ def to_sql(
     if isinstance(datatype, VectorType):
         return f"{value} :: VECTOR({datatype.element_type},{datatype.dimension})"
 
-    if isinstance(datatype, FileType):
+    if isinstance(value, str) and isinstance(datatype, FileType):
         return f"TO_FILE({str_to_sql(value)})"
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
