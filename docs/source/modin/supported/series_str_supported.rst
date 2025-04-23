@@ -49,9 +49,8 @@ the method in the left column.
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``fullmatch``               | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``get``                     | P                               | ``N`` if the `i` parameter is set to a non-int     |
-|                             |                                 | value. For the column data type, only string and   |
-|                             |                                 | list values are supported. All column values must  |
+| ``get``                     | P                               | For the column data type, only string, list, and   |
+|                             |                                 | dict values are supported. All column values must  |
 |                             |                                 | be of the same type.                               |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``get_dummies``             | N                               |                                                    |

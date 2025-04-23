@@ -183,15 +183,39 @@ def test_str_get_list(i):
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.get(i=i))
 
 
+@pytest.mark.parametrize(
+    "data",
+    [
+        [{"a": "x", "b": "y"}, {"c": None}, {None: "z"}, None, {}],
+        [{"a": 1, "b": 2}, {"c": None}, {None: 3}, None, {}],
+    ],
+)
+@pytest.mark.parametrize("i", ["", "a", "b", "c", "d"])
+@sql_count_checker(query_count=1)
+def test_str_get_dict(i, data):
+    native_ser = native_pd.Series(data=data)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.get(i=i))
+
+
+@pytest.mark.parametrize(
+    "data, i",
+    [
+        (["a", "b"], 1.2),
+        (["a", "b"], "a"),
+        ([[1, 2]], "a"),
+        ([{"a": "x"}], 1),
+    ],
+)
 @sql_count_checker(query_count=0)
-def test_str_get_neg():
-    native_ser = native_pd.Series(TEST_DATA)
+def test_str_get_neg(data, i):
+    native_ser = native_pd.Series(data)
     snow_ser = pd.Series(native_ser)
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument",
+        match="Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument of types other than ",
     ):
-        snow_ser.str.get(i="a")
+        snow_ser.str.get(i=i)
 
 
 @pytest.mark.parametrize(
