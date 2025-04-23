@@ -35,11 +35,12 @@ from tests.parameters import DATABRICKS_CONNECTION_PARAMETERS
 from tests.utils import IS_IN_STORED_PROC
 
 
-DATABRICKS_PACKAGE_UNAVAILABLE = True
+DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
     import databricks  # noqa: F401
+    import pandas  # noqa: F401
 
-    DATABRICKS_PACKAGE_UNAVAILABLE = False
+    DEPENDENCIES_PACKAGE_UNAVAILABLE = False
 except ImportError:
     pass
 
@@ -185,7 +186,7 @@ def create_databricks_connection():
     return databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
 
 
-@pytest.mark.skipif(DATABRICKS_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
+@pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration")
 @pytest.mark.parametrize(
     "input_type, input_value",
@@ -205,7 +206,7 @@ def test_basic_databricks(session, input_type, input_value):
     assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
 
 
-@pytest.mark.skipif(DATABRICKS_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
+@pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration")
 @pytest.mark.parametrize(
     "input_type, input_value, error_message",
@@ -222,6 +223,7 @@ def test_error_case(session, input_type, input_value, error_message):
         session.read.dbapi(create_databricks_connection, **input_dict)
 
 
+@pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'pandas'")
 def test_unit_data_source_data_to_pandas_df():
     schema = StructType(
         [
