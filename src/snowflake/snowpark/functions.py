@@ -12081,12 +12081,8 @@ def prompt(
 
     Returns:
         A SQL OBJECT with the following structure:
-        ```
-        {
-          'template': '<template_string>',
-          'args': ARRAY(<value_1>, <value_2>, ...)
-        }
-        ```
+        ``{ 'template': '<template_string>', 'args': ARRAY(<value_1>, <value_2>, ...) }``
+
         The args array contains the value of the expressions specified in the PROMPT function call.
 
     Note:
