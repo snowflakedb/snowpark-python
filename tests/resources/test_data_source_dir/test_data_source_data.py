@@ -365,7 +365,7 @@ sql_server_udtf_ingestion_data = [
 
 
 sql_server_all_type_schema = [
-    ("Id", int, None, None, 10, 0, False),
+    ("ID", int, None, None, 10, 0, False),
     ("SmallIntCol", int, None, None, 5, 0, True),
     ("TinyIntCol", int, None, None, 3, 0, True),
     ("BigIntCol", int, None, None, 19, None, True),
