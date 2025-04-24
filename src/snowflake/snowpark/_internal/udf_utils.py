@@ -1288,10 +1288,13 @@ def create_python_udf_or_sp(
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
+
+    # These object types don't allow TABLE as a return type
+    non_table_functions = {TempObjectType.AGGREGATE_FUNCTION, TempObjectType.FUNCTION}
     if (
         isinstance(return_type, StructType)
         and not return_type.structured
-        and object_type != TempObjectType.AGGREGATE_FUNCTION
+        and object_type not in non_table_functions
     ):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     elif installed_pandas and isinstance(return_type, PandasDataFrameType):

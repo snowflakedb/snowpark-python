@@ -43,6 +43,7 @@ from snowflake.snowpark.types import (
     NullType,
     ShortType,
     StringType,
+    StructType,
     TimestampType,
     TimeType,
     VariantType,
@@ -1181,3 +1182,11 @@ def test_repro_snow_415682(session, is_sample_data_available):
             Row(1.0),
         ],
     )
+
+
+def test_object_return(session):
+    udf1 = udf(lambda: {"foo": "bar"}, return_type=StructType())
+    df = session.create_dataframe([1]).to_df("col")
+    Utils.check_answer(df.select(udf1()), [Row('{\n  "foo": "bar"\n}')])
+    desc_df = session.sql(f"SELECT GET_DDL('function', '{udf1.name}()')")
+    assert "\nRETURNS OBJECT\n" in desc_df.collect()[0][0]
