@@ -10,7 +10,15 @@
 - Added support for non-select statement in `DataFrame.to_pandas()`.
 - Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`
 - Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
+- Added support for reading an XML file using a row tag by `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` (experimental).
+  - Each XML record is extracted as a separate row.
+  - Each field within that record becomes a separate column of type VARIANT, which can be further queried using dot notation, e.g., `col(a.b.c)`.
 - Added support for Databricks in `DataFrameReader.dbapi` (PrPr).
+- Added support for ingestion with snowflake UDTF in `DataFrameReader.dbapi` (PrPr).
+- Added support for the following AI-powered functions in `functions.py` (Private Preview):
+  - `prompt`
+  - `ai_filter` (added support for `prompt()` function and image files, and changed the second argument name from `expr` to `file`)
+  - `ai_classify`
 
 #### Improvements
 
@@ -69,6 +77,7 @@
   - `pd.read_sas`
   - `pd.read_xml`
 - Added support for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+- Added support for dict values in `Series.str.len`.
 
 #### Improvements
 

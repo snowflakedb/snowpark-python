@@ -35,11 +35,12 @@ from snowflake.snowpark.types import (
 from tests.parameters import DATABRICKS_CONNECTION_PARAMETERS
 from tests.utils import IS_IN_STORED_PROC, Utils
 
-DATABRICKS_PACKAGE_UNAVAILABLE = True
+DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
     import databricks  # noqa: F401
+    import pandas  # noqa: F401
 
-    DATABRICKS_PACKAGE_UNAVAILABLE = False
+    DEPENDENCIES_PACKAGE_UNAVAILABLE = False
 except ImportError:
     pass
 
@@ -223,6 +224,7 @@ def test_error_case(session, input_type, input_value, error_message):
         session.read.dbapi(create_databricks_connection, **input_dict)
 
 
+@pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'pandas'")
 def test_unit_data_source_data_to_pandas_df():
     schema = StructType(
         [
