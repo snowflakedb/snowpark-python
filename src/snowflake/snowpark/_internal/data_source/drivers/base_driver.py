@@ -33,6 +33,7 @@ class BaseDriver:
     ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
+        self.raw_schema = None
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
@@ -52,6 +53,7 @@ class BaseDriver:
         try:
             cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
             raw_schema = cursor.description
+            self.raw_schema = raw_schema
             return self.to_snow_type(raw_schema)
 
         except Exception as exc:
