@@ -153,14 +153,8 @@ class BaseDriver:
 
     @staticmethod
     def data_source_data_to_pandas_df(
-        data: List[Any], schema: StructType, post_process: Optional[Callable] = None
+        data: List[Any], schema: StructType
     ) -> "pd.DataFrame":
-        if post_process is not None:
-            data = post_process(data)
-            if data is None:
-                raise ValueError(
-                    "post_process() must return data in the same form of cursor.fetchmany()"
-                )
         columns = [col.name for col in schema.fields]
         # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
