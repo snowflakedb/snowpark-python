@@ -15,6 +15,10 @@
   - Each field within that record becomes a separate column of type VARIANT, which can be further queried using dot notation, e.g., `col(a.b.c)`.
 - Added support for Databricks in `DataFrameReader.dbapi` (PrPr).
 - Added support for ingestion with snowflake UDTF in `DataFrameReader.dbapi` (PrPr).
+- Added support for the following AI-powered functions in `functions.py` (Private Preview):
+  - `prompt`
+  - `ai_filter` (added support for `prompt()` function and image files, and changed the second argument name from `expr` to `file`)
+  - `ai_classify`
 
 #### Improvements
 
@@ -72,6 +76,7 @@
   - `pd.read_sas`
   - `pd.read_xml`
 - Added support for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+- Added support for dict values in `Series.str.len`.
 
 #### Improvements
 

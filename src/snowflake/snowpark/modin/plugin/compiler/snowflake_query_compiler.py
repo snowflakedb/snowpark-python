@@ -128,6 +128,7 @@ from snowflake.snowpark.functions import (
     month,
     negate,
     not_,
+    object_keys,
     pandas_udf,
     quarter,
     random,
@@ -16800,9 +16801,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        # TODO SNOW-1438001: Handle dict, and tuple values for Series.str.len().
+        # TODO SNOW-1438001: Handle tuple values for Series.str.len().
         col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
         if isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            MapType,
+        ):
+            return SnowflakeQueryCompiler(
+                self._modin_frame.apply_snowpark_function_to_columns(
+                    lambda col: array_size(object_keys(col))
+                )
+            )
+        elif isinstance(
             self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
             ArrayType,
         ):
