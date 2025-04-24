@@ -1342,7 +1342,6 @@ class DataFrameReader:
                             query,
                             partition_idx,
                             tmp_dir,
-                            post_process,
                         )
                         process_pool_futures.append(process_future)
                     # Monitor queue while tasks are running
