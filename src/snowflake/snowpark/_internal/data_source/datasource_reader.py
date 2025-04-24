@@ -27,6 +27,7 @@ class DataSourceReader:
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
+        post_process: Optional[Callable] = None,
     ) -> None:
         self.driver = driver_class(create_connection, dbms_type)
         self.schema = schema
@@ -34,6 +35,7 @@ class DataSourceReader:
         self.query_timeout = query_timeout
         self.session_init_statement = session_init_statement
         self.fetch_merge_count = fetch_merge_count
+        self.post_process = post_process
 
     def read(self, partition: str) -> Iterator[List[Any]]:
         conn = self.driver.prepare_connection(
