@@ -2,7 +2,7 @@
 
 ## 1.32.0 (YYYY-MM-DD)
 
-## 1.31.0 (2024-04-24)
+## 1.31.0 (2025-04-24)
 
 ### Snowpark Python API Updates
 
