@@ -2,6 +2,12 @@
 
 ## 1.32.0 (YYYY-MM-DD)
 
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for dict values in `Series.str.get`.
+
 ## 1.31.0 (2025-04-24)
 
 ### Snowpark Python API Updates
@@ -80,7 +86,6 @@
   - `pd.read_xml`
 - Added support for `DataFrame.to_iceberg` and `Series.to_iceberg`.
 - Added support for dict values in `Series.str.len`.
-- Added support for dict values in `Series.str.get`.
 
 #### Improvements
 
