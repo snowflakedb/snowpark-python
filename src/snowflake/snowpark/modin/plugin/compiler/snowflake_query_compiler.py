@@ -16760,7 +16760,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if i is not None and not isinstance(i, str):
                 ErrorMessage.not_implemented(
                     "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument "
-                    "of types other than str when the data column is of type dict"
+                    "of types other than str when the data column contains dicts"
                 )
             new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
                 lambda col: col[i]
@@ -16772,7 +16772,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if i is not None and not isinstance(i, int):
                 ErrorMessage.not_implemented(
                     "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument "
-                    "of types other than int when the data column is of type list"
+                    "of types other than int when the data column contains lists"
                 )
             new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
                 output_col_list
@@ -16781,7 +16781,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if i is not None and not isinstance(i, int):
                 ErrorMessage.not_implemented(
                     "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument "
-                    "of types other than int when the data column is of type str"
+                    "of types other than int when the data column contains strings"
                 )
             new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
                 output_col_string
