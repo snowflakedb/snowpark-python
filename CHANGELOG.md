@@ -2,6 +2,12 @@
 
 ## 1.32.0 (YYYY-MM-DD)
 
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for dict values in `Series.str.get`.
+
 ## 1.31.0 (2025-04-24)
 
 ### Snowpark Python API Updates
