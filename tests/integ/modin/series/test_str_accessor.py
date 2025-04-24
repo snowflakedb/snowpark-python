@@ -357,6 +357,22 @@ def test_str_slice_list(start, stop, step):
     )
 
 
+@pytest.mark.parametrize("start", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("stop", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("step", [None, 1])
+@sql_count_checker(query_count=1)
+def test_str_slice_dict(start, stop, step):
+    native_ser = native_pd.Series(
+        [{"a": "x", "b": "y"}, {"c": None}, {None: "z"}, None, {}]
+    )
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.slice(start=start, stop=stop, step=step),
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_str_slice_neg():
     native_ser = native_pd.Series(TEST_DATA)
