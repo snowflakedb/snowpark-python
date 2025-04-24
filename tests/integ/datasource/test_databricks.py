@@ -45,7 +45,7 @@ except ImportError:
     pass
 
 pytestmark = [
-    pytest.mark.skipif(DATABRICKS_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'"),
+    pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'"),
     pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration"),
 ]
 
