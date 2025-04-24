@@ -62,10 +62,6 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_create_connection_with_exception,
     sqlite3_db,
     create_connection_to_sqlite3_db,
-    oracledb_all_type_data_result,
-    oracledb_create_connection,
-    oracledb_all_type_small_data_result,
-    oracledb_create_connection_small_data,
     OracleDBType,
     sql_server_create_connection_empty_data,
     unknown_dbms_create_connection,
@@ -77,6 +73,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     create_connection_oracledb,
     sql_server_create_connection_unicode_data,
     sql_server_create_connection_double_quoted_data,
+    oracledb_real_data_small,
 )
 from tests.utils import RUNNING_ON_JENKINS, Utils, IS_WINDOWS
 
@@ -100,7 +97,8 @@ pytestmark = [
 ]
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
-ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
+ORACLEDB_TABLE_NAME = "ALL_TYPE_TABLE"
+ORACLEDB_TABLE_NAME_SMALL = "ALL_TYPE_TABLE_SMALL"
 ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integration"
 
 
@@ -116,26 +114,26 @@ def test_dbapi_with_temp_table(session, caplog):
 
 def test_dbapi_oracledb(session):
     df = session.read.dbapi(
-        oracledb_create_connection,
-        table=ORACLEDB_TABLE_NAME,
+        create_connection_oracledb,
+        table=ORACLEDB_TABLE_NAME_SMALL,
         max_workers=4,
         query_timeout=5,
-    )
-    assert df.collect() == oracledb_all_type_data_result
+    ).order_by("ID")
+    Utils.check_answer(df, oracledb_real_data)
 
 
 @pytest.mark.parametrize(
     "create_connection, table_name, expected_result",
     [
         (
-            oracledb_create_connection,
+            create_connection_oracledb,
             ORACLEDB_TABLE_NAME,
-            oracledb_all_type_data_result,
+            oracledb_real_data,
         ),
         (
-            oracledb_create_connection_small_data,
-            ORACLEDB_TABLE_NAME,
-            oracledb_all_type_small_data_result,
+            create_connection_oracledb,
+            ORACLEDB_TABLE_NAME_SMALL,
+            oracledb_real_data_small,
         ),
         (sql_server_create_connection, SQL_SERVER_TABLE_NAME, sql_server_all_type_data),
         (
@@ -602,7 +600,7 @@ def test_type_conversion():
         ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
 
     with pytest.raises(NotImplementedError, match="oracledb type not supported"):
-        OracledbDriver(oracledb_create_connection, DBMS_TYPE.ORACLE_DB).to_snow_type(
+        OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB).to_snow_type(
             [invalid_type]
         )
 
@@ -788,9 +786,7 @@ def test_empty_table(session):
 
 
 def test_oracledb_driver_coverage(caplog):
-    oracledb_driver = OracledbDriver(
-        oracledb_create_connection_small_data, DBMS_TYPE.ORACLE_DB
-    )
+    oracledb_driver = OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB)
     conn = oracledb_driver.prepare_connection(oracledb_driver.create_connection(), 0)
     assert conn.outputtypehandler == output_type_handler
 
@@ -936,7 +932,9 @@ def test_external_access_integration_not_set(session):
         ValueError,
         match="external_access_integration cannot be None when udtf ingestion is used.",
     ):
-        session.read.dbapi(oracledb_create_connection, table="fake", udtf_configs={})
+        session.read.dbapi(
+            create_connection_oracledb, table=ORACLEDB_TABLE_NAME, udtf_configs={}
+        )
 
 
 def test_unknown_driver_with_custom_schema(session):
