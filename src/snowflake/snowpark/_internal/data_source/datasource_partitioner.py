@@ -67,6 +67,7 @@ class DataSourcePartitioner:
         self.driver_class = DRIVER_MAP.get(driver_type, BaseDriver)
         self.dialect = self.dialect_class()
         self.driver = self.driver_class(create_connection, dbms_type, post_process)
+        self.post_process = post_process
 
     def reader(self) -> DataSourceReader:
         return DataSourceReader(
@@ -78,6 +79,7 @@ class DataSourcePartitioner:
             self.query_timeout,
             self.session_init_statement,
             self.fetch_merge_count,
+            self.post_process,
         )
 
     @cached_property
