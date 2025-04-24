@@ -166,7 +166,11 @@ def convert_metadata_to_sp_type(
             return StructType(
                 [
                     StructField(
-                        (quote_name(field.name, keep_case=True)),
+                        (
+                            field.name
+                            if context._should_use_structured_type_semantics()
+                            else quote_name(field.name, keep_case=True)
+                        ),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
                         _is_column=False,
@@ -313,7 +317,7 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, StructType):
         if datatype.structured:
             fields = ", ".join(
-                f"{field.name} {convert_sp_to_sf_type(field.datatype)}"
+                f"{field.column_identifier.quoted_name} {convert_sp_to_sf_type(field.datatype)}"
                 for field in datatype.fields
             )
             return f"OBJECT({fields})"

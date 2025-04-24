@@ -1700,3 +1700,19 @@ def test_file_type(session, resources_path):
     assert df.schema == StructType([StructField("file", FileType(), False)])
     df = session.range(1).select(lit(None, datatype=FileType()).alias("file"))
     assert df.schema == StructType([StructField("file", FileType(), True)])
+
+
+def test_nest_struct_field_names(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+    schema = StructType(
+        [
+            StructField(
+                "A", StructType([StructField("field with space", StringType(), True)])
+            )
+        ]
+    )
+    df = structured_type_session.create_dataframe(
+        [{"A": {"field with space": "value"}}], schema
+    )
+    Utils.check_answer(df, [Row(A=Row(**{"field with space": "value"}))])
