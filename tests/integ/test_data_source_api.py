@@ -115,7 +115,7 @@ def test_dbapi_with_temp_table(session, caplog):
 def test_dbapi_oracledb(session):
     df = session.read.dbapi(
         create_connection_oracledb,
-        table=ORACLEDB_TABLE_NAME_SMALL,
+        table=ORACLEDB_TABLE_NAME,
         max_workers=4,
         query_timeout=5,
     ).order_by("ID")
