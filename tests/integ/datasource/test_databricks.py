@@ -33,7 +33,7 @@ from snowflake.snowpark.types import (
 )
 
 from tests.parameters import DATABRICKS_CONNECTION_PARAMETERS
-from tests.utils import IS_IN_STORED_PROC, Utils
+from tests.utils import IS_IN_STORED_PROC
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
@@ -243,19 +243,16 @@ def test_unit_data_source_data_to_pandas_df():
 
 def test_unicode_column_databricks(session):
     df = session.read.dbapi(create_databricks_connection, table="User_profile_unicode")
-    Utils.check_answer(df, [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")])
+    assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
 
 
 def test_double_quoted_column_databricks(session):
     df = session.read.dbapi(create_databricks_connection, table="User_profile")
-    Utils.check_answer(
-        df,
-        [
-            Row(
-                id=1,
-                name="Yamada Taro",
-                country="Japan",
-                remarks="This is a test remark",
-            )
-        ],
-    )
+    assert df.collect() == [
+        Row(
+            id=1,
+            name="Yamada Taro",
+            country="Japan",
+            remarks="This is a test remark",
+        )
+    ]

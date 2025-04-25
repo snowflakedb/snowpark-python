@@ -1003,33 +1003,30 @@ def test_fetch_merge_count_integ(session, caplog):
 
 def test_unicode_column_name_oracledb(session):
     df = session.read.dbapi(create_connection_oracledb, table='"用户資料"')
-    Utils.check_answer(df, [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")])
+    assert df.collect() == [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")]
 
 
 def test_double_quoted_column_name_oracledb(session):
     df = session.read.dbapi(create_connection_oracledb, table='"UserProfile"')
-    Utils.check_answer(
-        df,
-        [
-            Row(
-                Id=1,
-                FullName="John Doe",
-                Country="USA",
-                Notes="This is a case-sensitive example.",
-            )
-        ],
-    )
+    assert df.collect() == [
+        Row(
+            Id=1,
+            FullName="John Doe",
+            Country="USA",
+            Notes="This is a case-sensitive example.",
+        )
+    ]
 
 
 def test_unicode_column_name_sql_server(session):
     df = session.read.dbapi(sql_server_create_connection_unicode_data, table='"用户资料"')
-    Utils.check_answer(df, [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")])
+    assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
 
 
 def test_double_quoted_column_name_sql_server(session):
     df = session.read.dbapi(
         sql_server_create_connection_double_quoted_data, table='"UserProfile"'
     )
-    Utils.check_answer(
-        df, [Row(Id=1, FullName="John Doe", Country="USA", Notes="Fake note")]
-    )
+    assert df.collect() == [
+        Row(Id=1, FullName="John Doe", Country="USA", Notes="Fake note")
+    ]
