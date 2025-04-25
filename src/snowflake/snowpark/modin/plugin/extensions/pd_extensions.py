@@ -6,11 +6,9 @@
 File containing top-level APIs defined in Snowpark pandas but not the Modin API layer
 under the `pd` namespace, such as `pd.read_snowflake`.
 """
-import functools
 from typing import Any, Iterable, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
-from modin.pandas.api.extensions import register_pd_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
@@ -24,10 +22,7 @@ from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
-
-register_pd_accessor_helper = functools.partial(
-    register_pd_accessor,
-)
+from .general_overrides import register_pd_accessor_helper
 
 register_pd_accessor_helper("Index")(Index)
 register_pd_accessor_helper("DatetimeIndex")(DatetimeIndex)

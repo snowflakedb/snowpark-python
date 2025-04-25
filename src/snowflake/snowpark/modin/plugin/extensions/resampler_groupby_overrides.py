@@ -26,7 +26,9 @@
 from typing import Any, Callable, Optional, Union
 
 import modin.pandas as pd
-from modin.pandas.api.extensions import register_series_accessor
+from snowflake.snowpark.modin.plugin.extensions.series_overrides import (
+    register_series_accessor_with_telemetry,
+)
 import pandas
 import pandas.core.groupby
 from pandas._libs import lib
@@ -109,7 +111,7 @@ class ResamplerGroupby(metaclass=TelemetryMeta):
                 "Series GroupbyResampler is not yet implemented."
             )
         func = series_not_implemented()(self.__class__)
-        register_series_accessor(self.__class__.__name__)(func)
+        register_series_accessor_with_telemetry(self.__class__.__name__)(func)
         return func
 
     def _get_groups(self):

@@ -23,7 +23,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import functools
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta, tzinfo
 from logging import getLogger
@@ -84,6 +83,10 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
+from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    try_add_telemetry_to_attribute,
+)
+
 
 # To prevent cross-reference warnings when building documentation and prevent erroneously
 # linking to `snowflake.snowpark.DataFrame`, we need to explicitly
@@ -101,9 +104,11 @@ VALID_DATE_TYPE = Union[
 # Data manipulations
 ###########################################################################
 
-register_pd_accessor_helper = functools.partial(
-    register_pd_accessor,
-)
+
+def register_pd_accessor_helper(name: str):
+    return lambda func: register_pd_accessor(name=name, backend="Snowflake")(
+        try_add_telemetry_to_attribute(name, func)
+    )
 
 
 @register_pd_accessor_helper("melt")
