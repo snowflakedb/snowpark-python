@@ -747,14 +747,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         
     @classmethod
     def _linear_row_cost_fn(cls, query_compiler):
-        num_rows = query_compiler.get_axis_len(0)
+        if isinstance(query_compiler, SnowflakeQueryCompiler):
+            internal_frame = query_compiler._modin_frame
+            ordered_dataframe = internal_frame.ordered_dataframe
+            num_rows = ordered_dataframe.row_count_upper_bound
+            if num_rows is None:
+                return QCCoercionCost.COST_IMPOSSIBLE
+        else:
+            num_rows = query_compiler.get_axis_len(0)
+    
         limit = 1000000 # one million rows is considered impossible
         ratio = num_rows / limit
         if ratio > 1.0:
             return QCCoercionCost.COST_IMPOSSIBLE
         return int(ratio*QCCoercionCost.COST_IMPOSSIBLE)
 
-    def qc_engine_switch_cost(self, other_qc_type: type) -> int:
+    def move_to_cost(self, 
+                     other_qc_cls:type,         
+                     api_cls_name: Optional[str] = None,
+                     operation: Optional[str] = None,) -> int:
         """
         Return the coercion costs of this qc to other_qc type.
 
@@ -765,6 +776,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ----------
         other_qc_type : QueryCompiler Class
             The query compiler class to which we should return the cost of switching.
+        api_cls_name : str, default: None
+            The mod classule name performing the operation which can be used as a
+            consideration for the costing analysis.
+        operation : str, default: None
+            The operation being performed which can be used as a consideration
+            for the costing analysis.
 
         Returns
         -------
@@ -772,15 +789,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Cost of migrating the data from this qc to the other_qc or
             None if the cost cannot be determined.
         """
-        if isinstance(self, other_qc_type):
+        if isinstance(self, other_qc_cls):
             return QCCoercionCost.COST_ZERO
         
         # cost to move to native is correlated with row size
-        if NativeQueryCompiler is other_qc_type:
+        if NativeQueryCompiler is other_qc_cls:
             return SnowflakeQueryCompiler._linear_row_cost_fn(self)
         return None
 
-    def qc_engine_switch_cost_from_new(self, other_qc_type: type) -> int:
+    def stay_cost(self, 
+        other_qc_type: type,
+        api_cls_name: Optional[str] = None,
+        operation: Optional[str] = None,
+    ) -> int:
         if isinstance(self, other_qc_type):
             return QCCoercionCost.COST_ZERO
         
@@ -790,7 +811,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return None
 
     @classmethod
-    def qc_engine_switch_cost_from(cls, other_qc: BaseQueryCompiler) -> int:
+    def move_to_me_cost(cls, 
+            other_qc: BaseQueryCompiler,
+            api_cls_name: Optional[str] = None,
+            operation: Optional[str] = None,
+        ) -> int:
         """
         Return the coercion costs from other_qc to this qc type.
 
@@ -816,7 +841,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return QCCoercionCost.COST_IMPOSSIBLE-SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
         return None
 
-    def qc_engine_switch_max_cost(self) -> int:
+    def max_cost(self) -> int:
         """
         Return the max coercion cost allowed for switching to this engine.
 
