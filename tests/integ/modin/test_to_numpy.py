@@ -76,7 +76,7 @@ def test_to_numpy_basic(data, pandas_obj, func):
                 assert r1 == r2
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_tz_aware_data_to_numpy(session):
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(
@@ -108,6 +108,8 @@ def test_tz_aware_data_to_numpy(session):
         ]
     )
     df = pd.read_snowflake(table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
     assert_array_equal(df.to_numpy(), expected_result)
 
 

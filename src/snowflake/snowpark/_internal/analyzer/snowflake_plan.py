@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+import difflib
 import re
 import sys
 import uuid
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
 import snowflake.connector
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
     TEMPORARY_STRING_SET,
     aggregate_statement,
     attribute_to_schema_string,
@@ -87,7 +89,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.metadata_utils import (
     PlanMetadata,
-    cache_metadata_if_select_statement,
+    cache_metadata_if_selectable,
     infer_metadata,
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
@@ -118,6 +120,7 @@ from snowflake.snowpark._internal.utils import (
     merge_multiple_snowflake_plan_expr_to_alias,
     random_name_for_temp_object,
     ExprAliasUpdateDict,
+    UNQUOTED_CASE_INSENSITIVE,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -135,6 +138,9 @@ class SnowflakePlan(LogicalPlan):
     class Decorator:
         __wrap_exception_regex_match = re.compile(
             r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
+        )
+        __wrap_exception_regex_match_with_double_quotes = re.compile(
+            r"""(?s).*invalid identifier '([^']*)?'.*"""
         )
         __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
@@ -203,6 +209,70 @@ class SnowflakePlan(LogicalPlan):
                             )
                             raise ne.with_traceback(tb) from None
                         else:
+                            from snowflake.snowpark._internal.analyzer.select_statement import (
+                                Selectable,
+                            )
+
+                            # We need the potential double quotes for invalid identifier
+                            match = SnowflakePlan.Decorator.__wrap_exception_regex_match_with_double_quotes.match(
+                                e.msg
+                            )
+                            if not match:  # pragma: no cover
+                                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                                    e
+                                )
+                                raise ne.with_traceback(tb) from None
+                            col = match.group(1)
+
+                            quoted_identifiers = []
+                            for child in children:
+                                plan_nodes = child.children_plan_nodes
+                                for node in plan_nodes:
+                                    if isinstance(node, Selectable):
+                                        quoted_identifiers.extend(
+                                            node.snowflake_plan.quoted_identifiers
+                                        )
+                                    else:
+                                        quoted_identifiers.extend(
+                                            node.quoted_identifiers
+                                        )
+
+                            def add_single_quote(string: str) -> str:
+                                return f"'{string}'"
+
+                            # We can't display all column identifiers in the error message
+                            if len(quoted_identifiers) > 10:
+                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers[:10])}, ...]"
+                            else:
+                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers)}]"
+
+                            msg = (
+                                f"There are existing quoted column identifiers: {quoted_identifiers_str}. "
+                                f"Please use one of them to reference the column. See more details on Snowflake identifier requirements "
+                                f"https://docs.snowflake.com/en/sql-reference/identifiers-syntax"
+                            )
+
+                            # Currently, when Snowpark user a Python string as identifier to access a column:
+                            # 1) if a column name is unquoted and
+                            #   a) contains no special characters, it is automatically uppercased and quoted in SQL, or
+                            #   b) if it includes special characters, it is simply quoted without uppercasing.
+                            # 2) If the name is explicitly quoted by the user, Snowpark preserves it as-is.
+                            # Therefore, if `col` is an invalid identifier, it is most likely due to 1a) above.
+                            # We attempt to provide a more helpful error message by suggesting the closest valid identifier.
+                            if UNQUOTED_CASE_INSENSITIVE.match(col):
+                                identifier = quote_name_without_upper_casing(
+                                    col.lower()
+                                )
+                                match = difflib.get_close_matches(
+                                    identifier, quoted_identifiers
+                                )
+                                if match:
+                                    # if there is an exact match, just remind users this one
+                                    if identifier in match:
+                                        match = [identifier]
+                                    msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
+
+                            e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                                 e
                             )
@@ -376,7 +446,7 @@ class SnowflakePlan(LogicalPlan):
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
-        cache_metadata_if_select_statement(self.source_plan, self._metadata)
+        cache_metadata_if_selectable(self.source_plan, self._metadata)
         # When the reduce_describe_query_enabled is enabled, we cache the attributes in
         # self._metadata using original schema query. Thus we can update the schema query
         # to simplify plans built on top of this plan.
@@ -1306,7 +1376,10 @@ class SnowflakePlanBuilder:
 
         # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
         # Currently it's capped at 16.
-        file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
+        try:
+            file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
+        except IndexError:
+            raise ValueError(f"{file_path} does not exist")
         num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
 
         # Create a range from 0 to N-1

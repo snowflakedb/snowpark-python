@@ -39,7 +39,7 @@ def read_snowflake(
     name_or_query: Union[str, Iterable[str]],
     index_col: Union[str, list[str], None] = None,
     columns: Optional[list[str]] = None,
-    relaxed_ordering: bool = False,
+    enforce_ordering: bool = False,
 ) -> DataFrame:
     """
     Read a Snowflake table or SQL Query to a Snowpark pandas DataFrame.
@@ -52,8 +52,8 @@ def read_snowflake(
             A column name or a list of column names to use as index.
         columns:
             A list of column names to select from the table. If not specified, select all columns.
-        relaxed_ordering:
-            If True, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
+        enforce_ordering:
+            If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
             DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. See the Notes
             section for more details.
 
@@ -73,7 +73,7 @@ def read_snowflake(
 
         Snowpark pandas provides two modes of consistency and ordering semantics.
 
-        * When `relaxed_ordering` is set to True, Snowpark pandas provides relaxed consistency and ordering guarantees. In particular, the returned DataFrame object will be
+        * When `enforce_ordering` is set to False, Snowpark pandas provides relaxed consistency and ordering guarantees. In particular, the returned DataFrame object will be
           directly based on the source given by `name_or_query`. Consistency and isolation guarantees are relaxed in this case because any changes that happen to the source will be reflected in the
           DataFrame object returned by `pd.read_snowflake`.
 
@@ -87,7 +87,7 @@ def read_snowflake(
           Note that when `name_or_query` is a query with an ORDER BY clause, this will only guarantee that the immediate results of the input query are sorted. But it still gives no guarantees
           on the order of the final results (after applying a sequence of pandas operations to those initial results).
 
-        * When `relaxed_ordering` is set to False, Snowpark pandas provides the same consistency and ordering guarantees for `read_snowflake` as if local files were read.
+        * When `enforce_ordering` is set to True, Snowpark pandas provides the same consistency and ordering guarantees for `read_snowflake` as if local files were read.
           For example, calling `df.head(5)` two consecutive times is guaranteed to result in the exact same set of 5 rows each time and with the same ordering.
           Depending on the type of source, `pd.read_snowflake` will do one of the following
           at the time of calling `pd.read_snowflake`:
@@ -251,8 +251,9 @@ def read_snowflake(
 
           >>> pd.read_snowflake(f'''-- SQL Comment 1
           ... -- SQL Comment 2
-          ... SELECT * FROM {table_name} WHERE A > 0
-          ... -- SQL Comment 3''')
+          ... SELECT * FROM {table_name}
+          ... -- SQL Comment 3
+          ... WHERE A > 0''')
              A  B  C
           0  1  2  3
 
@@ -294,7 +295,7 @@ def read_snowflake(
         - Anonymous Stored Procedures (using CTEs) may also be used (although special care must be taken with respect to indentation of the code block,
           since the entire string encapsulated by the `$$` will be passed directly to a Python interpreter. In the example below, the lines within
           the function are indented, but not the import statement or function definition). The output schema must be specified when defining
-          an anonymous stored procedure.
+          an anonymous stored procedure. Currently CALL statements are only supported when `enforce_ordering=True`.
 
           >>> pd.read_snowflake('''WITH filter_rows AS PROCEDURE (table_name VARCHAR, column_to_filter VARCHAR, value NUMBER)
           ... RETURNS TABLE(A NUMBER, B NUMBER, C NUMBER)
@@ -306,7 +307,7 @@ def read_snowflake(
           ... def filter_rows(session, table_name, column_to_filter, value):
           ...   df = session.table(table_name)
           ...   return df.filter(col(column_to_filter) == value)$$
-          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)")
+          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)", enforce_ordering=True)
              A  B  C
           0  1  2  3
 
@@ -331,7 +332,7 @@ def read_snowflake(
           ...   }
           ... }
           ... $$
-          ... ''' + f"CALL filter_rows('{table_name}', 'A', -1)")
+          ... ''' + f"CALL filter_rows('{table_name}', 'A', -1)", enforce_ordering=True)
              A  B  C
           0 -1 -2 -3
 
@@ -347,7 +348,7 @@ def read_snowflake(
           ...     df = session_.table(table_name)
           ...     return df.select('*', (col(col_to_multiply)*value).as_("D"))
 
-          >>> pd.read_snowflake(f"CALL multiply_col_by_value('{table_name}', 'A', 2)")
+          >>> pd.read_snowflake(f"CALL multiply_col_by_value('{table_name}', 'A', 2)", enforce_ordering=True)
              A  B  C  D
           0  1  2  3  2
           1 -1 -2 -3 -2
@@ -391,7 +392,7 @@ def read_snowflake(
             name_or_query,
             index_col=index_col,
             columns=columns,
-            relaxed_ordering=relaxed_ordering,
+            enforce_ordering=enforce_ordering,
         )
     )
 

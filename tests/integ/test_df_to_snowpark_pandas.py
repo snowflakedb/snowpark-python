@@ -37,9 +37,16 @@ def tmp_table_basic(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_to_snowpark_pandas_no_modin(session, tmp_table_basic, relaxed_ordering):
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_to_snowpark_pandas_no_modin(session, tmp_table_basic, enforce_ordering):
     snowpark_df = session.table(tmp_table_basic)
+    # If pandas isn't installed, then an error is raised immediately.
+    try:
+        import pandas  # noqa: F401
+    except ModuleNotFoundError:
+        with pytest.raises(ModuleNotFoundError, match="No module named 'pandas'"):
+            snowpark_df.to_snowpark_pandas(enforce_ordering=enforce_ordering)
+        return
     # Check if modin is installed (if so, we're running in Snowpark pandas; if not, we're just in Snowpark Python)
     try:
         import modin  # noqa: F401
@@ -57,8 +64,8 @@ def test_to_snowpark_pandas_no_modin(session, tmp_table_basic, relaxed_ordering)
                 match="Modin is not installed.",
             )
         with ctx:
-            snowpark_df.to_snowpark_pandas(relaxed_ordering=relaxed_ordering)
+            snowpark_df.to_snowpark_pandas(enforce_ordering=enforce_ordering)
     else:
         snowpark_df.to_snowpark_pandas(
-            relaxed_ordering=relaxed_ordering
+            enforce_ordering=enforce_ordering
         )  # should have no errors
