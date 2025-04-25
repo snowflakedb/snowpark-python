@@ -766,7 +766,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return ratio
 
     @classmethod
-    def _bin_to_cost_limits(cls, cost) -> int:
+    def _bin_cost(cls, cost) -> int:
         if cost < QCCoercionCost.COST_ZERO:
             return QCCoercionCost.COST_ZERO
         if cost > QCCoercionCost.COST_IMPOSSIBLE:
@@ -802,37 +802,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if isinstance(self, other_qc_cls):
             return QCCoercionCost.COST_ZERO
-        row_cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
-
-        # cost to move to native is correlated with row size
-        if NativeQueryCompiler is other_qc_cls:
-            return SnowflakeQueryCompiler._bin_to_cost_limits(row_cost_ratio * QCCoercionCost.COST_IMPOSSIBLE)
-        return None
+        cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
+        encourage_moving = SnowflakeQueryCompiler._bin_cost(int(cost_ratio*QCCoercionCost.COST_LOW))
+        discourage_moving = SnowflakeQueryCompiler._bin_cost(QCCoercionCost.COST_MEDIUM + encourage_moving)
+        if cost_ratio > 1.0:
+            return discourage_moving
+        return encourage_moving
 
     def stay_cost(self, 
         other_qc_type: type,
         api_cls_name: Optional[str] = None,
         operation: Optional[str] = None,
     ) -> int:
-        row_cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
+        cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
+        
+        encourage_staying = QCCoercionCost.COST_LOW
+        discourage_staying = QCCoercionCost.COST_HIGH
         # discourage running apply if the dataset is <= 1M rows
-        if row_cost_ratio <= 1.0 and operation is "apply":
-            return QCCoercionCost.COST_IMPOSSIBLE
+        if cost_ratio <= 1.0 and operation is "apply":
+            return discourage_staying
         
         # always discourage running the iter functions
         if operation in ['iterrows', 'itertuples', 'items']:
-            return QCCoercionCost.COST_IMPOSSIBLE
+            return discourage_staying
         
         # discourage running small datasets in snowflake
-        if row_cost_ratio <= 1.0:
-            return QCCoercionCost.COST_IMPOSSIBLE
+        if cost_ratio <= 1.0:
+            return discourage_staying
         
-        # default case, weighted for snowflake
-        row_cost = row_cost_ratio * QCCoercionCost.COST_IMPOSSIBLE
-        snowflake_boost_factor = 100
-        row_cost = row_cost / snowflake_boost_factor
-        
-        return SnowflakeQueryCompiler._bin_to_cost_limits(row_cost)
+        return encourage_staying
 
     @classmethod
     def move_to_me_cost(cls, 
@@ -859,16 +857,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # Strongly discourage the use of these methods in snowflake
         if operation in ["apply", "iterrows", "itertuples", "items"]:
-            return QCCoercionCost.COST_IMPOSSIBLE
-        cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
-
-        if  cost_ratio > 1.0:
-            return SnowflakeQueryCompiler._bin_to_cost_limits(cost_ratio * QCCoercionCost.COST_IMPOSSIBLE)
-        else:
             return QCCoercionCost.COST_HIGH
+        cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
+        encourage_move_to_me = SnowflakeQueryCompiler._bin_cost(int(cost_ratio*QCCoercionCost.COST_LOW))
+        discourage_move_to_me = SnowflakeQueryCompiler._bin_cost(QCCoercionCost.COST_MEDIUM + encourage_move_to_me)
 
-        return row_cost
-        
+        if  cost_ratio <= 1.0:
+            return discourage_move_to_me
+        return encourage_move_to_me
+
 
     def max_cost(self) -> int:
         """
