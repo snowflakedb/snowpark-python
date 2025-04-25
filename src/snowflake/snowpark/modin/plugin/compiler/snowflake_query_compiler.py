@@ -17100,6 +17100,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         if isinstance(
             self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            MapType,
+        ):
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                # Follow pandas behavior
+                lambda column: pandas_lit(np.nan).cast(FloatType()),
+            )
+        elif isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
             ArrayType,
         ):
             new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
