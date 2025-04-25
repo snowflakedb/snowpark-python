@@ -431,6 +431,17 @@ class OrderedDataFrame:
             *self.projected_column_snowflake_quoted_identifiers,
             count("*").over().as_(row_count_snowflake_quoted_identifier),
         )
+
+        # Get the row count from the underlying Snowpark dataframe.
+        materialized_row_count = (
+            ordered_dataframe._dataframe_ref.snowpark_dataframe.select(
+                row_count_snowflake_quoted_identifier
+            ).first()[row_count_snowflake_quoted_identifier.strip('"')]
+        )
+        # Set the row count and upper bound to the materialized row count.
+        ordered_dataframe.row_count = materialized_row_count
+        ordered_dataframe.row_count_upper_bound = materialized_row_count
+
         # inplace update so dataframe_ref can be shared. Note that we keep
         # the original ordering columns.
         ordered_dataframe.row_count_snowflake_quoted_identifier = (
