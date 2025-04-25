@@ -42,14 +42,6 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_msg
     )  # pragma: no cover
 
-supported_modin_version = "0.32.0"
-if version.parse(modin.__version__) != version.parse(supported_modin_version):
-    raise ImportError(
-        f"The Modin version installed ({modin.__version__}) does not match the supported Modin version in"
-        + f" Snowpark pandas ({supported_modin_version}). "
-        + install_msg
-    )  # pragma: no cover
-
 
 # === INITIALIZE EXTENSION SYSTEM ===
 # Initialize all extension modules.
