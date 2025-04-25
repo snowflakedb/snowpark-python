@@ -114,17 +114,17 @@ SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
 try:
     import snowflake.cortex
 
-    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = {
-        snowflake.cortex.Summarize,
-        snowflake.cortex.Sentiment,
-        snowflake.cortex.ClassifyText,
-        snowflake.cortex.Translate,
-        snowflake.cortex.ExtractAnswer,
-    }
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = set()  # noqa: hybrid temp
+    #    snowflake.cortex.Summarize,
+    #    snowflake.cortex.Sentiment,
+    #    snowflake.cortex.ClassifyText,
+    #    snowflake.cortex.Translate,
+    #    snowflake.cortex.ExtractAnswer,
+    # }
 
-    ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple(
-        i[1] for i in inspect.getmembers(snowflake.cortex)
-    )
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()  # noqa: hybrid temp
+    #    i[1] for i in inspect.getmembers(snowflake.cortex)
+    # )
 except ImportError:
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = set()
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()

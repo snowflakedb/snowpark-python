@@ -481,9 +481,11 @@ _RESET_ATTRS_METHODS = [
 # One million rows is considered to be a good transition point for hybrid right now
 HYBRID_DATA_SIZE_TRANSITION_POINT = "1000000"
 # Functions which should be considered for execution outside of snowflake
-HYBRID_HIGH_OVERHEAD_METHODS=["apply", "describe", "quantile"]
-HYBRID_ITERATIVE_STYLE_METHODS=["iterrows", "itertuples", "items", "plot"]
-HYBRID_ALL_EXPENSIVE_METHODS = HYBRID_HIGH_OVERHEAD_METHODS + HYBRID_ITERATIVE_STYLE_METHODS
+HYBRID_HIGH_OVERHEAD_METHODS = ["apply", "describe", "quantile"]
+HYBRID_ITERATIVE_STYLE_METHODS = ["iterrows", "itertuples", "items", "plot"]
+HYBRID_ALL_EXPENSIVE_METHODS = (
+    HYBRID_HIGH_OVERHEAD_METHODS + HYBRID_ITERATIVE_STYLE_METHODS
+)
 
 T = TypeVar("T", bound=Callable[..., Any])
 
@@ -758,7 +760,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ordered_dataframe = internal_frame.ordered_dataframe
             num_rows = ordered_dataframe.row_count_upper_bound
             # hack to work around large numbers when things are an estimate
-            if ordered_dataframe.row_count_upper_bound is None or ordered_dataframe.row_count_upper_bound > 1e34:
+            if (
+                ordered_dataframe.row_count_upper_bound is None
+                or ordered_dataframe.row_count_upper_bound > 1e34
+            ):
                 num_rows = query_compiler.get_axis_len(0)
             if num_rows is None:
                 return 1.0
@@ -767,7 +772,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # one million rows is considered the point at which
         # Snowflake has an advantage
-        limit = int(os.environ.get('HYBRID_DATA_SIZE_TRANSITION_POINT', HYBRID_DATA_SIZE_TRANSITION_POINT))
+        limit = int(
+            os.environ.get(
+                "HYBRID_DATA_SIZE_TRANSITION_POINT", HYBRID_DATA_SIZE_TRANSITION_POINT
+            )
+        )
         ratio = num_rows / limit
         return ratio
 
