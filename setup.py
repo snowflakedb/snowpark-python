@@ -14,7 +14,6 @@ from setuptools.command.build_py import build_py as _build_py
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-MODIN_DEPENDENCY_VERSION = "==0.32.0"  # Snowpark pandas requires modin 0.32.0, which is compatible with pandas 2.2.x
 CONNECTOR_DEPENDENCY_VERSION = ">=3.14.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
@@ -40,7 +39,7 @@ PANDAS_REQUIREMENTS = [
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
-    f"modin{MODIN_DEPENDENCY_VERSION}",
+    "modin @ git+https://github.com/modin-project/modin.git@hybrid-execution",  # Use branch designed for hybrid client
 ]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
