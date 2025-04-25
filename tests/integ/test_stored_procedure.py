@@ -349,6 +349,10 @@ def test_call_named_stored_procedure(
             # restore active session
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
 def test_infer_table_type_is_skipped_for_system_procedures(session):
     with session.query_history() as history:
         session.call("system$wait", 1)
