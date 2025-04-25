@@ -6,6 +6,7 @@
 File containing top-level APIs defined in Snowpark pandas but not the Modin API layer
 under the `pd` namespace, such as `pd.read_snowflake`.
 """
+import functools
 from typing import Any, Iterable, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
@@ -13,22 +14,17 @@ from modin.pandas.api.extensions import register_pd_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa: F401
-    DatetimeIndex,
-)
-from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
-from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
-    TimedeltaIndex,
-)
-from snowflake.snowpark.modin.plugin.utils.warning_message import (
-    materialization_warning,
-)
-import functools
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import \
+    DatetimeIndex  # noqa: F401
+from snowflake.snowpark.modin.plugin.extensions.index import \
+    Index  # noqa: F401
+from snowflake.snowpark.modin.plugin.extensions.timedelta_index import \
+    TimedeltaIndex  # noqa: F401
+from snowflake.snowpark.modin.plugin.utils.warning_message import \
+    materialization_warning
 
 register_pd_accessor_helper = functools.partial(
     register_pd_accessor, 
-    engine="Snowflake",
-    storage_format="Snowflake"
 )
 
 register_pd_accessor_helper("Index")(Index)
@@ -392,7 +388,8 @@ def read_snowflake(
         To see what are the Normalized Snowflake Identifiers for columns of a Snowflake table, you can call SQL query
         `SELECT * FROM TABLE` or `DESCRIBE TABLE` to see the column names.
     """
-    from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
+    from modin.core.execution.dispatching.factories.dispatcher import \
+        FactoryDispatcher
 
     return DataFrame(
         query_compiler=FactoryDispatcher.get_factory()._read_snowflake(

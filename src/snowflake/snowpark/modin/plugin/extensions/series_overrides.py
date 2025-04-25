@@ -9,11 +9,12 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
-from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
+import functools
+from typing import (IO, Any, Callable, Hashable, Literal, Mapping, Sequence,
+                    get_args)
 
 import modin.pandas as pd
 import numpy as np
-import functools
 import numpy.typing as npt
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
@@ -22,56 +23,34 @@ from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, is_integer, no_default
-from pandas._typing import (
-    AggFuncType,
-    AnyArrayLike,
-    ArrayLike,
-    Axis,
-    FillnaOptions,
-    IgnoreRaise,
-    IndexKeyFunc,
-    IndexLabel,
-    Level,
-    NaPosition,
-    Renamer,
-    Scalar,
-)
+from pandas._typing import (AggFuncType, AnyArrayLike, ArrayLike, Axis,
+                            FillnaOptions, IgnoreRaise, IndexKeyFunc,
+                            IndexLabel, Level, NaPosition, Renamer, Scalar)
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
 from pandas.util._validators import validate_ascending, validate_bool_kwarg
 
 from snowflake.snowpark.modin.plugin._internal.utils import (
-    assert_fields_are_none,
-    convert_index_to_list_of_qcs,
-    convert_index_to_qc,
-    error_checking_for_init,
-)
+    assert_fields_are_none, convert_index_to_list_of_qcs, convert_index_to_qc,
+    error_checking_for_init)
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
-from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
-    SnowparkPandasRowPartitionIterator,
-)
+from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import \
+    SnowparkPandasRowPartitionIterator
 from snowflake.snowpark.modin.plugin.utils.error_message import (
-    ErrorMessage,
-    series_not_implemented,
-)
+    ErrorMessage, series_not_implemented)
 from snowflake.snowpark.modin.plugin.utils.frontend_constants import (
     SERIES_ITEMS_WARNING_MESSAGE,
     SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE,
     SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SERIES_ERROR_MESSAGE,
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
-    SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE,
-)
+    SERIES_SETITEM_SLICE_AS_SCALAR_VALUE_ERROR_MESSAGE)
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
-    WarningMessage,
-    materialization_warning,
-)
-from snowflake.snowpark.modin.utils import (
-    MODIN_UNNAMED_SERIES_LABEL,
-    _inherit_docstrings,
-    validate_int_kwarg,
-)
+    WarningMessage, materialization_warning)
+from snowflake.snowpark.modin.utils import (MODIN_UNNAMED_SERIES_LABEL,
+                                            _inherit_docstrings,
+                                            validate_int_kwarg)
 
-register_series_accessor_helper= functools.partial(register_series_accessor, engine="Snowflake", storage_format="Snowflake")
+register_series_accessor_helper= lambda name: register_series_accessor(name=name,backend="Snowflake")
 
 def register_series_not_implemented():
     def decorator(base_method: Any):
@@ -87,8 +66,7 @@ def register_series_not_implemented():
 # Because __getattr__ itself is responsible for resolving extension methods, we cannot override
 # this method via the extensions module, and have to do it with an old-fashioned set.
 # We cannot name this method __getattr__ because Python will treat this as this file's __getattr__.
-@register_series_accessor_helper("__getattr__")
-def __getattr__(self, key):
+def _getattr_impl(self, key):
     """
     Return item identified by `key`.
 
@@ -106,18 +84,33 @@ def __getattr__(self, key):
     First try to use `__getattribute__` method. If it fails
     try to get `key` from `Series` fields.
     """
+    from modin.pandas.series import _SERIES_EXTENSIONS_
+    if (
+        key not in ("_query_compiler", "get_backend")
+        and hasattr(self, "_query_compiler")
+        and self.get_backend() in _SERIES_EXTENSIONS_
+        and key in _SERIES_EXTENSIONS_[self.get_backend()]
+    ):
+        extension_item = _SERIES_EXTENSIONS_[self.get_backend()][key]
+        assert not callable(extension_item)
+        return extension_item    
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     from modin.pandas.base import _ATTRS_NO_LOOKUP
-    if key not in _ATTRS_NO_LOOKUP:
-        try:
-            value = self[key]
-            if isinstance(value, Series) and value.empty:
+    try:
+        return super(Series, self).__getattr__(key)
+    except AttributeError as err:    
+        if key not in ("_query_compiler", "get_backend") and key not in _ATTRS_NO_LOOKUP:
+            try:
+                value = self[key]
+                if isinstance(value, Series) and value.empty:
+                    raise err
+                return value
+            except Exception:
+                # We want to raise err if self[key] raises any kind of exception
                 raise err
-            return value
-        except Exception:
-            # We want to raise err if self[key] raises any kind of exception
-            raise err
-    raise err
+        raise err
+        
+Series.__getattr__ = _getattr_impl
 
 
 # === UNIMPLEMENTED METHODS ===
@@ -1412,9 +1405,7 @@ def groupby(
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-        SeriesGroupBy,
-        validate_groupby_args,
-    )
+        SeriesGroupBy, validate_groupby_args)
 
     validate_groupby_args(by, level, observed)
 

@@ -11,13 +11,14 @@ import itertools
 import json
 import logging
 import re
-from collections import Counter
 import typing
 import uuid
+from collections import Counter, defaultdict
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from functools import reduce
-from typing import Any, Callable, List, Literal, Optional, TypeVar, Union, get_args
+from typing import (Any, Callable, List, Literal, Optional, TypeVar, Union,
+                    get_args)
 
 import modin.pandas as pd
 import numpy as np
@@ -25,7 +26,6 @@ import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
 import pandas.io.parsers
-from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeDataframe
 import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
@@ -34,55 +34,32 @@ from pandas._libs import lib
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import Tick
 from pandas._libs.tslibs.offsets import BusinessDay, CustomBusinessDay, Day
-from pandas._typing import (
-    AggFuncType,
-    AnyArrayLike,
-    Axes,
-    Axis,
-    DateTimeErrorChoices,
-    DtypeBackend,
-    FillnaOptions,
-    Frequency,
-    IgnoreRaise,
-    IndexKeyFunc,
-    IndexLabel,
-    Level,
-    NaPosition,
-    RandomState,
-    Renamer,
-    Scalar,
-    SortKind,
-    Suffixes,
-)
-from pandas.api.types import (
-    is_bool,
-    is_bool_dtype,
-    is_datetime64_any_dtype,
-    is_integer_dtype,
-    is_named_tuple,
-    is_numeric_dtype,
-    is_re_compilable,
-    is_scalar,
-    is_string_dtype,
-    is_timedelta64_dtype,
-)
+from pandas._typing import (AggFuncType, AnyArrayLike, Axes, Axis,
+                            DateTimeErrorChoices, DtypeBackend, FillnaOptions,
+                            Frequency, IgnoreRaise, IndexKeyFunc, IndexLabel,
+                            Level, NaPosition, RandomState, Renamer, Scalar,
+                            SortKind, Suffixes)
+from pandas.api.types import (is_bool, is_bool_dtype, is_datetime64_any_dtype,
+                              is_integer_dtype, is_named_tuple,
+                              is_numeric_dtype, is_re_compilable, is_scalar,
+                              is_string_dtype, is_timedelta64_dtype)
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_dict_like, is_list_like, pandas_dtype
 from pandas.core.indexes.base import ensure_index
+from pandas.core.interchange.dataframe_protocol import \
+    DataFrame as InterchangeDataframe
 from pandas.errors import DataError
 from pandas.io.formats.format import format_percentiles
 from pandas.io.formats.printing import PrettyDict
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name_without_upper_casing,
-)
+from snowflake.snowpark._internal.analyzer.analyzer_utils import \
+    quote_name_without_upper_casing
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import (
-    generate_random_alphanumeric,
-    parse_table_name,
-    random_name_for_temp_object,
-)
-from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
+from snowflake.snowpark._internal.utils import (generate_random_alphanumeric,
+                                                parse_table_name,
+                                                random_name_for_temp_object)
+from snowflake.snowpark.column import CaseExpr
+from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
@@ -162,29 +139,17 @@ from snowflake.snowpark.modin.plugin._internal import (
     get_dummies_utils,
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
-    AGG_NAME_COL_LABEL,
-    AggFuncInfo,
-    AggFuncWithLabel,
-    AggregateColumnOpParameters,
-    _columns_coalescing_idxmax_idxmin_helper,
+    AGG_NAME_COL_LABEL, AggFuncInfo, AggFuncWithLabel,
+    AggregateColumnOpParameters, _columns_coalescing_idxmax_idxmin_helper,
     aggregate_with_ordered_dataframe,
-    check_is_aggregation_supported_in_snowflake,
-    column_quantile,
-    convert_agg_func_arg_to_col_agg_func_map,
-    drop_non_numeric_data_columns,
-    generate_column_agg_info,
-    get_agg_func_to_col_map,
-    get_pandas_aggr_func_name,
-    get_snowflake_agg_func,
-    is_first_last_in_agg_funcs,
-    repr_aggregate_function,
-    using_named_aggregations_for_func,
-)
+    check_is_aggregation_supported_in_snowflake, column_quantile,
+    convert_agg_func_arg_to_col_agg_func_map, drop_non_numeric_data_columns,
+    generate_column_agg_info, get_agg_func_to_col_map,
+    get_pandas_aggr_func_name, get_snowflake_agg_func,
+    is_first_last_in_agg_funcs, repr_aggregate_function,
+    using_named_aggregations_for_func)
 from snowflake.snowpark.modin.plugin._internal.align_utils import (
-    align_axis_0_left,
-    align_axis_0_right,
-    align_axis_1,
-)
+    align_axis_0_left, align_axis_0_right, align_axis_1)
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS,
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
@@ -208,22 +173,14 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
 )
 from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
-    BinaryOp,
-    merge_label_and_identifier_pairs,
-    prepare_binop_pairs_between_dataframe_and_dataframe,
-)
+    BinaryOp, merge_label_and_identifier_pairs,
+    prepare_binop_pairs_between_dataframe_and_dataframe)
 from snowflake.snowpark.modin.plugin._internal.cumulative_utils import (
-    get_cumagg_col_to_expr_map_axis0,
-    get_groupby_cumagg_frame_axis0,
-)
+    get_cumagg_col_to_expr_map_axis0, get_groupby_cumagg_frame_axis0)
 from snowflake.snowpark.modin.plugin._internal.cut_utils import (
-    compute_bin_indices,
-    preprocess_bins_for_cut,
-)
+    compute_bin_indices, preprocess_bins_for_cut)
 from snowflake.snowpark.modin.plugin._internal.frame import (
-    InternalFrame,
-    LabelIdentifierPair,
-)
+    InternalFrame, LabelIdentifierPair)
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     check_is_groupby_supported_by_snowflake,
     resample_and_extract_groupby_column_pandas_labels,
@@ -236,178 +193,101 @@ from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     validate_groupby_resample_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
-    ValidIndex,
-    convert_snowpark_row_to_pandas_index,
-    get_frame_by_col_label,
-    get_frame_by_col_pos,
-    get_frame_by_row_label,
-    get_frame_by_row_pos_frame,
-    get_frame_by_row_pos_slice_frame,
-    get_index_frame_by_row_label_slice,
-    get_row_pos_frame_from_row_key,
-    get_snowflake_filter_for_row_label,
-    get_valid_col_pos_list_from_columns,
-    get_valid_index_values,
-    set_frame_2d_labels,
-    set_frame_2d_positional,
-)
+    ValidIndex, convert_snowpark_row_to_pandas_index, get_frame_by_col_label,
+    get_frame_by_col_pos, get_frame_by_row_label, get_frame_by_row_pos_frame,
+    get_frame_by_row_pos_slice_frame, get_index_frame_by_row_label_slice,
+    get_row_pos_frame_from_row_key, get_snowflake_filter_for_row_label,
+    get_valid_col_pos_list_from_columns, get_valid_index_values,
+    set_frame_2d_labels, set_frame_2d_positional)
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
-    TO_CSV_DEFAULTS,
-    get_columns_to_keep_for_usecols,
-    get_compression_algorithm_for_csv,
-    get_non_pandas_kwargs,
-    is_local_filepath,
-    upload_local_path_to_snowflake_stage,
-)
+    TO_CSV_DEFAULTS, get_columns_to_keep_for_usecols,
+    get_compression_algorithm_for_csv, get_non_pandas_kwargs,
+    is_local_filepath, upload_local_path_to_snowflake_stage)
 from snowflake.snowpark.modin.plugin._internal.isin_utils import (
-    compute_isin_with_dataframe,
-    compute_isin_with_series,
-    convert_values_to_list_of_literals_and_return_type,
-    scalar_isin_expression,
-)
+    compute_isin_with_dataframe, compute_isin_with_series,
+    convert_values_to_list_of_literals_and_return_type, scalar_isin_expression)
 from snowflake.snowpark.modin.plugin._internal.join_utils import (
-    InheritJoinIndex,
-    JoinKeyCoalesceConfig,
-    MatchComparator,
-    convert_index_type_to_variant,
-)
+    InheritJoinIndex, JoinKeyCoalesceConfig, MatchComparator,
+    convert_index_type_to_variant)
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
-    DataFrameReference,
-    OrderedDataFrame,
-    OrderingColumn,
-)
+    DataFrameReference, OrderedDataFrame, OrderingColumn)
 from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
     expand_pivot_result_with_pivot_table_margins,
     expand_pivot_result_with_pivot_table_margins_no_groupby_columns,
     generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings,
-    generate_single_pivot_labels,
-    pivot_helper,
-)
+    generate_single_pivot_labels, pivot_helper)
 from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     IMPLEMENTED_AGG_METHODS,
     RULE_SECOND_TO_DAY,
     fill_missing_resample_bins_for_frame,
     get_expected_resample_bins_frame,
     get_snowflake_quoted_identifier_for_resample_index_col,
-    perform_asof_join_on_frame,
-    perform_resample_binning_on_frame,
+    perform_asof_join_on_frame, perform_resample_binning_on_frame,
     rule_to_snowflake_width_and_slice_unit,
     validate_resample_supported_by_snowflake,
     compute_resample_start_and_end_date,
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
-    SnowparkPandasColumn,
-    SnowparkPandasType,
-    TimedeltaType,
-)
+    SnowparkPandasColumn, SnowparkPandasType, TimedeltaType)
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
-    VALID_TO_DATETIME_DF_KEYS,
-    DateTimeOrigin,
-    col_to_timedelta,
-    generate_timestamp_col,
-    raise_if_to_datetime_not_supported,
-    timedelta_freq_to_nanos,
-    to_snowflake_timestamp_format,
-    tz_convert_column,
-    tz_localize_column,
-)
+    VALID_TO_DATETIME_DF_KEYS, DateTimeOrigin, col_to_timedelta,
+    generate_timestamp_col, raise_if_to_datetime_not_supported,
+    timedelta_freq_to_nanos, to_snowflake_timestamp_format, tz_convert_column,
+    tz_localize_column)
 from snowflake.snowpark.modin.plugin._internal.transpose_utils import (
     clean_up_transpose_result_index_and_labels,
-    prepare_and_unpivot_for_transpose,
-    transpose_empty_df,
-)
+    prepare_and_unpivot_for_transpose, transpose_empty_df)
 from snowflake.snowpark.modin.plugin._internal.type_utils import (
-    DataTypeGetter,
-    TypeMapper,
-    column_astype,
-    infer_object_type,
-    is_astype_type_error,
-    is_compatible_snowpark_types,
-)
+    DataTypeGetter, TypeMapper, column_astype, infer_object_type,
+    is_astype_type_error, is_compatible_snowpark_types)
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
-    StackOperation,
-    unpivot,
-    unpivot_empty_df,
-)
+    StackOperation, unpivot, unpivot_empty_df)
 from snowflake.snowpark.modin.plugin._internal.utils import (
-    INDEX_LABEL,
-    ROW_COUNT_COLUMN_LABEL,
-    ROW_POSITION_COLUMN_LABEL,
-    SAMPLED_ROW_POSITION_COLUMN_LABEL,
-    FillNAMethod,
-    TempObjectType,
-    append_columns,
-    cache_result,
-    check_snowpark_pandas_object_in_arg,
-    check_valid_pandas_labels,
-    count_rows,
-    create_frame_with_data_columns,
+    INDEX_LABEL, ROW_COUNT_COLUMN_LABEL, ROW_POSITION_COLUMN_LABEL,
+    SAMPLED_ROW_POSITION_COLUMN_LABEL, FillNAMethod, TempObjectType,
+    append_columns, cache_result, check_snowpark_pandas_object_in_arg,
+    check_valid_pandas_labels, count_rows, create_frame_with_data_columns,
     create_ordered_dataframe_from_pandas,
     create_initial_ordered_dataframe,
     extract_all_duplicates,
     extract_pandas_label_from_snowflake_quoted_identifier,
-    fill_missing_levels_for_pandas_label,
-    fill_none_in_index_labels,
-    fillna_label_to_value_map,
-    generate_snowflake_quoted_identifiers_helper,
-    get_default_snowpark_pandas_statement_params,
-    get_distinct_rows,
+    fill_missing_levels_for_pandas_label, fill_none_in_index_labels,
+    fillna_label_to_value_map, generate_snowflake_quoted_identifiers_helper,
+    get_default_snowpark_pandas_statement_params, get_distinct_rows,
     get_mapping_from_left_to_right_columns_by_label,
-    infer_snowpark_types_from_pandas,
-    is_all_label_components_none,
-    is_duplicate_free,
-    label_prefix_match,
-    pandas_lit,
+    infer_snowpark_types_from_pandas, is_all_label_components_none,
+    is_duplicate_free, label_prefix_match, pandas_lit,
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
-    parse_snowflake_object_construct_identifier_to_map,
-    unquote_name_if_quoted,
-)
-from snowflake.snowpark.modin.plugin._internal.where_utils import (
-    validate_expected_boolean_data_columns,
-)
+    parse_snowflake_object_construct_identifier_to_map, unquote_name_if_quoted)
+from snowflake.snowpark.modin.plugin._internal.where_utils import \
+    validate_expected_boolean_data_columns
 from snowflake.snowpark.modin.plugin._internal.window_utils import (
     WindowFunction,
     check_and_raise_error_expanding_window_supported_by_snowflake,
     check_and_raise_error_rolling_window_supported_by_snowflake,
-    create_snowpark_interval_from_window,
-    get_rolling_corr_column,
-)
+    create_snowpark_interval_from_window, get_rolling_corr_column)
 from snowflake.snowpark.modin.plugin._typing import (
-    DropKeep,
-    JoinTypeLit,
-    ListLike,
-    PandasLabelToSnowflakeIdentifierPair,
-    SnowflakeSupportedFileTypeLit,
-)
+    DropKeep, JoinTypeLit, ListLike, PandasLabelToSnowflakeIdentifierPair,
+    SnowflakeSupportedFileTypeLit)
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import \
+    NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION
+from snowflake.snowpark.modin.plugin.utils.warning_message import \
+    WarningMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
     NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import (
-    ArrayType,
-    BinaryType,
-    BooleanType,
-    DataType,
-    DateType,
-    DecimalType,
-    DoubleType,
-    FloatType,
-    IntegerType,
-    MapType,
-    PandasDataFrameType,
-    PandasSeriesType,
-    StringType,
-    TimestampTimeZone,
-    TimestampType,
-    TimeType,
-    VariantType,
-    _IntegralType,
-    _NumericType,
-)
+from snowflake.snowpark.types import (ArrayType, BinaryType, BooleanType,
+                                      DataType, DateType, DecimalType,
+                                      DoubleType, FloatType, IntegerType,
+                                      MapType, PandasDataFrameType,
+                                      PandasSeriesType, StringType,
+                                      TimestampTimeZone, TimestampType,
+                                      TimeType, VariantType, _IntegralType,
+                                      _NumericType)
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.window import Window
 
@@ -524,9 +404,12 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
             setattr(cls, attr_name, propagate_attrs_decorator(attr_value))
     return cls
 
+from modin.core.storage_formats.pandas.query_compiler import \
+    QueryCompilerCaster
+
 
 @_propagate_attrs_on_methods
-class SnowflakeQueryCompiler(BaseQueryCompiler):
+class SnowflakeQueryCompiler(BaseQueryCompiler, QueryCompilerCaster):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
@@ -1664,9 +1547,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             a new `SnowflakeQueryCompiler` with updated column labels
         """
         # new_pandas_names should be able to convert into an index which is consistent to pandas df.columns behavior
-        from snowflake.snowpark.modin.plugin.extensions.utils import (
-            try_convert_index_to_native,
-        )
+        from snowflake.snowpark.modin.plugin.extensions.utils import \
+            try_convert_index_to_native
 
         new_pandas_labels = ensure_index(try_convert_index_to_native(new_pandas_labels))
         if len(new_pandas_labels) != len(self._modin_frame.data_column_pandas_labels):
@@ -1981,7 +1863,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             return self._modin_frame.index_columns_pandas_index()
         else:
-            from snowflake.snowpark.modin.plugin.extensions.index import Index as SnowparkIndex
+            from snowflake.snowpark.modin.plugin.extensions.index import \
+                Index as SnowparkIndex
             return SnowparkIndex(query_compiler=self)
 
     def set_index(
@@ -2769,7 +2652,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             QueryCompiler with aligned axis.
         """
         self._raise_not_implemented_error_for_timedelta()
-        from snowflake.snowpark.modin.plugin.extensions.index import Index as SnowparkIndex
+        from snowflake.snowpark.modin.plugin.extensions.index import \
+            Index as SnowparkIndex
         if isinstance(labels, SnowflakeQueryCompiler):
             new_index_qc = labels
         else:
@@ -8940,9 +8824,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.data_column_snowflake_quoted_identifiers
             )
 
-            from snowflake.snowpark.modin.plugin.extensions.utils import (
-                try_convert_index_to_native,
-            )
+            from snowflake.snowpark.modin.plugin.extensions.utils import \
+                try_convert_index_to_native
 
             # current columns
             column_index = try_convert_index_to_native(

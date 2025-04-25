@@ -7,6 +7,7 @@ File containing DataFrame APIs defined in Snowpark pandas but not the Modin API 
 as `DataFrame.to_snowflake`.
 """
 
+import functools
 from collections.abc import Iterable
 from typing import Any, List, Literal, Optional, Union
 
@@ -25,11 +26,7 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.row import Row
 import functools
 
-register_dataframe_accessor_helper = functools.partial(
-    register_dataframe_accessor,
-    engine="Snowflake",
-    storage_format="Snowflake"
-)
+register_dataframe_accessor_helper =  lambda name: register_dataframe_accessor(name=name, backend="Snowflake")
 
 # Snowflake specific dataframe methods
 # We use extensions, as we want to make clear that a Snowpark pandas DataFrame is NOT a

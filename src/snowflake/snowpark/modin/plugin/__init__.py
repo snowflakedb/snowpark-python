@@ -109,7 +109,7 @@ for (doc_module, target_module) in function_inherit_modules:
 # Configure Modin engine so it detects our Snowflake I/O classes.
 # This is necessary to define the `from_pandas` method for each Modin backend, which is called in I/O methods.
 
-from modin.config import Engine, register_backend, Execution  # isort: skip  # noqa: E402
+from modin.config import Engine, Backend, Execution  # isort: skip  # noqa: E402
 
 # Secretly insert our factory class into Modin so the dispatcher can find it
 from modin.core.execution.dispatching.factories import (  # isort: skip  # noqa: E402
@@ -124,8 +124,9 @@ modin_factories.SnowflakeOnSnowflakeFactory = PandasOnSnowflakeFactory
 
 Engine.add_option("Snowflake")
 from modin import set_execution
-set_execution("Snowflake", "Snowflake")
-register_backend("Snowflake", Execution(engine="Snowflake", storage_format="Snowflake"))
+
+Backend.register_backend("Snowflake", Execution(engine="Snowflake", storage_format="Snowflake"))
+Backend.put('snowflake')
 
 
 # === SET UP TELEMETRY ===
@@ -208,7 +209,7 @@ for attr_name in dir(modin.pandas):
         and not attr_name.startswith("_")
         and attr_value is not getattr(pandas, attr_name, None)
     ):
-        register_pd_accessor(attr_name, "Snowflake", "Snowflake")(
+        register_pd_accessor(attr_name)(
             snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
         )
 
@@ -227,4 +228,4 @@ if "modin.pandas" in sys.modules:
 
 # === OTHER SETUP ===
 # Upstream modin does not re-export the offsets module, so we need to do so here
-register_pd_accessor("offsets", "Snowflake", "Snowflake")(pandas.offsets)
+register_pd_accessor("offsets")(pandas.offsets)
