@@ -8,9 +8,12 @@ import inspect
 import re
 from contextlib import nullcontext
 from enum import Enum, unique
-from typing import Any, Callable, Optional, TypeVar, Union, cast
+from typing import Any, Callable, Optional, TypeVar, Union, cast, List
 
 from typing_extensions import ParamSpec
+
+from modin.config import MetricsMode
+from modin.logging.metrics import add_metric_handler
 
 import snowflake.snowpark.session
 from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
@@ -341,12 +344,6 @@ def _telemetry_helper(
         # This prevents telemetry from interfering with regular API calls.
         with getattr(session, "query_history", nullcontext)() as query_history:
             result = func(*args, **kwargs)
-            if (
-                len(args) == 0
-                or not hasattr(args[0], "_query_compiler")
-                or not hasattr(args[0]._query_compiler, "snowpark_pandas_api_calls")
-            ):
-                return result
     except Exception as e:
         # Send Telemetry and Raise Error
         _send_snowpark_pandas_telemetry_helper(
@@ -604,3 +601,25 @@ class TelemetryMeta(type):
         for attr_name, attr_value in attrs.items():
             attrs[attr_name] = try_add_telemetry_to_attribute(attr_name, attr_value)
         return type.__new__(cls, name, bases, attrs)
+
+
+# List naively tracking API calls
+modin_api_call_history: List[str] = []
+
+
+def snowpark_pandas_api_watcher(api_name: str, _time: Union[int, float]) -> None:
+    """
+    Telemetry hook that records all Modin API calls, regardless of whether they were performed with
+    the Snowpark pandas backend.
+
+    Ideally, we would be able to distinguish backends for individual API calls, but such a change
+    would need to be made upstream. For now we naively record all API calls.
+    """
+    tokens = api_name.split(".")
+    if len(tokens) >= 2 and tokens[0] == "pandas-api":
+        modin_api_call_history.append(tokens[1])
+
+
+def connect_modin_telemetry() -> None:
+    MetricsMode.enable()
+    add_metric_handler(snowpark_pandas_api_watcher)
