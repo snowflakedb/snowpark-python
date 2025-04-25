@@ -1702,6 +1702,10 @@ def test_file_type(session, resources_path):
     assert df.schema == StructType([StructField("file", FileType(), True)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
 def test_nest_struct_field_names(structured_type_session, structured_type_support):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
