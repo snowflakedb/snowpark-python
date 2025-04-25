@@ -758,7 +758,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return 1.0
         else:
             num_rows = query_compiler.get_axis_len(0)
-    
+
         # one million rows is considered the point at which
         # Snowflake has an advantage
         limit = 1000000 

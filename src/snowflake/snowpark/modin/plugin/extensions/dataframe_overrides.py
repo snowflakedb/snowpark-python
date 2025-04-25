@@ -27,6 +27,7 @@ from typing import (
     Sequence,
 )
 
+from modin.config import context as config_context, AutoSwitchBackend
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -513,8 +514,7 @@ def __init__(
         )
         self._query_compiler = query_compiler
         return
-    else:
-        from modin.config import context as config_context
+    elif AutoSwitchBackend.get():
         with config_context(Backend="pandas"):
             self._extensions[None]["__init__"](self, data, index, columns, dtype, copy)
         return
@@ -820,7 +820,7 @@ def apply(
     Apply a function along an axis of the ``DataFrame``.
     """
     self = self.__switcheroo__(inplace=True)
-    if self.get_backend() != 'Snowflake':
+    if self.get_backend() != "Snowflake":
         return self.apply(func, axis, raw, result_type, args, *kwargs)
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     axis = self._get_axis_number(axis)
@@ -1785,12 +1785,39 @@ def plot(
     existing pandas PlotAccessor
     """
     self = self.__switcheroo__(inplace=True)
-    if self.get_backend() != 'Snowflake':
-        return self.plot(x, y, kind, ax, subplots, sharex, sharey, 
-                         layout, figsize, use_index, title, grid, legend,
-                         style, logx, logy, loglog, xticks, yticks, xlim,
-                         ylim, rot, fontsize, colormap, table, yerr, xerr,
-                         secondary_y, sort_columns, **kwargs)
+    if self.get_backend() != "Snowflake":
+        return self.plot(
+            x,
+            y,
+            kind,
+            ax,
+            subplots,
+            sharex,
+            sharey,
+            layout,
+            figsize,
+            use_index,
+            title,
+            grid,
+            legend,
+            style,
+            logx,
+            logy,
+            loglog,
+            xticks,
+            yticks,
+            xlim,
+            ylim,
+            rot,
+            fontsize,
+            colormap,
+            table,
+            yerr,
+            xerr,
+            secondary_y,
+            sort_columns,
+            **kwargs,
+        )
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     WarningMessage.single_warning(
         "DataFrame.plot materializes data to the local machine for plotting."
@@ -2213,8 +2240,9 @@ def iterrows(self) -> Iterator[tuple[Hashable, Series]]:
     Iterate over ``DataFrame`` rows as (index, ``Series``) pairs.
     """
     self = self.__switcheroo__(inplace=True)
-    if self.get_backend() != 'Snowflake':
+    if self.get_backend() != "Snowflake":
         return self.iterrows()
+
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     def iterrow_builder(s):
         """Return tuple of the given `s` parameter name and the parameter themselves."""
@@ -2239,8 +2267,9 @@ def itertuples(
     """
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     self = self.__switcheroo__(inplace=True)
-    if self.get_backend() != 'Snowflake':
+    if self.get_backend() != "Snowflake":
         return self.itertuples(index, name)
+
     def itertuples_builder(s):
         """Return the next namedtuple."""
         # s is the Series of values in the current row.
@@ -2280,6 +2309,9 @@ def __repr__(self):
     -------
     str
     """
+    self = self.__switcheroo__(inplace=True)
+    if self.get_backend() != "Snowflake":
+        return self.__repr__()
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     num_rows = native_pd.get_option("display.max_rows") or len(self)
     # see _repr_html_ for comment, allow here also all column behavior
