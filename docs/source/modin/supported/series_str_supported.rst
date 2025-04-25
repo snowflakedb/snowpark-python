@@ -117,9 +117,9 @@ the method in the left column.
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``rstrip``                  | P                               | ``N`` if `to_strip` is non-string.                 |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``slice``                   | P                               | For the column data type, only string and list     |
-|                             |                                 | values are supported. All column values must be of |
-|                             |                                 | the same type.                                     |
+| ``slice``                   | P                               | For the column data type, only string, list, and   |
+|                             |                                 | dict values are supported. All column values must  |
+|                             |                                 | be of the same type.                               |
 |                             |                                 | ``N`` if column has list values and `step != 1`.   |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``slice_replace``           | N                               |                                                    |

@@ -7,6 +7,7 @@
 #### New Features
 
 - Added support for dict values in `Series.str.get`.
+- Added support for dict values in `Series.str.slice`.
 
 ## 1.31.0 (2025-04-24)
 
