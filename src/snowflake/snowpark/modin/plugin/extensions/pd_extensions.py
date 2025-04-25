@@ -87,6 +87,7 @@ def read_snowflake(
     index_col: Union[str, list[str], None] = None,
     columns: Optional[list[str]] = None,
     enforce_ordering: bool = False,
+    keep_in_snowflake: bool = False,
 ) -> DataFrame:
     """
     Read a Snowflake table or SQL Query to a Snowpark pandas DataFrame.
