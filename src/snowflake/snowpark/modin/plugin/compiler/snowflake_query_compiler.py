@@ -551,6 +551,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self._attrs: dict[Any, Any] = {}
         self._method_call_counts: Counter[str] = Counter[str]()
 
+    engine = property(lambda self: "Snowflake")
+    storage_format = property(lambda self: "Snowflake")
+
+
+
     def _raise_not_implemented_error_for_timedelta(
         self, frame: InternalFrame = None
     ) -> None:
@@ -840,7 +845,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def from_arrow(cls, at: Any, *args: Any, **kwargs: Any) -> "SnowflakeQueryCompiler":
         return cls(at.to_pandas())
 
-    def to_dataframe(
+    def to_interchange_dataframe(
         self, nan_as_null: bool = False, allow_copy: bool = True
     ) -> InterchangeDataframe:
         return self.to_pandas().__dataframe__(
@@ -848,7 +853,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @classmethod
-    def from_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
+    def from_interchange_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
         pass
 
     @classmethod
@@ -1961,7 +1966,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._shift_index(periods, freq)  # type: ignore  # pragma: no cover
 
     @property
-    def index(self) -> Union["pd.Index", native_pd.MultiIndex]:
+    def index(self) -> Union["snowflake.snowpark.modin.plugin.extensions.index.Index", native_pd.MultiIndex]:
         """
         Get index. If MultiIndex, the method eagerly pulls the values from Snowflake because index requires the values
         to be filled and returns a pandas MultiIndex. If not MultiIndex, create a modin index and pass itself
@@ -1976,7 +1981,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             return self._modin_frame.index_columns_pandas_index()
         else:
-            return pd.Index(query_compiler=self)
+            from snowflake.snowpark.modin.plugin.extensions.index import Index as SnowparkIndex
+            return SnowparkIndex(query_compiler=self)
 
     def set_index(
         self,
@@ -2530,7 +2536,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def reindex(
         self,
         axis: int,
-        labels: Union[pandas.Index, "pd.Index", list[Any], "SnowflakeQueryCompiler"],
+        labels: Union[pandas.Index, "snowflake.snowpark.modin.plugin.extensions.index.Index", list[Any], "SnowflakeQueryCompiler"],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2738,7 +2744,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _reindex_axis_0(
         self,
-        labels: Union[pandas.Index, "pd.Index", list[Any], "SnowflakeQueryCompiler"],
+        labels: Union[pandas.Index, "snowflake.snowpark.modin.plugin.extensions.index.Index", list[Any], "SnowflakeQueryCompiler"],
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
@@ -2763,13 +2769,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             QueryCompiler with aligned axis.
         """
         self._raise_not_implemented_error_for_timedelta()
-
+        from snowflake.snowpark.modin.plugin.extensions.index import Index as SnowparkIndex
         if isinstance(labels, SnowflakeQueryCompiler):
             new_index_qc = labels
         else:
             if isinstance(labels, native_pd.Index):
-                labels = pd.Index(labels)
-            if isinstance(labels, pd.Index):
+                labels = SnowparkIndex(labels)
+            if isinstance(labels, SnowparkIndex):
                 new_index_qc = labels.to_series()._query_compiler
             else:
                 new_index_qc = pd.Series(labels)._query_compiler
@@ -5281,7 +5287,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by: Any,
         axis: int,
         groupby_kwargs: dict[str, Any],
-    ) -> PrettyDict[Hashable, "pd.Index"]:
+    ) -> PrettyDict[Hashable, ""]:
         """
         Get a PrettyDict mapping group keys to row labels.
 

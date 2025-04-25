@@ -109,7 +109,7 @@ for (doc_module, target_module) in function_inherit_modules:
 # Configure Modin engine so it detects our Snowflake I/O classes.
 # This is necessary to define the `from_pandas` method for each Modin backend, which is called in I/O methods.
 
-from modin.config import Engine  # isort: skip  # noqa: E402
+from modin.config import Engine, register_backend, Execution  # isort: skip  # noqa: E402
 
 # Secretly insert our factory class into Modin so the dispatcher can find it
 from modin.core.execution.dispatching.factories import (  # isort: skip  # noqa: E402
@@ -120,10 +120,12 @@ from snowflake.snowpark.modin.plugin.io.factories import (  # isort: skip  # noq
     PandasOnSnowflakeFactory,
 )
 
-modin_factories.PandasOnSnowflakeFactory = PandasOnSnowflakeFactory
+modin_factories.SnowflakeOnSnowflakeFactory = PandasOnSnowflakeFactory
 
 Engine.add_option("Snowflake")
-Engine.put("Snowflake")
+from modin import set_execution
+set_execution("Snowflake", "Snowflake")
+register_backend("Snowflake", Execution(engine="Snowflake", storage_format="Snowflake"))
 
 
 # === SET UP TELEMETRY ===
@@ -157,40 +159,43 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
     try_add_telemetry_to_attribute,
 )
 
-# Add telemetry on the ModinAPI accessor object.
-# modin 0.30.1 introduces the pd.DataFrame.modin accessor object for non-pandas methods,
-# such as pd.DataFrame.modin.to_pandas and pd.DataFrame.modin.to_ray. We will automatically
-# raise NotImplementedError for all methods on this accessor object except to_pandas, but
-# we still want to record telemetry.
-for attr_name in dir(ModinAPI):
-    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
-        setattr(
-            ModinAPI,
-            attr_name,
-            try_add_telemetry_to_attribute(attr_name, getattr(ModinAPI, attr_name)),
-        )
+# adding telemetry does not work with the new extension system.
 
-for attr_name in dir(Series):
-    # Since Series is defined in upstream Modin, all of its members were either defined upstream
-    # or overridden by extension.
-    # Skip the `modin` accessor object, since we apply telemetry to all its fields.
-    if attr_name != "modin" and (
-        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-    ):
-        register_series_accessor(attr_name)(
-            try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
-        )
+# # Add telemetry on the ModinAPI accessor object.
+# # modin 0.30.1 introduces the pd.DataFrame.modin accessor object for non-pandas methods,
+# # such as pd.DataFrame.modin.to_pandas and pd.DataFrame.modin.to_ray. We will automatically
+# # raise NotImplementedError for all methods on this accessor object except to_pandas, but
+# # we still want to record telemetry.
+# for attr_name in dir(ModinAPI):
+#     if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+#         setattr(
+#             ModinAPI,
+#             attr_name,
+#             try_add_telemetry_to_attribute(attr_name, getattr(ModinAPI, attr_name)),
+#         )
 
-for attr_name in dir(DataFrame):
-    # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
-    # or overridden by extension.
-    # Skip the `modin` accessor object, since we apply telemetry to all its fields.
-    if attr_name != "modin" and (
-        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-    ):
-        register_dataframe_accessor(attr_name)(
-            try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
-        )
+# for attr_name in dir(Series):
+#     # Since Series is defined in upstream Modin, all of its members were either defined upstream
+#     # or overridden by extension.
+#     # Skip the `modin` accessor object, since we apply telemetry to all its fields.
+#     if attr_name != "modin" and (
+#         not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
+#     ):
+#         register_series_accessor(attr_name)(
+#             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
+#         )
+
+# for attr_name in dir(DataFrame):
+#     # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
+#     # or overridden by extension.
+#     # Skip the `modin` accessor object, since we apply telemetry to all its fields.
+#     if attr_name != "modin" and (
+#         not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
+#     ):
+#         register_dataframe_accessor(attr_name,             storage_format="Snowflake",
+#             engine="Snowflake",)(
+#             try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name)),
+#         )
 
 # Apply telemetry to all top-level functions in the pd namespace.
 

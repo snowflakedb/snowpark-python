@@ -12,6 +12,7 @@ import numpy as np
 import pandas as native_pd
 from pandas._typing import FilePath
 
+
 from snowflake.snowpark.session import Session
 
 PANDAS_KWARGS = {"names", "index_col", "usecols", "dtype"}
