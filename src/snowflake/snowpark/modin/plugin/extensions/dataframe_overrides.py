@@ -822,7 +822,7 @@ def apply(
     """
     Apply a function along an axis of the ``DataFrame``.
     """
-    self = self.__switcheroo__(inplace=True)
+    self = self.__switcheroo__(inplace=True, operation="apply")
     if self.get_backend() != "Snowflake":
         return self.apply(func, axis, raw, result_type, args, *kwargs)
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
@@ -1789,7 +1789,7 @@ def plot(
     Make plots of ``DataFrame``. Materializes data into memory and uses the
     existing pandas PlotAccessor
     """
-    self = self.__switcheroo__(inplace=True)
+    self = self.__switcheroo__(inplace=True, operation="plot")
     if self.get_backend() != "Snowflake":
         return self.plot(
             x,
@@ -2207,7 +2207,7 @@ def value_counts(
             dropna=dropna,
         ),
         name="proportion" if normalize else "count",
-    ).__switcheroo__(inplace=False)
+    ).__switcheroo__(inplace=False, operation="value_counts")
 
 
 @register_dataframe_accessor_with_telemetry("where")
@@ -2244,7 +2244,7 @@ def iterrows(self) -> Iterator[tuple[Hashable, Series]]:
     """
     Iterate over ``DataFrame`` rows as (index, ``Series``) pairs.
     """
-    self = self.__switcheroo__(inplace=True)
+    self = self.__switcheroo__(inplace=True, operation="iterrows")
     if self.get_backend() != "Snowflake":
         return self.iterrows()
 
@@ -2271,7 +2271,7 @@ def itertuples(
     Iterate over ``DataFrame`` rows as ``namedtuple``-s.
     """
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    self = self.__switcheroo__(inplace=True)
+    self = self.__switcheroo__(inplace=True, operation="itertuples")
     if self.get_backend() != "Snowflake":
         return self.itertuples(index, name)
 
