@@ -12,6 +12,7 @@ from __future__ import annotations
 import functools
 from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
+from modin.config import context as config_context, AutoSwitchBackend
 import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
@@ -24,7 +25,6 @@ from modin.pandas.base import (
     _EXTENSION_NO_LOOKUP,
     sentinel,
 )
-from modin.pandas import Series
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, is_integer, no_default
@@ -279,8 +279,9 @@ def items(self):
     Iterate over ``Series`` rows as (index, value) tuples.
     """
     self = self.__switcheroo__(inplace=True)
-    if self.get_backend() != 'Snowflake':
+    if self.get_backend() != "Snowflake":
         return self.items()
+
     def items_builder(s):
         """Return tuple of the given ``Series`` in the form (index, value)."""
         return s.name, s.squeeze()
@@ -464,10 +465,11 @@ def __init__(
         if name is not None:
             self.name = name
         return
-    else:
-        from modin.config import context as config_context
+    elif AutoSwitchBackend.get():
         with config_context(Backend="pandas"):
-            self._extensions[None]["__init__"](self, data, index, dtype, name, copy, fastpath)
+            self._extensions[None]["__init__"](
+                self, data, index, dtype, name, copy, fastpath
+            )
         return
 
     # A DataFrame cannot be used as an index and Snowpark pandas does not support the Categorical type yet.
@@ -591,6 +593,7 @@ def __init__(
     if name is not None:
         self.name = name
 
+
 # Modin uses _update_inplace to implement set_backend(inplace=True), so we
 # can't extend _update_inplace. To fix a bug in _update_inplace, we overwrite
 # _update_inplace entirely instead of using the extension system.
@@ -610,6 +613,7 @@ def _update_inplace(self, new_query_compiler) -> None:
             self._parent[self.name] = self
         else:
             self._parent.loc[self.index] = self
+
 
 Series._update_inplace = _update_inplace
 
@@ -1081,7 +1085,7 @@ def apply(
     Apply a function along an axis of the `BasePandasDataset`.
     """
     self = self.__switcheroo__(inplace=True)
-    if self.get_backend() != 'Snowflake':
+    if self.get_backend() != "Snowflake":
         return self.apply(func, convert_dtype, args, **kwargs)
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     self._validate_function(func)
@@ -1807,7 +1811,6 @@ def value_counts(
         ).set_index_names([self.name]),
         name="proportion" if normalize else "count",
     ).__switcheroo__()
-
 
 
 # The `suffix` parameter is documented but according to pandas maintainers, "not public."
