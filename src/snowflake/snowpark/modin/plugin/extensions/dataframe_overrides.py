@@ -15,113 +15,68 @@ import functools
 import itertools
 import sys
 import warnings
-from typing import (
-    IO,
-    Any,
-    Callable,
-    Hashable,
-    Iterable,
-    Iterator,
-    Literal,
-    Mapping,
-    Sequence,
-)
+from typing import (IO, Any, Callable, Hashable, Iterable, Iterator, Literal,
+                    Mapping, Sequence)
 
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
-from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeDataframe
 from modin.pandas.api.extensions import register_dataframe_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, no_default
-from pandas._typing import (
-    AggFuncType,
-    AnyArrayLike,
-    Axes,
-    Axis,
-    CompressionOptions,
-    FilePath,
-    FillnaOptions,
-    IgnoreRaise,
-    IndexLabel,
-    Level,
-    PythonFuncType,
-    Renamer,
-    Scalar,
-    StorageOptions,
-    Suffixes,
-    WriteBuffer,
-)
+from pandas._typing import (AggFuncType, AnyArrayLike, Axes, Axis,
+                            CompressionOptions, FilePath, FillnaOptions,
+                            IgnoreRaise, IndexLabel, Level, PythonFuncType,
+                            Renamer, Scalar, StorageOptions, Suffixes,
+                            WriteBuffer)
 from pandas.core.common import apply_if_callable, is_bool_indexer
-from pandas.core.dtypes.common import (
-    infer_dtype_from_object,
-    is_bool_dtype,
-    is_dict_like,
-    is_list_like,
-    is_numeric_dtype,
-)
+from pandas.core.dtypes.common import (infer_dtype_from_object, is_bool_dtype,
+                                       is_dict_like, is_list_like,
+                                       is_numeric_dtype)
 from pandas.core.dtypes.inference import is_hashable, is_integer
 from pandas.core.indexes.base import ensure_index as ensure_native_index
 from pandas.core.indexes.frozen import FrozenList
+from pandas.core.interchange.dataframe_protocol import \
+    DataFrame as InterchangeDataframe
 from pandas.io.formats.printing import pprint_thing
 from pandas.util._validators import validate_bool_kwarg
 
-from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
-    is_snowflake_agg_func,
-)
+from snowflake.snowpark.modin.plugin._internal.aggregation_utils import \
+    is_snowflake_agg_func
 from snowflake.snowpark.modin.plugin._internal.utils import (
-    add_extra_columns_and_select_required_columns,
-    assert_fields_are_none,
-    convert_index_to_list_of_qcs,
-    convert_index_to_qc,
-    error_checking_for_init,
-    is_repr_truncated,
-)
+    add_extra_columns_and_select_required_columns, assert_fields_are_none,
+    convert_index_to_list_of_qcs, convert_index_to_qc, error_checking_for_init,
+    is_repr_truncated)
 from snowflake.snowpark.modin.plugin._typing import ListLike
-from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-    SnowflakeQueryCompiler,
-)
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import \
+    SnowflakeQueryCompiler
 from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-    DataFrameGroupBy,
-    validate_groupby_args,
-)
+    DataFrameGroupBy, validate_groupby_args)
 from snowflake.snowpark.modin.plugin.extensions.index import Index
-from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
-    SnowparkPandasRowPartitionIterator,
-)
+from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import \
+    SnowparkPandasRowPartitionIterator
 from snowflake.snowpark.modin.plugin.extensions.utils import (
-    create_empty_native_pandas_frame,
-    raise_if_native_pandas_objects,
+    create_empty_native_pandas_frame, raise_if_native_pandas_objects,
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
-    try_convert_index_to_native,
-)
+    try_convert_index_to_native)
 from snowflake.snowpark.modin.plugin.utils.error_message import (
-    ErrorMessage,
-    dataframe_not_implemented,
-)
+    ErrorMessage, dataframe_not_implemented)
 from snowflake.snowpark.modin.plugin.utils.frontend_constants import (
     DF_ITERROWS_ITERTUPLES_WARNING_MESSAGE,
     DF_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE,
-    DF_SETITEM_SLICE_AS_SCALAR_VALUE,
-)
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin.utils import (
-    _inherit_docstrings,
-    hashable,
-    validate_int_kwarg,
-)
+    DF_SETITEM_SLICE_AS_SCALAR_VALUE)
+from snowflake.snowpark.modin.plugin.utils.warning_message import \
+    WarningMessage
+from snowflake.snowpark.modin.utils import (_inherit_docstrings, hashable,
+                                            validate_int_kwarg)
 from snowflake.snowpark.udf import UserDefinedFunction
-import functools
 
-register_dataframe_accessor_helper = functools.partial(
-    register_dataframe_accessor,
-    engine="Snowflake",
-    storage_format="Snowflake",
-)
+register_dataframe_accessor_helper =  lambda name: register_dataframe_accessor(name=name, backend="Snowflake")
+
 
 def register_dataframe_not_implemented():
     def decorator(base_method: Any):
@@ -716,7 +671,8 @@ def _df_init_dict_data_with_snowpark_pandas_values(
     # Concat can only be performed with BasePandasDataset objects.
     # If a value is an Index, convert it to a Series where the index is the index to be set since these values
     # are always present in the final DataFrame.
-    from snowflake.snowpark.modin.plugin.extensions.general_overrides import concat
+    from snowflake.snowpark.modin.plugin.extensions.general_overrides import \
+        concat
 
     values = [
         Series(v, index=index) if isinstance(v, Index) else v for v in data.values()
@@ -744,7 +700,8 @@ def _df_init_list_data_with_snowpark_pandas_values(
     # Special case: data is a list/dict where all the values are Snowpark pandas objects.
     # Concat can only be performed with BasePandasDataset objects.
     # If a value is an Index, convert it to a Series.
-    from snowflake.snowpark.modin.plugin.extensions.general_overrides import concat
+    from snowflake.snowpark.modin.plugin.extensions.general_overrides import \
+        concat
 
     values = [Series(v) if isinstance(v, Index) else v for v in data]
     new_qc = concat(values, axis=1).T._query_compiler
@@ -848,7 +805,7 @@ def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs)
 # We need to override _get_columns to satisfy
 # tests/unit/modin/test_type_annotations.py::test_properties_snow_1374293[_get_columns-type_hints1]
 # since Modin doesn't provide this type hint.
-@register_dataframe_accessor_helper("_get_columns")
+# @register_dataframe_accessor_helper("_get_columns")
 def _get_columns(self) -> native_pd.Index:
     """
     Get the columns for this Snowpark pandas ``DataFrame``.
@@ -863,7 +820,7 @@ def _get_columns(self) -> native_pd.Index:
 
 
 # Snowpark pandas wraps this in an update_in_place
-@register_dataframe_accessor_helper("_set_columns")
+# @register_dataframe_accessor_helper("_set_columns")
 def _set_columns(self, new_columns: Axes) -> None:
     """
     Set the columns for this Snowpark pandas  ``DataFrame``.
@@ -879,7 +836,7 @@ def _set_columns(self, new_columns: Axes) -> None:
     )
 
 
-# register_dataframe_accessor_helper("columns")(property(_get_columns, _set_columns))
+register_dataframe_accessor_helper("columns")(property(_get_columns, _set_columns))
 
 
 # Snowpark pandas does preprocessing for numeric_only (should be pushed to QC).
@@ -2457,9 +2414,8 @@ def __setitem__(self, key: Any, value: Any):
     columns = (
         columns._query_compiler if isinstance(columns, BasePandasDataset) else columns
     )
-    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
-        is_2d_array,
-    )
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import \
+        is_2d_array
 
     matching_item_rows_by_label = not is_2d_array(value)
     if is_2d_array(value):

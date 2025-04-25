@@ -9,7 +9,7 @@ File containing BasePandasDataset APIs defined in Snowpark pandas but not the Mo
 from modin.pandas.api.extensions import register_base_accessor
 
 
-@register_base_accessor("__array_function__", engine="Snowflake", storage_format="Snowflake")
+@register_base_accessor(name="__array_function__", backend="Snowflake")
 def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: dict):
     """
     Apply the `func` to the `BasePandasDataset`.
@@ -30,9 +30,8 @@ def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: 
     BasePandasDataset
         The result of the ufunc applied to the `BasePandasDataset`.
     """
-    from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
-        numpy_to_pandas_func_map,
-    )
+    from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import \
+        numpy_to_pandas_func_map
 
     if func.__name__ in numpy_to_pandas_func_map:
         return numpy_to_pandas_func_map[func.__name__](*args, **kwargs)
