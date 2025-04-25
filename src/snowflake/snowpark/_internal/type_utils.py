@@ -317,7 +317,7 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, StructType):
         if datatype.structured:
             fields = ", ".join(
-                f"{field.column_identifier.quoted_name} {convert_sp_to_sf_type(field.datatype)}"
+                f"{field.case_sensitive_name} {convert_sp_to_sf_type(field.datatype)}"
                 for field in datatype.fields
             )
             return f"OBJECT({fields})"
