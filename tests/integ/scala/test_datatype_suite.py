@@ -1436,16 +1436,17 @@ def test_structured_type_schema_expression(
         assert table.union(table).schema == expected_schema
         # Functions used in schema generation don't respect nested nullability so compare query string instead
         non_null_union = non_null_table.union(non_null_table)
-        assert non_null_union._plan.schema_query == (
-            f"( SELECT object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: "
-            f'MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
-            f" object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', 0 :: "
-            f'DOUBLE) :: OBJECT(FIELD1 STRING({max_string}), FIELD2 DOUBLE) AS "OBJ") UNION ( SELECT '
-            f"object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: "
-            f'MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
-            f"object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', 0 :: "
-            f'DOUBLE) :: OBJECT(FIELD1 STRING({max_string}), FIELD2 DOUBLE) AS "OBJ")'
+        expected_schema = (
+            f"""( SELECT object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: """
+            f"""MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", """
+            f"""object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', 0 :: DOUBLE) :: """
+            f"""OBJECT("FIELD1" STRING({max_string}), "FIELD2" DOUBLE) AS "OBJ") UNION ( """
+            f"""SELECT object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: """
+            f"""MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) """
+            f"""AS "ARR", object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', """
+            f"""0 :: DOUBLE) :: OBJECT("FIELD1" STRING({max_string}), "FIELD2" DOUBLE) AS "OBJ")"""
         )
+        assert non_null_union._plan.schema_query == expected_schema
 
         assert nested_table.union(nested_table).schema == expected_nested_schema
     finally:
