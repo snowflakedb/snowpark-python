@@ -400,6 +400,8 @@ def read_snowflake(
             enforce_ordering=enforce_ordering,
         )
     )
+    if keep_in_snowflake:
+        return snow_df
     from modin.core.storage_formats.pandas.native_query_compiler import NativeQueryCompiler
     cost_to = snow_df._get_query_compiler().qc_engine_switch_cost(NativeQueryCompiler)
     # figure out if this needs to be a standard API
