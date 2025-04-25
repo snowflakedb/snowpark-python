@@ -26,7 +26,10 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.row import Row
 import functools
 
-register_dataframe_accessor_helper =  lambda name: register_dataframe_accessor(name=name, backend="Snowflake")
+register_dataframe_accessor_helper = functools.partial(
+    register_dataframe_accessor, backend="Snowflake"
+)
+
 
 # Snowflake specific dataframe methods
 # We use extensions, as we want to make clear that a Snowpark pandas DataFrame is NOT a

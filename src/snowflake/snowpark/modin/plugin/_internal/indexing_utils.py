@@ -5,7 +5,7 @@
 import typing
 from collections.abc import Hashable, Sized
 from enum import Enum
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union, TYPE_CHECKING
 
 import modin.pandas as pd
 import numpy as np
@@ -69,6 +69,9 @@ from snowflake.snowpark.types import (
     _IntegralType,
 )
 from snowflake.snowpark.window import Window
+
+if TYPE_CHECKING:
+    import snowflake.snowpark.modin.plugin.extensions.index
 
 UNALIGNABLE_INDEXING_ERROR = IndexingError(
     "Unalignable boolean Series provided as indexer (index of the boolean Series and of the indexed object do not "
@@ -722,6 +725,7 @@ def get_valid_col_positions_from_col_labels(
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         SnowflakeQueryCompiler,
     )
+    import snowflake.snowpark.modin.plugin.extensions.index.Index
 
     is_column_multiindex = internal_frame.is_multiindex(axis=1)
     columns = internal_frame.data_columns_index
@@ -753,7 +757,9 @@ def get_valid_col_positions_from_col_labels(
                 )
             )
             col_loc = col_loc.index
-            if isinstance(col_loc,         "snowflake.snowpark.modin.plugin.extensions.index.Index"):
+            if isinstance(
+                col_loc, snowflake.snowpark.modin.plugin.extensions.index.Index
+            ):
                 col_loc = col_loc.to_pandas()
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
@@ -2269,7 +2275,10 @@ def set_frame_2d_labels(
         #       'x' | 97 | 96 | ...
         #       'y' | 97 | 96 | ...
         #       ... | .. | .. | ...
-        from snowflake.snowpark.modin.plugin.extensions.index import Index as SnowparkIndex
+        from snowflake.snowpark.modin.plugin.extensions.index import (
+            Index as SnowparkIndex,
+        )
+
         item_values = (
             item.tolist() if isinstance(item, (SnowparkIndex, np.ndarray)) else item
         )

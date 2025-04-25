@@ -123,10 +123,11 @@ from snowflake.snowpark.modin.plugin.io.factories import (  # isort: skip  # noq
 modin_factories.SnowflakeOnSnowflakeFactory = PandasOnSnowflakeFactory
 
 Engine.add_option("Snowflake")
-from modin import set_execution
 
-Backend.register_backend("Snowflake", Execution(engine="Snowflake", storage_format="Snowflake"))
-Backend.put('snowflake')
+Backend.register_backend(
+    "Snowflake", Execution(engine="Snowflake", storage_format="Snowflake")
+)
+Backend.put("snowflake")
 
 
 # === SET UP TELEMETRY ===

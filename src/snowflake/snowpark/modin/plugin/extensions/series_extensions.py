@@ -26,7 +26,9 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.row import Row
 import functools
 
-register_series_accessor_helper = lambda name: register_series_accessor(name=name, backend="Snowflake")
+register_series_accessor_helper = functools.partial(
+    register_series_accessor, backend="Snowflake"
+)
 
 
 @register_series_accessor_helper("_set_axis_name")

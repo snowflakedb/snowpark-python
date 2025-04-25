@@ -14,17 +14,19 @@ from modin.pandas.api.extensions import register_pd_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.plugin.extensions.datetime_index import \
-    DatetimeIndex  # noqa: F401
-from snowflake.snowpark.modin.plugin.extensions.index import \
-    Index  # noqa: F401
-from snowflake.snowpark.modin.plugin.extensions.timedelta_index import \
-    TimedeltaIndex  # noqa: F401
-from snowflake.snowpark.modin.plugin.utils.warning_message import \
-    materialization_warning
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import (
+    DatetimeIndex,
+)  # noqa: F401
+from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
+from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (
+    TimedeltaIndex,
+)  # noqa: F401
+from snowflake.snowpark.modin.plugin.utils.warning_message import (
+    materialization_warning,
+)
 
 register_pd_accessor_helper = functools.partial(
-    register_pd_accessor, 
+    register_pd_accessor,
 )
 
 register_pd_accessor_helper("Index")(Index)
@@ -388,8 +390,7 @@ def read_snowflake(
         To see what are the Normalized Snowflake Identifiers for columns of a Snowflake table, you can call SQL query
         `SELECT * FROM TABLE` or `DESCRIBE TABLE` to see the column names.
     """
-    from modin.core.execution.dispatching.factories.dispatcher import \
-        FactoryDispatcher
+    from modin.core.execution.dispatching.factories.dispatcher import FactoryDispatcher
 
     return DataFrame(
         query_compiler=FactoryDispatcher.get_factory()._read_snowflake(
