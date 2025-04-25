@@ -316,6 +316,36 @@ def test_str___getitem___list_neg():
 
 
 @pytest.mark.parametrize(
+    "data",
+    [
+        [{"a": "x", "b": "y"}, {"c": None}, {None: "z"}, None, {}],
+        [{"a": 1, "b": 2}, {"c": None}, {None: 3}, None, {}],
+    ],
+)
+@pytest.mark.parametrize(
+    "key",
+    [
+        "a",
+        "b",
+        "c",
+        "d",
+        slice(None, None, None),
+        slice(0, -1, 1),
+        slice(-100, 100, 1),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_str___getitem___dict(data, key):
+    native_ser = native_pd.Series(data=data)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str[key],
+    )
+
+
+@pytest.mark.parametrize(
     "pat",
     [
         "",

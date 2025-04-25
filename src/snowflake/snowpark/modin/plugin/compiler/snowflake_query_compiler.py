@@ -16536,11 +16536,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Follow pandas behavior; all values will be None.
             key = None
         if is_scalar(key):
-            if key is not None and not isinstance(key, int):
+            if key is not None and not isinstance(key, (int, str)):
                 ErrorMessage.not_implemented(
-                    "Snowpark pandas string indexing doesn't yet support non-numeric keys"
+                    "Snowpark pandas string indexing doesn't yet support keys of types other than int or str"
                 )
-            return self.str_get(typing.cast(int, key))
+            if key is not None and isinstance(key, int):
+                key = typing.cast(int, key)
+            assert isinstance(key, (int, str))
+            return self.str_get(key)
         else:
             assert isinstance(key, slice), "key is expected to be slice here"
             if key.step == 0:
