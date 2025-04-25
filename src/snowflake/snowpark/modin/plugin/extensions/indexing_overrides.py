@@ -951,7 +951,6 @@ class _LocIndexer(_LocationIndexerBase):
                 result._parent_axis = 0
             else:
                 result._parent_axis = int(row_loc == slice(None))
-
         return result
 
     def _loc_set_matching_item_columns_by_label(

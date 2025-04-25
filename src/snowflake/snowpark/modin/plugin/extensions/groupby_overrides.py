@@ -620,7 +620,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="head",
             agg_kwargs=agg_kwargs,
         )
-        return pd.DataFrame(result)
+        return pd.DataFrame(result).__switcheroo__(operation="head")
 
     def idxmax(
         self, axis: Axis = no_default, skipna: bool = True, numeric_only: bool = False
@@ -674,7 +674,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             type(self._query_compiler).groupby_last,
             agg_kwargs=dict(min_count=min_count, skipna=skipna),
             numeric_only=numeric_only,
-        )
+        ).__switcheroo__(operation="last")
 
     def max(
         self,
