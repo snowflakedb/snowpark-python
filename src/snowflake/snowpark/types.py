@@ -16,6 +16,8 @@ import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # Use correct version from here:
+from snowflake.snowpark._internal.utils import lazy_load_pandas
+lazy_load_pandas()
 from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
 
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
