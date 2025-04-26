@@ -16723,7 +16723,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         def output_col_string(
-            column: SnowparkColumn, i: Union[NoneType, int]
+            column: SnowparkColumn, i: Union[NoneType, int]  # type: ignore
         ) -> SnowparkColumn:
             col_len_exp = length(column)
             if i is None:
@@ -16753,7 +16753,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._replace_non_str(column, new_col)
 
         def output_col_list(
-            column: SnowparkColumn, i: Union[NoneType, int]
+            column: SnowparkColumn, i: Union[NoneType, int]  # type: ignore
         ) -> SnowparkColumn:
             col_len_exp = array_size(column)
             if i is None:
