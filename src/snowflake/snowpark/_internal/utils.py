@@ -50,6 +50,7 @@ import snowflake.snowpark
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
+from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.context import _should_use_structured_type_semantics
@@ -222,14 +223,9 @@ def _pandas_importer():  # noqa: E302
         pass  # pragma: no cover
     return pandas
 
-installed_pandas = None
-def lazy_load_pandas():
-    if installed_pandas is None:
-        from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
-        pandas = _pandas_importer()
-        installed_pandas = not isinstance(pandas, MissingOptionalDependency)
-        pandas_loaded = True
-    return installed_pandas
+
+pandas = _pandas_importer()
+installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):
@@ -1165,7 +1161,6 @@ def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) 
 
 
 def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
-    lazy_load_pandas()
     if not isinstance(result, pandas.DataFrame):
         raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
             "to_pandas() did not return a pandas DataFrame. "
@@ -1210,14 +1205,14 @@ def check_output_schema_type(  # noqa: F821
 
     from snowflake.snowpark.types import StructType
 
-    if lazy_import_pandas():
+    if installed_pandas:
         from snowflake.snowpark.types import PandasDataFrameType
     else:
         PandasDataFrameType = int  # dummy type.
 
     if not (
         isinstance(output_schema, StructType)
-        or (lazy_import_pandas() and isinstance(output_schema, PandasDataFrameType))
+        or (installed_pandas and isinstance(output_schema, PandasDataFrameType))
         or isinstance(output_schema, Iterable)
     ):
         raise ValueError(
@@ -1522,8 +1517,13 @@ def check_agg_exprs(
                 )
 
 
+class MissingModin(MissingOptionalDependency):
+    """The class is specifically for modin optional dependency."""
 
-def import_or_missing_modin_pandas() -> Tuple["ModuleLikeObject", bool]:
+    _dep_name = "modin"
+
+
+def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
     """This function tries importing the following packages: modin.pandas
 
     If available it returns modin package with a flag of whether it was imported.
@@ -1532,10 +1532,6 @@ def import_or_missing_modin_pandas() -> Tuple["ModuleLikeObject", bool]:
         modin = importlib.import_module("modin.pandas")
         return modin, True
     except ImportError:
-        class MissingModin(MissingOptionalDependency):
-            """The class is specifically for modin optional dependency."""
-
-            _dep_name = "modin"
         return MissingModin(), False
 
 
