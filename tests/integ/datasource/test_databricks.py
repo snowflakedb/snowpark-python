@@ -238,3 +238,7 @@ def test_unit_data_source_data_to_pandas_df():
     assert df.to_dict(orient="records") == [
         {"COL1": 1, "COL2": '{"key1": "value1", "key2": "value2"}'}
     ]
+
+
+def test_raise_error():
+    raise ValueError()
