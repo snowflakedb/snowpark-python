@@ -269,7 +269,7 @@ def test_str___getitem___string_key():
     snow_ser = pd.Series(native_ser)
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas string indexing doesn't yet support non-numeric keys",
+        match="Snowpark pandas string indexing doesn't yet support keys of types other than int when the data column contains strings",
     ):
         snow_ser.str["a"]
 
@@ -343,6 +343,26 @@ def test_str___getitem___dict(data, key):
         native_ser,
         lambda ser: ser.str[key],
     )
+
+
+@pytest.mark.parametrize(
+    "data, key",
+    [
+        (["a", "b"], 1.2),
+        (["a", "b"], "a"),
+        ([[1, 2]], "a"),
+        ([{"a": "x"}], 1),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_str___getitem___neg(data, key):
+    native_ser = native_pd.Series(data=data)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas string indexing doesn't yet support keys of types other than ",
+    ):
+        snow_ser.str[key]
 
 
 @pytest.mark.parametrize(

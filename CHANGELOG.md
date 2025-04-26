@@ -6,9 +6,7 @@
 
 #### New Features
 
-- Added support for dict values in `Series.str.get`.
-- Added support for dict values in `Series.str.slice`.
-- Added support for dict values in `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
 
 ## 1.31.0 (2025-04-24)
 
