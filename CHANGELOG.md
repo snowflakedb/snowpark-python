@@ -9,6 +9,10 @@
 - Added support for dict values in `Series.str.get`.
 - Added support for dict values in `Series.str.slice`.
 
+#### Bug Fixes
+
+- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces
+
 ## 1.31.0 (2025-04-24)
 
 ### Snowpark Python API Updates
