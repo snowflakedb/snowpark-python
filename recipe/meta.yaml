@@ -26,7 +26,7 @@ build:
 
 requirements:
   host:
-    - python
+    - python >= 3.9
     - pip
     - setuptools >=40.6.0
     - wheel
@@ -35,7 +35,7 @@ requirements:
     - protobuf==4.25.3  # [py>310]
     - mypy-protobuf
   run:
-    - python
+    - python >= 3.9
     - cloudpickle >=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0
     - snowflake-connector-python >=3.12.0,<4.0.0
     - typing-extensions >=4.1.0,<5.0.0
