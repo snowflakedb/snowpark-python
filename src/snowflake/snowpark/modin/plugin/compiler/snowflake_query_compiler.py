@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+from types import MappingProxyType
 import typing
 import uuid
 from collections import Counter, defaultdict
@@ -796,7 +797,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def move_to_cost(self, 
                      other_qc_cls:type,         
                      api_cls_name: Optional[str] = None,
-                     operation: Optional[str] = None,) -> int:
+                     operation: Optional[str] = None,
+                     arguments: Optional[MappingProxyType[str, Any]] = None) -> int:
         """
         Return the coercion costs of this qc to other_qc type.
 
