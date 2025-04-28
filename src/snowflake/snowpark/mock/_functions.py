@@ -2207,10 +2207,27 @@ def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator
 
 
 def _rank(raw_input, dense=False):
-    method = "dense" if dense else "min"
-    return (
-        raw_input[raw_input.sorted_by].apply(tuple, 1).rank(method=method).astype(int)
-    )
+    """
+    Returns a series containing the rank of a row within an ordered TableEmulator.
+    Args:
+        raw_input: The TableEmulator to apply the rank to.
+        dense: When set no index is set when ranked values contain repeats.
+    """
+    final_values = []
+    rank = 0
+    index = 0
+    previous = None
+    for value in raw_input[raw_input.sorted_by].apply(tuple, 1):
+        index += 1
+        if value != previous:
+            if dense:
+                rank = rank + 1
+            else:
+                rank = index
+        previous = value
+        final_values.append(rank)
+
+    return pandas.Series(final_values, index=raw_input.index)
 
 
 @patch("rank", pass_input_data=True, pass_row_index=True)
