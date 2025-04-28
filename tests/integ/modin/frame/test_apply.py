@@ -3,6 +3,8 @@
 #
 
 import datetime
+import re
+import sys
 
 import modin.pandas as pd
 import numpy as np
@@ -31,7 +33,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import RUNNING_ON_GH
+from tests.utils import RUNNING_ON_GH, running_on_public_ci
 
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
 
@@ -737,6 +739,8 @@ def test_bug_SNOW_1172448():
 
     df.to_snowflake(temp_table_name, index_label="index")
     df = pd.read_snowflake(temp_table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
 
     median_income = 187524.29
     std_income = 110086.85
@@ -746,7 +750,7 @@ def test_bug_SNOW_1172448():
         income = row["AMT_INCOME_TOTAL"]
         return (income - median_income) / std_income
 
-    with SqlCounter(query_count=6, join_count=3, udtf_count=1):
+    with SqlCounter(query_count=6, join_count=5, udtf_count=1):
         df["pct_income"] = df.apply(foo, axis=1)
         # trigger computation here.
         ans = len(df[df["pct_income"] > 0.5]) / len(df)
@@ -883,7 +887,14 @@ import scipy.stats  # noqa: E402
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 7),
-        (["scipy>1.1", "numpy<2.0"], 7),
+        param(
+            ["scipy>1.1", "numpy<2.0"],
+            7,
+            marks=pytest.mark.skipif(
+                sys.version_info.major == 3 and sys.version_info.minor == 12,
+                reason="SNOW-2046982: test raises ModuleNotFoundError when run in python 3.12",
+            ),
+        ),
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],
@@ -982,3 +993,48 @@ def test_apply_numpy_universal_functions(func):
     )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDF/UDTF test")
+def test_udfs_and_udtfs_with_snowpark_object_error_msg():
+    expected_error_msg = re.escape(
+        "Snowpark pandas only allows native pandas and not Snowpark objects in `apply()`. "
+        + "Instead, try calling `to_pandas()` on any DataFrame or Series objects passed to `apply()`. See Limitations"
+        + "(https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations) section of"
+        + "the Snowpark pandas documentation for more details."
+    )
+    snow_df = pd.DataFrame([7, 8, 9])
+    with SqlCounter(
+        query_count=16,
+        high_count_expected=True,
+        high_count_reason="Series.apply has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # Series.apply
+            snow_df[0].apply(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(query_count=2):
+        with pytest.raises(
+            ValueError, match=expected_error_msg
+        ):  # DataFrame.apply axis=0
+            snow_df.apply(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(query_count=2):
+        with pytest.raises(
+            ValueError, match=expected_error_msg
+        ):  # DataFrame.apply axis=1
+            snow_df.apply(lambda row: snow_df.iloc[0, 0], axis=1)
+    with SqlCounter(query_count=2):
+        with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.transform
+            snow_df.transform(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(
+        query_count=16,
+        high_count_expected=True,
+        high_count_reason="DataFrame.map has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.map
+            snow_df.map(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(
+        query_count=16,
+        high_count_expected=True,
+        high_count_reason="Series.map has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # Series.map
+            snow_df[0].map(lambda row: snow_df.iloc[0, 0])

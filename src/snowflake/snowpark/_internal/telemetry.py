@@ -6,6 +6,7 @@
 import functools
 import threading
 from enum import Enum, unique
+import time
 from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection
@@ -35,6 +36,13 @@ from snowflake.snowpark._internal.utils import (
     is_interactive,
 )
 
+try:
+    import psutil
+
+    PS_UTIL_AVAILABLE = True
+except ImportError:
+    PS_UTIL_AVAILABLE = False
+
 
 @unique
 class TelemetryField(Enum):
@@ -63,6 +71,11 @@ class TelemetryField(Enum):
     KEY_DURATION = "duration"
     KEY_FUNC_NAME = "func_name"
     KEY_MSG = "msg"
+    KEY_WALL_TIME = "wall_time"
+    KEY_CPU_TIME = "cpu_time"
+    KEY_NETWORK_SENT_KIB = "network_bytes_sent_kib"
+    KEY_NETWORK_RECV_KIB = "network_bytes_recv_kib"
+    KEY_MEMORY_RSS_KIB = "memory_rss_kib"
     KEY_ERROR_MSG = "error_msg"
     KEY_VERSION = "version"
     KEY_PYTHON_VERSION = "python_version"
@@ -112,11 +125,97 @@ API_CALLS_TO_ADJUST = {
     "select_expr": 1,
     "drop": 1,
     "agg": 2,
+    "distinct": 2,
     "with_column": 1,
     "with_columns": 1,
     "with_column_renamed": 1,
 }
 APIS_WITH_MULTIPLE_CALLS = list(API_CALLS_TO_ADJUST.keys())
+
+
+class ResourceUsageCollector:
+    """
+    A context manager to collect resource usage metrics such as CPU time, wall time, and memory usage.
+    """
+
+    RESOURCE_USAGE_KEYS = frozenset(
+        [
+            TelemetryField.KEY_WALL_TIME.value,
+            TelemetryField.KEY_CPU_TIME.value,
+            TelemetryField.KEY_NETWORK_SENT_KIB.value,
+            TelemetryField.KEY_NETWORK_RECV_KIB.value,
+            TelemetryField.KEY_MEMORY_RSS_KIB.value,
+        ]
+    )
+
+    def __init__(self) -> None:
+        pass
+
+    def __enter__(self):
+        try:
+            self._start_time = time.time()
+            self._start_cpu_time = time.process_time()
+            if PS_UTIL_AVAILABLE:
+                self._start_net_io_counters = psutil.net_io_counters()
+                self._start_rss = psutil.Process().memory_info().rss
+        except Exception:
+            pass
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self._end_time = time.time()
+            self._end_cpu_time = time.process_time()
+            if PS_UTIL_AVAILABLE:
+                self._end_net_io_counters = psutil.net_io_counters()
+                self._end_rss = psutil.Process().memory_info().rss
+        except Exception:
+            pass
+
+    def get_resource_usage(self) -> Dict[str, Any]:
+        """
+        Returns:
+            A dictionary containing the resource usage metrics.
+        """
+        try:
+            resource_usage = {}
+            wall_time = self._end_time - self._start_time
+            cpu_time = self._end_cpu_time - self._start_cpu_time
+            resource_usage = {
+                TelemetryField.KEY_WALL_TIME.value: wall_time,
+                TelemetryField.KEY_CPU_TIME.value: cpu_time,
+            }
+            if PS_UTIL_AVAILABLE:
+                network_sent = (
+                    self._end_net_io_counters.bytes_sent
+                    - self._start_net_io_counters.bytes_sent
+                ) / 1024.0
+                network_recv = (
+                    self._end_net_io_counters.bytes_recv
+                    - self._start_net_io_counters.bytes_recv
+                ) / 1024.0
+                memory_rss = (self._end_rss - self._start_rss) / 1024.0
+                resource_usage.update(
+                    {
+                        TelemetryField.KEY_NETWORK_SENT_KIB.value: network_sent,
+                        TelemetryField.KEY_NETWORK_RECV_KIB.value: network_recv,
+                        TelemetryField.KEY_MEMORY_RSS_KIB.value: memory_rss,
+                    }
+                )
+        except Exception:
+            pass
+
+        return resource_usage
+
+    @staticmethod
+    def aggregate_usage_from_subcalls(subcalls: List[Dict]) -> Dict:
+        resource_usage = {}
+        for subcall in subcalls:
+            for key, value in subcall.items():
+                if key in ResourceUsageCollector.RESOURCE_USAGE_KEYS:
+                    resource_usage[key] = resource_usage.get(key, 0) + value
+        return resource_usage
 
 
 # Adjust API calls into subcalls for certain APIs that call other APIs
@@ -126,6 +225,7 @@ def adjust_api_subcalls(
     len_subcalls: Optional[int] = None,
     precalls: Optional[List[Dict]] = None,
     subcalls: Optional[List[Dict]] = None,
+    resource_usage: Optional[Dict] = None,
 ) -> None:
     plan = df._select_statement or df._plan
     if len_subcalls:
@@ -144,11 +244,19 @@ def adjust_api_subcalls(
                 TelemetryField.KEY_SUBCALLS.value: [*subcalls],
             },
         ]
+    # Overwrite the resource usage metrics if the function is
+    # provided with its own resource usage metrics otherwise
+    # aggregate this info from the subcalls
+    if resource_usage is None:
+        subcalls = plan.api_calls[-1].get(TelemetryField.KEY_SUBCALLS.value, [])
+        resource_usage = ResourceUsageCollector.aggregate_usage_from_subcalls(subcalls)
+    plan.api_calls[-1].update(resource_usage)
 
 
-def add_api_call(df, func_name: str) -> None:
+def add_api_call(df, func_name: str, resource_usage: Optional[Dict] = None) -> None:
     plan = df._select_statement or df._plan
-    plan.api_calls.append({TelemetryField.NAME.value: func_name})
+    resource_usage = resource_usage or {}
+    plan.api_calls.append({TelemetryField.NAME.value: func_name, **resource_usage})
 
 
 def set_api_call_source(df, func_name: str) -> None:
@@ -175,9 +283,12 @@ def df_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         session = args[0]._session
+        resource_usage = dict()
         with session.query_history() as query_history:
             try:
-                result = func(*args, **kwargs)
+                with ResourceUsageCollector() as resource_usage_collector:
+                    result = func(*args, **kwargs)
+                resource_usage = resource_usage_collector.get_resource_usage()
             finally:
                 if not session._collect_snowflake_plan_telemetry_at_critical_path:
                     session._conn._telemetry_client.send_plan_metrics_telemetry(
@@ -187,7 +298,7 @@ def df_collect_api_telemetry(func):
         plan = args[0]._select_statement or args[0]._plan
         api_calls = [
             *plan.api_calls,
-            {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
+            {TelemetryField.NAME.value: f"DataFrame.{func.__name__}", **resource_usage},
         ]
         # The first api call will indicate following:
         # - sql simplifier is enabled.
@@ -210,9 +321,12 @@ def dfw_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
         session = args[0]._dataframe._session
+        resource_usage = dict()
         with session.query_history() as query_history:
             try:
-                result = func(*args, **kwargs)
+                with ResourceUsageCollector() as resource_usage_collector:
+                    result = func(*args, **kwargs)
+                resource_usage = resource_usage_collector.get_resource_usage()
             finally:
                 if not session._collect_snowflake_plan_telemetry_at_critical_path:
                     session._conn._telemetry_client.send_plan_metrics_telemetry(
@@ -222,7 +336,10 @@ def dfw_collect_api_telemetry(func):
         plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
         api_calls = [
             *plan.api_calls,
-            {TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}"},
+            {
+                TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}",
+                **resource_usage,
+            },
         ]
         session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
@@ -238,7 +355,8 @@ def dfw_collect_api_telemetry(func):
 def df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        r = func(*args, **kwargs)
+        with ResourceUsageCollector() as resource_usage_collector:
+            r = func(*args, **kwargs)
         plan = r._select_statement or r._plan
         # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
         if (
@@ -254,11 +372,15 @@ def df_api_usage(func):
                 {
                     TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
                     TelemetryField.KEY_SUBCALLS.value: subcalls,
+                    **resource_usage_collector.get_resource_usage(),
                 }
             )
         elif plan is not None:
             plan.api_calls.append(
-                {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
+                {
+                    TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
+                    **resource_usage_collector.get_resource_usage(),
+                }
             )
         return r
 
@@ -268,8 +390,12 @@ def df_api_usage(func):
 def df_to_relational_group_df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        r = func(*args, **kwargs)
-        r._df_api_call = {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
+        with ResourceUsageCollector() as resource_usage_collector:
+            r = func(*args, **kwargs)
+        r._df_api_call = {
+            TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
+            **resource_usage_collector.get_resource_usage(),
+        }
         return r
 
     return wrap
@@ -279,12 +405,16 @@ def df_to_relational_group_df_api_usage(func):
 def relational_group_df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        r = func(*args, **kwargs)
+        with ResourceUsageCollector() as resource_usage_collector:
+            r = func(*args, **kwargs)
         plan = r._select_statement or r._plan
         if args[0]._df_api_call:
             plan.api_calls.append(args[0]._df_api_call)
         plan.api_calls.append(
-            {TelemetryField.NAME.value: f"RelationalGroupedDataFrame.{func.__name__}"}
+            {
+                TelemetryField.NAME.value: f"RelationalGroupedDataFrame.{func.__name__}",
+                **resource_usage_collector.get_resource_usage(),
+            }
         )
         return r
 

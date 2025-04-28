@@ -284,9 +284,19 @@ def test_create_session_in_sp(session):
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
-        with pytest.raises(SnowparkSessionException) as exec_info:
-            Session(session._conn)
-        assert exec_info.value.error_code == "1410"
+        if not session._conn._get_client_side_session_parameter(
+            "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
+        ):
+            with pytest.raises(SnowparkSessionException) as exec_info:
+                Session(session._conn)
+            assert exec_info.value.error_code == "1410"
+        with patch.object(
+            session._conn, "_get_client_side_session_parameter", return_value=True
+        ):
+            try:
+                Session(session._conn)
+            except SnowparkSessionException as e:
+                pytest.fail(f"Unexpected exception {e} was raised")
     finally:
         internal_utils.PLATFORM = original_platform
 

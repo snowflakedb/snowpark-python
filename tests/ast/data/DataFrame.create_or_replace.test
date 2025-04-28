@@ -46,15 +46,13 @@ res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar
 
 df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
 
-df3 = df.cache_result()
+df = session.table("table1")
 
-df3 = df.write
+df3 = df.cache_result()
 
 df4 = df.cache_result(statement_params={"foo": "bar"})
 
-df4 = df.write
-
-res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite"])
+res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite")
 
 ## EXPECTED ENCODED AST
 
@@ -68,7 +66,7 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table {
         name {
@@ -90,17 +88,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_create_or_replace_view {
         comment {
@@ -108,9 +104,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         name {
@@ -131,23 +125,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_create_or_replace_view {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         name {
@@ -170,16 +160,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_create_or_replace_view {
         comment {
@@ -187,9 +175,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         is_temp: true
@@ -211,23 +197,19 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_create_or_replace_view {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         is_temp: true
@@ -251,16 +233,14 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_copy_into_table {
         copy_options {
@@ -280,9 +260,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         files: "file1"
@@ -438,88 +416,92 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
   eval {
+    bind_id: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_cache_result {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        object_name {
+          name {
+            name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_TABLE_xxx\""
+            }
+          }
+        }
+        src {
+          end_column: 31
+          end_line: 51
+          file: 2
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
     uid: 7
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       dataframe_cache_result {
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
-        src {
-          end_column: 31
-          end_line: 51
-          file: 2
-          start_column: 14
-          start_line: 51
-        }
-      }
-    }
-    symbol {
-      value: "df3"
-    }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      dataframe_write {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          end_column: 31
-          end_line: 51
-          file: 2
-          start_column: 14
-          start_line: 51
-        }
-      }
-    }
-    symbol {
-      value: "df3"
-    }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      dataframe_cache_result {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 1
+        object_name {
+          name {
+            name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_TABLE_xxx\""
             }
           }
         }
@@ -536,46 +518,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df4"
     }
-    uid: 10
-    var_id {
-      bitfield1: 10
-    }
+    uid: 8
   }
 }
 body {
-  assign {
-    expr {
-      dataframe_write {
-        df {
-          dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          end_column: 62
-          end_line: 53
-          file: 2
-          start_column: 14
-          start_line: 53
-        }
-      }
-    }
-    symbol {
-      value: "df4"
-    }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
-  }
-}
-body {
-  assign {
+  bind {
     expr {
       dataframe_create_or_replace_dynamic_table {
         comment {
@@ -583,9 +534,7 @@ body {
         }
         df {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         lag: "1 hour"
@@ -609,12 +558,10 @@ body {
         warehouse: "test_wh"
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 12
-    var_id {
-      bitfield1: 12
-    }
+    uid: 9
   }
 }
 client_ast_version: 1
@@ -630,5 +577,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
+  minor: 31
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

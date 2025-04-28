@@ -63,6 +63,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Not,
     UnaryMinus,
     UnresolvedAlias,
+    _InternalAlias,
 )
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
@@ -85,6 +86,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     publicapi,
     quote_name,
+    split_snowflake_identifier_with_dot,
 )
 from snowflake.snowpark.types import (
     DataType,
@@ -249,6 +251,7 @@ class Column:
     #       For example, running: df.filter(col("A").isin(1, 2, 3) & col("B")) would fail since the boolean operator
     #       '&' would try to construct an AST using that of the new col("A").isin(1, 2, 3) column (which we currently
     #       don't fill if the only argument provided in the Column constructor is 'expr1' of type Expression)
+    @publicapi
     def __init__(
         self,
         expr1: Union[str, Expression],
@@ -260,11 +263,14 @@ class Column:
         _is_qualified_name: bool = False,
     ) -> None:
         self._ast = _ast
+        self._expr1 = expr1
+        self._expr2 = expr2
 
         def derive_qualified_name_expr(
             expr: str, df_alias: Optional[str] = None
         ) -> UnresolvedAttribute:
-            parts = expr.split(".")
+            """Note that this method does not work for full column name like <db>.<schema>.<table>.column."""
+            parts = split_snowflake_identifier_with_dot(expr)
             if len(parts) == 1:
                 return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
             else:
@@ -667,7 +673,7 @@ class Column:
             [Row(IS_A_IN_B=True), Row(IS_A_IN_B=False), Row(IS_A_IN_B=False)]
 
         Args:
-            vals: The lteral values, the columns in the same DataFrame, or a :class:`DataFrame` instance to use
+            vals: The literal values, the columns in the same DataFrame, or a :class:`DataFrame` instance to use
                 to check for membership against this column.
         """
 
@@ -1313,6 +1319,10 @@ class Column:
         """Returns a new renamed Column. Alias of :func:`name`."""
         return self.name(alias, variant="alias", _emit_ast=_emit_ast)
 
+    def _alias(self, alias: str) -> "Column":
+        """Returns a new renamed Column called by functions that internally alias the result."""
+        return self.name(alias, variant="_alias", _emit_ast=False)
+
     @publicapi
     def name(
         self,
@@ -1337,6 +1347,12 @@ class Column:
             elif variant == "name":
                 ast.fn.column_alias_fn_name = True
 
+        if variant == "_alias":
+            return Column(
+                _InternalAlias(expr, quote_name(alias)),
+                _ast=ast_expr,
+                _emit_ast=_emit_ast,
+            )
         return Column(
             Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast
         )
@@ -1382,7 +1398,7 @@ class Column:
 
             >>> df = session.create_dataframe([(3, "v1"), (1, "v3"), (2, "v2")], schema=["a", "b"])
             >>> # create a DataFrame containing the values in "a" sorted by "b"
-            >>> df.select(array_agg("a").within_group("b").alias("new_column")).show()
+            >>> df.select(array_agg("a").within_group(col("b").asc()).alias("new_column")).show()
             ----------------
             |"NEW_COLUMN"  |
             ----------------
@@ -1512,6 +1528,7 @@ class CaseExpr(Column):
         [Row(CASE_WHEN_COLUMN=1), Row(CASE_WHEN_COLUMN=2), Row(CASE_WHEN_COLUMN=3)]
     """
 
+    @publicapi
     def __init__(
         self,
         expr: CaseWhen,

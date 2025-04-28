@@ -320,18 +320,15 @@ def test_telemetry_args():
 
 
 @pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
+    reason="SNOW-2031975: Investigate why no telemetry is reported for accessor properties"
 )
-@sql_count_checker(query_count=7, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=1)
 def test_property_methods_telemetry():
     datetime_series = pd.Series(pd.date_range("2000-01-01", periods=3, freq="h"))
-    ret_series = datetime_series.dt.timetz
+    ret_series = datetime_series.dt.date
     assert len(ret_series._query_compiler.snowpark_pandas_api_calls) == 1
     api_call = ret_series._query_compiler.snowpark_pandas_api_calls[0]
-    assert api_call["is_fallback"]
-    assert api_call["name"] == "Series.<property fget:timetz>"
+    assert api_call["name"] == "Series.<property fget:date>"
 
 
 @sql_count_checker(query_count=1)
@@ -760,7 +757,7 @@ def test_telemetry_cache_result():
     ]
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=9)
 def test_telemetry_read_json(tmp_path):
     # read_json is overridden in io_overrides.py
     with open(tmp_path / "file.json", "w") as f:

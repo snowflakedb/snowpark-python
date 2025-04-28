@@ -14,6 +14,7 @@ import sys
 import tempfile
 import warnings
 from array import array
+from collections import defaultdict
 from functools import reduce
 from logging import getLogger
 from threading import RLock
@@ -22,6 +23,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    DefaultDict,
     Dict,
     List,
     Literal,
@@ -126,7 +128,6 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
-    private_preview,
     publicapi,
     quote_name,
     random_name_for_temp_object,
@@ -140,6 +141,7 @@ from snowflake.snowpark._internal.utils import (
     set_ast_state,
     is_ast_enabled,
     AstFlagSource,
+    AstMode,
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
@@ -155,6 +157,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
+    to_file,
     array_agg,
     col,
     column,
@@ -210,6 +213,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    FileType,
     _AtomicType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration
@@ -276,6 +280,14 @@ _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION = (
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
 )
+_PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION = (
+    "PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION"
+)
+_PYTHON_SNOWPARK_CLIENT_AST_MODE = "PYTHON_SNOWPARK_CLIENT_AST_MODE"
+_PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
+    "PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST"
+)
+
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
 # TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
@@ -371,7 +383,7 @@ class Session:
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
                 "collect_stacktrace_in_query_tag": False,
-                "use_simplified_query_generation": True,
+                "use_simplified_query_generation": False,
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
@@ -552,12 +564,21 @@ class Session:
         conn: Union[ServerConnection, MockServerConnection, NopConnection],
         options: Optional[Dict[str, Any]] = None,
     ) -> None:
-        if len(_active_sessions) >= 1 and is_in_stored_procedure():
+        if (
+            len(_active_sessions) >= 1
+            and is_in_stored_procedure()
+            and not conn._get_client_side_session_parameter(
+                "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
+            )
+        ):
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
+        self._artifact_repository_packages: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
         self._session_id = self._conn.get_session_id()
         self._session_info = f"""
 "version" : {get_version()},
@@ -636,9 +657,46 @@ class Session:
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
-        ast_enabled: bool = self._conn._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+        ast_mode_value: int = self._conn._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_CLIENT_AST_MODE, None
         )
+        if ast_mode_value is not None and isinstance(ast_mode_value, int):
+            self._ast_mode = AstMode(ast_mode_value)
+        else:
+            self._ast_mode = None
+
+        # If PYTHON_SNOWPARK_AST_MODE is available, it has precedence over PYTHON_SNOWPARK_USE_AST.
+        if self._ast_mode is None:
+            ast_enabled: bool = self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+            )
+            self._ast_mode = AstMode.SQL_AND_AST if ast_enabled else AstMode.SQL_ONLY
+        else:
+            if self._ast_mode == AstMode.AST_ONLY:
+                _logger.warning(
+                    "Snowpark python client does not support dataframe requests, downgrading to SQL_AND_AST."
+                )
+                self._ast_mode = AstMode.SQL_AND_AST
+
+            ast_enabled = self._ast_mode == AstMode.SQL_AND_AST
+
+        if self._ast_mode != AstMode.SQL_ONLY:
+            if (
+                self._conn._get_client_side_session_parameter(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
+                )
+                is not None
+            ):
+                ast_supported_version: bool = self.is_feature_enabled_for_version(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST
+                )
+                if not ast_supported_version:
+                    _logger.warning(
+                        "Server side dataframe support requires minimum snowpark-python client version."
+                    )
+                    self._ast_mode = AstMode.SQL_ONLY
+                    ast_enabled = False
+
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
@@ -651,6 +709,10 @@ class Session:
                 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND,
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
+        )
+        # TODO: SNOW-1951048 local testing diamond join fix
+        self._join_alias_fix: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
         )
 
         self._thread_store = create_thread_local(
@@ -791,6 +853,7 @@ class Session:
         finally:
             try:
                 self._temp_table_auto_cleaner.stop()
+                self._ast_batch.clear()
                 self._conn.close()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
@@ -1367,24 +1430,31 @@ class Session:
             else self._session_stage
         )
         file_list = (
-            self.sql(f"ls {normalized}")
-            .select('"name"')
+            self.sql(f"ls {normalized}", _emit_ast=False)
+            .select('"name"', _emit_ast=False)
             ._internal_collect_with_tag(statement_params=statement_params)
         )
         prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
-    def get_packages(self) -> Dict[str, str]:
+    def get_packages(self, artifact_repository: Optional[str] = None) -> Dict[str, str]:
         """
         Returns a ``dict`` of packages added for user-defined functions (UDFs).
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
+
+        Args:
+            artifact_repository: When set this will function will return the packages for a specific artifact repository.
         """
         with self._package_lock:
+            if artifact_repository:
+                return self._artifact_repository_packages[artifact_repository].copy()
             return self._packages.copy()
 
     def add_packages(
-        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
+        self,
+        *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
+        artifact_repository: Optional[str] = None,
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -1405,6 +1475,8 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
+            artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
+                using that repository will use the packages. (Default None)
 
         Example::
 
@@ -1414,10 +1486,10 @@ class Session:
             >>> import pandas
             >>> import dateutil
             >>> # add numpy with the latest version on Snowflake Anaconda
-            >>> # and pandas with the version "1.3.*"
+            >>> # and pandas with the version "2.1.*"
             >>> # and dateutil with the local version in your environment
             >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
-            >>> session.add_packages("numpy", "pandas==1.5.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==2.1.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1447,21 +1519,28 @@ class Session:
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
+            artifact_repository=artifact_repository,
         )
 
-    def remove_package(self, package: str) -> None:
+    def remove_package(
+        self,
+        package: str,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
         Removes a third-party package from the dependency list of a user-defined function (UDF).
 
         Args:
             package: The package name.
+            artifact_repository: When set this parameter specifies that the package should be removed
+                from the default packages for a specific artifact repository.
 
         Examples::
 
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==1.3.5")
+            >>> session.add_packages("numpy", "pandas==2.1.4")
             >>> len(session.get_packages())
             2
             >>> session.remove_package("numpy")
@@ -1473,19 +1552,38 @@ class Session:
         """
         package_name = pkg_resources.Requirement.parse(package).key
         with self._package_lock:
-            if package_name in self._packages:
+            if (
+                artifact_repository is not None
+                and package_name
+                in self._artifact_repository_packages.get(artifact_repository, {})
+            ):
+                self._artifact_repository_packages[artifact_repository].pop(
+                    package_name
+                )
+            elif package_name in self._packages:
                 self._packages.pop(package_name)
             else:
                 raise ValueError(f"{package_name} is not in the package list")
 
-    def clear_packages(self) -> None:
+    def clear_packages(
+        self,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
-        Clears all third-party packages of a user-defined function (UDF).
+        Clears all third-party packages of a user-defined function (UDF). When artifact_repository
+        is set packages are only clear from the specified repository.
         """
         with self._package_lock:
-            self._packages.clear()
+            if artifact_repository is not None:
+                self._artifact_repository_packages.get(artifact_repository, {}).clear()
+            else:
+                self._packages.clear()
 
-    def add_requirements(self, file_path: str) -> None:
+    def add_requirements(
+        self,
+        file_path: str,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF). This function also supports
@@ -1495,6 +1593,8 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
+            artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
+                using that repository will use the packages. (Default None)
 
         Example::
 
@@ -1535,7 +1635,7 @@ class Session:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
                 self.add_import(import_path)
-        self.add_packages(packages)
+        self.add_packages(packages, artifact_repository=artifact_repository)
 
     @experimental(version="1.7.0")
     def replicate_local_environment(
@@ -1563,7 +1663,8 @@ class Session:
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
-            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            >>> if sys.version_info <= (3, 11):
+            ...     session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()  # doctest: +SKIP
             --------------
             |"COL1"      |
             --------------
@@ -1831,6 +1932,7 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
+        artifact_repository: Optional[str] = None,
     ) -> List[str]:
         """
         Given a list of packages to add, this method will
@@ -1849,11 +1951,20 @@ class Session:
         """
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
-        if isinstance(self._conn, MockServerConnection):
+        if (
+            isinstance(self._conn, MockServerConnection)
+            or artifact_repository is not None
+        ):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
             with self._package_lock:
-                result_dict = self._packages
+                if artifact_repository is None:
+                    result_dict = self._packages
+                else:
+                    result_dict = self._artifact_repository_packages[
+                        artifact_repository
+                    ]
+
                 for pkg_name, _, pkg_req in package_dict.values():
                     if (
                         pkg_name in result_dict
@@ -2033,7 +2144,8 @@ class Session:
                     row[0]: row[1] if row[1] else []
                     for row in (
                         self.sql(
-                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
+                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t",
+                            _emit_ast=False,
                         )._internal_collect_with_tag()
                     )
                 }
@@ -2138,9 +2250,10 @@ class Session:
             row[0]: row[1].split("|") if row[1] else []
             for row in (
                 self.sql(
-                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t"
+                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t",
+                    _emit_ast=False,
                 )
-                .filter(col("signature") == environment_signature)
+                .filter(col("signature") == environment_signature, _emit_ast=False)
                 ._internal_collect_with_tag()
             )
         }
@@ -2173,7 +2286,7 @@ class Session:
         package_to_version_mapping = (
             {
                 p[0]: json.loads(p[1])
-                for p in self.table(package_table_name)
+                for p in self.table(package_table_name, _emit_ast=False)
                 .filter(
                     (col("language", _emit_ast=False) == "python")
                     & (
@@ -2230,7 +2343,7 @@ class Session:
         Fetches the current sessions query tag.
         """
         remote_tag_rows = self.sql(
-            "SHOW PARAMETERS LIKE 'QUERY_TAG'"
+            "SHOW PARAMETERS LIKE 'QUERY_TAG'", _emit_ast=False
         )._internal_collect_with_tag_no_telemetry()
 
         # Check if the result has the expected schema
@@ -2357,7 +2470,7 @@ class Session:
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.table, stmt)
             build_table_name(ast.name, name)
             ast.variant.session_table = True
@@ -2436,7 +2549,7 @@ class Session:
         stmt = None
         if _emit_ast:
             add_intermediate_stmt(self._ast_batch, func_name)
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.session_table_function, stmt)
             build_indirect_table_fn_apply(
                 ast.fn,
@@ -2458,7 +2571,7 @@ class Session:
                     _emit_ast=False,
                 )
                 if _emit_ast:
-                    ans._ast_id = stmt.var_id.bitfield1
+                    ans._ast_id = stmt.uid
                 return ans
             else:
                 # TODO: Implement table_function properly in local testing mode.
@@ -2479,17 +2592,17 @@ class Session:
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.table_function")
-
-        if _emit_ast:
-            d._ast_id = stmt.var_id.bitfield1
-
         return d
 
     @publicapi
@@ -2548,7 +2661,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.generator, stmt)
             col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
                 *columns
@@ -2572,7 +2685,7 @@ class Session:
                 _emit_ast=False,
             )
             if _emit_ast:
-                ans._ast_id = stmt.var_id.bitfield1
+                ans._ast_id = stmt.uid
             return ans
 
         if isinstance(self._conn, MockServerConnection):
@@ -2618,7 +2731,7 @@ class Session:
         self,
         query: str,
         params: Optional[Sequence[Any]] = None,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -2652,7 +2765,7 @@ class Session:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._ast_batch.assign()
+                stmt = self._ast_batch.bind()
                 expr = with_src_position(stmt.expr.sql, stmt)
                 expr.query = query
                 if params is not None:
@@ -2683,6 +2796,7 @@ class Session:
                     analyzer=self._analyzer,
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
@@ -2691,6 +2805,7 @@ class Session:
                     query, source_plan=None, params=params
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -3148,7 +3263,7 @@ class Session:
             # AST.
             if _emit_ast:
                 # Create AST statement.
-                stmt = self._ast_batch.assign()
+                stmt = self._ast_batch.bind()
                 ast = with_src_position(stmt.expr.write_pandas, stmt)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
@@ -3187,7 +3302,7 @@ class Session:
                 build_table_name(ast.table_name, table_location)
                 ast.table_type = table_type
 
-                table._ast_id = stmt.var_id.bitfield1
+                table._ast_id = stmt.uid
 
             return table
         else:
@@ -3320,6 +3435,7 @@ class Session:
                         auto_create_table=True,
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
+                        _emit_ast=False,
                     )
                     set_api_call_source(table, "Session.create_dataframe[arrow]")
                 else:
@@ -3332,11 +3448,12 @@ class Session:
                         auto_create_table=True,
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
+                        _emit_ast=False,
                     )
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
-                    stmt = self._ast_batch.assign()
+                    stmt = self._ast_batch.bind()
                     ast = with_src_position(stmt.expr.create_dataframe, stmt)
                     # Save temp table and schema of it in AST (dataframe).
                     build_table_name(
@@ -3345,7 +3462,7 @@ class Session:
                     build_proto_from_struct_type(
                         table.schema, ast.schema.dataframe_schema__struct.v
                     )
-                    table._ast_id = stmt.var_id.bitfield1
+                    table._ast_id = stmt.uid
 
                 return table
 
@@ -3508,6 +3625,8 @@ class Session:
                     converted_row.append(value)
                 elif isinstance(data_type, GeometryType):
                     converted_row.append(value)
+                elif isinstance(data_type, FileType):
+                    converted_row.append(value)
                 elif isinstance(data_type, VectorType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 else:
@@ -3556,11 +3675,14 @@ class Session:
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
                 )
+            # TODO SNOW-1952256: Test file type in create_dataframe once it accepts full path
+            elif isinstance(field.datatype, FileType):
+                project_columns.append(to_file(column(name)).as_(name))
             else:
                 project_columns.append(column(name))
 
         # Create AST statement.
-        stmt = self._ast_batch.assign() if _emit_ast else None
+        stmt = self._ast_batch.bind() if _emit_ast else None
 
         df = (
             DataFrame(
@@ -3584,7 +3706,7 @@ class Session:
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         if (
             installed_pandas
@@ -3592,9 +3714,7 @@ class Session:
             and isinstance(self._conn, MockServerConnection)
         ):
             # MockServerConnection internally creates a table, and returns Table object (which inherits from Dataframe).
-            table = _convert_dataframe_to_table(
-                df, temp_table_name, self, _emit_ast=False
-            )
+            table = _convert_dataframe_to_table(df, temp_table_name, self)
 
             # AST.
             if _emit_ast:
@@ -3608,7 +3728,7 @@ class Session:
                     table.schema, ast.schema.dataframe_schema__struct.v
                 )
 
-                table._ast_id = stmt.var_id.bitfield1
+                table._ast_id = stmt.uid
 
             return table
 
@@ -3641,7 +3761,7 @@ class Session:
                         schema, ast.schema.dataframe_schema__struct.v
                     )
 
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -3678,7 +3798,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             ast = with_src_position(stmt.expr.range, stmt)
             ast.start = start
             if end:
@@ -3694,14 +3814,12 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
-            df = DataFrame(self, range_plan)
+            df = DataFrame(self, range_plan, _ast_stmt=stmt, _emit_ast=_emit_ast)
         set_api_call_source(df, "Session.range")
-
-        if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
-
         return df
 
     def create_async_job(self, query_id: str) -> AsyncJob:
@@ -3944,7 +4062,6 @@ class Session:
         return self._sp_registration
 
     @property
-    @private_preview(version="1.23.0")
     def stored_procedure_profiler(self) -> StoredProcedureProfiler:
         """
         Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
@@ -3955,6 +4072,10 @@ class Session:
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
+        if sproc_name.strip().upper().startswith("SYSTEM$"):
+            # Built-in stored procedures do not have schema and cannot be described
+            # Currently all SYSTEM$ stored procedures are scalar so return false.
+            return False
         func_signature = ""
         try:
             arg_types = []
@@ -4065,7 +4186,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
             expr.fn.stored_procedure.name.name.name_flat.name = sproc_name
             for arg in args:
@@ -4076,10 +4197,15 @@ class Session:
                     entry._1 = k
                     build_expr_from_python_val(entry._2, statement_params[k])
             expr.fn.stored_procedure.log_on_exception.value = log_on_exception
+            self._ast_batch.eval(stmt)
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
-                sproc_name, *args, session=self, statement_params=statement_params
+                sproc_name,
+                *args,
+                session=self,
+                statement_params=statement_params,
+                _emit_ast=False,
             )
 
         validate_object_name(sproc_name)
@@ -4180,7 +4306,7 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             expr = with_src_position(stmt.expr.flatten, stmt)
             build_expr_from_python_val(expr.input, input)
             if path is not None:
@@ -4210,6 +4336,7 @@ class Session:
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
             _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
         )
         set_api_call_source(df, "Session.flatten")
         return df

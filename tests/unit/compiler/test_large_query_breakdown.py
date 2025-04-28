@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.compiler.large_query_breakdown import (
 from snowflake.snowpark.session import Session
 
 dummy_session = mock.create_autospec(Session)
+dummy_session._join_alias_fix = False
 dummy_analyzer = mock.create_autospec(Analyzer)
 dummy_analyzer.session = dummy_session
 empty_logical_plan = LogicalPlan()

@@ -183,15 +183,39 @@ def test_str_get_list(i):
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.get(i=i))
 
 
+@pytest.mark.parametrize(
+    "data",
+    [
+        [{"a": "x", "b": "y"}, {"c": None}, {None: "z"}, None, {}],
+        [{"a": 1, "b": 2}, {"c": None}, {None: 3}, None, {}],
+    ],
+)
+@pytest.mark.parametrize("i", ["", "a", "b", "c", "d"])
+@sql_count_checker(query_count=1)
+def test_str_get_dict(i, data):
+    native_ser = native_pd.Series(data=data)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.get(i=i))
+
+
+@pytest.mark.parametrize(
+    "data, i",
+    [
+        (["a", "b"], 1.2),
+        (["a", "b"], "a"),
+        ([[1, 2]], "a"),
+        ([{"a": "x"}], 1),
+    ],
+)
 @sql_count_checker(query_count=0)
-def test_str_get_neg():
-    native_ser = native_pd.Series(TEST_DATA)
+def test_str_get_neg(data, i):
+    native_ser = native_pd.Series(data)
     snow_ser = pd.Series(native_ser)
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument",
+        match="Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument of types other than ",
     ):
-        snow_ser.str.get(i="a")
+        snow_ser.str.get(i=i)
 
 
 @pytest.mark.parametrize(
@@ -248,6 +272,47 @@ def test_str___getitem___string_key():
         match="Snowpark pandas string indexing doesn't yet support non-numeric keys",
     ):
         snow_ser.str["a"]
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        None,
+        [1, 2],
+        (1, 2),
+        {1: "a", 2: "b"},
+        -100,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        100,
+        slice(None, None, None),
+        slice(0, -1, 1),
+        slice(-100, 100, 1),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_str___getitem___list(key):
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str[key],
+    )
+
+
+@sql_count_checker(query_count=0)
+def test_str___getitem___list_neg():
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="does not yet support 'step!=1' for list values",
+    ):
+        snow_ser.str[slice(None, None, 2)]
 
 
 @pytest.mark.parametrize(
@@ -308,6 +373,22 @@ def test_str_slice(start, stop, step):
 @sql_count_checker(query_count=1)
 def test_str_slice_list(start, stop, step):
     native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.slice(start=start, stop=stop, step=step),
+    )
+
+
+@pytest.mark.parametrize("start", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("stop", [None, -100, -2, -1, 0, 1, 2, 100])
+@pytest.mark.parametrize("step", [None, 1])
+@sql_count_checker(query_count=1)
+def test_str_slice_dict(start, stop, step):
+    native_ser = native_pd.Series(
+        [{"a": "x", "b": "y"}, {"c": None}, {None: "z"}, None, {}]
+    )
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
         snow_ser,
@@ -596,6 +677,8 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         session.sql(f"insert into {table_name} values (NULL)").collect()
 
         df = pd.read_snowflake(table_name)
+        # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+        df = df.sort_values(df.columns.to_list(), ignore_index=True)
 
         def compute_num_shared_card_users(x):
             """
@@ -622,6 +705,20 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         )
 
         assert_series_equal(str_len_res, apply_res, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        [{"a": "x", "b": "y"}, {"c": None}, {None: "z"}, None, {}],
+        [{"a": 1, "b": 2}, {"c": None}, {None: 3}, None, {}],
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_str_len_dict(data):
+    native_ser = native_pd.Series(data=data)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
 
 
 @pytest.mark.parametrize(

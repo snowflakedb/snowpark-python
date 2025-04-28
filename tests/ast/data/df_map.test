@@ -1,0 +1,2063 @@
+## TEST CASE
+
+from snowflake.snowpark.dataframe import map as map_
+
+df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
+
+df1 = map_(df, lambda row: row[0] * row[0], output_types=[IntegerType()])
+
+df2 = map_(df, lambda row: (row[1], row[0] * 3), output_types=[StringType(), IntegerType()])
+
+df3 = map_(
+    df,
+    lambda row: (row[1], row[0] * 3),
+    output_types=[StringType(), IntegerType()],
+    output_column_names=['col1', 'col2']
+)
+
+df4 = map_(df, lambda pdf: pdf['COL1']*3, output_types=[IntegerType()], vectorized=True, packages=["pandas"])
+
+df5 = map_(
+    df,
+    lambda pdf: (pdf['COL1']*3, pdf['COL2']+"b"),
+    output_types=[IntegerType(), StringType()],
+    output_column_names=['A', 'B'],
+    vectorized=True,
+    packages=["pandas"],
+)
+
+df6 = map_(
+    df,
+    lambda pdf: ((pdf.shape[0],) * len(pdf), (pdf.shape[1],) * len(pdf)),
+    output_types=[IntegerType(), IntegerType()],
+    output_column_names=['rows', 'cols'],
+    partition_by="col3",
+    vectorized=True,
+    packages=["pandas"],
+)
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
+
+df1 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df1 = df.join_table_function(df1("COL1", "COL2", "COL3").over())
+
+df1 = df1.select(col("$4").alias("c_1"))
+
+df2 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", StringType(), nullable=True), StructField("c1", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df2 = df.join_table_function(df2("COL1", "COL2", "COL3").over())
+
+df2 = df2.select(col("$4").alias("c_1"), col("$5").alias("c_2"))
+
+df3 = udtf("_MapFunc", output_schema=StructType(fields=[StructField("c0", StringType(), nullable=True), StructField("c1", IntegerType(), nullable=True)], structured=False), input_types=[LongType(), StringType(), LongType()], packages=["snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df3 = df.join_table_function(df3("COL1", "COL2", "COL3").over())
+
+df3 = df3.select(col("$4").alias("col1"), col("$5").alias("col2"))
+
+df4 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), "c0"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df4 = df.join_table_function(df4("COL1", "COL2", "COL3").over())
+
+df4 = df4.select(col("$4").alias("c_1"))
+
+df5 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), StringType(), "c0", "c1"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df5 = df.join_table_function(df5("COL1", "COL2", "COL3").over())
+
+df5 = df5.select(col("$4").alias("A"), col("$5").alias("B"))
+
+df6 = udtf("_MapFunc", output_schema=PandasDataFrameType(IntegerType(), IntegerType(), "c0", "c1"), input_types=[LongType(), StringType(), LongType()], packages=["pandas", "snowflake-snowpark-python"], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df6 = df.join_table_function(df6("COL1", "COL2", "COL3").over(partition_by="col3"))
+
+df6 = df6.select(col("$4").alias("rows"), col("$5").alias("cols"))
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 102
+                  end_line: 27
+                  file: 2
+                  start_column: 13
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 102
+                      end_line: 27
+                      file: 2
+                      start_column: 13
+                      start_line: 27
+                    }
+                    v: 10
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 102
+                      end_line: 27
+                      file: 2
+                      start_column: 13
+                      start_line: 27
+                    }
+                    v: "a"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 102
+                      end_line: 27
+                      file: 2
+                      start_column: 13
+                      start_line: 27
+                    }
+                    v: 22
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 102
+                  end_line: 27
+                  file: 2
+                  start_column: 13
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 102
+                      end_line: 27
+                      file: 2
+                      start_column: 13
+                      start_line: 27
+                    }
+                    v: 20
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 102
+                      end_line: 27
+                      file: 2
+                      start_column: 13
+                      start_line: 27
+                    }
+                    v: "b"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 102
+                      end_line: 27
+                      file: 2
+                      start_column: 13
+                      start_line: 27
+                    }
+                    v: 22
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "col1"
+            vs: "col2"
+            vs: "col3"
+          }
+        }
+        src {
+          end_column: 102
+          end_line: 27
+          file: 2
+          start_column: 13
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      udtf {
+        handler {
+          name: "_MapFunc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 81
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
+            }
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              struct_type {
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "c0"
+                    }
+                  }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
+          }
+        }
+        packages: "snowflake-snowpark-python"
+        parallel: 4
+        src {
+          end_column: 81
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      table_fn_call_over {
+        lhs {
+          apply_expr {
+            fn {
+              fn_ref {
+                id: 2
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 81
+                  end_line: 29
+                  file: 2
+                  start_column: 14
+                  start_line: 29
+                }
+                v: "COL1"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 81
+                  end_line: 29
+                  file: 2
+                  start_column: 14
+                  start_line: 29
+                }
+                v: "COL2"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 81
+                  end_line: 29
+                  file: 2
+                  start_column: 14
+                  start_line: 29
+                }
+                v: "COL3"
+              }
+            }
+            src {
+              end_column: 81
+              end_line: 29
+              file: 2
+              start_column: 14
+              start_line: 29
+            }
+          }
+        }
+        src {
+          end_column: 81
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 3
+              }
+            }
+            src {
+              end_column: 81
+              end_line: 29
+              file: 2
+              start_column: 14
+              start_line: 29
+            }
+          }
+        }
+        lhs {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 81
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 81
+                        end_line: 29
+                        file: 2
+                        start_column: 14
+                        start_line: 29
+                      }
+                      v: "$4"
+                    }
+                  }
+                  src {
+                    end_column: 81
+                    end_line: 29
+                    file: 2
+                    start_column: 14
+                    start_line: 29
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "c_1"
+              src {
+                end_column: 81
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 4
+          }
+        }
+        src {
+          end_column: 81
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      udtf {
+        handler {
+          id: 1
+          name: "_MapFunc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+            }
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              struct_type {
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "c0"
+                    }
+                  }
+                  data_type {
+                    string_type {
+                      length {
+                      }
+                    }
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "c1"
+                    }
+                  }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
+          }
+        }
+        packages: "snowflake-snowpark-python"
+        parallel: 4
+        src {
+          end_column: 100
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table_fn_call_over {
+        lhs {
+          apply_expr {
+            fn {
+              fn_ref {
+                id: 6
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 100
+                  end_line: 31
+                  file: 2
+                  start_column: 14
+                  start_line: 31
+                }
+                v: "COL1"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 100
+                  end_line: 31
+                  file: 2
+                  start_column: 14
+                  start_line: 31
+                }
+                v: "COL2"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 100
+                  end_line: 31
+                  file: 2
+                  start_column: 14
+                  start_line: 31
+                }
+                v: "COL3"
+              }
+            }
+            src {
+              end_column: 100
+              end_line: 31
+              file: 2
+              start_column: 14
+              start_line: 31
+            }
+          }
+        }
+        src {
+          end_column: 100
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 7
+              }
+            }
+            src {
+              end_column: 100
+              end_line: 31
+              file: 2
+              start_column: 14
+              start_line: 31
+            }
+          }
+        }
+        lhs {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 100
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 8
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 100
+                        end_line: 31
+                        file: 2
+                        start_column: 14
+                        start_line: 31
+                      }
+                      v: "$4"
+                    }
+                  }
+                  src {
+                    end_column: 100
+                    end_line: 31
+                    file: 2
+                    start_column: 14
+                    start_line: 31
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "c_1"
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+            }
+          }
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 100
+                        end_line: 31
+                        file: 2
+                        start_column: 14
+                        start_line: 31
+                      }
+                      v: "$5"
+                    }
+                  }
+                  src {
+                    end_column: 100
+                    end_line: 31
+                    file: 2
+                    start_column: 14
+                    start_line: 31
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "c_2"
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 8
+          }
+        }
+        src {
+          end_column: 100
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 9
+  }
+}
+body {
+  bind {
+    expr {
+      udtf {
+        handler {
+          id: 2
+          name: "_MapFunc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 38
+                file: 2
+                start_column: 14
+                start_line: 33
+              }
+            }
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              struct_type {
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "c0"
+                    }
+                  }
+                  data_type {
+                    string_type {
+                      length {
+                      }
+                    }
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    column_name {
+                      name: "c1"
+                    }
+                  }
+                  data_type {
+                    integer_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
+          }
+        }
+        packages: "snowflake-snowpark-python"
+        parallel: 4
+        src {
+          end_column: 9
+          end_line: 38
+          file: 2
+          start_column: 14
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 10
+  }
+}
+body {
+  bind {
+    expr {
+      table_fn_call_over {
+        lhs {
+          apply_expr {
+            fn {
+              fn_ref {
+                id: 10
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 38
+                  file: 2
+                  start_column: 14
+                  start_line: 33
+                }
+                v: "COL1"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 38
+                  file: 2
+                  start_column: 14
+                  start_line: 33
+                }
+                v: "COL2"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 38
+                  file: 2
+                  start_column: 14
+                  start_line: 33
+                }
+                v: "COL3"
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 38
+              file: 2
+              start_column: 14
+              start_line: 33
+            }
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 38
+          file: 2
+          start_column: 14
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 11
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 11
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 38
+              file: 2
+              start_column: 14
+              start_line: 33
+            }
+          }
+        }
+        lhs {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 38
+          file: 2
+          start_column: 14
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 12
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 9
+                        end_line: 38
+                        file: 2
+                        start_column: 14
+                        start_line: 33
+                      }
+                      v: "$4"
+                    }
+                  }
+                  src {
+                    end_column: 9
+                    end_line: 38
+                    file: 2
+                    start_column: 14
+                    start_line: 33
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "col1"
+              src {
+                end_column: 9
+                end_line: 38
+                file: 2
+                start_column: 14
+                start_line: 33
+              }
+            }
+          }
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 9
+                        end_line: 38
+                        file: 2
+                        start_column: 14
+                        start_line: 33
+                      }
+                      v: "$5"
+                    }
+                  }
+                  src {
+                    end_column: 9
+                    end_line: 38
+                    file: 2
+                    start_column: 14
+                    start_line: 33
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "col2"
+              src {
+                end_column: 9
+                end_line: 38
+                file: 2
+                start_column: 14
+                start_line: 33
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 12
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 38
+          file: 2
+          start_column: 14
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 13
+  }
+}
+body {
+  bind {
+    expr {
+      udtf {
+        handler {
+          id: 3
+          name: "_MapFunc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 117
+                end_line: 40
+                file: 2
+                start_column: 14
+                start_line: 40
+              }
+            }
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              pandas_data_frame_type {
+                col_names: "c0"
+                col_types {
+                  integer_type: true
+                }
+              }
+            }
+          }
+        }
+        packages: "pandas"
+        packages: "snowflake-snowpark-python"
+        parallel: 4
+        src {
+          end_column: 117
+          end_line: 40
+          file: 2
+          start_column: 14
+          start_line: 40
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 14
+  }
+}
+body {
+  bind {
+    expr {
+      table_fn_call_over {
+        lhs {
+          apply_expr {
+            fn {
+              fn_ref {
+                id: 14
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 117
+                  end_line: 40
+                  file: 2
+                  start_column: 14
+                  start_line: 40
+                }
+                v: "COL1"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 117
+                  end_line: 40
+                  file: 2
+                  start_column: 14
+                  start_line: 40
+                }
+                v: "COL2"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 117
+                  end_line: 40
+                  file: 2
+                  start_column: 14
+                  start_line: 40
+                }
+                v: "COL3"
+              }
+            }
+            src {
+              end_column: 117
+              end_line: 40
+              file: 2
+              start_column: 14
+              start_line: 40
+            }
+          }
+        }
+        src {
+          end_column: 117
+          end_line: 40
+          file: 2
+          start_column: 14
+          start_line: 40
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 15
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 15
+              }
+            }
+            src {
+              end_column: 117
+              end_line: 40
+              file: 2
+              start_column: 14
+              start_line: 40
+            }
+          }
+        }
+        lhs {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 117
+          end_line: 40
+          file: 2
+          start_column: 14
+          start_line: 40
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 16
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 117
+                        end_line: 40
+                        file: 2
+                        start_column: 14
+                        start_line: 40
+                      }
+                      v: "$4"
+                    }
+                  }
+                  src {
+                    end_column: 117
+                    end_line: 40
+                    file: 2
+                    start_column: 14
+                    start_line: 40
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "c_1"
+              src {
+                end_column: 117
+                end_line: 40
+                file: 2
+                start_column: 14
+                start_line: 40
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 16
+          }
+        }
+        src {
+          end_column: 117
+          end_line: 40
+          file: 2
+          start_column: 14
+          start_line: 40
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 17
+  }
+}
+body {
+  bind {
+    expr {
+      udtf {
+        handler {
+          id: 4
+          name: "_MapFunc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 49
+                file: 2
+                start_column: 14
+                start_line: 42
+              }
+            }
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              pandas_data_frame_type {
+                col_names: "c0"
+                col_names: "c1"
+                col_types {
+                  integer_type: true
+                }
+                col_types {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        packages: "pandas"
+        packages: "snowflake-snowpark-python"
+        parallel: 4
+        src {
+          end_column: 9
+          end_line: 49
+          file: 2
+          start_column: 14
+          start_line: 42
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df5"
+    }
+    uid: 18
+  }
+}
+body {
+  bind {
+    expr {
+      table_fn_call_over {
+        lhs {
+          apply_expr {
+            fn {
+              fn_ref {
+                id: 18
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 49
+                  file: 2
+                  start_column: 14
+                  start_line: 42
+                }
+                v: "COL1"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 49
+                  file: 2
+                  start_column: 14
+                  start_line: 42
+                }
+                v: "COL2"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 49
+                  file: 2
+                  start_column: 14
+                  start_line: 42
+                }
+                v: "COL3"
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 49
+              file: 2
+              start_column: 14
+              start_line: 42
+            }
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 49
+          file: 2
+          start_column: 14
+          start_line: 42
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 19
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 19
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 49
+              file: 2
+              start_column: 14
+              start_line: 42
+            }
+          }
+        }
+        lhs {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 49
+          file: 2
+          start_column: 14
+          start_line: 42
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df5"
+    }
+    uid: 20
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 9
+                        end_line: 49
+                        file: 2
+                        start_column: 14
+                        start_line: 42
+                      }
+                      v: "$4"
+                    }
+                  }
+                  src {
+                    end_column: 9
+                    end_line: 49
+                    file: 2
+                    start_column: 14
+                    start_line: 42
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "A"
+              src {
+                end_column: 9
+                end_line: 49
+                file: 2
+                start_column: 14
+                start_line: 42
+              }
+            }
+          }
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 9
+                        end_line: 49
+                        file: 2
+                        start_column: 14
+                        start_line: 42
+                      }
+                      v: "$5"
+                    }
+                  }
+                  src {
+                    end_column: 9
+                    end_line: 49
+                    file: 2
+                    start_column: 14
+                    start_line: 42
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "B"
+              src {
+                end_column: 9
+                end_line: 49
+                file: 2
+                start_column: 14
+                start_line: 42
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 20
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 49
+          file: 2
+          start_column: 14
+          start_line: 42
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df5"
+    }
+    uid: 21
+  }
+}
+body {
+  bind {
+    expr {
+      udtf {
+        handler {
+          id: 5
+          name: "_MapFunc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 59
+                file: 2
+                start_column: 14
+                start_line: 51
+              }
+            }
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              pandas_data_frame_type {
+                col_names: "c0"
+                col_names: "c1"
+                col_types {
+                  integer_type: true
+                }
+                col_types {
+                  integer_type: true
+                }
+              }
+            }
+          }
+        }
+        packages: "pandas"
+        packages: "snowflake-snowpark-python"
+        parallel: 4
+        src {
+          end_column: 9
+          end_line: 59
+          file: 2
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df6"
+    }
+    uid: 22
+  }
+}
+body {
+  bind {
+    expr {
+      table_fn_call_over {
+        lhs {
+          apply_expr {
+            fn {
+              fn_ref {
+                id: 22
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 59
+                  file: 2
+                  start_column: 14
+                  start_line: 51
+                }
+                v: "COL1"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 59
+                  file: 2
+                  start_column: 14
+                  start_line: 51
+                }
+                v: "COL2"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 59
+                  file: 2
+                  start_column: 14
+                  start_line: 51
+                }
+                v: "COL3"
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 59
+              file: 2
+              start_column: 14
+              start_line: 51
+            }
+          }
+        }
+        partition_by {
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 59
+                file: 2
+                start_column: 14
+                start_line: 51
+              }
+              v: "col3"
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 9
+          end_line: 59
+          file: 2
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 23
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 23
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 59
+              file: 2
+              start_column: 14
+              start_line: 51
+            }
+          }
+        }
+        lhs {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 59
+          file: 2
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df6"
+    }
+    uid: 24
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 9
+                        end_line: 59
+                        file: 2
+                        start_column: 14
+                        start_line: 51
+                      }
+                      v: "$4"
+                    }
+                  }
+                  src {
+                    end_column: 9
+                    end_line: 59
+                    file: 2
+                    start_column: 14
+                    start_line: 51
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "rows"
+              src {
+                end_column: 9
+                end_line: 59
+                file: 2
+                start_column: 14
+                start_line: 51
+              }
+            }
+          }
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 9
+                        end_line: 59
+                        file: 2
+                        start_column: 14
+                        start_line: 51
+                      }
+                      v: "$5"
+                    }
+                  }
+                  src {
+                    end_column: 9
+                    end_line: 59
+                    file: 2
+                    start_column: 14
+                    start_line: 51
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_alias: true
+              }
+              name: "cols"
+              src {
+                end_column: 9
+                end_line: 59
+                file: 2
+                start_column: 14
+                start_line: 51
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 24
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 59
+          file: 2
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df6"
+    }
+    uid: 25
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 31
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

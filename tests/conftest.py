@@ -76,6 +76,7 @@ def pytest_addoption(parser, pluginmanager):
         type=str,
         help="Path to the Unparser JAR built in the monorepo.",
     )
+    parser.addoption("--join_alias_fix", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -153,6 +154,11 @@ def validate_ast(pytestconfig):
 @pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):
     return not pytestconfig.getoption("disable_cte_optimization")
+
+
+@pytest.fixture(scope="session")
+def join_alias_fix(pytestconfig):
+    return pytestconfig.getoption("join_alias_fix")
 
 
 @pytest.fixture(scope="module", autouse=True)

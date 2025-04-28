@@ -10,15 +10,26 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, parse_json, when, hour, minute
+from snowflake.snowpark.functions import (
+    col,
+    lit,
+    parse_json,
+    second,
+    to_timestamp,
+    when,
+    hour,
+    minute,
+    window,
+)
 from snowflake.snowpark.types import (
     IntegerType,
+    StringType,
     StructField,
     StructType,
     TimestampTimeZone,
     TimestampType,
 )
-from tests.utils import TestData, Utils
+from tests.utils import TestData, Utils, IS_IN_STORED_PROC
 
 
 def test_column_constructors_subscriptable(session):
@@ -141,6 +152,37 @@ def test_contains(session):
         TestData.string4(session).filter(col("a").contains(lit("e"))),
         [Row("apple"), Row("peach")],
         sort=False,
+    )
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2037787: timestamp is return in RFC 1123 format, need more investigation, skip to unblock",
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="window function is not supported in Local Testing",
+)
+def test_internal_alias(session):
+    df = session.create_dataframe(
+        [[datetime.datetime(1970, 1, 1, 0, 0, 0)]], schema=["ts"]
+    )
+    Utils.check_answer(
+        df.select(window(df.ts, "10 seconds").alias("my_alias")),
+        [
+            Row(
+                MY_ALIAS='{\n  "end": "1970-01-01 00:00:10.000",\n  "start": "1970-01-01 00:00:00.000"\n}'
+            )
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(window(df.ts, "10 seconds").cast(StringType())),
+        [Row('{"end":"1970-01-01 00:00:10.000","start":"1970-01-01 00:00:00.000"}')],
+    )
+    Utils.check_answer(
+        df.select(second(to_timestamp(window(df.ts, "10 seconds")["end"]))),
+        [Row(10)],
     )
 
 

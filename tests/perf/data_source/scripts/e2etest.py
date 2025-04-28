@@ -15,6 +15,7 @@ from dbtest_config import (
     create_sql_server_config,
     create_oracle_config,
     DEFAULT_PYSPARK_CONFIG,
+    PARALLELISM_OPTIMIZED_PYSPARK_CONFIG,
     DEFAULT_ORACLE_JDBC_CONFIG,
     DEFAULT_SQLSERVER_JDBC_CONFIG,
 )
@@ -102,7 +103,7 @@ class DBPerformanceTest:
                     "read.dbapi",
                     session.read.dbapi,
                     source_db.create_connection,
-                    table_name,
+                    table=table_name,
                     dbapi_parameters=config.dbapi_parameters,
                 )
 
@@ -166,6 +167,10 @@ class DBPerformanceTest:
             # Writing data back to Snowflake
             logger.info("Writing data back to Snowflake.")
             write_start = time.time()
+
+            if spark_config.get("repartition_num"):
+                df = df.repartition(spark_config.get("repartition_num"))
+
             (
                 df.write.format("net.snowflake.spark.snowflake")
                 .option("sfUrl", self.snowflake_connection["host"])
@@ -220,23 +225,29 @@ class DBPerformanceTest:
         logger.info(f"\nResults saved to {filename}")
 
 
-def pyspark_perf_test():
+def pyspark_perf_test(table_name="ALL_TYPE_TABLE"):
     # here the assumption is that source database is already set up
     perf_test = DBPerformanceTest(SNOWFLAKE_CONNECTION)
 
     oracle_jdbc_config = copy(DEFAULT_ORACLE_JDBC_CONFIG)
+    # SELECT to avoid driver unsupported types
     oracle_jdbc_config[
         "dbtable"
-    ] = "(SELECT ID,NUMBER_COL,BINARY_FLOAT_COL,BINARY_DOUBLE_COL,VARCHAR2_COL,CHAR_COL,CLOB_COL,NCHAR_COL,NVARCHAR2_COL,NCLOB_COL,DATE_COL,TIMESTAMP_COL,TIMESTAMP_TZ_COL,TO_CHAR(TIMESTAMP_LTZ_COL),BLOB_COL,RAW_COL,GUID_COL FROM ALL_TYPE_TABLE)"
+    ] = f"(SELECT ID,NUMBER_COL,BINARY_FLOAT_COL,BINARY_DOUBLE_COL,VARCHAR2_COL,CHAR_COL,CLOB_COL,NCHAR_COL,NVARCHAR2_COL,NCLOB_COL,DATE_COL,TIMESTAMP_COL,TIMESTAMP_TZ_COL,TO_CHAR(TIMESTAMP_LTZ_COL),BLOB_COL,RAW_COL,GUID_COL FROM {table_name})"
 
     sqlserver_jdbc_config = copy(DEFAULT_SQLSERVER_JDBC_CONFIG)
+    # SELECT to avoid driver unsupported types
     sqlserver_jdbc_config[
         "dbtable"
-    ] = "(SELECT id,bigint_col,bit_col,decimal_col,float_col,int_col,money_col,real_col,smallint_col,smallmoney_col,tinyint_col,numeric_col,date_col,datetime2_col,datetime_col,smalldatetime_col,time_col,char_col,text_col,varchar_col,nchar_col,ntext_col,nvarchar_col,binary_col,varbinary_col,image_col,uniqueidentifier_col,xml_col,sysname_col FROM ALL_TYPE_TABLE) as tmp"
+    ] = f"(SELECT id,bigint_col,bit_col,decimal_col,float_col,int_col,money_col,real_col,smallint_col,smallmoney_col,tinyint_col,numeric_col,date_col,datetime2_col,datetime_col,smalldatetime_col,time_col,char_col,text_col,varchar_col,nchar_col,ntext_col,nvarchar_col,binary_col,varbinary_col,image_col,uniqueidentifier_col,xml_col,sysname_col FROM {table_name}) as tmp"
 
-    perf_test.run_test_for_pyspark_jdbc(DEFAULT_PYSPARK_CONFIG, oracle_jdbc_config)
+    # CHANGE ME TO TEST DIFFERENT CONFIGURATIONS
+    pyspark_configs = [DEFAULT_PYSPARK_CONFIG, PARALLELISM_OPTIMIZED_PYSPARK_CONFIG]
+    jdbc_configs = [oracle_jdbc_config, sqlserver_jdbc_config]
 
-    perf_test.run_test_for_pyspark_jdbc(DEFAULT_PYSPARK_CONFIG, sqlserver_jdbc_config)
+    for pyspark_config in pyspark_configs:
+        for jdbc_config in jdbc_configs:
+            perf_test.run_test_for_pyspark_jdbc(pyspark_config, jdbc_config)
 
     # Save all results
     perf_test.save_results("pyspark_performance_results.csv")

@@ -188,7 +188,7 @@ jobs:
       - name: Install tox
         run: python -m pip install tox
       # we only run doctest on macos
-      - if: ${{ matrix.os == 'macos-latest' && matrix.python-version != '3.12'}}
+      - if: ${{ matrix.os == 'macos-latest' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -200,7 +200,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.12' }}
+      - if: ${{ matrix.os != 'macos-latest' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -209,15 +209,13 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - if: ${{ matrix.python-version == '3.12' }}
-        name: Run tests (excluding doctests and udf tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
+      - name: Run data source tests
+        run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -240,12 +238,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: [ "3.8", "3.9", "3.10", "3.11", "3.12" ]
+        python-version: ["3.9", "3.10", "3.11", "3.12" ]
         cloud-provider: [aws]
         exclude:
           # only run each version on one os
           # daily-precommit does full matrix
-          # macos runs 3.8 and 3.9
+          # macos runs 3.10
           - os: macos-latest
             python-version: "3.12"
           - os: macos-latest
@@ -257,8 +255,6 @@ jobs:
             python-version: "3.12"
           - os: windows-latest
             python-version: "3.10"
-          - os: windows-latest
-            python-version: "3.8"
           # ubuntu runs 3.12
           - os: ubuntu-latest
             python-version: "3.11"
@@ -266,8 +262,6 @@ jobs:
             python-version: "3.10"
           - os: ubuntu-latest
             python-version: "3.9"
-          - os: ubuntu-latest
-            python-version: "3.8"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -325,7 +319,7 @@ jobs:
             .tox/coverage.xml
 
   test-ast-encoding:
-    name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}
+    name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -334,7 +328,7 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
         # TODO SNOW-1763185 use py39 by default
         # Protobuf encoding differs per python version, use 3.8 by default.
-        python-version: [ "3.8"]
+        python-version: [ "3.11" ]
         cloud-provider: [aws]
         protobuf-version: ["3.20.1"]
     steps:
@@ -505,24 +499,13 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ matrix.python-version != '3.12' }}
-        name: Run tests for AST (II/II)
+      - name: Run tests for AST (II/II)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
           TOX_PARALLEL_NO_SPINNER: 1
-        shell: bash
-      - if: ${{ matrix.python-version == '3.12' }}
-        name: Run tests for AST (II/II) (excluding udf tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false

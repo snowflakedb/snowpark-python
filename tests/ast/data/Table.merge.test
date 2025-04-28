@@ -49,25 +49,37 @@ target = Table("test_table_1", session)
 
 target.merge(source=source, join_expr=(target["num"] == source["num"]) & (target["str"] == "too_old"), clauses=[when_matched().update({"str": "value"})])
 
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
+
 target = Table("test_table_1b", session)
 
 target.merge(source=source, join_expr=source["str"] != "bar", clauses=[when_matched(source["str"] == "too_new").update({"str": "value2"}), when_matched().update({"num": 123})])
+
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_2", session)
 
 target.merge(source=source, join_expr=(target["num"] != source["num"]) & (target["str"] != "too_old"), clauses=[when_not_matched().insert({"str": "value"})])
 
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
+
 target = Table("test_table_2b", session)
 
 target.merge(source=source, join_expr=source["str"] != "foo", clauses=[when_not_matched(source["str"] == "too_new").insert({"str": "value"}), when_matched().update({"str": "value3"})])
+
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_3", session)
 
 target.merge(source=source, join_expr=target["num"] == source["num"], clauses=[when_matched().delete()])
 
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
+
 target = Table("test_table_4", session)
 
 target.merge(source=source, join_expr=(source["num"] == 1) & (target["num"] == source["num"]), clauses=[when_matched(source["str"] == "too_new").delete()], block=False)
+
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_5", session)
 
@@ -85,7 +97,7 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
       create_dataframe {
         data {
@@ -237,17 +249,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "source"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table {
         name {
@@ -269,17 +279,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table_merge {
         block: true
@@ -313,8 +321,10 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 2
+        df {
+          dataframe_ref {
+            id: 2
+          }
         }
         join_expr {
           and {
@@ -325,9 +335,7 @@ body {
                     col_name: "num"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 2
-                        }
+                        id: 2
                       }
                     }
                     src {
@@ -344,9 +352,7 @@ body {
                     col_name: "num"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                        id: 1
                       }
                     }
                     src {
@@ -374,9 +380,7 @@ body {
                     col_name: "str"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 2
-                        }
+                        id: 2
                       }
                     }
                     src {
@@ -420,9 +424,7 @@ body {
         }
         source {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -434,24 +436,179 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
   eval {
-    uid: 4
-    var_id {
-      bitfield1: 3
-    }
+    bind_id: 3
   }
 }
 body {
-  assign {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
     expr {
       table {
         name {
@@ -473,17 +630,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 5
-    var_id {
-      bitfield1: 5
-    }
+    uid: 4
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table_merge {
         block: true
@@ -496,9 +651,7 @@ body {
                     col_name: "str"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                        id: 1
                       }
                     }
                     src {
@@ -589,8 +742,10 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 5
+        df {
+          dataframe_ref {
+            id: 4
+          }
         }
         join_expr {
           neq {
@@ -599,9 +754,7 @@ body {
                 col_name: "str"
                 df {
                   dataframe_ref {
-                    id {
-                      bitfield1: 1
-                    }
+                    id: 1
                   }
                 }
                 src {
@@ -636,9 +789,7 @@ body {
         }
         source {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -650,24 +801,179 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
+    uid: 5
   }
 }
 body {
   eval {
-    uid: 7
-    var_id {
-      bitfield1: 6
-    }
+    bind_id: 5
   }
 }
 body {
-  assign {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
     expr {
       table {
         name {
@@ -689,17 +995,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 6
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table_merge {
         block: true
@@ -731,8 +1035,10 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 8
+        df {
+          dataframe_ref {
+            id: 6
+          }
         }
         join_expr {
           and {
@@ -743,9 +1049,7 @@ body {
                     col_name: "num"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 8
-                        }
+                        id: 6
                       }
                     }
                     src {
@@ -762,9 +1066,7 @@ body {
                     col_name: "num"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                        id: 1
                       }
                     }
                     src {
@@ -792,9 +1094,7 @@ body {
                     col_name: "str"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 8
-                        }
+                        id: 6
                       }
                     }
                     src {
@@ -838,9 +1138,7 @@ body {
         }
         source {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -852,24 +1150,179 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
+    uid: 7
   }
 }
 body {
   eval {
-    uid: 10
-    var_id {
-      bitfield1: 9
-    }
+    bind_id: 7
   }
 }
 body {
-  assign {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
     expr {
       table {
         name {
@@ -891,17 +1344,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
+    uid: 8
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table_merge {
         block: true
@@ -914,9 +1365,7 @@ body {
                     col_name: "str"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                        id: 1
                       }
                     }
                     src {
@@ -1005,8 +1454,10 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 11
+        df {
+          dataframe_ref {
+            id: 8
+          }
         }
         join_expr {
           neq {
@@ -1015,9 +1466,7 @@ body {
                 col_name: "str"
                 df {
                   dataframe_ref {
-                    id {
-                      bitfield1: 1
-                    }
+                    id: 1
                   }
                 }
                 src {
@@ -1052,9 +1501,7 @@ body {
         }
         source {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -1066,24 +1513,179 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 12
-    var_id {
-      bitfield1: 12
-    }
+    uid: 9
   }
 }
 body {
   eval {
-    uid: 13
-    var_id {
-      bitfield1: 12
-    }
+    bind_id: 9
   }
 }
 body {
-  assign {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
     expr {
       table {
         name {
@@ -1105,17 +1707,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 14
-    var_id {
-      bitfield1: 14
-    }
+    uid: 10
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table_merge {
         block: true
@@ -1123,8 +1723,10 @@ body {
           merge_delete_when_matched_clause {
           }
         }
-        id {
-          bitfield1: 14
+        df {
+          dataframe_ref {
+            id: 10
+          }
         }
         join_expr {
           eq {
@@ -1133,9 +1735,7 @@ body {
                 col_name: "num"
                 df {
                   dataframe_ref {
-                    id {
-                      bitfield1: 14
-                    }
+                    id: 10
                   }
                 }
                 src {
@@ -1152,9 +1752,7 @@ body {
                 col_name: "num"
                 df {
                   dataframe_ref {
-                    id {
-                      bitfield1: 1
-                    }
+                    id: 1
                   }
                 }
                 src {
@@ -1177,9 +1775,7 @@ body {
         }
         source {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -1191,24 +1787,179 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 15
-    var_id {
-      bitfield1: 15
-    }
+    uid: 11
   }
 }
 body {
   eval {
-    uid: 16
-    var_id {
-      bitfield1: 15
-    }
+    bind_id: 11
   }
 }
 body {
-  assign {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
     expr {
       table {
         name {
@@ -1230,17 +1981,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 17
-    var_id {
-      bitfield1: 17
-    }
+    uid: 12
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table_merge {
         clauses {
@@ -1252,9 +2001,7 @@ body {
                     col_name: "str"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                        id: 1
                       }
                     }
                     src {
@@ -1289,8 +2036,10 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 17
+        df {
+          dataframe_ref {
+            id: 12
+          }
         }
         join_expr {
           and {
@@ -1301,9 +2050,7 @@ body {
                     col_name: "num"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                        id: 1
                       }
                     }
                     src {
@@ -1343,9 +2090,7 @@ body {
                     col_name: "num"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 17
-                        }
+                        id: 12
                       }
                     }
                     src {
@@ -1362,9 +2107,7 @@ body {
                     col_name: "num"
                     df {
                       dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                        id: 1
                       }
                     }
                     src {
@@ -1396,9 +2139,7 @@ body {
         }
         source {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -1410,24 +2151,179 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 18
-    var_id {
-      bitfield1: 18
-    }
+    uid: 13
   }
 }
 body {
   eval {
-    uid: 19
-    var_id {
-      bitfield1: 18
-    }
+    bind_id: 13
   }
 }
 body {
-  assign {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
     expr {
       table {
         name {
@@ -1449,21 +2345,21 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 20
-    var_id {
-      bitfield1: 20
-    }
+    uid: 14
   }
 }
 body {
-  assign {
+  bind {
     expr {
       table_merge {
-        id {
-          bitfield1: 20
+        df {
+          dataframe_ref {
+            id: 14
+          }
         }
         join_expr {
           eq {
@@ -1472,9 +2368,7 @@ body {
                 col_name: "num"
                 df {
                   dataframe_ref {
-                    id {
-                      bitfield1: 20
-                    }
+                    id: 14
                   }
                 }
                 src {
@@ -1491,9 +2385,7 @@ body {
                 col_name: "num"
                 df {
                   dataframe_ref {
-                    id {
-                      bitfield1: 1
-                    }
+                    id: 1
                   }
                 }
                 src {
@@ -1516,9 +2408,7 @@ body {
         }
         source {
           dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+            id: 1
           }
         }
         src {
@@ -1534,20 +2424,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 21
-    var_id {
-      bitfield1: 21
-    }
+    uid: 15
   }
 }
 body {
   eval {
-    uid: 22
-    var_id {
-      bitfield1: 21
-    }
+    bind_id: 15
   }
 }
 client_ast_version: 1
@@ -1563,5 +2448,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 29
+  minor: 31
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

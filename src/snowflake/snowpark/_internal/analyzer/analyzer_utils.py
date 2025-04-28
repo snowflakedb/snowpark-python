@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import json
 import math
 import os
 import sys
@@ -45,6 +46,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     quote_name,
     random_name_for_temp_object,
+    unwrap_single_quote,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
@@ -62,6 +64,7 @@ RIGHT_PARENTHESIS = ")"
 LEFT_BRACKET = "["
 RIGHT_BRACKET = "]"
 AS = " AS "
+EXCLUDE = " EXCLUDE "
 AND = " AND "
 OR = " OR "
 NOT = " NOT "
@@ -489,6 +492,27 @@ def sample_statement(
         raise ValueError(
             "Either 'probability_fraction' or 'row_count' must not be None."
         )
+
+
+def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> str:
+    PERCENT_RANK_COL = random_name_for_temp_object(TempObjectType.COLUMN)
+    LEFT_ALIAS = "SNOWPARK_LEFT"
+    RIGHT_ALIAS = "SNOWPARK_RIGHT"
+    child_with_percentage_rank_stmt = f"SELECT *, PERCENT_RANK() OVER (PARTITION BY {col} ORDER BY RANDOM()) AS {PERCENT_RANK_COL} FROM ({child})"
+
+    # PERCENT_RANK assigns values between 0.0 - 1.0 both inclusive. In our, query we only
+    # select values where percent_rank <= value. If value = 0, then we will select one sample
+    # unless we update the fractions as done below. This update ensures that, if the original
+    # stratified sample fraction = 0, we select 0 rows for the given key.
+    updated_fractions = {k: v if v > 0 else -1 for k, v in fractions.items()}
+    fraction_flatten_stmt = f"SELECT KEY, VALUE FROM TABLE(FLATTEN(input => parse_json('{json.dumps(updated_fractions)}')))"
+
+    return (
+        f"{SELECT} {LEFT_ALIAS}.* EXCLUDE {PERCENT_RANK_COL} {FROM} ({child_with_percentage_rank_stmt}) {LEFT_ALIAS}"
+        f"{JOIN} ({fraction_flatten_stmt}) {RIGHT_ALIAS}"
+        f"{ON} {LEFT_ALIAS}.{col} = {RIGHT_ALIAS}.KEY"
+        f"{WHERE} {LEFT_ALIAS}.{PERCENT_RANK_COL} <= {RIGHT_ALIAS}.VALUE"
+    )
 
 
 def aggregate_statement(
@@ -1226,7 +1250,9 @@ def pivot_statement(
     aggregate: str,
     default_on_null: Optional[str],
     child: str,
+    should_alias_column_with_agg: bool,
 ) -> str:
+    select_str = STAR
     if isinstance(pivot_values, str):
         # The subexpression in this case already includes parenthesis.
         values_str = pivot_values
@@ -1236,10 +1262,24 @@ def pivot_statement(
             + (ANY if pivot_values is None else COMMA.join(pivot_values))
             + RIGHT_PARENTHESIS
         )
+        if pivot_values is not None and should_alias_column_with_agg:
+            quoted_names = [quote_name(value) for value in pivot_values]
+            # unwrap_single_quote on the value to match the output closer to what spark generates
+            aliased_names = [
+                quote_name(f"{unwrap_single_quote(value)}_{aggregate}")
+                for value in pivot_values
+            ]
+            aliased_string = [
+                f"{quoted_name}{AS}{aliased_name}"
+                for aliased_name, quoted_name in zip(aliased_names, quoted_names)
+            ]
+            exclude_str = COMMA.join(quoted_names)
+            aliased_str = COMMA.join(aliased_string)
+            select_str = f"{STAR}{EXCLUDE}{LEFT_PARENTHESIS}{exclude_str}{RIGHT_PARENTHESIS}, {aliased_str}"
 
     return (
         SELECT
-        + STAR
+        + select_str
         + FROM
         + LEFT_PARENTHESIS
         + child

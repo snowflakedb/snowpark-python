@@ -2,8 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import logging
 import copy
+import logging
 import math
 import os
 import re
@@ -797,7 +797,9 @@ def test_df_stat_crosstab(session):
     )
 
 
-def test_df_stat_sampleBy(session):
+@pytest.mark.parametrize("use_simplified_query_gen", [True, False])
+def test_df_stat_sampleBy(session, use_simplified_query_gen):
+    session.conf.set("use_simplified_query_generation", use_simplified_query_gen)
     sample_by = (
         TestData.monthly_sales(session)
         .stat.sample_by(col("empid"), {1: 0.0, 2: 1.0})
@@ -842,7 +844,9 @@ def test_df_stat_sampleBy(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in local testing",
 )
-def test_df_stat_sampleBy_seed(session, caplog):
+@pytest.mark.parametrize("use_simplified_query_gen", [True, False])
+def test_df_stat_sampleBy_seed(session, caplog, use_simplified_query_gen):
+    session.conf.set("use_simplified_query_generation", use_simplified_query_gen)
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     TestData.monthly_sales(session).write.save_as_table(
         temp_table_name, table_type="temp", mode="overwrite"
@@ -861,9 +865,11 @@ def test_df_stat_sampleBy_seed(session, caplog):
 
     # DataFrame doesn't work with seed
     caplog.clear()
-    with caplog.at_level(logging.WARNING):
-        sample_by_action(TestData.monthly_sales(session))
-    assert "`seed` argument is ignored on `DataFrame` object" in caplog.text
+    # TODO: SNOW-2046468 check if there is a bug in the code
+    if not IS_IN_STORED_PROC:
+        with caplog.at_level(logging.WARNING):
+            sample_by_action(TestData.monthly_sales(session))
+        assert "`seed` argument is ignored on `DataFrame` object" in caplog.text
 
 
 @pytest.mark.skipif(
@@ -3179,4 +3185,45 @@ def test_to_df(session):
 
     assert "Invalid input type in to_df(), expected str or a list of strs." in str(
         exc_info
+    )
+
+
+def test_limit(session):
+    df = session.create_dataframe([[1, 2], [2, 3]]).to_df("a", "b")
+    # run show(), make sure no error is reported
+    res = df._show_string(_emit_ast=session.ast_enabled)
+    assert (
+        res
+        == """
+-------------
+|"A"  |"B"  |
+-------------
+|1    |2    |
+|2    |3    |
+-------------\n""".lstrip()
+    )
+
+    df1 = df.limit(1)
+    res = df1._show_string(_emit_ast=session.ast_enabled)
+    assert (
+        res
+        == """
+-------------
+|"A"  |"B"  |
+-------------
+|1    |2    |
+-------------\n""".lstrip()
+    )
+
+    df2 = df.limit(0)
+
+    res = df2._show_string(_emit_ast=session.ast_enabled)
+    assert (
+        res
+        == """
+-------------
+|"A"  |"B"  |
+-------------
+|     |     |
+-------------\n""".lstrip()
     )

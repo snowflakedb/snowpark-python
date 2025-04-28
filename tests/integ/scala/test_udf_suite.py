@@ -24,6 +24,7 @@ from snowflake.snowpark.functions import (
     to_time,
     to_timestamp,
     udf,
+    to_file,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -36,6 +37,7 @@ from snowflake.snowpark.types import (
     GeographyType,
     GeometryType,
     IntegerType,
+    FileType,
     LongType,
     MapType,
     NullType,
@@ -45,6 +47,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    File,
 )
 from tests.utils import TestData, TestFiles, Utils
 
@@ -119,10 +122,6 @@ def test_empty_expression(session):
     Utils.check_answer(df.select(const_udf()).collect(), [Row(1), Row(1), Row(1)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="array_construct is not yet supported in local testing mode.",
-)
 def test_udf_with_arrays(session):
     tmp_df = session.create_dataframe([("1", "2", "3"), ("4", "5", "6")]).to_df(
         ["a", "b", "c"]
@@ -158,10 +157,6 @@ def test_udf_with_map_input(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="array_construct is not yet supported in local testing mode.",
-)
 def test_udf_with_map_return(session):
     tmp_df = session.create_dataframe([("1", "2", "3"), ("4", "5", "6")]).to_df(
         ["a", "b", "c"]
@@ -595,6 +590,63 @@ def test_geometry_type(session):
             Row(None),
         ],
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="to_file is not yet supported in local testing mode.",
+)
+def test_file_type(session, resources_path):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    _ = session.sql(f"create or replace temp stage {stage_name}").collect()
+    test_files = TestFiles(resources_path)
+    _ = session.file.put(
+        test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+
+    func_udfs = []
+
+    def func1(x):
+        if not x:
+            return None
+        else:
+            x["ETAG"] = x["LAST_MODIFIED"] = x["STAGE_FILE_URL"] = x["STAGE"] = x[
+                "SIZE"
+            ] = ""
+            return x
+
+    func_udfs.append(udf(func1, return_type=StringType(), input_types=[FileType()]))
+
+    def func2(x: File) -> str:
+        if not x:
+            return None
+        else:
+            x["ETAG"] = x["LAST_MODIFIED"] = x["STAGE_FILE_URL"] = x["STAGE"] = x[
+                "SIZE"
+            ] = ""
+            return x
+
+    func_udfs.append(udf(func2))
+
+    expected_dict = {
+        "CONTENT_TYPE": "text/csv",
+        "ETAG": "",
+        "LAST_MODIFIED": "",
+        "RELATIVE_PATH": "testCSV.csv",
+        "SIZE": "",
+        "STAGE": "",
+        "STAGE_FILE_URL": "",
+    }
+
+    for func_udf in func_udfs:
+        Utils.check_answer(
+            session.range(1).select(
+                func_udf(to_file(f"@{stage_name}/testCSV.csv")), func_udf(lit(None))
+            ),
+            [
+                Row(str(expected_dict), None),
+            ],
+        )
 
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)

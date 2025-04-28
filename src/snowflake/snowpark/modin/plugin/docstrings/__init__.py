@@ -20,6 +20,7 @@ from snowflake.snowpark.modin.plugin.docstrings.series_utils import (
     CombinedDatetimelikeProperties,
     StringMethods,
 )
+from snowflake.snowpark.modin.plugin.docstrings.timedelta_index import TimedeltaIndex
 from snowflake.snowpark.modin.plugin.docstrings.window import Expanding, Rolling
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "StringMethods",
     "Index",
     "DatetimeIndex",
+    "TimedeltaIndex",
 ]

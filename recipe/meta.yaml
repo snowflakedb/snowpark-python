@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.29.0" %}
+{% set version = "1.31.0" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 
 package:
@@ -59,7 +59,7 @@ requirements:
     - tzlocal
   run_constrained:
     # Snowpark pandas
-    - modin==0.30.1
+    - modin==0.32.0
 
 test:
   imports:

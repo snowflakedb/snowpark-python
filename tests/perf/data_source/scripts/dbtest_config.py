@@ -4,8 +4,8 @@
 
 from typing import Dict, Type, Union
 
-from tests.perf.data_source.scripts.oracle_resource_setup import TestOracleDB
-from tests.perf.data_source.scripts.sql_server_resource_setup import TestSQLServerDB
+from oracle_resource_setup import TestOracleDB
+from sql_server_resource_setup import TestSQLServerDB
 
 
 class DatabaseTestConfig:
@@ -221,25 +221,31 @@ DEFAULT_PYSPARK_CONFIG = create_pyspark_session_config(
     driver_extra_class_path="./jdbc_drivers/*"
 )
 
-DEFAULT_ORACLE_JDBC_CONFIG = [
-    create_jdbc_config(
-        jdbc_url="jdbc:oracle:thin:@//localhost:1521/FREEPDB1",
-        user="SYSTEM",
-        password="test",
-        driver="oracle.jdbc.driver.OracleDriver",
-        fetch_size=fetch_size,
-        partition_column="id",
-        lower_bound=0,
-        upper_bound=1000000,
-        num_partitions=num_partitions,
-    )
-    for fetch_size, num_partitions in [
-        (0, 0),
-        (10000, 0),
-        # (0, 10),
-        # (10000, 10),
-    ]
-]
+
+PARALLELISM_OPTIMIZED_PYSPARK_CONFIG = create_pyspark_session_config(
+    driver_extra_class_path="./jdbc_drivers/*",
+    num_partitions=10,
+    repartition_num=32,  # this is not a spark config, but used in the test dataframe operations
+    **{
+        "spark.sql.shuffle.partitions": 16,  # CHANGE ME TO MATCH THE SPEC OF THE TEST MACHINE
+        "spark.default.parallelism": 16,  # CHANGE ME TO MATCH THE SPEC OF THE TEST MACHINE
+        "spark.executor.cores": 8,  # CHANGE ME TO MATCH THE SPEC OF THE TEST MACHINE
+        "spark.executor.memory": "16g",  # CHANGE ME TO MATCH THE SPEC OF TESTTHE MACHINE
+        "spark.executor.instances": 1,
+    },
+)
+
+DEFAULT_ORACLE_JDBC_CONFIG = create_jdbc_config(
+    jdbc_url="jdbc:oracle:thin:@//localhost:1521/FREEPDB1",
+    user="SYSTEM",
+    password="test",
+    driver="oracle.jdbc.driver.OracleDriver",
+    fetch_size=1000,
+    partition_column="id",
+    lower_bound=0,
+    upper_bound=1000000,
+    num_partitions=0,
+)
 
 DEFAULT_SQLSERVER_JDBC_CONFIG = create_jdbc_config(
     jdbc_url="jdbc:sqlserver://127.0.0.1:1433;TrustServerCertificate=true;databaseName=msdb",
