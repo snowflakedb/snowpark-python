@@ -76,7 +76,7 @@ from pandas.io.formats.printing import PrettyDict
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
-from snowflake.snowpark._internal.type_utils import ColumnOrName, NoneType
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     parse_table_name,
@@ -16702,7 +16702,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_get(self, i: Union[NoneType, int, str]) -> "SnowflakeQueryCompiler":  # type: ignore
+    def str_get(self, i: Union[None, int, str]) -> "SnowflakeQueryCompiler":
         """
         Extract element from each component at specified position or with specified key.
 
@@ -16723,7 +16723,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         def output_col_string(
-            column: SnowparkColumn, i: Union[NoneType, int]  # type: ignore
+            column: SnowparkColumn, i: Union[None, int]
         ) -> SnowparkColumn:
             col_len_exp = length(column)
             if i is None:
@@ -16753,7 +16753,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._replace_non_str(column, new_col)
 
         def output_col_list(
-            column: SnowparkColumn, i: Union[NoneType, int]  # type: ignore
+            column: SnowparkColumn, i: Union[None, int]
         ) -> SnowparkColumn:
             col_len_exp = array_size(column)
             if i is None:
