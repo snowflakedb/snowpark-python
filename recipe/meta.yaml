@@ -11,7 +11,7 @@ source:
   path: ../
 
 build:
-  number: {{ os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) }}
+  number: {{ os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 1) }}  # THIS IS JUST FOR SNOWPARK PYTHON v1.31.0
   skip: True  # [py<38 or win32 or s390x]
   script: {{ PYTHON }} -m pip install . --no-deps -vvv
   script_env:
