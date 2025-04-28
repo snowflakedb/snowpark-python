@@ -24,6 +24,9 @@ build:
   string: "py312_0"  # [py==312]
 {% endif %}
 
+{% if noarch_build and py not in [39, 310, 311, 312] %}
+error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.9, 3.10, 3.11, or 3.12."
+{% else %}
 requirements:
   host:
     - python
@@ -60,6 +63,7 @@ requirements:
   run_constrained:
     # Snowpark pandas
     - modin==0.32.0
+{% endif %}
 
 test:
   imports:
