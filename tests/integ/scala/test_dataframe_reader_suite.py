@@ -2095,6 +2095,10 @@ def test_read_xml_row_tag_not_found(session):
         ('"a$B12""cD"', False),
     ],
 )
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
 def test_read_file_with_enforced_existing_file_format(
     session, file_format_name, infer_schema
 ):
@@ -2125,6 +2129,10 @@ def test_read_file_with_enforced_existing_file_format(
         session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
 def test_enforce_existing_file_format_with_additional_format_type_options(session):
     file_format_name = "ABC"
 
@@ -2150,6 +2158,10 @@ def test_enforce_existing_file_format_with_additional_format_type_options(sessio
         session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
 def test_enforce_existing_file_format_without_providing_format_name(session):
     file_format_name = "ABC"
 
@@ -2172,6 +2184,10 @@ def test_enforce_existing_file_format_without_providing_format_name(session):
         session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Read option 'FORMAT_NAME' not supported in local testing mode",
+)
 def test_enforce_existing_file_format_object_doesnt_exist(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
