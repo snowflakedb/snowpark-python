@@ -4072,6 +4072,10 @@ class Session:
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
+        if sproc_name.strip().upper().startswith("SYSTEM$"):
+            # Built-in stored procedures do not have schema and cannot be described
+            # Currently all SYSTEM$ stored procedures are scalar so return false.
+            return False
         func_signature = ""
         try:
             arg_types = []
