@@ -8,6 +8,12 @@
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+
 ### Snowpark pandas API Updates
 
 #### New Features
