@@ -14,6 +14,7 @@ import sys
 import tempfile
 import warnings
 from array import array
+from collections import defaultdict
 from functools import reduce
 from logging import getLogger
 from threading import RLock
@@ -22,6 +23,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    DefaultDict,
     Dict,
     List,
     Literal,
@@ -126,7 +128,6 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
-    private_preview,
     publicapi,
     quote_name,
     random_name_for_temp_object,
@@ -575,6 +576,9 @@ class Session:
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
+        self._artifact_repository_packages: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
         self._session_id = self._conn.get_session_id()
         self._session_info = f"""
 "version" : {get_version()},
@@ -849,6 +853,7 @@ class Session:
         finally:
             try:
                 self._temp_table_auto_cleaner.stop()
+                self._ast_batch.clear()
                 self._conn.close()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
@@ -1432,17 +1437,24 @@ class Session:
         prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
-    def get_packages(self) -> Dict[str, str]:
+    def get_packages(self, artifact_repository: Optional[str] = None) -> Dict[str, str]:
         """
         Returns a ``dict`` of packages added for user-defined functions (UDFs).
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
+
+        Args:
+            artifact_repository: When set this will function will return the packages for a specific artifact repository.
         """
         with self._package_lock:
+            if artifact_repository:
+                return self._artifact_repository_packages[artifact_repository].copy()
             return self._packages.copy()
 
     def add_packages(
-        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
+        self,
+        *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
+        artifact_repository: Optional[str] = None,
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -1463,6 +1475,8 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
+            artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
+                using that repository will use the packages. (Default None)
 
         Example::
 
@@ -1505,14 +1519,21 @@ class Session:
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
+            artifact_repository=artifact_repository,
         )
 
-    def remove_package(self, package: str) -> None:
+    def remove_package(
+        self,
+        package: str,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
         Removes a third-party package from the dependency list of a user-defined function (UDF).
 
         Args:
             package: The package name.
+            artifact_repository: When set this parameter specifies that the package should be removed
+                from the default packages for a specific artifact repository.
 
         Examples::
 
@@ -1531,19 +1552,38 @@ class Session:
         """
         package_name = pkg_resources.Requirement.parse(package).key
         with self._package_lock:
-            if package_name in self._packages:
+            if (
+                artifact_repository is not None
+                and package_name
+                in self._artifact_repository_packages.get(artifact_repository, {})
+            ):
+                self._artifact_repository_packages[artifact_repository].pop(
+                    package_name
+                )
+            elif package_name in self._packages:
                 self._packages.pop(package_name)
             else:
                 raise ValueError(f"{package_name} is not in the package list")
 
-    def clear_packages(self) -> None:
+    def clear_packages(
+        self,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
-        Clears all third-party packages of a user-defined function (UDF).
+        Clears all third-party packages of a user-defined function (UDF). When artifact_repository
+        is set packages are only clear from the specified repository.
         """
         with self._package_lock:
-            self._packages.clear()
+            if artifact_repository is not None:
+                self._artifact_repository_packages.get(artifact_repository, {}).clear()
+            else:
+                self._packages.clear()
 
-    def add_requirements(self, file_path: str) -> None:
+    def add_requirements(
+        self,
+        file_path: str,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF). This function also supports
@@ -1553,6 +1593,8 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
+            artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
+                using that repository will use the packages. (Default None)
 
         Example::
 
@@ -1593,7 +1635,7 @@ class Session:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
                 self.add_import(import_path)
-        self.add_packages(packages)
+        self.add_packages(packages, artifact_repository=artifact_repository)
 
     @experimental(version="1.7.0")
     def replicate_local_environment(
@@ -1890,6 +1932,7 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
+        artifact_repository: Optional[str] = None,
     ) -> List[str]:
         """
         Given a list of packages to add, this method will
@@ -1908,11 +1951,20 @@ class Session:
         """
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
-        if isinstance(self._conn, MockServerConnection):
+        if (
+            isinstance(self._conn, MockServerConnection)
+            or artifact_repository is not None
+        ):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
             with self._package_lock:
-                result_dict = self._packages
+                if artifact_repository is None:
+                    result_dict = self._packages
+                else:
+                    result_dict = self._artifact_repository_packages[
+                        artifact_repository
+                    ]
+
                 for pkg_name, _, pkg_req in package_dict.values():
                     if (
                         pkg_name in result_dict
@@ -4010,7 +4062,6 @@ class Session:
         return self._sp_registration
 
     @property
-    @private_preview(version="1.23.0")
     def stored_procedure_profiler(self) -> StoredProcedureProfiler:
         """
         Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
@@ -4021,6 +4072,10 @@ class Session:
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
+        if sproc_name.strip().upper().startswith("SYSTEM$"):
+            # Built-in stored procedures do not have schema and cannot be described
+            # Currently all SYSTEM$ stored procedures are scalar so return false.
+            return False
         func_signature = ""
         try:
             arg_types = []

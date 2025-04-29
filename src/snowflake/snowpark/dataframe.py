@@ -75,6 +75,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SnowflakeCreateTable,
     TableCreationSource,
+    ReadFileNode,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -142,7 +143,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     check_agg_exprs,
     check_flatten_mode,
-    check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
     create_or_update_statement_params_with_query_tag,
     deprecated,
@@ -611,6 +611,20 @@ class DataFrame:
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
+        # Whether all columns are VARIANT data type,
+        # which support querying nested fields via dot notations
+        # If SQL simplifier is enabled, we need to get logical plan from plan.from_
+        if isinstance(plan, (SelectStatement, MockSelectStatement)):
+            self._all_variant_cols = (
+                isinstance(plan.from_, SelectSnowflakePlan)
+                and isinstance(plan.from_.snowflake_plan.source_plan, ReadFileNode)
+                and plan.from_.snowflake_plan.source_plan.xml_reader_udtf is not None
+            )
+        else:
+            self._all_variant_cols = bool(
+                isinstance(plan, ReadFileNode) and plan.xml_reader_udtf is not None
+            )
+
         self._reader: Optional["snowflake.snowpark.DataFrameReader"] = None
         self._writer = DataFrameWriter(self, _emit_ast=False)
 
@@ -713,7 +727,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -761,7 +775,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -897,7 +911,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         return self._session._conn.execute(
             self._plan,
@@ -1017,7 +1031,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -1040,7 +1054,8 @@ class DataFrame:
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
         if block:
-            check_is_pandas_dataframe_in_to_pandas(result)
+            if not isinstance(result, pandas.DataFrame):
+                return pandas.DataFrame(result)
 
         return result
 
@@ -1120,7 +1135,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         return self._session._conn.execute(
             self._plan,
@@ -1283,7 +1298,7 @@ class DataFrame:
         self,
         index_col: Optional[Union[str, List[str]]] = None,
         columns: Optional[List[str]] = None,
-        relaxed_ordering: bool = False,
+        enforce_ordering: bool = False,
         _emit_ast: bool = True,
     ) -> "modin.pandas.DataFrame":
         """
@@ -1293,7 +1308,7 @@ class DataFrame:
             index_col: A column name or a list of column names to use as index.
             columns: A list of column names for the columns to select from the Snowpark DataFrame. If not specified, select
                 all columns except ones configured in index_col.
-            relaxed_ordering: If True, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
+            enforce_ordering: If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
                 DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
                 documentation of :func:`~modin.pandas.read_snowflake` for more details.
 
@@ -1378,7 +1393,7 @@ class DataFrame:
             if columns is not None:
                 ast.columns.extend(columns if isinstance(columns, list) else [columns])
 
-        if not relaxed_ordering:
+        if enforce_ordering:
             # create a temporary table out of the current snowpark dataframe
             temporary_table_name = random_name_for_temp_object(
                 TempObjectType.TABLE
@@ -1394,19 +1409,22 @@ class DataFrame:
             self._ast_id = ast_id  # reset the AST ID.
 
             snowpandas_df = pd.read_snowflake(
-                name_or_query=temporary_table_name, index_col=index_col, columns=columns
+                name_or_query=temporary_table_name,
+                index_col=index_col,
+                columns=columns,
+                enforce_ordering=True,
             )  # pragma: no cover
         else:
             if len(self.queries["queries"]) > 1:
                 raise NotImplementedError(
-                    "Setting 'relaxed_ordering=True' in 'to_snowpark_pandas' is not supported when the input "
-                    "dataframe includes DDL or DML operations. Please use 'relaxed_ordering=False' instead."
+                    "Setting 'enforce_ordering=False' in 'to_snowpark_pandas' is not supported when the input "
+                    "dataframe includes DDL or DML operations. Please use 'enforce_ordering=True' instead."
                 )
             snowpandas_df = pd.read_snowflake(
                 name_or_query=self.queries["queries"][0],
                 index_col=index_col,
                 columns=columns,
-                relaxed_ordering=True,
+                enforce_ordering=False,
             )  # pragma: no cover
 
         if _emit_ast:
@@ -1541,7 +1559,14 @@ class DataFrame:
 
         for e in exprs:
             if isinstance(e, Column):
-                names.append(e._named())
+                if self._all_variant_cols:
+                    names.append(
+                        Column(
+                            e._expr1, e._expr2, e._ast, _is_qualified_name=True
+                        )._named()
+                    )
+                else:
+                    names.append(e._named())
                 if _emit_ast and _ast_stmt is None:
                     ast_cols.append(e._ast)
 
@@ -1552,7 +1577,9 @@ class DataFrame:
                     fill_ast_for_column(col_expr_ast, e, None)
                     ast_cols.append(col_expr_ast)
 
-                col = Column(e, _ast=col_expr_ast)
+                col = Column(
+                    e, _ast=col_expr_ast, _is_qualified_name=self._all_variant_cols
+                )
                 names.append(col._named())
 
             elif isinstance(e, TableFunctionCall):
@@ -4184,7 +4211,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
@@ -4353,7 +4380,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4655,7 +4682,7 @@ class DataFrame:
             ast.n = n
             self._session._ast_batch.eval(stmt)
 
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
@@ -4743,13 +4770,12 @@ class DataFrame:
         truncate: Union[bool, int] = True,
         vertical: bool = False,
         _spark_column_names: List[str] = None,
-        _emit_ast: bool = True,
         **kwargs,
     ) -> str:
         """Spark's show() logic - translated from scala to python."""
         # Fetch one more rows to check whether the result is truncated.
         result, meta = self._get_result_and_meta_for_show(
-            num_rows + 1, _emit_ast, **kwargs
+            num_rows + 1, _emit_ast=False, **kwargs
         )
 
         # handle empty dataframe
@@ -4758,7 +4784,7 @@ class DataFrame:
             result = []
             _spark_column_names = []
 
-        def cell_to_str(cell: Any) -> str:
+        def cell_to_str(cell: Any, datatype: DataType) -> str:
             # Special handling for cell printing in Spark
             # TODO: this operation can be pushed down to Snowflake for execution.
             if cell is None:
@@ -4767,15 +4793,35 @@ class DataFrame:
                 res = "true" if cell else "false"
             elif isinstance(cell, bytes) or isinstance(cell, bytearray):
                 res = f"[{' '.join([format(b, '02X') for b in cell])}]"
-            elif isinstance(cell, list):
-                res = "[" + ", ".join([cell_to_str(v) for v in cell]) + "]"
-            elif isinstance(cell, dict):
+            elif isinstance(cell, list) and isinstance(datatype, ArrayType):
+                res = (
+                    "["
+                    + ", ".join(
+                        [
+                            cell_to_str(v, datatype.element_type or StringType())
+                            for v in cell
+                        ]
+                    )
+                    + "]"
+                )
+            elif isinstance(cell, dict) and isinstance(datatype, MapType):
                 res = (
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k)} -> {cell_to_str(v)}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
                             for k, v in sorted(cell.items())
+                        ]
+                    )
+                    + "}"
+                )
+            elif isinstance(cell, dict) and isinstance(datatype, StructType):
+                res = (
+                    "{"
+                    + ", ".join(
+                        [
+                            f"{cell_to_str(cell[field.name], field.datatype or StringType())}"
+                            for field in datatype.fields
                         ]
                     )
                     + "}"
@@ -4795,9 +4841,9 @@ class DataFrame:
         res_rows = []
         for res_row in result:
             processed_row = []
-            for res_cell in res_row:
+            for i, res_cell in enumerate(res_row):
                 # Convert res_cell to string and escape meta-characters
-                str_value = cell_to_str(res_cell)
+                str_value = cell_to_str(res_cell, self.schema.fields[i].datatype)
                 # Truncate string if necessary
                 if isinstance(truncate, bool):
                     truncate_length = 20 if truncate else 0
@@ -5371,7 +5417,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         if n is None:
             df = self.limit(1, _emit_ast=False)

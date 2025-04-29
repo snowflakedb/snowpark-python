@@ -1143,6 +1143,9 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
     is_permanent: bool = False,
@@ -1209,6 +1212,19 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
+    if artifact_repository is not None:
+        ast.artifact_repository.value = artifact_repository
+    if (
+        artifact_repository_packages is not None
+        and len(artifact_repository_packages) != 0
+    ):
+        for package in artifact_repository_packages:
+            ast.artifact_repository_packages.append(package)
+    if resource_constraint is not None and len(resource_constraint) != 0:
+        for k, v in resource_constraint.items():
+            t = ast.resource_constraint.add()
+            t._1 = k
+            t._2 = v
     sorted_kwargs = dict(sorted(kwargs.items()))
     for k, v in sorted_kwargs.items():
         t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
@@ -1233,6 +1249,9 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
     session: "snowflake.snowpark.session.Session" = None,
@@ -1293,6 +1312,19 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
+    if artifact_repository is not None:
+        ast.artifact_repository.value = artifact_repository
+    if (
+        artifact_repository_packages is not None
+        and len(artifact_repository_packages) != 0
+    ):
+        for package in artifact_repository_packages:
+            ast.artifact_repository_packages.append(package)
+    if resource_constraint is not None and len(resource_constraint) != 0:
+        for k, v in resource_constraint.items():
+            t = ast.resource_constraint.add()
+            t._1 = k
+            t._2 = v
     sorted_kwargs = dict(sorted(kwargs.items()))
     for k, v in sorted_kwargs.items():
         t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
@@ -1322,6 +1354,9 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     comment: Optional[str] = None,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
     session: "snowflake.snowpark.session.Session" = None,
@@ -1392,6 +1427,19 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
+    if artifact_repository is not None:
+        ast.artifact_repository.value = artifact_repository
+    if (
+        artifact_repository_packages is not None
+        and len(artifact_repository_packages) != 0
+    ):
+        for package in artifact_repository_packages:
+            ast.artifact_repository_packages.append(package)
+    if resource_constraint is not None and len(resource_constraint) != 0:
+        for k, v in resource_constraint.items():
+            t = ast.resource_constraint.add()
+            t._1 = k
+            t._2 = v
     sorted_kwargs = dict(sorted(kwargs.items()))
     for k, v in sorted_kwargs.items():
         t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
@@ -1442,9 +1490,12 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
-    execute_as: typing.Literal["caller", "owner"] = "owner",
+    execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
     source_code_display: bool = True,
     is_permanent: bool = False,
+    artifact_repository: Optional[str] = None,
+    artifact_repository_packages: Optional[List[str]] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
     session: "snowflake.snowpark.session.Session" = None,
     _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
@@ -1507,6 +1558,19 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
             t._2 = v
     if comment is not None:
         ast.comment.value = comment
+    if artifact_repository is not None:
+        ast.artifact_repository.value = artifact_repository
+    if (
+        artifact_repository_packages is not None
+        and len(artifact_repository_packages) != 0
+    ):
+        for package in artifact_repository_packages:
+            ast.artifact_repository_packages.append(package)
+    if resource_constraint is not None and len(resource_constraint) != 0:
+        for k, v in resource_constraint.items():
+            t = ast.resource_constraint.add()
+            t._1 = k
+            t._2 = v
     sorted_kwargs = dict(sorted(kwargs.items()))
     for k, v in sorted_kwargs.items():
         t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")

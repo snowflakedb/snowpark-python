@@ -22,15 +22,27 @@ df = session.table("table1")
 
 df.collect()
 
+df = session.table("table1")
+
 df.collect(block=False)
+
+df = session.table("table1")
 
 df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
+df = session.table("table1")
+
 df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False, log_on_exception=True, case_sensitive=False)
+
+df = session.table("table1")
 
 df.collect_nowait()
 
+df = session.table("table1")
+
 df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df = session.table("table1")
 
 df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
 
@@ -109,6 +121,36 @@ body {
 body {
   bind {
     expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_collect {
         case_sensitive: true
         df {
@@ -134,6 +176,36 @@ body {
 body {
   eval {
     bind_id: 3
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
@@ -174,6 +246,36 @@ body {
 body {
   bind {
     expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_collect {
         df {
           dataframe_ref {
@@ -203,6 +305,36 @@ body {
 body {
   eval {
     bind_id: 5
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
@@ -239,6 +371,36 @@ body {
 body {
   bind {
     expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
       dataframe_collect {
         case_sensitive: true
         df {
@@ -269,6 +431,36 @@ body {
 body {
   eval {
     bind_id: 7
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
   }
 }
 body {
@@ -319,6 +511,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 30
+  minor: 31
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

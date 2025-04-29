@@ -4,6 +4,7 @@
 
 import datetime
 import re
+import sys
 
 import modin.pandas as pd
 import numpy as np
@@ -738,6 +739,8 @@ def test_bug_SNOW_1172448():
 
     df.to_snowflake(temp_table_name, index_label="index")
     df = pd.read_snowflake(temp_table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
 
     median_income = 187524.29
     std_income = 110086.85
@@ -747,7 +750,7 @@ def test_bug_SNOW_1172448():
         income = row["AMT_INCOME_TOTAL"]
         return (income - median_income) / std_income
 
-    with SqlCounter(query_count=6, join_count=3, udtf_count=1):
+    with SqlCounter(query_count=6, join_count=5, udtf_count=1):
         df["pct_income"] = df.apply(foo, axis=1)
         # trigger computation here.
         ans = len(df[df["pct_income"] > 0.5]) / len(df)
@@ -884,7 +887,14 @@ import scipy.stats  # noqa: E402
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 7),
-        (["scipy>1.1", "numpy<2.0"], 7),
+        param(
+            ["scipy>1.1", "numpy<2.0"],
+            7,
+            marks=pytest.mark.skipif(
+                sys.version_info.major == 3 and sys.version_info.minor == 12,
+                reason="SNOW-2046982: test raises ModuleNotFoundError when run in python 3.12",
+            ),
+        ),
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],

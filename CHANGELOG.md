@@ -1,14 +1,109 @@
 # Release History
 
-## 1.31.0 (YYYY-MM-DD)
+## 1.32.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
+
+#### Improvements
+
+- Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
+
+## 1.31.0 (2025-04-24)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.register()`.
+- Added support for non-select statement in `DataFrame.to_pandas()`.
+- Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`.
+- Added support for reading an XML file using a row tag by `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` (experimental).
+  - Each XML record is extracted as a separate row.
+  - Each field within that record becomes a separate column of type VARIANT, which can be further queried using dot notation, e.g., `col(a.b.c)`.
+- Added updates to `DataFrameReader.dbapi` (PrPr):
+  - Added `fetch_merge_count` parameter for optimizing performance by merging multiple fetched data into a single Parquet file.
+  - Added support for Databricks.
+  - Added support for ingestion with Snowflake UDTF.
+- Added support for the following AI-powered functions in `functions.py` (Private Preview):
+  - `prompt`
+  - `ai_filter` (added support for `prompt()` function and image files, and changed the second argument name from `expr` to `file`)
+  - `ai_classify`
+
+#### Improvements
+
+- Renamed the `relaxed_ordering` param into `enforce_ordering` for `DataFrame.to_snowpark_pandas`. Also the new default values is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
+- Improved `DataFrameReader.dbapi` (PrPr) reading performance by setting the default `fetch_size` parameter value to 1000.
+- Improve the error message for invalid identifier SQL error by suggesting the potentially matching identifiers.
+- Reduced the number of describe queries issued when creating a DataFrame from a Snowflake table using `session.table`.
+- Improved performance and accuracy of `DataFrameAnalyticsFunctions.time_series_agg()`.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
+- Fixed a bug where `df.limit(0)` call would not properly apply.
+- Fixed a bug in `DataFrameWriter.save_as_table` that caused reserved names to throw errors when using append mode.
 
 #### Deprecations
 
 - Deprecated support for Python3.8.
+- Deprecated argument `sliding_interval` in `DataFrameAnalyticsFunctions.time_series_agg()`.
 
-## 1.30.0 (2024-03-27)
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for Interval expression to `Window.range_between`.
+- Added support for `array_construct` function.
+
+#### Bug Fixes
+
+- Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
+- Fixed a bug in local testing that created incorrect result for `Column.like` calls.
+- Fixed a bug in local testing that caused `Column.getItem` and `snowpark.snowflake.functions.get` to raise `IndexError` rather than return null.
+- Fixed a bug in local testing where `df.limit(0)` call would not properly apply.
+- Fixed a bug in local testing where a `Table.merge` into an empty table would cause an exception.
+
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Updated `modin` from 0.30.1 to 0.32.0.
+- Added support for `numpy` 2.0 and above.
+
+#### New Features
+
+- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
+- Added support for `DataFrame.create_or_replace_dynamic_table` and `Series.create_or_replace_dynamic_table`.
+- Added support for `DataFrame.to_view` and `Series.to_view`.
+- Added support for `DataFrame.to_dynamic_table` and `Series.to_dynamic_table`.
+- Added support for `DataFrame.groupby.resample` for aggregations `max`, `mean`, `median`, `min`, and `sum`.
+- Added support for reading stage files using:
+  - `pd.read_excel`
+  - `pd.read_html`
+  - `pd.read_pickle`
+  - `pd.read_sas`
+  - `pd.read_xml`
+- Added support for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+- Added support for dict values in `Series.str.len`.
+
+#### Improvements
+
+- Improve performance of `DataFrame.groupby.apply` and `Series.groupby.apply` by avoiding expensive pivot step.
+- Added estimate for row count upper bound to `OrderedDataFrame` to enable better engine switching. This could potentially result in increased query counts.
+- Renamed the `relaxed_ordering` param into `enforce_ordering` for `pd.read_snowflake`. Also the new default value is `enforce_ordering=False` which has the opposite effect of the previous default value, `relaxed_ordering=False`.
+
+#### Bug Fixes
+
+- Fixed a bug for `pd.read_snowflake` when reading iceberg tables and `enforce_ordering=True`.
+
+## 1.30.0 (2025-03-27)
 
 ### Snowpark Python API Updates
 
@@ -52,7 +147,6 @@
 - Added support for list values in `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `pd.Grouper` objects in group by operations. When `freq` is specified, the default values of the `sort`, `closed`, `label`, and `convention` arguments are supported; `origin` is supported when it is `start` or `start_day`.
 - Added support for relaxed consistency and ordering guarantees in `pd.read_snowflake` for both named data sources (e.g., tables and views) and query data sources by introducing the new parameter `relaxed_ordering`.
-- Added support for `DataFrame.create_or_replace_view` and `Series.create_or_replace_view`.
 
 #### Improvements
 

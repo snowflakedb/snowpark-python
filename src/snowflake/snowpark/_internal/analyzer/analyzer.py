@@ -1183,13 +1183,20 @@ class Analyzer:
                     # plan to select group_by, pivot and aggregate column and then apply the pivot
                     # logic.
                     #     project_cols = grouping_cols + pivot_col + aggregate_col
+                    # It is possible that pivot_col and aggregate_col references the same column,
+                    # so we need to deduplicate
                     project_exprs = [
                         *logical_plan.grouping_columns,
-                        agg_expr.children[
-                            0
-                        ],  # aggregate column is first child in logical_plan.aggregates
-                        logical_plan.pivot_column,
+                        agg_expr.children[0],
                     ]
+                    if not (
+                        isinstance(agg_expr.children[0], NamedExpression)
+                        and isinstance(logical_plan.pivot_column, NamedExpression)
+                        and agg_expr.children[0].name == logical_plan.pivot_column.name
+                    ):
+                        project_exprs.append(
+                            logical_plan.pivot_column,
+                        )
                     join_columns = [
                         self.analyze(expression, df_aliased_col_name_to_real_col_name)
                         for expression in logical_plan.grouping_columns

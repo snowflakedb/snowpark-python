@@ -366,6 +366,42 @@ class DataFrameReader:
             |Red      |Apple    |Large   |
             ------------------------------
             <BLANKLINE>
+
+    Example 13:
+        Reading an XML file with a row tag
+            >>> # Each XML record is extracted as a separate row,
+            >>> # and each field within that record becomes a separate column of type VARIANT
+            >>> _ = session.file.put("tests/resources/nested.xml", "@mystage", auto_compress=False)
+            >>> df = session.read.option("rowTag", "tag").xml("@mystage/nested.xml")
+            >>> df.show()
+            -----------------------
+            |"'test'"             |
+            -----------------------
+            |{                    |
+            |  "num": "1",        |
+            |  "obj": {           |
+            |    "bool": "true",  |
+            |    "str": "str2"    |
+            |  },                 |
+            |  "str": "str1"      |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
+
+            >>> # Query nested fields using dot notation
+            >>> from snowflake.snowpark.functions import col
+            >>> df.select(
+            ...     "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
+            ... ).show()
+            ------------------------------------------------------------------------------------------------------
+            |\"\"\"'TEST'"":""NUM\"\"\"  |\"\"\"'TEST'"":""STR\"\"\"  |\"\"\"'TEST'"":""OBJ\"\"\"  |\"\"\"'TEST'"":""OBJ"".""BOOL\"\"\"  |
+            ------------------------------------------------------------------------------------------------------
+            |"1"                   |"str1"                |{                     |"true"                         |
+            |                      |                      |  "bool": "true",     |                               |
+            |                      |                      |  "str": "str2"       |                               |
+            |                      |                      |}                     |                               |
+            ------------------------------------------------------------------------------------------------------
+            <BLANKLINE>
     """
 
     @publicapi
@@ -1112,10 +1148,12 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
-        fetch_size: Optional[int] = 0,
+        fetch_size: Optional[int] = 1000,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
+        udtf_configs: Optional[dict] = None,
+        fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1159,7 +1197,10 @@ class DataFrameReader:
             fetch_size: The number of rows to fetch per batch from the external data source.
                 This determines how many rows are retrieved in each round trip,
                 which can improve performance for drivers with a low default fetch size.
-            custom_schema: a custom snowflake table schema to read data from external data source, the column names should be identical to corresponded column names external data source. This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING", or StructType, for example: StructType([StructField("ID", IntegerType(), False)])
+            custom_schema: a custom snowflake table schema to read data from external data source,
+                the column names should be identical to corresponded column names external data source.
+                This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING",
+                or StructType, for example: StructType([StructField("ID", IntegerType(), False), StructField("INT_COL", IntegerType(), False), StructField("TEXT_COL", StringType(), False)])
             predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
                 Partitions will be retrieved in parallel.
                 If both `column` and `predicates` are specified, `column` takes precedence.
@@ -1169,6 +1210,23 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
+                If this parameter is provided, the workload will be executed within a Snowflake UDTF context.
+
+                The dictionary may include the following keys:
+
+                - external_access_integration (str, required): The name of the external access integration,
+                    which allows the UDTF to access external endpoints.
+
+                - imports (List[str], optional): A list of stage file names to import into the UDTF.
+                    Use this to include any private packages required by your `create_connection()` function.
+
+                - packages (List[str], optional): A list of package names (with optional version numbers)
+                    required as dependencies for your `create_connection()` function.
+            fetch_merge_count: The number of fetched batches to merge into a single Parquet file
+                before uploading it. This improves performance by reducing the number of
+                small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
+                Parquet file and uploaded separately.
 
         Example::
             .. code-block:: python
@@ -1201,9 +1259,31 @@ class DataFrameReader:
             custom_schema,
             predicates,
             session_init_statement,
+            fetch_merge_count,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
+
+        if udtf_configs is not None:
+            if "external_access_integration" not in udtf_configs:
+                raise ValueError(
+                    "external_access_integration cannot be None when udtf ingestion is used. Please refer to https://docs.snowflake.com/en/sql-reference/sql/create-external-access-integration to create external access integration"
+                )
+            partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                [[query] for query in partitioned_queries], schema=["partition"]
+            ).write.save_as_table(partitions_table, table_type="temp")
+            df = partitioner.driver.udtf_ingestion(
+                self._session,
+                struct_schema,
+                partitions_table,
+                udtf_configs["external_access_integration"],
+                fetch_size=fetch_size,
+                imports=udtf_configs.get("imports", None),
+                packages=udtf_configs.get("packages", None),
+            )
+            set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
+            return df
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
@@ -1343,6 +1423,8 @@ class DataFrameReader:
             # with the new name for the temporary table into which the external db data was ingressed.
             # Leaving this functionality as client-side only means capturing an AST specifically for
             # this API in a new entity is not valuable from a server-side execution or AST perspective.
-            res_df = self.table(snowflake_table_name, _emit_ast=_emit_ast)
+            res_df = partitioner.driver.to_result_snowpark_df(
+                self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
+            )
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df

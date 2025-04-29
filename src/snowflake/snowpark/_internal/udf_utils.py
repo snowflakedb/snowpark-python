@@ -92,7 +92,7 @@ AGGREGATE_FUNCTION_FINISH_METHOD = "finish"
 AGGREGATE_FUNCTION_MERGE_METHOD = "merge"
 AGGREGATE_FUNCTION_STATE_METHOD = "aggregate_state"
 
-EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
+EXECUTE_AS_WHITELIST = frozenset(["owner", "caller", "restricted caller"])
 
 REGISTER_KWARGS_ALLOWLIST = {
     "native_app_params",
@@ -102,9 +102,6 @@ REGISTER_KWARGS_ALLOWLIST = {
     "input_names",  # for pandas_udtf
     "max_batch_size",  # for pandas_udtf
     "_registered_object_name",  # object name within Snowflake (post registration)
-    "artifact_repository",
-    "artifact_repository_packages",
-    "resource_constraint",
 }
 
 ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}
@@ -142,7 +139,9 @@ class ExtensionFunctionProperties:
         func: Union[Callable, Tuple[str, str]],
         replace: bool = False,
         if_not_exists: bool = False,
-        execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+        execute_as: Optional[
+            typing.Literal["caller", "owner", "restricted caller"]
+        ] = None,
         anonymous: bool = False,
     ) -> None:
         self.func = func
@@ -513,7 +512,9 @@ def check_register_args(
         )
 
 
-def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
+def check_execute_as_arg(
+    execute_as: typing.Literal["caller", "owner", "restricted caller"]
+):
     if (
         not isinstance(execute_as, str)
         or execute_as.lower() not in EXECUTE_AS_WHITELIST
@@ -1266,7 +1267,7 @@ def create_python_udf_or_sp(
     if_not_exists: bool,
     raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
     inline_python_code: Optional[str] = None,
-    execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+    execute_as: Optional[typing.Literal["caller", "owner", "restricted caller"]] = None,
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
@@ -1307,10 +1308,28 @@ def create_python_udf_or_sp(
         raise ValueError(
             "artifact_repository must be specified when artifact_repository_packages has been specified"
         )
+    if all_packages and artifact_repository_packages:
+        package_names = [
+            pack.strip("\"'").split("==")[0] for pack in all_packages.split(",")
+        ]
+        artifact_repository_package_names = [
+            pack.strip("\"'").split("==")[0] for pack in artifact_repository_packages
+        ]
+
+        for package in package_names:
+            if package in artifact_repository_package_names:
+                raise ValueError(
+                    f"Cannot create a function with duplicates between packages and artifact repository packages. packages: {all_packages}, artifact_repository_packages: {','.join(artifact_repository_packages)}"
+                )
 
     artifact_repository_in_sql = (
         f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
     )
+    if artifact_repository:
+        artifact_repository_packages = {
+            *list(session._artifact_repository_packages[artifact_repository].values()),
+            *(artifact_repository_packages or []),
+        }
     artifact_repository_packages_str = (
         "','".join(artifact_repository_packages) if artifact_repository_packages else ""
     )

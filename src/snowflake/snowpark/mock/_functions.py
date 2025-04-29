@@ -498,6 +498,15 @@ def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
     )
 
 
+@patch("array_construct")
+def mock_array_construct(*columns):
+    if len(columns) == 0:
+        data = [[]]
+    else:
+        data = pandas.concat(columns, axis=1).apply(lambda x: list(x), axis=1)
+    return ColumnEmulator(data, sf_type=ColumnType(ArrayType(), False))
+
+
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
@@ -2063,7 +2072,7 @@ def mock_get(
 ) -> ColumnEmulator:
     def get(obj, key):
         try:
-            if isinstance(obj, list):
+            if isinstance(obj, list) and key < len(obj):
                 return obj[key]
             elif isinstance(obj, dict):
                 return obj.get(key, None)

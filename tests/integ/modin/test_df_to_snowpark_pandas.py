@@ -46,11 +46,11 @@ def tmp_table_basic(session):
         ["FOOT_SIZE", "SHOE_MODEL", "SHOE_MODEL"],
     ],
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_to_snowpark_pandas_basic(
-    session, tmp_table_basic, index_col, columns, relaxed_ordering
+    session, tmp_table_basic, index_col, columns, enforce_ordering
 ) -> None:
-    expected_query_count = 3 if not relaxed_ordering else 1
+    expected_query_count = 4 if enforce_ordering else 2
     # One less query when we don't have a multi-index
     with SqlCounter(
         query_count=expected_query_count
@@ -60,7 +60,7 @@ def test_to_snowpark_pandas_basic(
         snowpark_df = session.table(tmp_table_basic)
 
         snowpark_pandas_df = snowpark_df.to_snowpark_pandas(
-            index_col, columns, relaxed_ordering=relaxed_ordering
+            index_col, columns, enforce_ordering=enforce_ordering
         )
 
         # verify index columns
@@ -89,16 +89,16 @@ def test_to_snowpark_pandas_basic(
 
 
 @multithreaded_run()
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_to_snowpark_pandas_from_views(
-    session, tmp_table_basic, relaxed_ordering
+    session, tmp_table_basic, enforce_ordering
 ) -> None:
-    with SqlCounter(query_count=3 if not relaxed_ordering else 1):
+    with SqlCounter(query_count=4 if enforce_ordering else 2):
         snowpark_df = session.sql(
             f"SELECT ID, SHOE_MODEL FROM {tmp_table_basic} WHERE ID > 1"
         )
         snowpark_pandas_df = snowpark_df.to_snowpark_pandas(
-            relaxed_ordering=relaxed_ordering
+            enforce_ordering=enforce_ordering
         )
 
         # verify all columns are data columns
@@ -109,11 +109,11 @@ def test_to_snowpark_pandas_from_views(
         assert sorted(snowpandas_index.values.tolist()) == [0, 1]
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_to_snowpark_pandas_with_operations(
-    session, tmp_table_basic, relaxed_ordering
+    session, tmp_table_basic, enforce_ordering
 ) -> None:
-    with SqlCounter(query_count=3 if not relaxed_ordering else 1):
+    with SqlCounter(query_count=4 if enforce_ordering else 2):
         snowpark_df = session.table(tmp_table_basic)
         snowpark_df = (
             snowpark_df.select(
@@ -126,7 +126,7 @@ def test_to_snowpark_pandas_with_operations(
         )
 
         snowpark_pandas_df = snowpark_df.to_snowpark_pandas(
-            relaxed_ordering=relaxed_ordering
+            enforce_ordering=enforce_ordering
         )
         # verify all columns are data columns
         assert snowpark_pandas_df.columns.tolist() == ["size", "model"]
@@ -136,10 +136,10 @@ def test_to_snowpark_pandas_with_operations(
         assert sorted(snowpandas_index.values.tolist()) == [0]
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 @sql_count_checker(query_count=0)
 def test_to_snowpark_pandas_duplicated_columns_raises(
-    session, tmp_table_basic, relaxed_ordering
+    session, tmp_table_basic, enforce_ordering
 ) -> None:
     sql_simplifier_enabled_original = session.sql_simplifier_enabled
     # Error is raised only when SQL simplifier is enabled.
@@ -154,30 +154,32 @@ def test_to_snowpark_pandas_duplicated_columns_raises(
 
     pattern = (
         "duplicate column name 'shoe'"
-        if not relaxed_ordering
+        if enforce_ordering
         else "ambiguous column name 'shoe'"
     )
 
     with pytest.raises(SnowparkSQLException, match=pattern):
-        snowpark_df.to_snowpark_pandas(relaxed_ordering=relaxed_ordering).head()
+        snowpark_df.to_snowpark_pandas(enforce_ordering=enforce_ordering).head()
     session.sql_simplifier_enabled = sql_simplifier_enabled_original
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_to_snowpark_pandas_columns_not_list_raises(
-    session, tmp_table_basic, relaxed_ordering
+    session, tmp_table_basic, enforce_ordering
 ) -> None:
-    with SqlCounter(query_count=1 if not relaxed_ordering else 0):
+    with SqlCounter(query_count=1 if enforce_ordering else 0):
         snowpark_df = session.table(tmp_table_basic)
 
         with pytest.raises(ValueError, match="columns must be provided as list"):
             snowpark_df.to_snowpark_pandas(
-                columns="FOOT_SIZE", relaxed_ordering=relaxed_ordering
+                columns="FOOT_SIZE", enforce_ordering=enforce_ordering
             )
 
 
 @sql_count_checker(query_count=0)
-def test_to_snowpark_pandas_with_multiple_queries_and_relaxed_ordering_raises(session):
+def test_to_snowpark_pandas_with_multiple_queries_and_no_enforce_ordering_raises(
+    session,
+):
     tmp_stage_name = Utils.random_stage_name()
     test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
     user_schema = StructType(
@@ -194,4 +196,4 @@ def test_to_snowpark_pandas_with_multiple_queries_and_relaxed_ordering_raises(se
         NotImplementedError,
         match="dataframe includes DDL or DML operations",
     ):
-        snowpark_df.to_snowpark_pandas(relaxed_ordering=True)
+        snowpark_df.to_snowpark_pandas(enforce_ordering=False)

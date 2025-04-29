@@ -52,7 +52,7 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
     table_name: str,
     as_query: bool,
     materialization_expected: bool,
-    relaxed_ordering: bool,
+    enforce_ordering: bool,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -78,7 +78,7 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
 
     with session.query_history() as query_history:
         df = pd.read_snowflake(
-            table_name_or_query, **kwargs, relaxed_ordering=relaxed_ordering
+            table_name_or_query, **kwargs, enforce_ordering=enforce_ordering
         )
 
     filtered_query_history = [
@@ -87,20 +87,20 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
         if "SHOW PARAMETERS LIKE" not in query.sql_text
     ]
 
-    if relaxed_ordering:
-        assert len(filtered_query_history) == 0
+    if not enforce_ordering:
+        assert len(filtered_query_history) == 1
     else:
         if materialization_expected:
             # when materialization happens, two queries are executed during read_snowflake:
             # 1) temp table creation out of the current table or query
             # 2) read only temp table creation
-            assert len(filtered_query_history) == 2
+            assert len(filtered_query_history) == 3
         else:
-            assert len(filtered_query_history) == 1
+            assert len(filtered_query_history) == 2
 
         # test if the scoped snapshot is created
         scoped_pattern = " SCOPED " if session._use_scoped_temp_read_only_table else " "
-        table_create_sql = query_history.queries[-1].sql_text
+        table_create_sql = query_history.queries[-2].sql_text
         table_create_pattern = f"CREATE OR REPLACE{scoped_pattern}TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*{READ_ONLY_TABLE_SUFFIX}.*"
         assert re.match(table_create_pattern, table_create_sql) is not None
 
@@ -112,11 +112,11 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_basic(
-    setup_use_scoped_object, session, as_query, relaxed_ordering
+    setup_use_scoped_object, session, as_query, enforce_ordering
 ):
-    expected_query_count = 5 if not relaxed_ordering else 3
+    expected_query_count = 7 if enforce_ordering else 5
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -135,7 +135,7 @@ def test_read_snowflake_basic(
         # create snowpark pandas dataframe
         for name in names_list:
             df = read_snowflake_and_verify_snapshot_creation_if_any(
-                session, name, as_query, False, relaxed_ordering
+                session, name, as_query, False, enforce_ordering
             )
 
             pdf = df.to_pandas()
@@ -146,11 +146,11 @@ def test_read_snowflake_basic(
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_semi_structured_types(
-    setup_use_scoped_object, session, as_query, relaxed_ordering
+    setup_use_scoped_object, session, as_query, enforce_ordering
 ):
-    expected_query_count = 3 if not relaxed_ordering else 2
+    expected_query_count = 4 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -160,7 +160,7 @@ def test_read_snowflake_semi_structured_types(
 
         # create snowpark pandas dataframe
         df = read_snowflake_and_verify_snapshot_creation_if_any(
-            session, table_name, as_query, False, relaxed_ordering
+            session, table_name, as_query, False, enforce_ordering
         )
 
         pdf = df.to_pandas()
@@ -171,9 +171,9 @@ def test_read_snowflake_semi_structured_types(
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_read_snowflake_none_nan(session, as_query, relaxed_ordering):
-    expected_query_count = 3 if not relaxed_ordering else 2
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_read_snowflake_none_nan(session, as_query, enforce_ordering):
+    expected_query_count = 4 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -183,7 +183,7 @@ def test_read_snowflake_none_nan(session, as_query, relaxed_ordering):
 
         # create snowpark pandas dataframe
         df = read_snowflake_and_verify_snapshot_creation_if_any(
-            session, table_name, as_query, False, relaxed_ordering
+            session, table_name, as_query, False, enforce_ordering
         )
 
         pdf = df.to_pandas()
@@ -195,9 +195,9 @@ def test_read_snowflake_none_nan(session, as_query, relaxed_ordering):
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_read_snowflake_column_names(session, col_name, as_query, relaxed_ordering):
-    expected_query_count = 3 if not relaxed_ordering else 2
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_read_snowflake_column_names(session, col_name, as_query, enforce_ordering):
+    expected_query_count = 4 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -205,7 +205,7 @@ def test_read_snowflake_column_names(session, col_name, as_query, relaxed_orderi
 
         # create snowpark pandas dataframe
         df = read_snowflake_and_verify_snapshot_creation_if_any(
-            session, table_name, as_query, False, relaxed_ordering
+            session, table_name, as_query, False, enforce_ordering
         )
 
         pdf = df.to_pandas()
@@ -222,11 +222,11 @@ def test_read_snowflake_column_names(session, col_name, as_query, relaxed_orderi
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_index_col(
-    session, col_name1, col_name2, as_query, relaxed_ordering
+    session, col_name1, col_name2, as_query, enforce_ordering
 ):
-    expected_query_count = 3 if not relaxed_ordering else 2
+    expected_query_count = 4 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -243,7 +243,7 @@ def test_read_snowflake_index_col(
 
         # create snowpark pandas dataframe
         df = read_snowflake_and_verify_snapshot_creation_if_any(
-            session, table_name, as_query, False, relaxed_ordering, index_col=col_label1
+            session, table_name, as_query, False, enforce_ordering, index_col=col_label1
         )
 
         pdf = df.to_pandas()
@@ -255,9 +255,9 @@ def test_read_snowflake_index_col(
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_read_snowflake_index_col_multiindex(session, as_query, relaxed_ordering):
-    expected_query_count = 4 if not relaxed_ordering else 3
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_read_snowflake_index_col_multiindex(session, as_query, enforce_ordering):
+    expected_query_count = 5 if enforce_ordering else 4
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -275,7 +275,7 @@ def test_read_snowflake_index_col_multiindex(session, as_query, relaxed_ordering
             table_name,
             as_query,
             False,
-            relaxed_ordering,
+            enforce_ordering,
             index_col=["COL1", "COL2", "COL3"],
         )
 
@@ -301,11 +301,11 @@ def test_read_snowflake_index_col_multiindex(session, as_query, relaxed_ordering
     ),
 )
 @pytest.mark.parametrize("index_col_or_columns", [True, False])
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_non_existing(
-    session, col_name, non_existing_index_col, index_col_or_columns, relaxed_ordering
+    session, col_name, non_existing_index_col, index_col_or_columns, enforce_ordering
 ):
-    expected_query_count = 2 if not relaxed_ordering else 1
+    expected_query_count = 3 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -318,20 +318,20 @@ def test_read_snowflake_non_existing(
                 pd.read_snowflake(
                     table_name,
                     index_col=non_existing_index_col,
-                    relaxed_ordering=relaxed_ordering,
+                    enforce_ordering=enforce_ordering,
                 )
             else:
                 pd.read_snowflake(
                     table_name,
                     columns=[non_existing_index_col],
-                    relaxed_ordering=relaxed_ordering,
+                    enforce_ordering=enforce_ordering,
                 )
 
 
 @pytest.mark.parametrize("col_name", VALID_SNOWFLAKE_COLUMN_NAMES)
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_read_snowflake_columns(session, col_name, relaxed_ordering):
-    expected_query_count = 3 if not relaxed_ordering else 2
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_read_snowflake_columns(session, col_name, enforce_ordering):
+    expected_query_count = 4 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -345,16 +345,16 @@ def test_read_snowflake_columns(session, col_name, relaxed_ordering):
 
         # create snowpark pandas dataframe
         df = pd.read_snowflake(
-            table_name, columns=[col_label], relaxed_ordering=relaxed_ordering
+            table_name, columns=[col_label], enforce_ordering=enforce_ordering
         )
 
         pdf = df.to_pandas()
         assert pdf.columns[0] == col_label
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_read_snowflake_both_index_col_columns(session, relaxed_ordering):
-    expected_query_count = 3 if not relaxed_ordering else 2
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_read_snowflake_both_index_col_columns(session, enforce_ordering):
+    expected_query_count = 4 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -366,28 +366,32 @@ def test_read_snowflake_both_index_col_columns(session, relaxed_ordering):
         )
 
         df = pd.read_snowflake(
-            table_name, index_col="X", columns=["Y"], relaxed_ordering=relaxed_ordering
+            table_name, index_col="X", columns=["Y"], enforce_ordering=enforce_ordering
         )
         pdf = df.to_pandas()
         assert pdf.index.name == "X"
         assert pdf.columns[0] == "Y"
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_read_snowflake_duplicate_columns(session, relaxed_ordering):
-    expected_query_count = 7 if not relaxed_ordering else 3
-    with SqlCounter(query_count=expected_query_count):
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_read_snowflake_duplicate_columns(session, enforce_ordering):
+    expected_query_count = 11 if enforce_ordering else 7
+    with SqlCounter(
+        query_count=expected_query_count,
+        high_count_expected=True,
+        high_count_reason="Each read creates counts a single row to get an estimated upper bound for hybrid execution",
+    ):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(session, table_name, '"X" int, Y int', is_temporary=True)
 
         df = pd.read_snowflake(
-            table_name, columns=["X", "X"], relaxed_ordering=relaxed_ordering
+            table_name, columns=["X", "X"], enforce_ordering=enforce_ordering
         )
         assert df.columns.tolist() == ["X", "X"]
 
         df = pd.read_snowflake(
-            table_name, index_col=["X", "X"], relaxed_ordering=relaxed_ordering
+            table_name, index_col=["X", "X"], enforce_ordering=enforce_ordering
         )
         assert df.index.names == ["X", "X"]
 
@@ -395,7 +399,7 @@ def test_read_snowflake_duplicate_columns(session, relaxed_ordering):
             table_name,
             index_col="X",
             columns=["X", "Y"],
-            relaxed_ordering=relaxed_ordering,
+            enforce_ordering=enforce_ordering,
         )
         assert df.index.names == ["X"]
         assert df.columns.tolist() == ["X", "Y"]
@@ -404,32 +408,32 @@ def test_read_snowflake_duplicate_columns(session, relaxed_ordering):
             table_name,
             index_col=["X", "Y"],
             columns=["X", "Y"],
-            relaxed_ordering=relaxed_ordering,
+            enforce_ordering=enforce_ordering,
         )
         assert df.index.names == ["X", "Y"]
         assert df.columns.tolist() == ["X", "Y"]
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 @sql_count_checker(query_count=0)
-def test_read_snowflake_table_not_exist_negative(session, relaxed_ordering) -> None:
+def test_read_snowflake_table_not_exist_negative(session, enforce_ordering) -> None:
     table_name = "non_exist_table_error"
 
     expected_error = (
-        SnowparkPandasException if not relaxed_ordering else SnowparkSQLException
+        SnowparkPandasException if enforce_ordering else SnowparkSQLException
     )
     with pytest.raises(expected_error) as ex:
-        pd.read_snowflake(table_name, relaxed_ordering=relaxed_ordering)
+        pd.read_snowflake(table_name, enforce_ordering=enforce_ordering)
 
-    if not relaxed_ordering:
+    if enforce_ordering:
         assert (
             ex.value.error_code == SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value
         )
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 @sql_count_checker(query_count=1)
-def test_read_snowflake_column_not_list_raises(session, relaxed_ordering) -> None:
+def test_read_snowflake_column_not_list_raises(session, enforce_ordering) -> None:
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     col_name = "TEST"
@@ -439,7 +443,7 @@ def test_read_snowflake_column_not_list_raises(session, relaxed_ordering) -> Non
 
     with pytest.raises(ValueError, match="columns must be provided as list"):
         pd.read_snowflake(
-            table_name, columns=col_name, relaxed_ordering=relaxed_ordering
+            table_name, columns=col_name, enforce_ordering=enforce_ordering
         )
 
 
@@ -458,7 +462,7 @@ def test_read_snowflake_column_not_list_raises(session, relaxed_ordering) -> Non
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_with_views(
     setup_use_scoped_object,
     session,
@@ -466,14 +470,14 @@ def test_read_snowflake_with_views(
     table_type,
     caplog,
     as_query,
-    relaxed_ordering,
+    enforce_ordering,
 ) -> None:
     # create a temporary test table
-    expected_query_count = 6 if not relaxed_ordering else 4
+    expected_query_count = 7 if enforce_ordering else 5
     original_table_type = "temporary"
     if table_type in ["", "temporary", "transient"]:
         original_table_type = table_type
-        expected_query_count = 3 if not relaxed_ordering else 2
+        expected_query_count = 4 if enforce_ordering else 3
     elif table_type == "MATERIALIZED VIEW":
         original_table_type = ""
     with SqlCounter(query_count=expected_query_count):
@@ -500,10 +504,10 @@ def test_read_snowflake_with_views(
                     table_name,
                     as_query,
                     verify_materialization,
-                    relaxed_ordering,
+                    enforce_ordering,
                 )
             assert df.columns.tolist() == ["COL1", "S"]
-            if not relaxed_ordering:
+            if enforce_ordering:
                 failing_reason = (
                     "SQL compilation error: Cannot clone from a view object"
                 )
@@ -524,13 +528,13 @@ def test_read_snowflake_with_views(
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_row_access_policy_table(
     setup_use_scoped_object,
     session,
     test_table_name,
     as_query,
-    relaxed_ordering,
+    enforce_ordering,
 ) -> None:
     Utils.create_table(session, test_table_name, "col1 int, s text", is_temporary=True)
     session.sql(f"insert into {test_table_name} values (1, 'ok')").collect()
@@ -543,10 +547,10 @@ def test_read_snowflake_row_access_policy_table(
         f"alter table {test_table_name} add row access policy no_access_policy on (col1)"
     ).collect()
 
-    expected_query_count = 3 if not relaxed_ordering else 1
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         df = read_snowflake_and_verify_snapshot_creation_if_any(
-            session, test_table_name, as_query, True, relaxed_ordering
+            session, test_table_name, as_query, True, enforce_ordering
         )
 
         assert df.columns.tolist() == ["COL1", "S"]
@@ -578,7 +582,7 @@ def test_read_snowflake_row_access_policy_table(
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_decimal(
     input_data,
     snowflake_type_string,
@@ -587,9 +591,9 @@ def test_decimal(
     session,
     test_table_name,
     as_query,
-    relaxed_ordering,
+    enforce_ordering,
 ) -> None:
-    expected_query_count = 5 if not relaxed_ordering else 4
+    expected_query_count = 6 if enforce_ordering else 5
     with SqlCounter(query_count=expected_query_count):
         colname = "D"
         values_string = ",".join(f"({i})" for i in input_data)
@@ -599,7 +603,7 @@ def test_decimal(
         session.sql(f"insert into {test_table_name} values {values_string}").collect()
         # create row access policy that there is no access to the row
         df = read_snowflake_and_verify_snapshot_creation_if_any(
-            session, test_table_name, as_query, False, relaxed_ordering
+            session, test_table_name, as_query, False, enforce_ordering
         )
 
         assert_series_equal(
@@ -615,12 +619,16 @@ def test_decimal(
 @pytest.mark.parametrize(
     "as_query", [True, False], ids=["read_with_select_*", "read_with_table_name"]
 )
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_with_table_in_different_db(
-    setup_use_scoped_object, session, caplog, as_query, relaxed_ordering
+    setup_use_scoped_object, session, caplog, as_query, enforce_ordering
 ) -> None:
-    expected_query_count = 9 if not relaxed_ordering else 8
-    with SqlCounter(query_count=expected_query_count):
+    expected_query_count = 10 if enforce_ordering else 9
+    with SqlCounter(
+        query_count=expected_query_count,
+        high_count_expected=True,
+        high_count_reason="Expected high count temp table",
+    ):
         db_name = f"testdb_snowpandas_{Utils.random_alphanumeric_str(4)}"
         schema_name = f"testschema_snowpandas_{Utils.random_alphanumeric_str(4)}"
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -643,7 +651,7 @@ def test_read_snowflake_with_table_in_different_db(
             caplog.clear()
             with caplog.at_level(logging.DEBUG):
                 df = read_snowflake_and_verify_snapshot_creation_if_any(
-                    session, table_name, as_query, False, relaxed_ordering
+                    session, table_name, as_query, False, enforce_ordering
                 )
             # verify no temporary table is materialized for regular table
             assert not ("Materialize temporary table" in caplog.text)
