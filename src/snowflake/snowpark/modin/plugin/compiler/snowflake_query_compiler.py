@@ -16536,11 +16536,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Follow pandas behavior; all values will be None.
             key = None
         if is_scalar(key):
-            if key is not None and not isinstance(key, int):
+            col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+            if key is not None and not isinstance(key, (int, str)):
                 ErrorMessage.not_implemented(
-                    "Snowpark pandas string indexing doesn't yet support non-numeric keys"
+                    "Snowpark pandas string indexing doesn't yet support keys of types other than int or str"
                 )
-            return self.str_get(typing.cast(int, key))
+            elif isinstance(
+                self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+                MapType,
+            ):
+                if key is not None and not isinstance(key, str):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than str when the data column contains dicts"
+                    )
+            elif isinstance(
+                self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+                ArrayType,
+            ):
+                if key is not None and not isinstance(key, int):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than int when the data column contains lists"
+                    )
+            else:
+                if key is not None and not isinstance(key, int):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than int when the data column contains strings"
+                    )
+            assert key is None or isinstance(key, (int, str))
+            return self.str_get(key)
         else:
             assert isinstance(key, slice), "key is expected to be slice here"
             if key.step == 0:
@@ -16676,7 +16702,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_get(self, i: int) -> "SnowflakeQueryCompiler":
+    def str_get(self, i: Union[None, int, str]) -> "SnowflakeQueryCompiler":
         """
         Extract element from each component at specified position or with specified key.
 
@@ -16684,79 +16710,111 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Parameters
         ----------
-        i : int
+        i : int or str
             Position or key of element to extract.
 
         Returns
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        if i is not None and not isinstance(i, int):
+        if i is not None and not isinstance(i, (int, str)):
             ErrorMessage.not_implemented(
-                "Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument"
+                "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument of types other than int or str"
             )
 
-        def output_col_string(column: SnowparkColumn) -> SnowparkColumn:
+        def output_col_string(
+            column: SnowparkColumn, i: Union[None, int]
+        ) -> SnowparkColumn:
             col_len_exp = length(column)
             if i is None:
                 new_col = pandas_lit(None)
-            elif i < 0:
-                # Index is relative to the end boundary.
-                # If it falls before the beginning boundary, Null is returned.
-                # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
-                new_col = iff(
-                    pandas_lit(i) + col_len_exp < pandas_lit(0),
-                    pandas_lit(None),
-                    substring(column, pandas_lit(i + 1) + col_len_exp, pandas_lit(1)),
-                )
             else:
-                assert i >= 0
-                # Index is relative to the beginning boundary.
-                # If it falls after the end boundary, Null is returned.
-                # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
-                new_col = iff(
-                    pandas_lit(i) >= col_len_exp,
-                    pandas_lit(None),
-                    substring(column, pandas_lit(i + 1), pandas_lit(1)),
-                )
+                if i < 0:
+                    # Index is relative to the end boundary.
+                    # If it falls before the beginning boundary, Null is returned.
+                    # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
+                    new_col = iff(
+                        pandas_lit(i) + col_len_exp < pandas_lit(0),
+                        pandas_lit(None),
+                        substring(
+                            column, pandas_lit(i + 1) + col_len_exp, pandas_lit(1)
+                        ),
+                    )
+                else:
+                    assert i >= 0
+                    # Index is relative to the beginning boundary.
+                    # If it falls after the end boundary, Null is returned.
+                    # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
+                    new_col = iff(
+                        pandas_lit(i) >= col_len_exp,
+                        pandas_lit(None),
+                        substring(column, pandas_lit(i + 1), pandas_lit(1)),
+                    )
             return self._replace_non_str(column, new_col)
 
-        def output_col_list(column: SnowparkColumn) -> SnowparkColumn:
+        def output_col_list(
+            column: SnowparkColumn, i: Union[None, int]
+        ) -> SnowparkColumn:
             col_len_exp = array_size(column)
             if i is None:
                 new_col = pandas_lit(None)
-            elif i < 0:
-                # Index is relative to the end boundary.
-                # If it falls before the beginning boundary, Null is returned.
-                # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
-                new_col = iff(
-                    pandas_lit(i) + col_len_exp < pandas_lit(0),
-                    pandas_lit(None),
-                    get(column, pandas_lit(i) + col_len_exp),
-                )
             else:
-                assert i >= 0
-                # Index is relative to the beginning boundary.
-                # If it falls after the end boundary, Null is returned.
-                # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
-                new_col = iff(
-                    pandas_lit(i) >= col_len_exp,
-                    pandas_lit(None),
-                    get(column, pandas_lit(i)),
-                )
+                if i < 0:
+                    # Index is relative to the end boundary.
+                    # If it falls before the beginning boundary, Null is returned.
+                    # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
+                    new_col = iff(
+                        pandas_lit(i) + col_len_exp < pandas_lit(0),
+                        pandas_lit(None),
+                        get(column, pandas_lit(i) + col_len_exp),
+                    )
+                else:
+                    assert i >= 0
+                    # Index is relative to the beginning boundary.
+                    # If it falls after the end boundary, Null is returned.
+                    # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
+                    new_col = iff(
+                        pandas_lit(i) >= col_len_exp,
+                        pandas_lit(None),
+                        get(column, pandas_lit(i)),
+                    )
             return new_col
 
         col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
         if isinstance(
             self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            MapType,
+        ):
+            if i is not None and not isinstance(i, str):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument "
+                    "of types other than str when the data column contains dicts"
+                )
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                lambda col: col[i]
+            )
+        elif isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
             ArrayType,
         ):
+            if i is not None and not isinstance(i, int):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument "
+                    "of types other than int when the data column contains lists"
+                )
+            assert i is None or isinstance(i, int)
             new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
-                output_col_list
+                lambda column: output_col_list(column, i)
             )
         else:
+            if i is not None and not isinstance(i, int):
+                ErrorMessage.not_implemented(
+                    "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument "
+                    "of types other than int when the data column contains strings"
+                )
+            assert i is None or isinstance(i, int)
             new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
-                output_col_string
+                lambda column: output_col_string(column, i)
             )
 
         return SnowflakeQueryCompiler(new_internal_frame)
@@ -17071,6 +17129,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return array_slice(column, start_exp, stop_exp)
 
         if isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            MapType,
+        ):
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                # Follow pandas behavior
+                lambda column: pandas_lit(np.nan).cast(FloatType()),
+            )
+        elif isinstance(
             self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
             ArrayType,
         ):
