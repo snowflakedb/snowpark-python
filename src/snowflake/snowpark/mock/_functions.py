@@ -2211,7 +2211,16 @@ def _rank(raw_input, dense=False):
     Returns a series containing the rank of a row within an ordered TableEmulator.
     Args:
         raw_input: The TableEmulator to apply the rank to.
-        dense: When set no index is set when ranked values contain repeats.
+        dense: When dense is false ranks are skipped when there are repeated values. When set to true
+            ranks are not skipped. eg.
+            -----------------------------------
+            |"VALUE"  |"RANK"  |"DENSE_RANK"  |
+            -----------------------------------
+            |1        |1       |1             |
+            |1        |1       |1             |
+            |2        |3       |2             |
+            |3        |4       |3             |
+            -----------------------------------
     """
     final_values = []
     rank = 0
