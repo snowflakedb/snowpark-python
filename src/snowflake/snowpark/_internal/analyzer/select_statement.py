@@ -858,8 +858,8 @@ class SelectStatement(Selectable):
     @property
     def has_projection(self) -> bool:
         """Boolean that indicates if the SelectStatement has the following forms of projection:
-            - select columns
-            - exclude columns
+        - select columns
+        - exclude columns
         """
         return self.projection is not None or self.exclude_cols is not None
 
@@ -867,6 +867,7 @@ class SelectStatement(Selectable):
     def projection_in_str(self) -> str:
         if not self._projection_in_str:
             if self.projection:
+                assert self.exclude_cols is None
                 self._projection_in_str = analyzer_utils.COMMA.join(
                     self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
                     for x in self.projection
@@ -875,15 +876,6 @@ class SelectStatement(Selectable):
                 self._projection_in_str = analyzer_utils.STAR
                 if self.exclude_cols is not None:
                     self._projection_in_str = f"{analyzer_utils.STAR}{analyzer_utils.EXCLUDE}({analyzer_utils.COMMA.join(self.exclude_cols)})"
-            # self._projection_in_str = (
-            #     analyzer_utils.COMMA.join(
-            #         self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
-            #         for x in self.projection
-            #     )
-            #     if self.projection
-            #     else analyzer_utils.STAR
-            # )
-            # print(f"proj in str for {hex(id(self))} is {self._projection_in_str}")
         return self._projection_in_str
 
     @property
@@ -1132,7 +1124,7 @@ class SelectStatement(Selectable):
             and isinstance(cols[0].child, Star)
             and not cols[0].child.expressions
             and not cols[0].child.df_alias
-            # df.select("*") doesn't have the child.expressions
+            # df.select("*") doesn't have the child.expressions (this case)
             # df.select(df["*"]) has the child.expressions
         ):
             new = copy(self)  # it copies the api_calls
@@ -1202,6 +1194,9 @@ class SelectStatement(Selectable):
             can_be_flattened = False
         elif self.distinct_:
             # .distinct().select() != .select().distinct() therefore we cannot flatten
+            can_be_flattened = False
+        elif self.exclude_cols is not None:
+            # exclude syntax only support: SELECT * EXCLUDE(col1, col2) FROM TABLE
             can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
@@ -1348,51 +1343,34 @@ class SelectStatement(Selectable):
             new.attributes = self.attributes
         return new
 
-    def exclude(
-            self,
-            exclude_cols: List[str]
-    ) -> "SelectStatement":
+    def exclude(self, exclude_cols: List[str]) -> "SelectStatement":
         """List of quoted column names to be dropped from the current select
         statement.
         """
         # TODO: update can_be_flattened for other operations
-        # .order_by().drop() cannot be flattened
-        # .select().drop() cannot be flattened
-        # .union ????
+        # .select().drop(); cannot be flattened; exclude syntax is select * exclude ...
 
+        # .order_by().drop() can be flattened
         # .filter().drop() can be flattened
         # .limit().drop() can be flattened
         # .distinct().drop() can be flattened
-        can_be_flattened = (
-            not self.flatten_disabled
-            and not self.order_by
-            and not self.projection
-        )
+        can_be_flattened = not self.flatten_disabled and not self.projection
         if can_be_flattened:
-           new = copy(self)
-           new.from_ = self.from_.to_subqueryable()
-           new.pre_actions = new.from_.pre_actions
-           new.post_actions = new.from_.post_actions
-           new.column_states = deepcopy(self.column_states)
-           new._merge_projection_complexity_with_subquery = False
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            # TODO, see how to handle the column_states for exclude
+            new.column_states = deepcopy(self.column_states)
+            new._merge_projection_complexity_with_subquery = False
         else:
-           new = SelectStatement(
+            new = SelectStatement(
                 from_=self.to_subqueryable(),
                 analyzer=self.analyzer,
-           )
+            )
 
-        if new.exclude_cols is None:
-            new.exclude_cols = set()
-        # correctly manage column states
-        # TODO: update sql generation
-
-        # if new._column_states is not None:
-
-
-        for col_name in exclude_cols:
-            if col_name in new.column_states:
-                new.column_states[col_name].change_state = ColumnChangeState.DROPPED
-                new.exclude_cols.add(col_name)
+        new.exclude_cols = new.exclude_cols or set()
+        new.exclude_cols.update(exclude_cols)
         return new
 
     def set_operator(
