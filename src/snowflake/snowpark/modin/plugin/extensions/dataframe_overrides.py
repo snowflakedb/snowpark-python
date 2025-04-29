@@ -512,10 +512,10 @@ def __init__(
         )
         self._query_compiler = query_compiler
         return
-    elif is_autoswitch_enabled():
-        with config_context(Backend="pandas"):
-            self._extensions[None]["__init__"](self, data, index, columns, dtype, copy)
-        return
+#    elif is_autoswitch_enabled():
+#        with config_context(Backend="pandas"):
+#            self._extensions[None]["__init__"](self, data, index, columns, dtype, copy)
+#        return
 
     # A DataFrame cannot be used as an index and Snowpark pandas does not support the Categorical type yet.
     # Check that index is not a DataFrame and dtype is not "category".
@@ -817,9 +817,10 @@ def apply(
     """
     Apply a function along an axis of the ``DataFrame``.
     """
-    self = self.__switcheroo__(inplace=True, operation="apply")
-    if self.get_backend() != "Snowflake":
-        return self.apply(func, axis, raw, result_type, args, *kwargs)
+    # TODO Remove Switcheroo
+    #self = self.__switcheroo__(inplace=True, operation="apply")
+    #if self.get_backend() != "Snowflake":
+    #    return self.apply(func, axis, raw, result_type, args, *kwargs)
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     axis = self._get_axis_number(axis)
     query_compiler = self._query_compiler.apply(
@@ -2218,7 +2219,9 @@ def value_counts(
             dropna=dropna,
         ),
         name="proportion" if normalize else "count",
-    ).__switcheroo__(inplace=False, operation="value_counts")
+    )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(inplace=False, operation="value_counts")
 
 
 @register_dataframe_accessor("where")
@@ -2255,9 +2258,10 @@ def iterrows(self) -> Iterator[tuple[Hashable, Series]]:
     """
     Iterate over ``DataFrame`` rows as (index, ``Series``) pairs.
     """
-    self = self.__switcheroo__(inplace=True, operation="iterrows")
-    if self.get_backend() != "Snowflake":
-        return self.iterrows()
+    # Remove Switcheroo
+    #self = self.__switcheroo__(inplace=True, operation="iterrows")
+    #if self.get_backend() != "Snowflake":
+    #    return self.iterrows()
 
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     def iterrow_builder(s):
@@ -2282,9 +2286,9 @@ def itertuples(
     Iterate over ``DataFrame`` rows as ``namedtuple``-s.
     """
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    self = self.__switcheroo__(inplace=True, operation="itertuples")
-    if self.get_backend() != "Snowflake":
-        return self.itertuples(index, name)
+    #self = self.__switcheroo__(inplace=True, operation="itertuples")
+    #if self.get_backend() != "Snowflake":
+    #    return self.itertuples(index, name)
 
     def itertuples_builder(s):
         """Return the next namedtuple."""
@@ -2325,9 +2329,9 @@ def __repr__(self):
     -------
     str
     """
-    self = self.__switcheroo__(inplace=True)
-    if self.get_backend() != "Snowflake":
-        return self.__repr__()
+    #self = self.__switcheroo__(inplace=True)
+    #if self.get_backend() != "Snowflake":
+    #    return self.__repr__()
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     num_rows = native_pd.get_option("display.max_rows") or len(self)
     # see _repr_html_ for comment, allow here also all column behavior

@@ -491,6 +491,8 @@ HYBRID_ALL_EXPENSIVE_METHODS = (
 T = TypeVar("T", bound=Callable[..., Any])
 
 
+
+
 def _propagate_attrs_on_methods(cls):  # type: ignore
     """
     Decorator that modifies all methods on the class to copy `_attrs` from `self`
@@ -836,9 +838,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return encourage_moving
 
     def stay_cost(self, 
-        other_qc_type: type,
         api_cls_name: Optional[str] = None,
         operation: Optional[str] = None,
+        arguments: Optional[MappingProxyType[str, Any]] = None
     ) -> int:
         cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
 
@@ -863,6 +865,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             other_qc: BaseQueryCompiler,
             api_cls_name: Optional[str] = None,
             operation: Optional[str] = None,
+            arguments: Optional[MappingProxyType[str, Any]] = None
         ) -> int:
         """
         Return the coercion costs from other_qc to this qc type.
@@ -881,6 +884,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Cost of migrating the data from other_qc to this qc or
             None if the cost cannot be determined.
         """
+        if api_cls_name in ("DataFrame", "Series") and operation == "__init__":
+            if (query_compiler := arguments.get("query_compiler")) is not None:
+                # When we create a dataframe or series with a query compiler
+                # input, we should not switch the resulting dataframe or series
+                # to a different backend.
+                return (
+                    QCCoercionCost.COST_ZERO
+                    if isinstance(query_compiler, cls)
+                    else QCCoercionCost.COST_IMPOSSIBLE
+                )
+            else:
+                # Moving the in-memory __init__ inputs to the cloud is expensive.
+                return QCCoercionCost.COST_HIGH
+        # TODO: Replace Below       
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
