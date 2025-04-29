@@ -1813,22 +1813,27 @@ class DataFrame:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
 
         normalized_names = {quote_name(n) for n in names}
-        if self._select_statement and self._session.conf.get("use_simplified_query_generation"):
-            # TODO: see what to do with ast
-            df = self._with_plan(self._select_statement.exclude(normalized_names))
-            return df
-
         existing_names = [attr.name for attr in self._output]
         keep_col_names = [c for c in existing_names if c not in normalized_names]
+
         if not keep_col_names:
             raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+
+        if self._select_statement and self._session.conf.get(
+            "use_simplified_query_generation"
+        ):
+            # Only drop the columns that exist in the DataFrame.
+            drop_normalized_names = [
+                name for name in normalized_names if name in existing_names
+            ]
+            df = self._with_plan(self._select_statement.exclude(drop_normalized_names))
         else:
             df = self.select(list(keep_col_names), _emit_ast=False)
 
-            if _emit_ast:
-                df._ast_id = stmt.uid
+        if _emit_ast:
+            df._ast_id = stmt.uid
 
-            return df
+        return df
 
     @df_api_usage
     @publicapi
