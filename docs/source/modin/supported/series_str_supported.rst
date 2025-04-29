@@ -14,9 +14,8 @@ the method in the left column.
 | StringMethods               | Snowpark implemented? (Y/N/P/D) | Notes for current implementation                   |
 | (Series.str)                |                                 |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``__getitem__``             | P                               | ``N`` if the `key` parameter is set to a non-int   |
-|                             |                                 | value. For the column data type, only string and   |
-|                             |                                 | list values are supported. All column values must  |
+| ``__getitem__``             | P                               | For the column data type, only string, list, and   |
+|                             |                                 | dict values are supported. All column values must  |
 |                             |                                 | be of the same type.                               |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``capitalize``              | Y                               |                                                    |

@@ -16536,11 +16536,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Follow pandas behavior; all values will be None.
             key = None
         if is_scalar(key):
-            if key is not None and not isinstance(key, int):
+            col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+            if key is not None and not isinstance(key, (int, str)):
                 ErrorMessage.not_implemented(
-                    "Snowpark pandas string indexing doesn't yet support non-numeric keys"
+                    "Snowpark pandas string indexing doesn't yet support keys of types other than int or str"
                 )
-            return self.str_get(typing.cast(int, key))
+            elif isinstance(
+                self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+                MapType,
+            ):
+                if key is not None and not isinstance(key, str):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than str when the data column contains dicts"
+                    )
+            elif isinstance(
+                self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+                ArrayType,
+            ):
+                if key is not None and not isinstance(key, int):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than int when the data column contains lists"
+                    )
+            else:
+                if key is not None and not isinstance(key, int):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than int when the data column contains strings"
+                    )
+            assert key is None or isinstance(key, (int, str))
+            return self.str_get(key)
         else:
             assert isinstance(key, slice), "key is expected to be slice here"
             if key.step == 0:
@@ -16676,7 +16702,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_get(self, i: Union[int, str]) -> "SnowflakeQueryCompiler":
+    def str_get(self, i: Union[None, int, str]) -> "SnowflakeQueryCompiler":
         """
         Extract element from each component at specified position or with specified key.
 
@@ -16696,7 +16722,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument of types other than int or str"
             )
 
-        def output_col_string(column: SnowparkColumn, i: int) -> SnowparkColumn:
+        def output_col_string(
+            column: SnowparkColumn, i: Union[None, int]
+        ) -> SnowparkColumn:
             col_len_exp = length(column)
             if i is None:
                 new_col = pandas_lit(None)
@@ -16724,7 +16752,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     )
             return self._replace_non_str(column, new_col)
 
-        def output_col_list(column: SnowparkColumn, i: int) -> SnowparkColumn:
+        def output_col_list(
+            column: SnowparkColumn, i: Union[None, int]
+        ) -> SnowparkColumn:
             col_len_exp = array_size(column)
             if i is None:
                 new_col = pandas_lit(None)
