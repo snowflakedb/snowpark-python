@@ -20326,6 +20326,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         table_name: Union[str, Iterable[str]],
         *,
+        iceberg_config: Optional[dict],
         mode: Optional[str] = None,
         column_order: str = "index",
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
@@ -20336,7 +20337,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
-        iceberg_config: Optional[dict] = None,
         index: bool = True,
         index_label: Optional[IndexLabel] = None,
     ) -> List[Row]:

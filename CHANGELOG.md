@@ -15,6 +15,10 @@
 - Added support for dict values in `Series.str.get`.
 - Added support for dict values in `Series.str.slice`.
 
+#### Improvements
+
+- Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+
 ## 1.31.0 (2025-04-24)
 
 ### Snowpark Python API Updates
