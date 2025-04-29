@@ -8,6 +8,10 @@
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
 
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
+
 ### Snowpark pandas API Updates
 
 #### New Features
@@ -49,7 +53,6 @@
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
 - Fixed a bug where `df.limit(0)` call would not properly apply.
 - Fixed a bug in `DataFrameWriter.save_as_table` that caused reserved names to throw errors when using append mode.
-- Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 
 #### Deprecations
 
