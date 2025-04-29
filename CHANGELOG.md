@@ -17,7 +17,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces
+- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
 
 ## 1.31.0 (2025-04-24)
 
