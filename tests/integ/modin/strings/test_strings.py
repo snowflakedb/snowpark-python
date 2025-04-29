@@ -14,22 +14,10 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import running_on_public_ci
 
 # NOTE: Many tests in this file previously fell back to native pandas in stored procedures. These
 # have since been updated to expect NotImplementedError, and the original "expected" result has
 # been left as a comment to make properly implementing these methods easier.
-
-
-# This whole suite is skipped in ci run because those are tests for unsupported
-# APIs, which is time-consuming, and it will run the daily jenkins job.
-@pytest.fixture(scope="module", autouse=True)
-def skip(pytestconfig):
-    if running_on_public_ci():
-        pytest.skip(
-            "Disable series str tests for public ci",
-            allow_module_level=True,
-        )
 
 
 # TODO (SNOW-863786): import whole pandas/tests/strings/test_strings.py
@@ -499,7 +487,7 @@ def test_zfill_with_leading_sign():
         ("value", ["World", "Planet", "Sea"]),
     ],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_get_with_dict_label(key, expected_result):
     # GH47911
     s = pd.Series(
@@ -509,9 +497,6 @@ def test_get_with_dict_label(key, expected_result):
             {"value": "Sea"},
         ]
     )
-    # expected = native_pd.Series(expected_result)
-    with pytest.raises(
-        NotImplementedError,
-        match="Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument",
-    ):
-        s.str.get(key)
+    result = s.str.get(key)
+    expected = native_pd.Series(expected_result)
+    assert_snowpark_pandas_equal_to_pandas(result, expected)

@@ -2,6 +2,12 @@
 
 ## 1.32.0 (YYYY-MM-DD)
 
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
+
 ### Snowpark pandas API Updates
 
 #### New Features
