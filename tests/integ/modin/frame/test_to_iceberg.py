@@ -56,3 +56,14 @@ def test_to_iceberg(session, native_pandas_df_basic, local_testing_mode):
         )
     finally:
         Utils.drop_table(session, table_name)
+
+
+@sql_count_checker(query_count=0)
+def test_to_iceberg_config_required(native_pandas_df_basic):
+    snow_dataframe = pd.DataFrame(native_pandas_df_basic)
+
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    with pytest.raises(
+        TypeError, match="missing 1 required keyword-only argument: 'iceberg_config'"
+    ):
+        snow_dataframe.to_iceberg(table_name=table_name, mode="overwrite")
