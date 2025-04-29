@@ -504,7 +504,7 @@ def to_iceberg(
     self,
     table_name: Union[str, Iterable[str]],
     *,
-    iceberg_config: Optional[dict],
+    iceberg_config: dict,
     mode: Optional[str] = None,
     column_order: str = "index",
     clustering_keys: Optional[Iterable[ColumnOrName]] = None,
