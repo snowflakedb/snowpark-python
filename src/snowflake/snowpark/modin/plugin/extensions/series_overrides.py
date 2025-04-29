@@ -275,9 +275,9 @@ def items(self):
     """
     Iterate over ``Series`` rows as (index, value) tuples.
     """
-    self = self.__switcheroo__(inplace=True, operation="items")
-    if self.get_backend() != "Snowflake":
-        return self.items()
+    #self = self.__switcheroo__(inplace=True, operation="items")
+    #if self.get_backend() != "Snowflake":
+    #    return self.items()
 
     def items_builder(s):
         """Return tuple of the given ``Series`` in the form (index, value)."""
@@ -1081,9 +1081,9 @@ def apply(
     """
     Apply a function along an axis of the `BasePandasDataset`.
     """
-    self = self.__switcheroo__(inplace=True, operation="apply")
-    if self.get_backend() != "Snowflake":
-        return self.apply(func, convert_dtype, args, **kwargs)
+    #self = self.__switcheroo__(inplace=True, operation="apply")
+    #if self.get_backend() != "Snowflake":
+    #    return self.apply(func, convert_dtype, args, **kwargs)
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
     self._validate_function(func)
     new_query_compiler = self._query_compiler.apply_on_series(func, args, **kwargs)
@@ -1845,7 +1845,9 @@ def value_counts(
             dropna=dropna,
         ).set_index_names([self.name]),
         name="proportion" if normalize else "count",
-    ).__switcheroo__(operation="value_counts")
+    )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="value_counts")
 
 
 # The `suffix` parameter is documented but according to pandas maintainers, "not public."

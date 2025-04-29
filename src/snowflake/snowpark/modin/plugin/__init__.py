@@ -71,6 +71,13 @@ DocModule.put(docstrings.__name__)
 import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
 import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
 
+# Hybrid Mode Imports
+from modin.core.storage_formats.pandas.query_compiler_caster import (
+    _GENERAL_EXTENSIONS,
+    register_function_for_post_op_switch,
+    register_function_for_pre_op_switch,
+)
+
 # TODO: SNOW-1643979 pull in fixes for
 # https://github.com/modin-project/modin/issues/7113 and https://github.com/modin-project/modin/issues/7134
 # Upstream Modin has issues with certain docstring generation edge cases, so we should use our version instead
@@ -130,6 +137,27 @@ Backend.register_backend(
 )
 Backend.put("snowflake")
 
+# Hybrid Mode Registration
+register_function_for_pre_op_switch(
+    class_name="DataFrame",
+    method="__init__",
+    backend="Snowflake",
+    )
+
+
+register_function_for_pre_op_switch(
+    class_name="Series",
+    method="__init__",
+    backend="Snowflake",
+    )
+
+register_function_for_post_op_switch(
+    class_name=None,
+    method="read_snowflake",
+    backend="Snowflake",
+    )
+
+Backend.set_active_backends(["Snowflake", "Pandas"])
 
 # === SET UP TELEMETRY ===
 # dt and str accessors raise AttributeErrors that get caught by Modin __getitem__. Whitelist

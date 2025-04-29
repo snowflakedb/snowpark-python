@@ -332,7 +332,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             # in __getattr__, so we should call __getattr__ directly instead.
             agg_func = self.__getattr__(func)
             if callable(agg_func):
-                return agg_func(*args, **kwargs).__switcheroo__(operation="aggregate")
+                return agg_func(*args, **kwargs)
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="aggregate")
 
         # when the aggregation function passed in is list like always return a Dataframe regardless
         # it is SeriesGroupBy or DataFrameGroupBy
@@ -347,7 +349,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             is_result_dataframe=is_result_dataframe,
         )
 
-        return result.__switcheroo__(operation="aggregate")
+        return result
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="aggregate")
 
     agg = aggregate
 
@@ -489,7 +493,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=False,
             agg_func="count",
         )
-        return result.__switcheroo__(operation="count")
+        return result
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="count")
 
     def cov(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -674,7 +680,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             type(self._query_compiler).groupby_last,
             agg_kwargs=dict(min_count=min_count, skipna=skipna),
             numeric_only=numeric_only,
-        ).__switcheroo__(operation="last")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="last")
 
     def max(
         self,
@@ -693,7 +701,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=numeric_only,
             agg_func="max",
             agg_kwargs=dict(min_count=min_count, numeric_only=numeric_only),
-        ).__switcheroo__(operation="max")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="max")
 
     def mean(
         self,
@@ -710,7 +720,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=numeric_only,
             agg_func="mean",
             agg_kwargs=dict(numeric_only=numeric_only),
-        ).__switcheroo__(operation="mean")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="mean")
 
     def median(self, numeric_only: bool = False):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -719,7 +731,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=numeric_only,
             agg_func="median",
             agg_kwargs=dict(numeric_only=numeric_only),
-        ).__switcheroo__(operation="median")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="median")
 
     def min(
         self,
@@ -737,7 +751,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=numeric_only,
             agg_func="min",
             agg_kwargs=dict(min_count=min_count, numeric_only=numeric_only),
-        ).__switcheroo__(operation="min")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="min")
 
     def ngroup(self, ascending=True):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -752,7 +768,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             qc_method=type(self._query_compiler).groupby_nunique,
             agg_func="nunique",
             agg_kwargs=dict(dropna=dropna),
-        ).__switcheroo__(operation="nunique")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="nunique")
 
     def ohlc(self):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -823,7 +841,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=False,
             agg_func="quantile",
             agg_kwargs=dict(q=q, interpolation=interpolation),
-        ).__switcheroo__(operation="quantile")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="quantile")
 
     def rank(
         self,
@@ -948,7 +968,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             )
         elif isinstance(self._df, Series):
             result.name = self._df.name
-        return result.__switcheroo__(operation="size")
+        return result
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="size")
 
     def skew(self, *args, **kwargs):
         ErrorMessage.method_not_implemented_error(name="skew", class_="GroupBy")
@@ -969,7 +991,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=numeric_only,
             agg_func="std",
             agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
-        ).__switcheroo__(operation="std")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="std")
 
     def sum(
         self,
@@ -988,7 +1012,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=numeric_only,
             agg_func="sum",
             agg_kwargs=dict(min_count=min_count, numeric_only=numeric_only),
-        ).__switcheroo__(operation="sum")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="sum")
 
     def var(
         self,
@@ -1007,7 +1033,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only=numeric_only,
             agg_func="var",
             agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
-        ).__switcheroo__(operation="var")
+        )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="var")
 
     def tail(self, n=5):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -1029,7 +1057,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="tail",
             agg_kwargs=agg_kwargs,
         )
-        return pd.DataFrame(result).__switcheroo__(operation="tail")
+        return pd.DataFrame(result)
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="tail")
 
     def take(self, *args, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -1057,10 +1087,14 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             return pd.Series(
                 query_compiler=query_compiler,
                 name="proportion" if normalize else "count",
-            ).__switcheroo__(operation="value_counts")
-        return pd.DataFrame(query_compiler=query_compiler).__switcheroo__(
-            operation="value_counts"
-        )
+            )
+    # TODO Remove Switcheroo
+    # .__switcheroo__(operation="value_counts")
+        return pd.DataFrame(query_compiler=query_compiler)
+    # TODO Remove Switcheroo
+    # .__switcheroo__(
+    #        operation="value_counts"
+    #   )
 
     ###########################################################################
     # Plotting and visualization

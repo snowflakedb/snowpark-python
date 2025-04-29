@@ -44,7 +44,7 @@ def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: 
         # per NEP18 we raise NotImplementedError so that numpy can intercept
         return NotImplemented  # pragma: no cover
 
-
+'''
 @register_base_override(name="__switcheroo__")
 def __switcheroo__(self, inplace=False, operation=""):
     if not is_autoswitch_enabled():
@@ -100,3 +100,4 @@ def __switcheroo__(self, inplace=False, operation=""):
         else:
             return the_new_me_maybe
     return self
+'''
