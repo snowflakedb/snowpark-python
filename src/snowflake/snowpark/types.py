@@ -537,6 +537,7 @@ class ColumnIdentifier:
 
     def __init__(self, normalized_name: str) -> None:
         self.normalized_name = quote_name(normalized_name)
+        self.case_sensitive_name = quote_name(normalized_name, keep_case=True)
         self._original_name = normalized_name
 
     @property
@@ -629,6 +630,10 @@ class StructField:
         else:
             self._name = n
             self.column_identifier = ColumnIdentifier(n)
+
+    @property
+    def case_sensitive_name(self):
+        return self.column_identifier.case_sensitive_name
 
     def _as_nested(self) -> "StructField":
         if not context._should_use_structured_type_semantics():
