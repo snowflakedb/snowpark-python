@@ -12,7 +12,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+- Fixed a bug in `snowflake.snowpark.functions.rank` that would cause sort direction to not be respected.
 
 ### Snowpark pandas API Updates
 
@@ -23,6 +23,10 @@
 #### Improvements
 
 - Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+
+#### Bug Fixes
+
+- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
 
 ## 1.31.0 (2025-04-24)
 
