@@ -141,7 +141,7 @@ artifact_repo_sproc = session.sproc.register(
     replace=True,
     return_type=StringType(),
     artifact_repository="EXAMPLE_REPO",
-    artifact_repository_packages=["urllib3", "requests"],
+    packages=["urllib3", "requests"],
     resource_constraint={"architecture": "x86"},
 )
 
@@ -233,7 +233,7 @@ res47 = range5_sproc()
 
 res48 = session.range(5, None, 1)
 
-artifact_repo_sproc = sproc("artifact_repo_test", return_type=StringType(), name="artifact_repo_sproc", replace=True, artifact_repository="EXAMPLE_REPO", artifact_repository_packages=["urllib3", "requests"], resource_constraint={"architecture": "x86"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPO_SPROC\"")
+artifact_repo_sproc = sproc("artifact_repo_test", return_type=StringType(), name="artifact_repo_sproc", packages=["urllib3", "requests"], replace=True, artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPO_SPROC\"")
 
 ## EXPECTED ENCODED AST
 
@@ -2566,8 +2566,6 @@ body {
         artifact_repository {
           value: "EXAMPLE_REPO"
         }
-        artifact_repository_packages: "urllib3"
-        artifact_repository_packages: "requests"
         execute_as: "owner"
         func {
           id: 11
@@ -2587,6 +2585,8 @@ body {
             }
           }
         }
+        packages: "urllib3"
+        packages: "requests"
         parallel: 4
         replace: true
         resource_constraint {

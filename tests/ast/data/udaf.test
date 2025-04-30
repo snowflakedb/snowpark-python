@@ -129,7 +129,7 @@ ar_udaf = udaf(
     return_type=StringType(),
     input_types=[IntegerType()],
     artifact_repository="EXAMPLE_REPO",
-    artifact_repository_packages=["urllib3", "requests"],
+    packages=["urllib3", "requests"],
     resource_constraint={"architecture": "x86"},
 )
 
@@ -160,7 +160,7 @@ sum_udaf = udaf("MyUDAFWithTypeHints", return_type=LongType(), input_types=[Long
 
 res5 = df.agg(sum_udaf("a"))
 
-ar_udaf = udaf("ArtifactRepositoryHandler", return_type=StringType(), input_types=[IntegerType()], artifact_repository="EXAMPLE_REPO", artifact_repository_packages=["urllib3", "requests"], resource_constraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+ar_udaf = udaf("ArtifactRepositoryHandler", return_type=StringType(), input_types=[IntegerType()], packages=["urllib3", "requests"], artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
 
 ## EXPECTED ENCODED AST
 
@@ -1135,8 +1135,6 @@ body {
         artifact_repository {
           value: "EXAMPLE_REPO"
         }
-        artifact_repository_packages: "urllib3"
-        artifact_repository_packages: "requests"
         handler {
           id: 4
           name: "ArtifactRepositoryHandler"
@@ -1165,6 +1163,8 @@ body {
             }
           }
         }
+        packages: "urllib3"
+        packages: "requests"
         parallel: 4
         resource_constraint {
           _1: "architecture"
