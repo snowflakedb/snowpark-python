@@ -8,15 +8,26 @@
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
 
+
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `snowflake.snowpark.functions.rank` that would cause sort direction to not be respected.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
+
+#### Bug Fixes
+
+- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
 
 ## 1.31.0 (2025-04-24)
 
