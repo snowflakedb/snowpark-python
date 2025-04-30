@@ -707,10 +707,7 @@ def test_random_split(session, use_simplified_query_generation):
                             ],
                         },
                         {"name": "DataFrame.filter"},
-                        {
-                            "name": "DataFrame.drop",
-                            "subcalls": [{"name": "DataFrame.select"}],
-                        },
+                        {"name": "DataFrame.drop[exclude]"},
                     ],
                 },
             ]
@@ -723,7 +720,7 @@ def test_random_split(session, use_simplified_query_generation):
                         {"name": "Table.__init__"},
                         {"name": "DataFrame.filter"},
                         {
-                            "name": "DataFrame.drop",
+                            "name": "DataFrame.drop[select]",
                             "subcalls": [{"name": "DataFrame.select"}],
                         },
                     ],
