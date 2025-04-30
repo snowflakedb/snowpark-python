@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.29.1" %}
+{% set version = "1.31.0" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 
 package:
@@ -24,6 +24,9 @@ build:
   string: "py312_0"  # [py==312]
 {% endif %}
 
+{% if noarch_build and py not in [39, 310, 311, 312] %}
+error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.9, 3.10, 3.11, or 3.12."
+{% else %}
 requirements:
   host:
     - python
@@ -35,7 +38,17 @@ requirements:
     - protobuf==4.25.3  # [py>310]
     - mypy-protobuf
   run:
+    {% if noarch_build and py == 39 %}
+    - python >=3.9,<3.10.0a0
+    {% elif noarch_build and py == 310 %}
+    - python >=3.10,<3.11.0a0
+    {% elif noarch_build and py == 311 %}
+    - python >=3.11,<3.12.0a0
+    {% elif noarch_build and py == 312 %}
+    - python >=3.12,<3.13.0a0
+    {% else %}
     - python
+    {% endif %}
     - cloudpickle >=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0
     - snowflake-connector-python >=3.12.0,<4.0.0
     - typing-extensions >=4.1.0,<5.0.0
@@ -49,7 +62,8 @@ requirements:
     - tzlocal
   run_constrained:
     # Snowpark pandas
-    - modin==0.30.1
+    - modin==0.32.0
+{% endif %}
 
 test:
   imports:

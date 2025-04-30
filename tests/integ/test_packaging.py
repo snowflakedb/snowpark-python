@@ -29,11 +29,6 @@ pytestmark = pytest.mark.xfail(
 )
 
 
-if sys.version_info >= (3, 9):
-    runtime_39_or_above = True
-else:
-    runtime_39_or_above = False
-
 try:
     import dateutil
 
@@ -364,6 +359,38 @@ def test_add_packages_negative(session, caplog):
 
 
 @pytest.mark.udf
+def test_add_packages_artifact_repository(session):
+    def test_urllib() -> str:
+        import urllib3
+        import numpy as np
+
+        return str(urllib3.exceptions.HTTPError(str(np.array([1, 2, 3]))))
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    artifact_repository = "SNOWPARK_PYTHON_TEST_REPOSITORY"
+
+    try:
+        assert len(session.get_packages(artifact_repository)) == 0
+        session.add_packages(["numpy"], artifact_repository=artifact_repository)
+        assert len(session.get_packages(artifact_repository)) == 1
+        # Test function registration
+        udf(
+            func=test_urllib,
+            name=temp_func_name,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=["urllib3"],
+        )
+
+        # Test UDF call
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("[1 2 3]")])
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}(int)")
+        session.remove_package("numpy", artifact_repository=artifact_repository)
+        assert len(session.get_packages(artifact_repository)) == 0
+
+
+@pytest.mark.udf
 @pytest.mark.skipif(
     (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
     reason="numpy and pandas are required",
@@ -424,6 +451,44 @@ def test_add_unsupported_requirements_should_fail_if_custom_packages_upload_enab
             session.add_requirements(test_files.test_unsupported_requirements_file)
 
 
+@pytest.mark.udf
+@pytest.mark.skipif(
+    (not is_pandas_and_numpy_available) or IS_IN_STORED_PROC,
+    reason="numpy and pandas are required",
+)
+def test_add_requirements_artifact_repository(
+    session, resources_path, local_testing_mode
+):
+    def test_urllib() -> str:
+        import urllib3
+        import numpy as np
+
+        return str(urllib3.exceptions.HTTPError(str(np.array([1, 2, 3]))))
+
+    test_files = TestFiles(resources_path)
+    artifact_repository = "SNOWPARK_PYTHON_TEST_REPOSITORY"
+    assert len(session.get_packages(artifact_repository)) == 0
+    session.add_requirements(
+        test_files.test_requirements_file, artifact_repository=artifact_repository
+    )
+    assert len(session.get_packages(artifact_repository)) == 2
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    try:
+        udf(
+            func=test_urllib,
+            name=temp_func_name,
+            artifact_repository=artifact_repository,
+            artifact_repository_packages=["urllib3"],
+        )
+        # Test UDF call
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("[1 2 3]")])
+    finally:
+        session.clear_packages(artifact_repository=artifact_repository)
+        assert len(session.get_packages(artifact_repository)) == 0
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
@@ -473,9 +538,6 @@ def test_add_unsupported_requirements_twice_should_not_fail_for_same_requirement
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
-)
-@pytest.mark.skipif(
-    not runtime_39_or_above, reason="arch is not available on python 3.8"
 )
 def test_add_packages_should_fail_if_dependency_package_already_added(session):
     session.custom_package_usage_config = {"enabled": True, "force_push": True}
@@ -685,7 +747,7 @@ def test_add_requirements_yaml(session, resources_path):
         "seaborn",
         "scipy",
     }
-    assert session._runtime_version_from_requirement == "3.8"
+    assert session._runtime_version_from_requirement == "3.9"
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     system_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -909,7 +971,7 @@ def test_add_requirements_unsupported_with_cache_path_negative(
         "cache_path": "arbitrary_name_for_not_existent_stages",
     }
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        with pytest.raises(RuntimeError, match="does not exist or not authorized"):
+        with pytest.raises(RuntimeError, match="Unable to auto-upload packages"):
             session.add_requirements(test_files.test_unsupported_requirements_file)
 
 

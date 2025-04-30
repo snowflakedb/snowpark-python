@@ -50,9 +50,10 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryExpression,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    FullOuter,
     Join,
     SetOperation,
-    Union as UnionPlan,
+    UsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
@@ -129,6 +130,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import (
+    _InternalAlias,
     Alias,
     Cast,
     UnaryExpression,
@@ -147,6 +149,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Project,
     Rename,
     Sample,
+    SampleBy,
     Sort,
     Unpivot,
 )
@@ -212,7 +215,9 @@ class Analyzer:
         if isinstance(expr, Like):
             return like_expression(
                 self.analyze(
-                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.expr),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 self.analyze(
                     expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
@@ -222,7 +227,9 @@ class Analyzer:
         if isinstance(expr, RegExp):
             return regexp_expression(
                 self.analyze(
-                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.expr),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 self.analyze(
                     expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
@@ -242,7 +249,9 @@ class Analyzer:
             )
             return collate_expression(
                 self.analyze(
-                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.expr),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 collation_spec,
             )
@@ -253,7 +262,9 @@ class Analyzer:
                 field = field.upper()
             return subfield_expression(
                 self.analyze(
-                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.expr),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 field,
             )
@@ -263,7 +274,7 @@ class Analyzer:
                 [
                     (
                         self.analyze(
-                            condition,
+                            self.internal_alias_extractor(condition),
                             df_aliased_col_name_to_real_col_name,
                             parse_local_name,
                         ),
@@ -276,7 +287,7 @@ class Analyzer:
                     for condition, value in expr.branches
                 ],
                 self.analyze(
-                    expr.else_value,
+                    self.internal_alias_extractor(expr.else_value),
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
                 )
@@ -308,13 +319,13 @@ class Analyzer:
             for expression in expr.values:
                 if self.session.eliminate_numeric_sql_value_cast_enabled:
                     in_value = self.to_sql_try_avoid_cast(
-                        expression,
+                        self.internal_alias_extractor(expression),
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
                     )
                 else:
                     in_value = self.analyze(
-                        expression,
+                        self.internal_alias_extractor(expression),
                         df_aliased_col_name_to_real_col_name,
                         parse_local_name,
                     )
@@ -322,7 +333,9 @@ class Analyzer:
                 in_values.append(in_value)
             return in_expression(
                 self.analyze(
-                    expr.columns, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.columns),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 in_values,
             )
@@ -448,7 +461,9 @@ class Analyzer:
                 func_name,
                 [
                     self.analyze(
-                        x, df_aliased_col_name_to_real_col_name, parse_local_name
+                        self.internal_alias_extractor(x),
+                        df_aliased_col_name_to_real_col_name,
+                        parse_local_name,
                     )
                     for x in expr.children
                 ],
@@ -493,7 +508,9 @@ class Analyzer:
         if isinstance(expr, SortOrder):
             return order_expression(
                 self.analyze(
-                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.child),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 expr.direction.sql,
                 expr.null_ordering.sql,
@@ -506,7 +523,9 @@ class Analyzer:
         if isinstance(expr, WithinGroup):
             return within_group_expression(
                 self.analyze(
-                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.expr),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 [
                     self.analyze(e, df_aliased_col_name_to_real_col_name)
@@ -557,7 +576,9 @@ class Analyzer:
         if isinstance(expr, ListAgg):
             return list_agg(
                 self.analyze(
-                    expr.col, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.col),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 str_to_sql(expr.delimiter),
                 expr.is_distinct,
@@ -577,7 +598,9 @@ class Analyzer:
             return rank_related_function_expression(
                 expr.sql,
                 self.analyze(
-                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                    self.internal_alias_extractor(expr.expr),
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
                 ),
                 expr.offset,
                 self.analyze(
@@ -591,6 +614,18 @@ class Analyzer:
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(
             str(expr)
         )  # pragma: no cover
+
+    def internal_alias_extractor(self, expr: Expression) -> Expression:
+        """
+        This function is used to extract the internal alias of an expression. This function
+        needs to be called whenever an expr is coming from a Column object. This is done because
+        _InternalAlias is generated for implementing a few functions on the client-side with
+        the final output column being aliased internally. Such internal aliases need to be
+        dropped when they are not applied at the top level in a sql nesting level.
+        """
+        if isinstance(expr, _InternalAlias):
+            return expr.child
+        return expr
 
     def table_function_expression_extractor(
         self,
@@ -681,9 +716,11 @@ class Analyzer:
                 ),
                 quoted_name,
             )
+
+        child = self.internal_alias_extractor(expr.child)
         if isinstance(expr, UnresolvedAlias):
             expr_str = self.analyze(
-                expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                child, df_aliased_col_name_to_real_col_name, parse_local_name
             )
             if parse_local_name:
                 expr_str = expr_str.upper()
@@ -691,7 +728,7 @@ class Analyzer:
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(
-                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                    child, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 expr.to,
                 expr.try_,
@@ -701,7 +738,7 @@ class Analyzer:
         else:
             return unary_expression(
                 self.analyze(
-                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                    child, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
                 expr.sql_operator,
                 expr.operator_first,
@@ -713,21 +750,23 @@ class Analyzer:
         df_aliased_col_name_to_real_col_name,
         parse_local_name=False,
     ) -> str:
+        left = self.internal_alias_extractor(expr.left)
+        right = self.internal_alias_extractor(expr.right)
         if self.session.eliminate_numeric_sql_value_cast_enabled:
             left_sql_expr = self.to_sql_try_avoid_cast(
-                expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
+                left, df_aliased_col_name_to_real_col_name, parse_local_name
             )
             right_sql_expr = self.to_sql_try_avoid_cast(
-                expr.right,
+                right,
                 df_aliased_col_name_to_real_col_name,
                 parse_local_name,
             )
         else:
             left_sql_expr = self.analyze(
-                expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
+                left, df_aliased_col_name_to_real_col_name, parse_local_name
             )
             right_sql_expr = self.analyze(
-                expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
+                right, df_aliased_col_name_to_real_col_name, parse_local_name
             )
         if isinstance(expr, BinaryArithmeticExpression):
             return binary_arithmetic_expression(
@@ -808,7 +847,9 @@ class Analyzer:
             return str(expr.value).upper()
         else:
             return self.analyze(
-                expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                self.internal_alias_extractor(expr),
+                df_aliased_col_name_to_real_col_name,
+                parse_local_name,
             )
 
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
@@ -972,6 +1013,14 @@ class Analyzer:
                 logical_plan.row_count,
             )
 
+        if isinstance(logical_plan, SampleBy):
+            return self.plan_builder.sample_by(
+                resolved_children[logical_plan.child],
+                logical_plan,
+                self.analyze(logical_plan.col, df_aliased_col_name_to_real_col_name),
+                logical_plan.fractions,
+            )
+
         if isinstance(logical_plan, Join):
             join_condition = (
                 self.analyze(
@@ -1119,7 +1168,10 @@ class Analyzer:
                 pivot_values = None
 
             plan = None
+
             for agg_expr in logical_plan.aggregates:
+                # We only allow pivot on more than one aggregates when it on a groupby clause
+                join_columns: List[str] | None = None
                 if (
                     len(logical_plan.grouping_columns) != 0
                     and agg_expr.children is not None
@@ -1131,12 +1183,23 @@ class Analyzer:
                     # plan to select group_by, pivot and aggregate column and then apply the pivot
                     # logic.
                     #     project_cols = grouping_cols + pivot_col + aggregate_col
+                    # It is possible that pivot_col and aggregate_col references the same column,
+                    # so we need to deduplicate
                     project_exprs = [
                         *logical_plan.grouping_columns,
-                        agg_expr.children[
-                            0
-                        ],  # aggregate column is first child in logical_plan.aggregates
-                        logical_plan.pivot_column,
+                        agg_expr.children[0],
+                    ]
+                    if not (
+                        isinstance(agg_expr.children[0], NamedExpression)
+                        and isinstance(logical_plan.pivot_column, NamedExpression)
+                        and agg_expr.children[0].name == logical_plan.pivot_column.name
+                    ):
+                        project_exprs.append(
+                            logical_plan.pivot_column,
+                        )
+                    join_columns = [
+                        self.analyze(expression, df_aliased_col_name_to_real_col_name)
+                        for expression in logical_plan.grouping_columns
                     ]
                     child = self.plan_builder.project(
                         [
@@ -1154,9 +1217,7 @@ class Analyzer:
                         logical_plan.pivot_column, df_aliased_col_name_to_real_col_name
                     ),
                     pivot_values,
-                    self.analyze(
-                        logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
-                    ),
+                    self.analyze(agg_expr, df_aliased_col_name_to_real_col_name),
                     self.analyze(
                         logical_plan.default_on_null,
                         df_aliased_col_name_to_real_col_name,
@@ -1165,6 +1226,8 @@ class Analyzer:
                     else None,
                     child,
                     logical_plan,
+                    len(logical_plan.aggregates)
+                    > 1,  # we need to alias the names with agg function when we have more than one agg functions on the pivot
                 )
 
                 # If this is a dynamic pivot, then we can't use child.schema_query which is used in the schema_query
@@ -1177,15 +1240,35 @@ class Analyzer:
                     # table as it may not exist at later point in time when dataframe.schema is called.
                     pivot_plan.schema_query = pivot_plan.queries[-1].sql
 
-                # union multiple aggregations
-                # https://docs.snowflake.com/en/sql-reference/constructs/pivot#dynamic-pivot-with-multiple-aggregations-using-union
+                # using join here to have the output similar to what spark have
+                # both the aggregations are happening over the same set of columns and pivot values
+                # we will receive left and right both pivot table with same set of groupby columns and columns corresponding to pivot values
+                # to differentiate between columns corresponding to pivot values for aggregation function they will have name suffixed by agg fun
+                # join would keep the group by column same and append the columns corresponding to pivot values for multiple agg functions
+                # output would look similar to below for a statement like
+                # df.groupBy("name").pivot("department", ["Sales", "Marketing"]).sum("year", "salary").show()
+                # +-------+---------------+---------------+-------------------+-------------------+
+                # |   name|Sales_sum(year)|Sales_sum(year)|Marketing_sum(year)|Marketing_sum(year)|
+                # +-------+---------------+---------------+-------------------+-------------------+
+                # |  Scott|           NULL|           NULL|               NULL|               NULL|
+                # |  James|           4039|           4039|               NULL|               NULL|
+                # |    Jen|           NULL|           NULL|               NULL|               NULL|
+                # |Michael|           2020|           2020|               NULL|               NULL|
+
                 if plan is None:
                     plan = pivot_plan
-                else:
-                    union_plan = UnionPlan(plan, pivot_plan, is_all=False)
-                    plan = self.plan_builder.set_operator(
-                        plan, pivot_plan, union_plan.sql, union_plan
+                elif join_columns is not None:
+                    plan = self.plan_builder.join(
+                        plan,
+                        pivot_plan,
+                        UsingJoin(FullOuter(), join_columns),
+                        "",
+                        "",
+                        logical_plan,
+                        self.session.conf.get("use_constant_subquery_alias", False),
                     )
+                # we have a check in relational_grouped_dataframe.py which will prevent a case where there are more than one aggregate
+                # without having a grouping condition which is essential to create join_columns
 
             assert plan is not None
             return plan
@@ -1261,6 +1344,7 @@ class Analyzer:
                 metadata_project=logical_plan.metadata_project,
                 metadata_schema=logical_plan.metadata_schema,
                 use_user_schema=logical_plan.use_user_schema,
+                xml_reader_udtf=logical_plan.xml_reader_udtf,
                 source_plan=logical_plan,
             )
 

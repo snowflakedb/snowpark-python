@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+import difflib
 import re
 import sys
 import uuid
@@ -37,10 +38,12 @@ if TYPE_CHECKING:
     )  # pragma: no cover
     import snowflake.snowpark.session
     import snowflake.snowpark.dataframe
+    from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 import snowflake.connector
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
     TEMPORARY_STRING_SET,
     aggregate_statement,
     attribute_to_schema_string,
@@ -67,6 +70,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     project_statement,
     rename_statement,
     result_scan_statement,
+    sample_by_statement,
     sample_statement,
     schema_cast_named,
     schema_cast_seq,
@@ -85,7 +89,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.metadata_utils import (
     PlanMetadata,
-    cache_metadata_if_select_statement,
+    cache_metadata_if_selectable,
     infer_metadata,
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
@@ -107,6 +111,8 @@ from snowflake.snowpark._internal.compiler.cte_utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
+    XML_ROW_TAG_STRING,
+    XML_ROW_DATA_COLUMN_NAME,
     TempObjectType,
     generate_random_alphanumeric,
     get_copy_into_table_options,
@@ -114,6 +120,7 @@ from snowflake.snowpark._internal.utils import (
     merge_multiple_snowflake_plan_expr_to_alias,
     random_name_for_temp_object,
     ExprAliasUpdateDict,
+    UNQUOTED_CASE_INSENSITIVE,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -131,6 +138,9 @@ class SnowflakePlan(LogicalPlan):
     class Decorator:
         __wrap_exception_regex_match = re.compile(
             r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
+        )
+        __wrap_exception_regex_match_with_double_quotes = re.compile(
+            r"""(?s).*invalid identifier '([^']*)?'.*"""
         )
         __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
@@ -199,6 +209,70 @@ class SnowflakePlan(LogicalPlan):
                             )
                             raise ne.with_traceback(tb) from None
                         else:
+                            from snowflake.snowpark._internal.analyzer.select_statement import (
+                                Selectable,
+                            )
+
+                            # We need the potential double quotes for invalid identifier
+                            match = SnowflakePlan.Decorator.__wrap_exception_regex_match_with_double_quotes.match(
+                                e.msg
+                            )
+                            if not match:  # pragma: no cover
+                                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                                    e
+                                )
+                                raise ne.with_traceback(tb) from None
+                            col = match.group(1)
+
+                            quoted_identifiers = []
+                            for child in children:
+                                plan_nodes = child.children_plan_nodes
+                                for node in plan_nodes:
+                                    if isinstance(node, Selectable):
+                                        quoted_identifiers.extend(
+                                            node.snowflake_plan.quoted_identifiers
+                                        )
+                                    else:
+                                        quoted_identifiers.extend(
+                                            node.quoted_identifiers
+                                        )
+
+                            def add_single_quote(string: str) -> str:
+                                return f"'{string}'"
+
+                            # We can't display all column identifiers in the error message
+                            if len(quoted_identifiers) > 10:
+                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers[:10])}, ...]"
+                            else:
+                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers)}]"
+
+                            msg = (
+                                f"There are existing quoted column identifiers: {quoted_identifiers_str}. "
+                                f"Please use one of them to reference the column. See more details on Snowflake identifier requirements "
+                                f"https://docs.snowflake.com/en/sql-reference/identifiers-syntax"
+                            )
+
+                            # Currently, when Snowpark user a Python string as identifier to access a column:
+                            # 1) if a column name is unquoted and
+                            #   a) contains no special characters, it is automatically uppercased and quoted in SQL, or
+                            #   b) if it includes special characters, it is simply quoted without uppercasing.
+                            # 2) If the name is explicitly quoted by the user, Snowpark preserves it as-is.
+                            # Therefore, if `col` is an invalid identifier, it is most likely due to 1a) above.
+                            # We attempt to provide a more helpful error message by suggesting the closest valid identifier.
+                            if UNQUOTED_CASE_INSENSITIVE.match(col):
+                                identifier = quote_name_without_upper_casing(
+                                    col.lower()
+                                )
+                                match = difflib.get_close_matches(
+                                    identifier, quoted_identifiers
+                                )
+                                if match:
+                                    # if there is an exact match, just remind users this one
+                                    if identifier in match:
+                                        match = [identifier]
+                                    msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
+
+                            e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                                 e
                             )
@@ -372,7 +446,7 @@ class SnowflakePlan(LogicalPlan):
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
-        cache_metadata_if_select_statement(self.source_plan, self._metadata)
+        cache_metadata_if_selectable(self.source_plan, self._metadata)
         # When the reduce_describe_query_enabled is enabled, we cache the attributes in
         # self._metadata using original schema query. Thus we can update the schema query
         # to simplify plans built on top of this plan.
@@ -813,6 +887,20 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    def sample_by(
+        self,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        col: str,
+        fractions: Dict[Any, float],
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: sample_by_statement(x, col=col, fractions=fractions),
+            child,
+            source_plan,
+            schema_query=child.schema_query,
+        )
+
     def sort(
         self,
         order: List[str],
@@ -1090,10 +1178,16 @@ class SnowflakePlanBuilder:
         default_on_null: Optional[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        should_alias_column_with_agg: bool,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: pivot_statement(
-                pivot_column, pivot_values, aggregate, default_on_null, x
+                pivot_column,
+                pivot_values,
+                aggregate,
+                default_on_null,
+                x,
+                should_alias_column_with_agg,
             ),
             child,
             source_plan,
@@ -1264,6 +1358,63 @@ class SnowflakePlanBuilder:
             )(setting["property_value"])
         return new_options
 
+    def _create_xml_query(
+        self,
+        xml_reader_udtf: "UserDefinedTableFunction",
+        file_path: str,
+        options: Dict[str, str],
+    ) -> str:
+        """
+        Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
+        """
+        from snowflake.snowpark.functions import lit, col, seq8, flatten
+        from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
+
+        worker_column_name = "WORKER"
+        xml_row_number_column_name = "XML_ROW_NUMBER"
+        row_tag = options[XML_ROW_TAG_STRING]
+
+        # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
+        # Currently it's capped at 16.
+        try:
+            file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
+        except IndexError:
+            raise ValueError(f"{file_path} does not exist")
+        num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
+
+        # Create a range from 0 to N-1
+        df = self.session.range(num_workers).to_df(worker_column_name)
+
+        # Apply UDTF to the XML file and get each XML record as a Variant data,
+        # and append a unique row number to each record.
+        df = df.select(
+            worker_column_name,
+            seq8().as_(xml_row_number_column_name),
+            xml_reader_udtf(
+                lit(file_path),
+                lit(num_workers),
+                lit(row_tag),
+                col(worker_column_name),
+            ),
+        )
+
+        # Flatten the Variant data to get the key-value pairs
+        df = df.select(
+            worker_column_name,
+            xml_row_number_column_name,
+            flatten(XML_ROW_DATA_COLUMN_NAME),
+        ).select(worker_column_name, xml_row_number_column_name, "key", "value")
+
+        # Apply dynamic pivot to get the flat table with dynamic schema
+        df = (
+            df.pivot("key")
+            .max("value")
+            .sort(worker_column_name, xml_row_number_column_name)
+        )
+
+        # Exclude the worker and row number columns
+        return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
+
     def read_file(
         self,
         path: str,
@@ -1275,9 +1426,23 @@ class SnowflakePlanBuilder:
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
         use_user_schema: bool = False,
+        xml_reader_udtf: Optional["UserDefinedTableFunction"] = None,
         source_plan: Optional[ReadFileNode] = None,
     ) -> SnowflakePlan:
         thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
+
+        if xml_reader_udtf is not None:
+            xml_query = self._create_xml_query(xml_reader_udtf, path, options)
+            return SnowflakePlan(
+                [Query(xml_query)],
+                # the schema query of dynamic pivot must be the same as the original query
+                xml_query,
+                None,
+                {},
+                source_plan=source_plan,
+                session=self.session,
+            )
+
         format_type_options, copy_options = get_copy_into_table_options(options)
         format_type_options = self._merge_file_format_options(
             format_type_options, options

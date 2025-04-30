@@ -4,6 +4,10 @@
 
 # this module houses classes for IO and interacting with Snowflake engine
 
+from contextlib import contextmanager
+import os
+import tempfile
+
 import inspect
 from collections import OrderedDict
 from typing import (
@@ -31,6 +35,8 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_list_like
 
+from snowflake.snowpark.context import get_active_session
+from snowflake.snowpark.mock._stage_registry import extract_stage_name_and_prefix
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
     is_local_filepath,
     is_snowflake_stage_path,
@@ -156,6 +162,15 @@ def _validate_read_staged_csv_and_read_table_args(fn_name, **kwargs):
         warn_not_supported_parameter(kw, parameter_set, fn_name)
 
 
+@contextmanager
+def _file_from_stage(filepath_or_buffer):
+    session = get_active_session()
+    with tempfile.TemporaryDirectory() as local_temp_dir:
+        session.file.get(filepath_or_buffer, local_temp_dir)
+        _, stripped_filepath = extract_stage_name_and_prefix(filepath_or_buffer)
+        yield os.path.join(local_temp_dir, stripped_filepath)
+
+
 class PandasOnSnowflakeIO(BaseIO):
     """
     Factory providing methods for peforming I/O methods using pandas on Snowflake.
@@ -185,12 +200,7 @@ class PandasOnSnowflakeIO(BaseIO):
         return cls.from_pandas(pandas.json_normalize(**kwargs))
 
     @classmethod
-    def read_excel(cls, **kwargs):  # noqa: PR01
-        """
-        Read an excel file into a query compiler.
-
-        Snowpark pandas has a slightly different error message from the upstream modin version.
-        """
+    def _read_excel_locally(cls, **kwargs):
         try:
             intermediate = pandas.read_excel(**kwargs)
         except ImportError as e:
@@ -207,19 +217,36 @@ class PandasOnSnowflakeIO(BaseIO):
             return cls.from_pandas(intermediate)
 
     @classmethod
+    def read_excel(cls, **kwargs):  # noqa: PR01
+        """
+        Read an excel file into a query compiler.
+
+        Snowpark pandas has a slightly different error message from the upstream modin version.
+        """
+        io = kwargs["io"]
+        if is_snowflake_stage_path(io):
+            with _file_from_stage(io) as local_filepath:
+                kwargs["io"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls._read_excel_locally(**kwargs)
+
+        return cls._read_excel_locally(**kwargs)
+
+    @classmethod
     def read_snowflake(
         cls,
         name_or_query: Union[str, Iterable[str]],
         index_col: Optional[Union[str, list[str]]] = None,
         columns: Optional[list[str]] = None,
-        relaxed_ordering: bool = False,
+        enforce_ordering: bool = False,
     ):
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
         return cls.query_compiler_cls.from_snowflake(
-            name_or_query, index_col, columns, relaxed_ordering=relaxed_ordering
+            name_or_query, index_col, columns, enforce_ordering=enforce_ordering
         )
 
     @classmethod
@@ -607,6 +634,14 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Read HTML tables into a list of query compilers.
         """
+        io = kwargs["io"]
+        if is_snowflake_stage_path(io):
+            with _file_from_stage(io) as local_filepath:
+                kwargs["io"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return [cls.from_pandas(df) for df in pandas.read_html(**kwargs)]
+
         return [cls.from_pandas(df) for df in pandas.read_html(**kwargs)]
 
     @classmethod
@@ -614,6 +649,14 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Read XML document into a query compiler.
         """
+        path_or_buffer = kwargs["path_or_buffer"]
+        if is_snowflake_stage_path(path_or_buffer):
+            with _file_from_stage(path_or_buffer) as local_filepath:
+                kwargs["path_or_buffer"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_xml(**kwargs))
+
         return cls.from_pandas(pandas.read_xml(**kwargs))
 
     @classmethod
@@ -662,6 +705,14 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Read SAS files stored as either XPORT or SAS7BDAT format files into a query compiler.
         """
+        filepath_or_buffer = kwargs["filepath_or_buffer"]
+        if is_snowflake_stage_path(filepath_or_buffer):
+            with _file_from_stage(filepath_or_buffer) as local_filepath:
+                kwargs["filepath_or_buffer"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_sas(**kwargs))
+
         return cls.from_pandas(pandas.read_sas(**kwargs))
 
     @classmethod
@@ -669,6 +720,14 @@ class PandasOnSnowflakeIO(BaseIO):
         """
         Load pickled pandas object (or any object) from file into a query compiler.
         """
+        filepath_or_buffer = kwargs["filepath_or_buffer"]
+        if is_snowflake_stage_path(filepath_or_buffer):
+            with _file_from_stage(filepath_or_buffer) as local_filepath:
+                kwargs["filepath_or_buffer"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_pickle(**kwargs))
+
         return cls.from_pandas(pandas.read_pickle(**kwargs))
 
     @classmethod

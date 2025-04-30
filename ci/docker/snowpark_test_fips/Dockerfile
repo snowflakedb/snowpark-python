@@ -19,7 +19,7 @@ RUN sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo && \
 RUN yum clean all && \
     yum groupinstall -y "Development Tools" && \
     yum install -y redhat-rpm-config gcc libffi-devel wget && \
-    yum install -y perl-IPC-Cmd perl-Digest-SHA perl-Test-Simple perl-Pod-Html python38 python38-devel && \
+    yum install -y perl-IPC-Cmd perl-Digest-SHA perl-Test-Simple perl-Pod-Html python39 python39-devel && \
     yum clean all && \
     rm -rf /var/cache/yum
 

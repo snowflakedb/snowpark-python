@@ -197,6 +197,10 @@ NON_FORMAT_TYPE_OPTIONS = {
     "COPY_OPTIONS",
 }
 
+XML_ROW_TAG_STRING = "ROWTAG"
+XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
+XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
+
 QUERY_TAG_STRING = "QUERY_TAG"
 SKIP_LEVELS_TWO = (
     2  # limit traceback to return up to 2 stack trace entries from traceback object tb
@@ -873,6 +877,17 @@ def create_rlock(
 
 
 @unique
+class AstMode(IntEnum):
+    """
+    Describes the ast modes that instruct the client to send sql and/or dataframe AST to snowflake server.
+    """
+
+    SQL_ONLY = 0
+    SQL_AND_AST = 1
+    AST_ONLY = 2
+
+
+@unique
 class AstFlagSource(IntEnum):
     """
     Describes the source of the AST feature flag value. This is not just an annotation!
@@ -1160,17 +1175,6 @@ def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) 
     )
 
 
-def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
-    if not isinstance(result, pandas.DataFrame):
-        raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-            "to_pandas() did not return a pandas DataFrame. "
-            "If you use session.sql(...).to_pandas(), the input query can only be a "
-            "SELECT statement. Or you can use session.sql(...).collect() to get a "
-            "list of Row objects for a non-SELECT statement, then convert it to a "
-            "pandas DataFrame."
-        )
-
-
 def check_imports_type(
     imports: Optional[List[Union[str, Tuple[str, str]]]], name: str = ""
 ) -> None:
@@ -1374,6 +1378,23 @@ def validate_quoted_name(name: str) -> str:
 
 def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
+
+
+def split_snowflake_identifier_with_dot(s: str) -> list:
+    """
+    Splits the Snowflake identifier by dots that are not within double-quoted parts.
+    Tokens that appear quoted in the input remain unchanged (quotes are kept).
+    See details in https://docs.snowflake.com/en/sql-reference/identifiers-syntax.
+
+    Examples:
+      'foo.bar."hello.world".baz'
+          -> ['foo', 'bar', '"hello.world"', 'baz']
+      '"a.b".c."d.e.f".g'
+          -> ['"a.b"', 'c', '"d.e.f"', 'g']
+    """
+    # ensures that dots inside quotes are not used for splitting.
+    parts = re.compile(r'"(?:[^"]|"")*"|[^.]+').findall(s)
+    return parts
 
 
 # Define the full-width regex pattern, copied from Spark

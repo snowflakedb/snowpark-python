@@ -9,14 +9,21 @@ import sys
 import uuid
 
 import pytest
+from _pytest.doctest import DoctestItem
 
 from snowflake.snowpark import Session
+from snowflake.snowpark.functions import to_timestamp
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 LOCAL_TESTING_MODE = False
+
+sys.path.append("tests/")
+with open("tests/parameters.py", encoding="utf-8") as f:
+    exec(f.read(), globals())
+conn_params = globals()["CONNECTION_PARAMETERS"]
 
 
 def pytest_addoption(parser):
@@ -41,27 +48,6 @@ def pytest_runtest_makereport(item, call):
     return tr
 
 
-# These tests require python packages that are no longer built for python 3.8
-PYTHON_38_SKIPS = {
-    "snowpark.session.Session.replicate_local_environment",
-    "snowpark.session.Session.table_function",
-}
-
-DocTestFinder = doctest.DocTestFinder
-
-
-class CustomDocTestFinder(DocTestFinder):
-    def _find(self, tests, obj, name, module, source_lines, globs, seen):
-        if name in PYTHON_38_SKIPS and sys.version_info < (3, 9):
-            return
-        return DocTestFinder._find(
-            self, tests, obj, name, module, source_lines, globs, seen
-        )
-
-
-doctest.DocTestFinder = CustomDocTestFinder
-
-
 # scope is module so that we ensure we delete the session before
 # moving onto running the tests in the tests dir. Having only one
 # session is important to certain UDF tests to pass , since they
@@ -70,10 +56,7 @@ doctest.DocTestFinder = CustomDocTestFinder
 def add_snowpark_session(doctest_namespace, pytestconfig):
     global LOCAL_TESTING_MODE
     LOCAL_TESTING_MODE = pytestconfig.getoption("local_testing_mode")
-    sys.path.append("tests/")
-    with open("tests/parameters.py", encoding="utf-8") as f:
-        exec(f.read(), globals())
-    with Session.builder.configs(globals()["CONNECTION_PARAMETERS"]).config(
+    with Session.builder.configs(conn_params).config(
         "local_testing", LOCAL_TESTING_MODE
     ).create() as session:
         session.sql_simplifier_enabled = (
@@ -91,3 +74,28 @@ def add_snowpark_session(doctest_namespace, pytestconfig):
         LOCAL_TESTING_MODE = False
         if RUNNING_ON_GH:
             session.sql(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}").collect()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def add_doctest_imports(doctest_namespace) -> None:
+    """
+    Make `to_timestamp` name available for doctests.
+    """
+    doctest_namespace["to_timestamp"] = to_timestamp
+
+
+def pytest_collection_modifyitems(config, items):
+    """
+    This function is used to skip some doctests on certain conditions.
+    For example, some cortex AI functions are not available on Azure and GCP.
+    """
+    host = conn_params.get("host") or conn_params.get("HOST")
+    if any(platform in host.split(".") for platform in ["gcp", "azure"]):
+        skip = pytest.mark.skip(reason="Skipping doctest for Azure and GCP deployment")
+        disabled_doctests = ["ai_filter", "ai_classify"]
+        for item in items:
+            # identify doctest items
+            if isinstance(item, DoctestItem):
+                # match by the test’s “name” (module.name)
+                if any(test_name in item.name for test_name in disabled_doctests):
+                    item.add_marker(skip)

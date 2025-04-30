@@ -629,11 +629,13 @@ def test_create_from_pandas_basic_pandas_types(session):
         and sp_df.schema[5].nullable
     )
     assert isinstance(sp_df, Table)
+    # If max string size is not 16mb then it shows up in the schema definition
+    max_size = "" if session._conn.max_string_size == 2**24 else "16777216"
     assert (
         str(sp_df.schema)
-        == """\
+        == f"""\
 StructType([\
-StructField('"sTr"', StringType(), nullable=True), \
+StructField('"sTr"', StringType({max_size}), nullable=True), \
 StructField('"dOublE"', DoubleType(), nullable=True), \
 StructField('"LoNg"', LongType(), nullable=True), \
 StructField('"booL"', BooleanType(), nullable=True), \

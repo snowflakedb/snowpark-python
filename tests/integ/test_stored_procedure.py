@@ -11,6 +11,7 @@ import re
 import sys
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
+from textwrap import dedent
 
 import pytest
 
@@ -346,6 +347,17 @@ def test_call_named_stored_procedure(
         finally:
             new_session.close()
             # restore active session
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_infer_table_type_is_skipped_for_system_procedures(session):
+    with session.query_history() as history:
+        session.call("system$wait", 1)
+
+    assert len(history.queries) == 1
 
 
 @pytest.mark.skipif(
@@ -1698,7 +1710,7 @@ def test_register_sp_no_commit(session):
         session._run_query(f"drop procedure if exists {perm_sp_name}(int)")
 
 
-@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller", "restricted caller"])
 def test_execute_as_options(session, execute_as):
     """Make sure that a stored procedure can be run with any EXECUTE AS option."""
 
@@ -1715,7 +1727,7 @@ def test_execute_as_options(session, execute_as):
     assert return1_sp() == 1
 
 
-@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller", "restricted caller"])
 def test_execute_as_options_while_registering_from_file(
     session, resources_path, tmpdir, execute_as
 ):
@@ -1931,6 +1943,7 @@ def test_register_sproc_after_switch_schema(session):
         session.use_schema(current_schema)
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
@@ -1949,6 +1962,52 @@ def test_sproc_artifact_repository(session):
         artifact_repo_test,
         session=session,
         return_type=StringType(),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        artifact_repository_packages=["urllib3", "requests"],
+    )
+    assert artifact_repo_sproc(session=session) == "test"
+
+    try:
+        artifact_repo_sproc = sproc(
+            artifact_repo_test,
+            session=session,
+            return_type=StringType(),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            artifact_repository_packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex)
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_sproc_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import snowflake
+    import urllib3
+    from snowflake.snowpark import Session
+    def artifact_repo_test(session: snowflake.snowpark.Session) -> str:
+        return str(urllib3.exceptions.HTTPError("test"))
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_sproc.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    artifact_repo_sproc = session.sproc.register_from_file(
+        file_path,
+        "artifact_repo_test",
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
         artifact_repository_packages=["urllib3", "requests"],
     )

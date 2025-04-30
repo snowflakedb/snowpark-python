@@ -16,7 +16,7 @@ def default_unparser_path():
     explicit = os.getenv("MONOREPO_DIR")
     default_default = os.path.join(os.getenv("HOME"), "Snowflake/trunk")
     base_dir = explicit or default_default
-    unparser_dir = os.path.join(base_dir, "bazel-bin/Snowpark/unparser")
+    unparser_dir = os.path.join(base_dir, "bazel-bin/Snowpark/frontend/unparser")
 
     # Grab all *.jar files from the subtree.
     jars = []
@@ -223,3 +223,8 @@ def session(local_testing_mode):
 @pytest.fixture(scope="function")
 def tables(session):
     return TestTables(session)
+
+
+@pytest.fixture(scope="session")
+def resources_path() -> str:
+    return os.path.normpath(os.path.join(os.path.dirname(__file__), "../resources"))

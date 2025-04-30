@@ -495,6 +495,8 @@ def test_determinism_with_repeated_to_pandas(session, table_type, n_rows) -> Non
 
     # create snowpark pandas dataframe
     df = pd.read_snowflake(test_table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
 
     pandas_df = df.to_pandas()
     # verify to_pandas gives the same result for the same snowpark pandas
@@ -559,9 +561,13 @@ def test_empty_variant_type_frame_to_pandas(session):
         schema=StructType().add("EMPTY_ARRAY", ArrayType()).add("EMPTY_MAP", MapType()),
     ).write.save_as_table(table_name, table_type="temp")
     df = pd.read_snowflake(table_name)
+    native_df = native_pd.DataFrame(columns=["EMPTY_ARRAY", "EMPTY_MAP"], dtype=object)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
+    native_df = native_df.sort_values(native_df.columns.to_list())
     assert_frame_equal(
         df.to_pandas(),
-        native_pd.DataFrame(columns=["EMPTY_ARRAY", "EMPTY_MAP"], dtype=object),
+        native_df,
         # Because the table has a __row_position__ column which is used as the index,
         # Snowpark pandas returns an empty Index(dtype="int64") instead of the expected RangeIndex
         check_index_type=False,

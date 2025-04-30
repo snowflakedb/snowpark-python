@@ -476,12 +476,9 @@ class MapType(DataType):
 
     def _fill_ast(self, ast: proto.DataType) -> None:
         ast.map_type.structured = self.structured
-        if self.key_type is None or self.value_type is None:
-            raise NotImplementedError(
-                "SNOW-1862700: AST does not support empty key or value type."
-            )
-        self.key_type._fill_ast(ast.map_type.key_ty)
-        self.value_type._fill_ast(ast.map_type.value_ty)
+        if self.key_type is not None and self.value_type is not None:
+            self.key_type._fill_ast(ast.map_type.key_ty)
+            self.value_type._fill_ast(ast.map_type.value_ty)
 
 
 class VectorType(DataType):
@@ -540,6 +537,7 @@ class ColumnIdentifier:
 
     def __init__(self, normalized_name: str) -> None:
         self.normalized_name = quote_name(normalized_name)
+        self.case_sensitive_name = quote_name(normalized_name, keep_case=True)
         self._original_name = normalized_name
 
     @property
@@ -632,6 +630,10 @@ class StructField:
         else:
             self._name = n
             self.column_identifier = ColumnIdentifier(n)
+
+    @property
+    def case_sensitive_name(self):
+        return self.column_identifier.case_sensitive_name
 
     def _as_nested(self) -> "StructField":
         if not context._should_use_structured_type_semantics():

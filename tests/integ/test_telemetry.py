@@ -679,6 +679,62 @@ def test_count_api_calls(session):
     assert type_ == "snowpark_function_usage"
 
 
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_random_split(session, use_simplified_query_generation):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set(
+            "use_simplified_query_generation", use_simplified_query_generation
+        )
+        df = session.range(0, 50)
+        df1, df2 = df.random_split([0.6, 0.4], seed=1234)
+        # assert df1 and df2 have the same api_calls
+        compare_api_calls(df1._plan.api_calls, df2._plan.api_calls)
+
+        if use_simplified_query_generation:
+            expected_api_calls = [
+                {"name": "Session.range"},
+                {
+                    "name": "DataFrame.random_split[hash]",
+                    "subcalls": [
+                        {
+                            "name": "DataFrame.with_column",
+                            "subcalls": [
+                                {
+                                    "name": "DataFrame.with_columns",
+                                    "subcalls": [{"name": "DataFrame.select"}],
+                                }
+                            ],
+                        },
+                        {"name": "DataFrame.filter"},
+                        {
+                            "name": "DataFrame.drop",
+                            "subcalls": [{"name": "DataFrame.select"}],
+                        },
+                    ],
+                },
+            ]
+        else:
+            expected_api_calls = [
+                {"name": "Session.range"},
+                {
+                    "name": "DataFrame.random_split[cache_result]",
+                    "subcalls": [
+                        {"name": "Table.__init__"},
+                        {"name": "DataFrame.filter"},
+                        {
+                            "name": "DataFrame.drop",
+                            "subcalls": [{"name": "DataFrame.select"}],
+                        },
+                    ],
+                },
+            ]
+
+        compare_api_calls(df1._plan.api_calls, expected_api_calls)
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
+
+
 def test_with_column_variations_api_calls(session):
     df = session.create_dataframe([Row(1, 2, 3)]).to_df(["a", "b", "c"])
     compare_api_calls(
@@ -1041,29 +1097,36 @@ def test_relational_dataframe_api_calls(session):
     )
 
 
-def test_dataframe_stat_functions_api_calls(session):
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_dataframe_stat_functions_api_calls(session, use_simplified_query_generation):
+    session.conf.set("use_simplified_query_generation", use_simplified_query_generation)
     df = TestData.monthly_sales(session)
     compare_api_calls(
         df._plan.api_calls, [{"name": "Session.create_dataframe[values]"}]
     )
 
     sample_by = df.stat.sample_by(col("empid"), {1: 0.0, 2: 1.0})
+    if use_simplified_query_generation:
+        sample_by_api_calls = {"name": "DataFrameStatFunctions.sample_by[percent_rank]"}
+    else:
+        sample_by_api_calls = {
+            "name": "DataFrameStatFunctions.sample_by[union_all]",
+            "subcalls": [
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.filter"},
+                {"name": "DataFrame.sample"},
+                {"name": "Session.create_dataframe[values]"},
+                {"name": "DataFrame.filter"},
+                {"name": "DataFrame.sample"},
+                {"name": "DataFrame.union_all"},
+            ],
+        }
+
     compare_api_calls(
         sample_by._plan.api_calls,
         [
             {"name": "Session.create_dataframe[values]"},
-            {
-                "name": "DataFrameStatFunctions.sample_by",
-                "subcalls": [
-                    {"name": "Session.create_dataframe[values]"},
-                    {"name": "DataFrame.filter"},
-                    {"name": "DataFrame.sample"},
-                    {"name": "Session.create_dataframe[values]"},
-                    {"name": "DataFrame.filter"},
-                    {"name": "DataFrame.sample"},
-                    {"name": "DataFrame.union_all"},
-                ],
-            },
+            sample_by_api_calls,
         ],
     )
     # check to make sure that the original DF is unchanged

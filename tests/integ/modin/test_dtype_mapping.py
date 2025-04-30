@@ -336,19 +336,23 @@ def test_read_snowflake_data_types(
     expected_to_pandas,
 ):
     expected_query_count = (
-        9
+        10
         if isinstance(samples, list) and len(samples) > 1
-        else 5
+        else 6
         if "timestamp_tz" in col_name_type
-        else 4
+        else 5
     )
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(
+        query_count=expected_query_count,
+        high_count_expected=True,
+        high_count_reason="Getting table schema",
+    ):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):
             samples = [samples]
         for sample in samples:
             session.sql(f"insert into {test_table_name} {sample}").collect()
-        df = pd.read_snowflake(test_table_name)
+        df = pd.read_snowflake(test_table_name, enforce_ordering=True)
         assert (
             df.dtypes.to_list() == [expected_dtype]
             if not isinstance(expected_dtype, list)
@@ -399,14 +403,14 @@ def test_read_snowflake_data_types_negative(
     # However, in the future Snowpark's behavior may change to address this large-scale floating point number case
     # in a different way and we should refresh with their current behavior.
 
-    expected_query_count = 9 if isinstance(samples, list) and len(samples) > 1 else 4
+    expected_query_count = 9 if isinstance(samples, list) and len(samples) > 1 else 5
     with SqlCounter(query_count=expected_query_count):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):
             samples = [samples]
         for sample in samples:
             session.sql(f"insert into {test_table_name} {sample}").collect()
-        df = pd.read_snowflake(test_table_name)
+        df = pd.read_snowflake(test_table_name, enforce_ordering=True)
         assert (
             df.dtypes.to_list() == [expected_dtype]
             if not isinstance(expected_dtype, list)

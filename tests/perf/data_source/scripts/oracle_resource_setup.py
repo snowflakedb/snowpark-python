@@ -7,8 +7,7 @@ import random
 import datetime
 import uuid
 
-from base_db_setup import TestDBABC
-from tests.perf.data_source.scripts.base_db_setup import ONE_MILLION
+from base_db_setup import TestDBABC, ONE_MILLION
 
 
 class TestOracleDB(TestDBABC):

@@ -22,6 +22,7 @@
 """Implement GroupBy public API as pandas does."""
 
 from collections.abc import Hashable
+from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Sequence, Union
 
 import modin.pandas as pd
@@ -31,7 +32,15 @@ import pandas
 import pandas.core.groupby
 from modin.pandas import Series
 from pandas._libs.lib import NoDefault, no_default
-from pandas._typing import AggFuncType, Axis, FillnaOptions, IndexLabel
+from pandas._typing import (
+    AggFuncType,
+    Axis,
+    FillnaOptions,
+    IndexLabel,
+    Level,
+    TimedeltaConvertibleTypes,
+    TimestampConvertibleTypes,
+)
 from pandas.core.dtypes.common import is_dict_like, is_list_like, is_numeric_dtype
 from pandas.errors import SpecificationError
 from pandas.io.formats.printing import PrettyDict
@@ -195,9 +204,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         return self._iter.__iter__()
 
-    # TODO: since python 3.9:
-    # @cached_property
-    @property
+    @cached_property
     def groups(self) -> PrettyDict[Hashable, "pd.Index"]:
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         return self._query_compiler.groupby_groups(
@@ -845,9 +852,44 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             result = pd.DataFrame(query_compiler=query_compiler)
         return result
 
-    def resample(self, rule, *args, **kwargs):
+    def resample(
+        self,
+        rule,
+        include_groups: bool = True,
+        axis: int = 0,
+        closed: str = None,
+        label: str = None,
+        convention: str = "start",
+        kind: str = None,
+        on: Level = None,
+        level: Level = None,
+        origin: [str, TimestampConvertibleTypes] = "start_day",
+        offset: TimedeltaConvertibleTypes = None,
+        group_keys=no_default,
+        *args,
+        **kwargs,
+    ):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="resample", class_="GroupBy")
+        from snowflake.snowpark.modin.plugin.extensions.resampler_groupby_overrides import (
+            ResamplerGroupby,
+        )
+
+        return ResamplerGroupby(
+            dataframe=self._df,
+            by=self._by,
+            rule=rule,
+            include_groups=include_groups,
+            axis=axis,
+            closed=closed,
+            label=label,
+            convention=convention,
+            kind=kind,
+            on=on,
+            level=level,
+            origin=origin,
+            offset=offset,
+            group_keys=group_keys,
+        )
 
     def rolling(self, *args, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -1087,11 +1129,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.method_not_implemented_error(name="dtypes", class_="GroupBy")
 
-    _internal_by_cache = no_default
-
-    # TODO: since python 3.9:
-    # @cached_property
-    @property
+    @cached_property
     def _internal_by(self):
         """
         Get only those components of 'by' that are column labels of the source frame.
@@ -1101,17 +1139,14 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         tuple of labels
         """
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        if self._internal_by_cache is not no_default:
-            return self._internal_by_cache
-
         by_list = self._by if is_list_like(self._by) else [self._by]
 
-        internal_by = tuple(
-            by for by in by_list if hashable(by) and by in self._columns
-        )
-
-        self._internal_by_cache = internal_by
-        return internal_by
+        internal_by = []
+        for by in by_list:
+            by = by.key if isinstance(by, pandas.Grouper) else by
+            if hashable(by) and by in self._columns:
+                internal_by.append(by)
+        return tuple(internal_by)
 
     def __getitem__(self, key):
         """

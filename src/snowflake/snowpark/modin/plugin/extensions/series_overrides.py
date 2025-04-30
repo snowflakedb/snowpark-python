@@ -1001,7 +1001,6 @@ def __rtruediv__(self, left):
 
 
 register_series_accessor("__iadd__")(__add__)
-# In upstream modin, imul is typo'd to be __add__ instead of __mul__
 register_series_accessor("__imul__")(__mul__)
 register_series_accessor("__ipow__")(__pow__)
 register_series_accessor("__isub__")(__sub__)
@@ -1094,26 +1093,6 @@ def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, 
     if not is_integer(result):  # if result is None, return -1
         result = -1
     return result
-
-
-# Modin uses the same implementation as Snowpark pandas starting form 0.31.0.
-# Until then, upstream Modin does not convert arguments in the caselist into query compilers.
-@register_series_accessor("case_when")
-def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
-    """
-    Replace values where the conditions are True.
-    """
-    modin_type = type(self)
-    caselist = [
-        tuple(
-            data._query_compiler if isinstance(data, modin_type) else data
-            for data in case_tuple
-        )
-        for case_tuple in caselist
-    ]
-    return self.__constructor__(
-        query_compiler=self._query_compiler.case_when(caselist=caselist)
-    )
 
 
 # Upstream Modin has a bug:

@@ -94,6 +94,8 @@ if installed_pandas:
     )
 
 if TYPE_CHECKING:
+    import snowflake.snowpark.column
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -164,9 +166,11 @@ def convert_metadata_to_sp_type(
             return StructType(
                 [
                     StructField(
-                        field.name
-                        if context._should_use_structured_type_semantics()
-                        else quote_name(field.name, keep_case=True),
+                        (
+                            field.name
+                            if context._should_use_structured_type_semantics()
+                            else quote_name(field.name, keep_case=True)
+                        ),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
                         _is_column=False,
@@ -313,7 +317,7 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, StructType):
         if datatype.structured:
             fields = ", ".join(
-                f"{field.name} {convert_sp_to_sf_type(field.datatype)}"
+                f"{field.case_sensitive_name} {convert_sp_to_sf_type(field.datatype)}"
                 for field in datatype.fields
             )
             return f"OBJECT({fields})"
@@ -358,6 +362,7 @@ if installed_pandas:
     )
 
 
+# TODO: these tuples of types can be used with isinstance, but not as a type-hints
 VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
     *PYTHON_TO_SNOW_TYPE_MAPPINGS.keys(),
     list,
