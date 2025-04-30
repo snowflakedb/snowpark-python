@@ -20,6 +20,10 @@
 
 - Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
 
+#### Improvements
+
+- Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+
 #### Bug Fixes
 
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
