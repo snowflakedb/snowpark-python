@@ -444,12 +444,7 @@ def read_snowflake(
         )
     )
 
-    if keep_in_snowflake or not is_autoswitch_enabled():
-        return snow_df
-
     return snow_df
-    # TODO Remove Switcheroo
-    # .__switcheroo__(operation="read_snowflake")
 
 
 @register_pd_accessor("to_snowflake")

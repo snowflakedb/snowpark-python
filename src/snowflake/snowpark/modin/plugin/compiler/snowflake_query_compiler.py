@@ -10,7 +10,6 @@ import inspect
 import itertools
 import json
 import logging
-import os
 import re
 from types import MappingProxyType
 import typing
@@ -479,8 +478,6 @@ _RESET_ATTRS_METHODS = [
     # agg, crosstab, and concat depend on their inputs, and are handled separately
 ]
 
-# One million rows is considered to be a good transition point for hybrid right now
-HYBRID_DATA_SIZE_TRANSITION_POINT = "1000000"
 # Functions which should be considered for execution outside of snowflake
 HYBRID_HIGH_OVERHEAD_METHODS = ["apply", "describe", "quantile"]
 HYBRID_ITERATIVE_STYLE_METHODS = ["iterrows", "itertuples", "items", "plot"]
@@ -567,6 +564,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     lazy_column_types = False
     lazy_column_labels = False
     lazy_column_count = False
+    
+    _MAX_SIZE_THIS_ENGINE_CAN_HANDLE = 10_000_000_000_000
+    _OPERATION_INITIALIZATION_OVERHEAD = 100
+    _OPERATION_PER_ROW_OVERHEAD = 10
+    _TRANSFER_THRESHOLD = 10_000_000
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
@@ -773,92 +775,59 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             num_rows = query_compiler.get_axis_len(0)
         return num_rows
+    
+    def _max_shape(self):
+        ordered_dataframe = self._modin_frame.ordered_dataframe
+        num_rows = ordered_dataframe.row_count_upper_bound
+        num_columns = len(self.columns)
+        # hack to work around large numbers when things are an estimate
+        if (
+            ordered_dataframe.row_count_upper_bound is None
+            or ordered_dataframe.row_count_upper_bound > 1e34
+        ):
+            num_rows = self.get_axis_len(0)
+        if num_rows is None:
+            num_rows = 10_000_000_000
+        return num_rows, num_columns
 
     @classmethod
-    def _linear_row_cost_fn(cls, query_compiler: BaseQueryCompiler) -> float:
-        num_rows = cls._get_rows(query_compiler)
+    def _is_in_memory_init(cls, api_cls_name: Optional[str],
+                                operation: Optional[str],
+                                arguments: Any):
+        if api_cls_name in ("DataFrame", "Series") and operation == "__init__":
+            if (query_compiler := arguments.get("query_compiler")) is not None:
+                return (
+                    True
+                    if isinstance(query_compiler, cls)
+                    else False
+                )
+        return False
 
-        # one million rows is considered the point at which
-        # Snowflake has an advantage
-        limit = int(
-            os.environ.get(
-                "HYBRID_DATA_SIZE_TRANSITION_POINT", HYBRID_DATA_SIZE_TRANSITION_POINT
-            )
-        )
-        ratio = num_rows / limit
-        return ratio
 
-    @classmethod
-    def _bin_cost(cls, cost: int) -> int:
-        if cost < QCCoercionCost.COST_ZERO:
+    def move_to_cost(
+        self,
+        other_qc_type: type,
+        api_cls_name: Optional[str],
+        operation: str,
+        arguments: MappingProxyType[str, Any],
+    ) -> Optional[int]:
+        # Transfer cost for data-centric operations is zero
+        if self._is_in_memory_init(api_cls_name, operation, arguments):
             return QCCoercionCost.COST_ZERO
-        if cost > QCCoercionCost.COST_IMPOSSIBLE:
+        return super().move_to_cost(other_qc_type, api_cls_name, operation, arguments)
+
+    def stay_cost(
+        self,
+        api_cls_name: Optional[str],
+        operation: str,
+        arguments: MappingProxyType[str, Any],
+    ) -> Optional[int]:
+        if self._is_in_memory_init(api_cls_name, operation, arguments):
             return QCCoercionCost.COST_IMPOSSIBLE
-        return int(cost)
-
-    def move_to_cost(self, 
-                     other_qc_cls:type,         
-                     api_cls_name: Optional[str] = None,
-                     operation: Optional[str] = None,
-                     arguments: Optional[MappingProxyType[str, Any]] = None) -> int:
-        """
-        Return the coercion costs of this qc to other_qc type.
-
-        Values returned must be within the acceptable range of
-        QCCoercionCost
-
-        Parameters
-        ----------
-        other_qc_type : QueryCompiler Class
-            The query compiler class to which we should return the cost of switching.
-        api_cls_name : str, default: None
-            The mod classule name performing the operation which can be used as a
-            consideration for the costing analysis.
-        operation : str, default: None
-            The operation being performed which can be used as a consideration
-            for the costing analysis.
-
-        Returns
-        -------
-        int
-            Cost of migrating the data from this qc to the other_qc or
-            None if the cost cannot be determined.
-        """
-        if isinstance(self, other_qc_cls):
-            return QCCoercionCost.COST_ZERO
-        cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
-        encourage_moving = SnowflakeQueryCompiler._bin_cost(
-            int(cost_ratio * QCCoercionCost.COST_LOW)
-        )
-        discourage_moving = SnowflakeQueryCompiler._bin_cost(
-            QCCoercionCost.COST_MEDIUM + encourage_moving
-        )
-        if cost_ratio > 1.0:
-            return discourage_moving
-        return encourage_moving
-
-    def stay_cost(self, 
-        api_cls_name: Optional[str] = None,
-        operation: Optional[str] = None,
-        arguments: Optional[MappingProxyType[str, Any]] = None
-    ) -> int:
-        cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(self)
-
-        encourage_staying = QCCoercionCost.COST_LOW
-        discourage_staying = QCCoercionCost.COST_HIGH
-        # discourage running high-overhead if the dataset is <= 1M rows
-        if cost_ratio <= 1.0 and operation in HYBRID_HIGH_OVERHEAD_METHODS:
-            return discourage_staying
-
-        # always discourage running the iter functions
-        if operation in HYBRID_ITERATIVE_STYLE_METHODS:
-            return discourage_staying
-
-        # discourage running small datasets in snowflake
-        if cost_ratio <= 1.0:
-            return discourage_staying
-
-        return encourage_staying
+        # Strongly discourage the use of these methods in snowflake
+        if operation in HYBRID_ALL_EXPENSIVE_METHODS:
+            return QCCoercionCost.COST_HIGH
+        return super().stay_cost(api_cls_name, operation, arguments)
 
     @classmethod
     def move_to_me_cost(cls, 
@@ -884,34 +853,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Cost of migrating the data from other_qc to this qc or
             None if the cost cannot be determined.
         """
-        if api_cls_name in ("DataFrame", "Series") and operation == "__init__":
-            if (query_compiler := arguments.get("query_compiler")) is not None:
-                # When we create a dataframe or series with a query compiler
-                # input, we should not switch the resulting dataframe or series
-                # to a different backend.
-                return (
-                    QCCoercionCost.COST_ZERO
-                    if isinstance(query_compiler, cls)
-                    else QCCoercionCost.COST_IMPOSSIBLE
-                )
-            else:
-                # Moving the in-memory __init__ inputs to the cloud is expensive.
-                return QCCoercionCost.COST_HIGH
-        # TODO: Replace Below       
+        # in-memory intialization should not move to Snowflake
+        if cls._is_in_memory_init(api_cls_name, operation, arguments):
+            return QCCoercionCost.COST_IMPOSSIBLE
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
-        cost_ratio = SnowflakeQueryCompiler._linear_row_cost_fn(other_qc)
-        encourage_move_to_me = SnowflakeQueryCompiler._bin_cost(
-            int(cost_ratio * QCCoercionCost.COST_LOW)
-        )
-        discourage_move_to_me = SnowflakeQueryCompiler._bin_cost(
-            QCCoercionCost.COST_MEDIUM + encourage_move_to_me
-        )
-
-        if cost_ratio <= 1.0:
-            return discourage_move_to_me
-        return encourage_move_to_me
+        
+        return super.move_to_me_cost(other_qc, api_cls_name, operation, arguments)
 
     def max_cost(self) -> int:
         """
@@ -923,7 +872,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Max cost allowed for migrating the data to this qc.
         """
         # We should have a way to express "no max"
-        return QCCoercionCost.COST_IMPOSSIBLE * 10000
+        return QCCoercionCost.COST_IMPOSSIBLE * 10_000_000_000
 
     @classmethod
     def from_pandas(
