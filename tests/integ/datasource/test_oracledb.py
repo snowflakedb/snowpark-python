@@ -54,7 +54,7 @@ def test_dbapi_oracledb(session):
         table=ORACLEDB_TABLE_NAME,
         max_workers=4,
         query_timeout=5,
-    ).order_by("ID")
+    )
     Utils.check_answer(df, oracledb_real_data)
 
 
