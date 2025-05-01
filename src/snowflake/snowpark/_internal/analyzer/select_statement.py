@@ -165,9 +165,6 @@ class ColumnState:
             or bool(self.referenced_by_same_level_columns)
         )
 
-    def __repr__(self):
-        return f"ColumnState(col_name={self.col_name}, change_state={self.change_state}, expression={self.expression}, dependent_columns={self.dependent_columns}, depend_on_same_level={self.depend_on_same_level}, referenced_by_same_level_columns={self.referenced_by_same_level_columns})"
-
 
 class ColumnStateDict(UserDict):
     """Store the column states of all columns."""
@@ -1378,9 +1375,11 @@ class SelectStatement(Selectable):
         new.exclude_cols.update(exclude_cols)
 
         # Use keep_cols and select logic to derive updated column_states for new
-        new.column_states = derive_column_states_from_subquery(
+        new_column_states = derive_column_states_from_subquery(
             [Attribute(col, DataType()) for col in keep_cols], self
         )
+        assert new_column_states is not None
+        new.column_states = new_column_states
         return new
 
     def set_operator(
