@@ -12244,15 +12244,15 @@ def ai_classify(
         ...     ['one day I will see the world', ['travel', 'cooking', 'dancing']],
         ...     ['my lobster bisque is second to none', ['travel', 'cooking', 'dancing']]
         ... ], schema=["data", "category"])
-        >>> df.select(ai_classify(col("data"), col("category"))["label"].alias("class")).show()
-        -------------
-        |"CLASS"    |
-        -------------
-        |"Europe"   |
-        |"Asia"     |
-        |"travel"   |
-        |"cooking"  |
-        -------------
+        >>> df.select("data", ai_classify(col("data"), col("category"))["label"].alias("class")).sort("data").show()
+        ---------------------------------------------------
+        |"DATA"                               |"CLASS"    |
+        ---------------------------------------------------
+        |France                               |"Europe"   |
+        |Singapore                            |"Asia"     |
+        |my lobster bisque is second to none  |"cooking"  |
+        |one day I will see the world         |"travel"   |
+        ---------------------------------------------------
         <BLANKLINE>
         >>> # for image
         >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
