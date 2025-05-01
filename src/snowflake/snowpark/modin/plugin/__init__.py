@@ -141,14 +141,17 @@ Backend.put("snowflake")
 pre_op_switch_points = [
     {"class_name": "DataFrame", "method": "__init__"},
     {"class_name": "Series", "method": "__init__"},
+    {"class_name": None, "method": "read_csv"},
+    {"class_name": None, "method": "read_json"},
     {"class_name": "DataFrame", "method": "apply"},
     {"class_name": "Series", "method": "apply"},
     {"class_name": "Series", "method": "items"},
     {"class_name": "DataFrame", "method": "itertuples"},
     {"class_name": "DataFrame", "method": "iterrows"},
     {"class_name": "DataFrame", "method": "plot"},
-    {"class_name": "DataFrame", "method": "describe"},
-    {"class_name": "Series", "method": "describe"},
+    {"class_name": "DataFrame", "method": "quantile"},
+    {"class_name": "Series", "method": "plot"},
+    {"class_name": "Series", "method": "quantile"},
 ]
 
 post_op_switch_points = [
@@ -158,9 +161,19 @@ post_op_switch_points = [
     {"class_name": "DataFrame", "method": "tail"},
     {"class_name": "DataFrame", "method": "var"},
     {"class_name": "DataFrame", "method": "sum"},
+    {"class_name": "DataFrame", "method": "max"},
     {"class_name": "DataFrame", "method": "mean"},
+    {"class_name": "DataFrame", "method": "min"},
     {"class_name": "DataFrame", "method": "agg"},
     {"class_name": "DataFrame", "method": "aggregate"},
+    {"class_name": "Series", "method": "tail"},
+    {"class_name": "Series", "method": "var"},
+    {"class_name": "Series", "method": "sum"},
+    {"class_name": "Series", "method": "max"},
+    {"class_name": "Series", "method": "mean"},
+    {"class_name": "Series", "method": "min"},
+    {"class_name": "Series", "method": "agg"},
+    {"class_name": "Series", "method": "aggregate"},
 ]
 
 
