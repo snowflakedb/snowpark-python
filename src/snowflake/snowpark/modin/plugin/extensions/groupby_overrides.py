@@ -1091,10 +1091,6 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="value_counts")
         return pd.DataFrame(query_compiler=query_compiler)
-    # TODO Remove Switcheroo
-    # .__switcheroo__(
-    #        operation="value_counts"
-    #   )
 
     ###########################################################################
     # Plotting and visualization

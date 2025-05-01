@@ -1801,40 +1801,40 @@ def plot(
     Make plots of ``DataFrame``. Materializes data into memory and uses the
     existing pandas PlotAccessor
     """
-    self = self.__switcheroo__(inplace=True, operation="plot")
-    if self.get_backend() != "Snowflake":
-        return self.plot(
-            x,
-            y,
-            kind,
-            ax,
-            subplots,
-            sharex,
-            sharey,
-            layout,
-            figsize,
-            use_index,
-            title,
-            grid,
-            legend,
-            style,
-            logx,
-            logy,
-            loglog,
-            xticks,
-            yticks,
-            xlim,
-            ylim,
-            rot,
-            fontsize,
-            colormap,
-            table,
-            yerr,
-            xerr,
-            secondary_y,
-            sort_columns,
-            **kwargs,
-        )
+    #self = self.__switcheroo__(inplace=True, operation="plot")
+    #if self.get_backend() != "Snowflake":
+    #    return self.plot(
+    #        x,
+    #        y,
+    #        kind,
+    #        ax,
+    #        subplots,
+    #        sharex,
+    #        sharey,
+    #        layout,
+    #        figsize,
+    #        use_index,
+    #        title,
+    #        grid,
+    #        legend,
+    #        style,
+    #        logx,
+    #        logy,
+    #        loglog,
+    #        xticks,
+    #        yticks,
+    #        xlim,
+    #        ylim,
+    #        rot,
+    #        fontsize,
+    #        colormap,
+    #        table,
+    #        yerr,
+    #        xerr,
+    #        secondary_y,
+    #        sort_columns,
+    #        **kwargs,
+    #    )
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     WarningMessage.single_warning(
         "DataFrame.plot materializes data to the local machine for plotting."
@@ -2259,9 +2259,6 @@ def iterrows(self) -> Iterator[tuple[Hashable, Series]]:
     Iterate over ``DataFrame`` rows as (index, ``Series``) pairs.
     """
     # Remove Switcheroo
-    #self = self.__switcheroo__(inplace=True, operation="iterrows")
-    #if self.get_backend() != "Snowflake":
-    #    return self.iterrows()
 
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     def iterrow_builder(s):
@@ -2286,9 +2283,6 @@ def itertuples(
     Iterate over ``DataFrame`` rows as ``namedtuple``-s.
     """
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    #self = self.__switcheroo__(inplace=True, operation="itertuples")
-    #if self.get_backend() != "Snowflake":
-    #    return self.itertuples(index, name)
 
     def itertuples_builder(s):
         """Return the next namedtuple."""
@@ -2329,9 +2323,6 @@ def __repr__(self):
     -------
     str
     """
-    #self = self.__switcheroo__(inplace=True)
-    #if self.get_backend() != "Snowflake":
-    #    return self.__repr__()
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     num_rows = native_pd.get_option("display.max_rows") or len(self)
     # see _repr_html_ for comment, allow here also all column behavior
