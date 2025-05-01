@@ -165,6 +165,9 @@ class ColumnState:
             or bool(self.referenced_by_same_level_columns)
         )
 
+    def __repr__(self):
+        return f"ColumnState(col_name={self.col_name}, change_state={self.change_state}, expression={self.expression}, dependent_columns={self.dependent_columns}, depend_on_same_level={self.depend_on_same_level}, referenced_by_same_level_columns={self.referenced_by_same_level_columns})"
+
 
 class ColumnStateDict(UserDict):
     """Store the column states of all columns."""
@@ -825,7 +828,7 @@ class SelectStatement(Selectable):
     @property
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
-            if not self.projection and not self.has_clause:
+            if not self.has_projection and not self.has_clause:
                 self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
@@ -867,7 +870,9 @@ class SelectStatement(Selectable):
     def projection_in_str(self) -> str:
         if not self._projection_in_str:
             if self.projection:
-                assert self.exclude_cols is None
+                assert (
+                    self.exclude_cols is None
+                ), "We should not have reached this state. There is likely a bug in flattening logic."
                 self._projection_in_str = analyzer_utils.COMMA.join(
                     self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
                     for x in self.projection
@@ -1343,7 +1348,9 @@ class SelectStatement(Selectable):
             new.attributes = self.attributes
         return new
 
-    def exclude(self, exclude_cols: List[str]) -> "SelectStatement":
+    def exclude(
+        self, exclude_cols: List[str], keep_cols: List[str]
+    ) -> "SelectStatement":
         """List of quoted column names to be dropped from the current select
         statement.
         """
@@ -1360,8 +1367,6 @@ class SelectStatement(Selectable):
             new.from_ = self.from_.to_subqueryable()
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
-            # TODO, see how to handle the column_states for exclude
-            new.column_states = deepcopy(self.column_states)
             new._merge_projection_complexity_with_subquery = False
         else:
             new = SelectStatement(
@@ -1371,6 +1376,11 @@ class SelectStatement(Selectable):
 
         new.exclude_cols = new.exclude_cols or set()
         new.exclude_cols.update(exclude_cols)
+
+        # Use keep_cols and select logic to derive updated column_states for new
+        new.column_states = derive_column_states_from_subquery(
+            [Attribute(col, DataType()) for col in keep_cols], self
+        )
         return new
 
     def set_operator(
@@ -1881,6 +1891,24 @@ def populate_column_dependency(
 def derive_column_states_from_subquery(
     cols: Iterable[Expression], from_: Selectable
 ) -> Optional[ColumnStateDict]:
+    """
+    Derives the column states for a subquery based on the provided columns and the from_ `Selectable`.
+    This function processes the columns in the context of a subquery, handling cases such as:
+    - Columns represented by unresolved aliases or wildcard (`*`) expressions.
+    - Columns with specific aliases or DataFrame aliases.
+    - Columns that are new, unchanged, changed, or dropped in the subquery.
+    The function ensures that column dependencies are populated and validates column names
+    against the analyzer and the source column states.
+    Args:
+        cols (Iterable[Expression]): The list of column expressions to process.
+        from_ (Selectable): The source `Selectable` object representing the subquery.
+    Returns:
+        Optional[ColumnStateDict]: A dictionary representing the derived column states,
+        or `None` if column dependencies cannot be resolved or invalid columns are encountered.
+    Raises:
+        SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED: If an unrecognized DataFrame alias is encountered.
+        DeriveColumnDependencyError: If column dependencies cannot be derived.
+    """
     analyzer = from_.analyzer
     column_states = ColumnStateDict()
     for c in cols:
