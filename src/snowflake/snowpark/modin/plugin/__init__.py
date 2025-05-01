@@ -144,7 +144,6 @@ pre_op_switch_points = [
     {"class_name": "DataFrame", "method": "apply"},
     {"class_name": "Series", "method": "apply"},
     {"class_name": "Series", "method": "items"},
-    {"class_name": "DataFrame", "method": "__repr__"},
     {"class_name": "DataFrame", "method": "itertuples"},
     {"class_name": "DataFrame", "method": "iterrows"},
     {"class_name": "DataFrame", "method": "plot"},
@@ -159,6 +158,9 @@ post_op_switch_points = [
     {"class_name": "DataFrame", "method": "tail"},
     {"class_name": "DataFrame", "method": "var"},
     {"class_name": "DataFrame", "method": "sum"},
+    {"class_name": "DataFrame", "method": "mean"},
+    {"class_name": "DataFrame", "method": "agg"},
+    {"class_name": "DataFrame", "method": "aggregate"},
 ]
 
 
