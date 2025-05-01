@@ -1294,7 +1294,7 @@ class DataFrameReader:
                 f"{snowflake_table_type} "
                 "TABLE "
                 f"identifier(?) "
-                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
                 f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
             params = (snowflake_table_name,)

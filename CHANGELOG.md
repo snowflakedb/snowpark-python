@@ -10,6 +10,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
 
 ### Snowpark Local Testing Updates
