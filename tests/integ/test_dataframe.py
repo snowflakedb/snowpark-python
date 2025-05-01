@@ -5189,12 +5189,12 @@ def test_create_dataframe_x_string_y_integer(session):
 )
 def test_create_dataframe_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-    _ = session.sql(f"create or replace temp stage {stage_name}").collect()
+    session.sql(f"create or replace temp stage {stage_name}").collect()
     test_files = TestFiles(resources_path)
-    _ = session.file.put(
+    session.file.put(
         test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
     )
-    _ = session.file.put(
+    session.file.put(
         test_files.test_dog_image, f"@{stage_name}", auto_compress=False, overwrite=True
     )
     csv_url = f"@{stage_name}/testCSV.csv"
