@@ -65,6 +65,7 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.types import (
+    FileType,
     ArrayType,
     BinaryType,
     BooleanType,
@@ -5180,3 +5181,30 @@ def test_create_dataframe_x_string_y_integer(session):
         Row(X="b", Y=2),
     ]
     assert result == expected_rows
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="File data type is not supported in Local Testing",
+)
+def test_create_dataframe_file_type(session, resources_path):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    _ = session.sql(f"create or replace temp stage {stage_name}").collect()
+    test_files = TestFiles(resources_path)
+    _ = session.file.put(
+        test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    _ = session.file.put(
+        test_files.test_dog_image, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    csv_url = f"@{stage_name}/testCSV.csv"
+    image_url = f"@{stage_name}/dog.jpg"
+    df = session.create_dataframe(
+        [csv_url, image_url],
+        schema=StructType([StructField("col", FileType(), nullable=True)]),
+    )
+    result = df.collect()
+    csv_row = json.loads(result[0][0])
+    assert csv_row["CONTENT_TYPE"] == "text/csv"
+    image_row = json.loads(result[1][0])
+    assert image_row["CONTENT_TYPE"] == "image/jpeg"
