@@ -333,8 +333,8 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func = self.__getattr__(func)
             if callable(agg_func):
                 return agg_func(*args, **kwargs)
-    # TODO Remove Switcheroo
-    # .__switcheroo__(operation="aggregate")
+        # TODO Remove Switcheroo
+        # .__switcheroo__(operation="aggregate")
 
         # when the aggregation function passed in is list like always return a Dataframe regardless
         # it is SeriesGroupBy or DataFrameGroupBy
@@ -350,6 +350,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         )
 
         return result
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="aggregate")
 
@@ -494,6 +495,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="count",
         )
         return result
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="count")
 
@@ -681,6 +683,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_kwargs=dict(min_count=min_count, skipna=skipna),
             numeric_only=numeric_only,
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="last")
 
@@ -702,6 +705,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="max",
             agg_kwargs=dict(min_count=min_count, numeric_only=numeric_only),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="max")
 
@@ -721,6 +725,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="mean",
             agg_kwargs=dict(numeric_only=numeric_only),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="mean")
 
@@ -732,6 +737,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="median",
             agg_kwargs=dict(numeric_only=numeric_only),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="median")
 
@@ -752,6 +758,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="min",
             agg_kwargs=dict(min_count=min_count, numeric_only=numeric_only),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="min")
 
@@ -769,6 +776,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="nunique",
             agg_kwargs=dict(dropna=dropna),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="nunique")
 
@@ -842,6 +850,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="quantile",
             agg_kwargs=dict(q=q, interpolation=interpolation),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="quantile")
 
@@ -969,6 +978,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         elif isinstance(self._df, Series):
             result.name = self._df.name
         return result
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="size")
 
@@ -992,6 +1002,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="std",
             agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="std")
 
@@ -1013,6 +1024,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="sum",
             agg_kwargs=dict(min_count=min_count, numeric_only=numeric_only),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="sum")
 
@@ -1034,6 +1046,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_func="var",
             agg_kwargs=dict(ddof=ddof, numeric_only=numeric_only),
         )
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="var")
 
@@ -1058,6 +1071,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             agg_kwargs=agg_kwargs,
         )
         return pd.DataFrame(result)
+
     # TODO Remove Switcheroo
     # .__switcheroo__(operation="tail")
 
@@ -1088,8 +1102,8 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
                 query_compiler=query_compiler,
                 name="proportion" if normalize else "count",
             )
-    # TODO Remove Switcheroo
-    # .__switcheroo__(operation="value_counts")
+        # TODO Remove Switcheroo
+        # .__switcheroo__(operation="value_counts")
         return pd.DataFrame(query_compiler=query_compiler)
 
     ###########################################################################

@@ -512,10 +512,10 @@ def __init__(
         )
         self._query_compiler = query_compiler
         return
-#    elif is_autoswitch_enabled():
-#        with config_context(Backend="pandas"):
-#            self._extensions[None]["__init__"](self, data, index, columns, dtype, copy)
-#        return
+    #    elif is_autoswitch_enabled():
+    #        with config_context(Backend="pandas"):
+    #            self._extensions[None]["__init__"](self, data, index, columns, dtype, copy)
+    #        return
 
     # A DataFrame cannot be used as an index and Snowpark pandas does not support the Categorical type yet.
     # Check that index is not a DataFrame and dtype is not "category".
@@ -650,9 +650,11 @@ def __init__(
                 if not isinstance(data, np.ndarray):
                     # If only some data is a Snowpark pandas object, convert it to pandas objects.
                     res = [
-                        v.to_pandas()
-                        if isinstance(v, (Index, BasePandasDataset))
-                        else v
+                        (
+                            v.to_pandas()
+                            if isinstance(v, (Index, BasePandasDataset))
+                            else v
+                        )
                         for v in data
                     ]
                     data = res
@@ -818,8 +820,8 @@ def apply(
     Apply a function along an axis of the ``DataFrame``.
     """
     # TODO Remove Switcheroo
-    #self = self.__switcheroo__(inplace=True, operation="apply")
-    #if self.get_backend() != "Snowflake":
+    # self = self.__switcheroo__(inplace=True, operation="apply")
+    # if self.get_backend() != "Snowflake":
     #    return self.apply(func, axis, raw, result_type, args, *kwargs)
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     axis = self._get_axis_number(axis)
@@ -1058,9 +1060,11 @@ def groupby(
             # OSS modin needs to determine which `by` keys come from self and which do not,
             # but we defer this decision to a lower layer to preserve lazy evaluation semantics.
             by = [
-                current_by.name
-                if isinstance(current_by, Series) and current_by._parent is self
-                else current_by
+                (
+                    current_by.name
+                    if isinstance(current_by, Series) and current_by._parent is self
+                    else current_by
+                )
                 for current_by in by
             ]
 
@@ -1093,6 +1097,7 @@ def info(
     """
     Print a concise summary of the ``DataFrame``.
     """
+
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     def put_str(src, output_len=None, spaces=2):
         src = str(src)
@@ -1801,8 +1806,8 @@ def plot(
     Make plots of ``DataFrame``. Materializes data into memory and uses the
     existing pandas PlotAccessor
     """
-    #self = self.__switcheroo__(inplace=True, operation="plot")
-    #if self.get_backend() != "Snowflake":
+    # self = self.__switcheroo__(inplace=True, operation="plot")
+    # if self.get_backend() != "Snowflake":
     #    return self.plot(
     #        x,
     #        y,
@@ -1965,8 +1970,10 @@ def set_axis(
 @register_dataframe_accessor("set_index")
 def set_index(
     self,
-    keys: IndexLabel
-    | list[IndexLabel | pd.Index | pd.Series | list | np.ndarray | Iterable],
+    keys: (
+        IndexLabel
+        | list[IndexLabel | pd.Index | pd.Series | list | np.ndarray | Iterable]
+    ),
     drop: bool = True,
     append: bool = False,
     inplace: bool = False,
