@@ -94,7 +94,7 @@ inherit_modules = [
     ),
 ]
 
-for (doc_module, target_object) in inherit_modules:
+for doc_module, target_object in inherit_modules:
     _inherit_docstrings(doc_module, overwrite_existing=True)(target_object)
 
 # _inherit_docstrings needs a function or class as argument, so we must explicitly iterate over
@@ -104,7 +104,7 @@ function_inherit_modules = [
     (docstrings.general, modin.pandas.general),
 ]
 
-for (doc_module, target_module) in function_inherit_modules:
+for doc_module, target_module in function_inherit_modules:
     for name in dir(target_module):
         doc_obj = getattr(doc_module, name, None)
         if not name.startswith("_") and doc_obj is not None:
@@ -138,23 +138,44 @@ Backend.register_backend(
 Backend.put("snowflake")
 
 # Hybrid Mode Registration
-register_function_for_pre_op_switch(
-    class_name="DataFrame",
-    method="__init__",
-    backend="Snowflake",
+pre_op_switch_points = [
+    {"class_name": "DataFrame", "method": "__init__"},
+    {"class_name": "Series", "method": "__init__"},
+    {"class_name": "DataFrame", "method": "apply"},
+    {"class_name": "Series", "method": "apply"},
+    {"class_name": "Series", "method": "items"},
+    {"class_name": "DataFrame", "method": "__repr__"},
+    {"class_name": "DataFrame", "method": "itertuples"},
+    {"class_name": "DataFrame", "method": "iterrows"},
+    {"class_name": "DataFrame", "method": "plot"},
+    {"class_name": "DataFrame", "method": "describe"},
+    {"class_name": "Series", "method": "describe"},
+]
+
+post_op_switch_points = [
+    {"class_name": None, "method": "read_snowflake"},
+    {"class_name": "Series", "method": "value_counts"},
+    {"class_name": "DataFrame", "method": "value_counts"},
+    {"class_name": "DataFrame", "method": "tail"},
+    {"class_name": "DataFrame", "method": "var"},
+    {"class_name": "DataFrame", "method": "sum"},
+]
+
+
+for point in pre_op_switch_points:
+    print(f"DEBUG: Registering pre-op {point}")
+    register_function_for_pre_op_switch(
+        class_name=point["class_name"],
+        method=point["method"],
+        backend="Snowflake",
     )
 
-
-register_function_for_pre_op_switch(
-    class_name="Series",
-    method="__init__",
-    backend="Snowflake",
-    )
-
-register_function_for_post_op_switch(
-    class_name=None,
-    method="read_snowflake",
-    backend="Snowflake",
+for point in post_op_switch_points:
+    print(f"DEBUG: Registering post-op {point}")
+    register_function_for_post_op_switch(
+        class_name=point["class_name"],
+        method=point["method"],
+        backend="Snowflake",
     )
 
 Backend.set_active_backends(["Snowflake", "Pandas"])
