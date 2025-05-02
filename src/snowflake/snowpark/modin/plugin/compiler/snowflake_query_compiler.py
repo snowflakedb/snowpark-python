@@ -479,7 +479,7 @@ _RESET_ATTRS_METHODS = [
 ]
 
 # Functions which should be considered for execution outside of snowflake
-HYBRID_HIGH_OVERHEAD_METHODS = ["apply", "describe", "quantile"]
+HYBRID_HIGH_OVERHEAD_METHODS = ["apply", "describe", "quantile", "read_csv", "read_json", "T", "concat", "merge"]
 HYBRID_ITERATIVE_STYLE_METHODS = ["iterrows", "itertuples", "items", "plot"]
 HYBRID_ALL_EXPENSIVE_METHODS = (
     HYBRID_HIGH_OVERHEAD_METHODS + HYBRID_ITERATIVE_STYLE_METHODS

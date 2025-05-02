@@ -141,8 +141,6 @@ Backend.put("snowflake")
 pre_op_switch_points = [
     {"class_name": "DataFrame", "method": "__init__"},
     {"class_name": "Series", "method": "__init__"},
-    {"class_name": None, "method": "read_csv"},
-    {"class_name": None, "method": "read_json"},
     {"class_name": "DataFrame", "method": "apply"},
     {"class_name": "Series", "method": "apply"},
     {"class_name": "Series", "method": "items"},
@@ -152,6 +150,11 @@ pre_op_switch_points = [
     {"class_name": "DataFrame", "method": "quantile"},
     {"class_name": "Series", "method": "plot"},
     {"class_name": "Series", "method": "quantile"},
+    {"class_name": "DataFrame", "method": "T"},
+    {"class_name": None, "method": "read_csv"},
+    {"class_name": None, "method": "read_json"},
+    {"class_name": None, "method": "concat"},
+    {"class_name": None, "method": "merge"},
 ]
 
 post_op_switch_points = [
@@ -176,22 +179,28 @@ post_op_switch_points = [
     {"class_name": "Series", "method": "aggregate"},
 ]
 
-
+pre_op_points = []
 for point in pre_op_switch_points:
-    print(f"DEBUG: Registering pre-op {point}")
+    pre_op_points.append(f"{point['class_name'] or 'pd'}.{point['method']}")
     register_function_for_pre_op_switch(
         class_name=point["class_name"],
         method=point["method"],
         backend="Snowflake",
     )
 
+post_op_points = []
 for point in post_op_switch_points:
-    print(f"DEBUG: Registering post-op {point}")
+    post_op_points.append(f"{point['class_name']}.{point['method']}")
     register_function_for_post_op_switch(
         class_name=point["class_name"],
         method=point["method"],
         backend="Snowflake",
     )
+print( "#################### HYBRID MODE #################")
+print(f"######## Registered Pre-Operation Methods ########\n{', '.join(pre_op_points)}")
+print( "##################################################")
+print(f"######## Registered_Post-Operation_Methods ########\n{', '.join(post_op_points)}")
+print( "##################################################\n")
 
 Backend.set_active_backends(["Snowflake", "Pandas"])
 
