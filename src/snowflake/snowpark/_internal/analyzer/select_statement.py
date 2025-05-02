@@ -877,7 +877,7 @@ class SelectStatement(Selectable):
             else:
                 self._projection_in_str = analyzer_utils.STAR
                 if self.exclude_cols is not None:
-                    self._projection_in_str = f"{analyzer_utils.STAR}{analyzer_utils.EXCLUDE}({analyzer_utils.COMMA.join(self.exclude_cols)})"
+                    self._projection_in_str = f"{analyzer_utils.STAR}{analyzer_utils.EXCLUDE}({analyzer_utils.COMMA.join(sorted(self.exclude_cols))})"
         return self._projection_in_str
 
     @property

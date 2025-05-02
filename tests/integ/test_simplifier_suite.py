@@ -1309,8 +1309,74 @@ def test_drop_using_exclude(session, large_simplifier_table, df_from):
         session.conf.set("use_simplified_query_generation", original)
 
 
-def test_flattening_for_exclude():
-    pass
+def test_flattening_for_exclude(session, large_simplifier_table):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set("use_simplified_query_generation", True)
+        df = session.table(large_simplifier_table)
+
+        # select
+        df1 = df.select("a", "b", "c").drop("a")
+        assert (
+            df1.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C" FROM {large_simplifier_table})'
+        )
+        df2 = df.drop("a").select("b", "c").drop("b")
+        assert (
+            df2.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("B") FROM ( SELECT "B", "C" FROM ( SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table}))'
+        )
+
+        # filter
+        df3 = df.filter(col("a") > 1).drop("a")
+        assert (
+            df3.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} WHERE ("A" > 1)'
+        )
+        df4 = df.drop("a").filter(col("a") > 1).drop("b")
+        assert (
+            df4.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} WHERE ("A" > 1)'
+        )
+
+        # sort
+        df5 = df.sort("a").drop("a")
+        assert (
+            df5.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
+        )
+        df6 = df.drop("b").sort("a").drop("a")
+        assert (
+            df6.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
+        )
+
+        # limit
+        df7 = df.limit(10).drop("a")
+        assert (
+            df7.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} LIMIT 10'
+        )
+        df8 = df.drop("a").limit(10).drop("b")
+        assert (
+            df8.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} LIMIT 10'
+        )
+
+        # distinct
+        df9 = df.distinct().drop("a")
+        assert (
+            df9.queries["queries"][0]
+            == f'SELECT  DISTINCT  *  EXCLUDE ("A") FROM {large_simplifier_table}'
+        )
+        df10 = df.drop("a").distinct().drop("b")
+        assert (
+            df10.queries["queries"][0]
+            == f'SELECT  DISTINCT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table}'
+        )
+
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
 
 
 @pytest.mark.parametrize("select_cols", [["d"], ["a", "b", "c"]])
