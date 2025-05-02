@@ -1351,7 +1351,6 @@ class SelectStatement(Selectable):
         """List of quoted column names to be dropped from the current select
         statement.
         """
-        # TODO: update can_be_flattened for other operations
         # .select().drop(); cannot be flattened; exclude syntax is select * exclude ...
 
         # .order_by().drop() can be flattened

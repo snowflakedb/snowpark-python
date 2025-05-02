@@ -274,6 +274,8 @@ def session(
         session, dataframe_processor_pkg_version, dataframe_processor_location
     )
 
+    session.conf.set("use_simplified_query_generation", True)
+
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
     session._join_alias_fix = join_alias_fix

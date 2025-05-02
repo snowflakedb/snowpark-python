@@ -1829,11 +1829,14 @@ class DataFrame:
                 drop_normalized_names = [
                     name for name in normalized_names if name in existing_names
                 ]
-                df = self._with_plan(
-                    self._select_statement.exclude(
-                        drop_normalized_names, keep_col_names
+                if not drop_normalized_names:
+                    df = self._with_plan(self._select_statement)
+                else:
+                    df = self._with_plan(
+                        self._select_statement.exclude(
+                            drop_normalized_names, keep_col_names
+                        )
                     )
-                )
             else:
                 df = self.select(list(keep_col_names), _emit_ast=False)
 
