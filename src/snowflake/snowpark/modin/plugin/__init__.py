@@ -157,27 +157,34 @@ pre_op_switch_points = [
     {"class_name": None, "method": "merge"},
 ]
 
+# Always auto-switch for aggregations, since if they return a 1-D frame/series it will be much smaller
+# than the original data.
+# Not all of these are currently supported in Snowpark pandas.
+# None of these need to be registered for Series because those methods always return scalars.
+aggregations = [
+    "tail",
+    "var",
+    "std",
+    "sum",
+    "sem",
+    "max",
+    "mean",
+    "min",
+    "agg",
+    "aggregate",
+    "count",
+    "nunique",
+    "cummax",
+    "cummin",
+    "cumprod",
+    "cumsum",
+]
+
 post_op_switch_points = [
     {"class_name": None, "method": "read_snowflake"},
     {"class_name": "Series", "method": "value_counts"},
     {"class_name": "DataFrame", "method": "value_counts"},
-    {"class_name": "DataFrame", "method": "tail"},
-    {"class_name": "DataFrame", "method": "var"},
-    {"class_name": "DataFrame", "method": "sum"},
-    {"class_name": "DataFrame", "method": "max"},
-    {"class_name": "DataFrame", "method": "mean"},
-    {"class_name": "DataFrame", "method": "min"},
-    {"class_name": "DataFrame", "method": "agg"},
-    {"class_name": "DataFrame", "method": "aggregate"},
-    {"class_name": "Series", "method": "tail"},
-    {"class_name": "Series", "method": "var"},
-    {"class_name": "Series", "method": "sum"},
-    {"class_name": "Series", "method": "max"},
-    {"class_name": "Series", "method": "mean"},
-    {"class_name": "Series", "method": "min"},
-    {"class_name": "Series", "method": "agg"},
-    {"class_name": "Series", "method": "aggregate"},
-]
+] + [{"class_name": "DataFrame", "method": agg_method} for agg_method in aggregations]
 
 pre_op_points = []
 for point in pre_op_switch_points:
@@ -196,11 +203,13 @@ for point in post_op_switch_points:
         method=point["method"],
         backend="Snowflake",
     )
-print( "#################### HYBRID MODE #################")
+print("#################### HYBRID MODE #################")
 print(f"######## Registered Pre-Operation Methods ########\n{', '.join(pre_op_points)}")
-print( "##################################################")
-print(f"######## Registered_Post-Operation_Methods ########\n{', '.join(post_op_points)}")
-print( "##################################################\n")
+print("##################################################")
+print(
+    f"######## Registered_Post-Operation_Methods #######\n{', '.join(post_op_points)}"
+)
+print("##################################################\n")
 
 Backend.set_active_backends(["Snowflake", "Pandas"])
 
