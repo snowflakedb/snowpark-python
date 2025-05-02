@@ -20,6 +20,7 @@ This package contains all Snowpark logical types.
     DateType
     DecimalType
     DoubleType
+    FileType
     FloatType
     Geography
     GeographyType

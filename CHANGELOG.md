@@ -7,6 +7,7 @@
 #### Improvements
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
+- Added support for `Session.create_dataframe()` with the stage URL and FILE data type.
 - Improved query generation for `Dataframe.drop` to use `SELECT * EXCLUDE ()` to exclude the dropped columns. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
 
 #### Bug Fixes
