@@ -184,6 +184,9 @@ post_op_switch_points = [
     {"class_name": None, "method": "read_snowflake"},
     {"class_name": "Series", "method": "value_counts"},
     {"class_name": "DataFrame", "method": "value_counts"},
+    # Series.agg can return a Series if a list of aggregations is provided
+    {"class_name": "Series", "method": "agg"},
+    {"class_name": "Series", "method": "aggregate"},
 ] + [{"class_name": "DataFrame", "method": agg_method} for agg_method in aggregations]
 
 pre_op_points = []
