@@ -65,6 +65,7 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.types import (
+    FileType,
     ArrayType,
     BinaryType,
     BooleanType,
@@ -1321,17 +1322,18 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
-def test_join_on_order(session):
+def test_join_on_order(session, local_testing_mode):
     """
     Test that an 'on' clause in a different order from the data frame re-orders the columns correctly.
     """
+    length = 134217728 if not local_testing_mode else None
     df1 = session.create_dataframe([(1, "A", 3)], schema=["A", "B", "C"])
     df2 = session.create_dataframe([(1, "A", 4)], schema=["A", "B", "D"])
 
     df3 = df1.join(df2, on=["B", "A"])
     assert df3.schema == StructType(
         [
-            StructField("B", StringType(), nullable=False),
+            StructField("B", StringType(length), nullable=False),
             StructField("A", LongType(), nullable=False),
             StructField("C", LongType(), nullable=False),
             StructField("D", LongType(), nullable=False),
@@ -2015,7 +2017,7 @@ def test_show_dataframe_spark(session):
                     pytest.fail()
 
         assert_show_string_equals(
-            df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
+            df._show_string_spark().strip(),
             dedent(
                 """
             +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
@@ -2027,9 +2029,7 @@ def test_show_dataframe_spark(session):
             ),
         )
         assert_show_string_equals(
-            df._show_string_spark(
-                _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
-            ),
+            df._show_string_spark(_spark_column_names=spark_col_names),
             dedent(
                 """
             +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
@@ -2043,7 +2043,6 @@ def test_show_dataframe_spark(session):
         assert_show_string_equals(
             df._show_string_spark(
                 vertical=True,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2074,7 +2073,6 @@ def test_show_dataframe_spark(session):
             df._show_string_spark(
                 vertical=True,
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2104,7 +2102,6 @@ def test_show_dataframe_spark(session):
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -2120,7 +2117,6 @@ def test_show_dataframe_spark(session):
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=10,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -5185,3 +5181,30 @@ def test_create_dataframe_x_string_y_integer(session):
         Row(X="b", Y=2),
     ]
     assert result == expected_rows
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="File data type is not supported in Local Testing",
+)
+def test_create_dataframe_file_type(session, resources_path):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    session.sql(f"create or replace temp stage {stage_name}").collect()
+    test_files = TestFiles(resources_path)
+    session.file.put(
+        test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    session.file.put(
+        test_files.test_dog_image, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    csv_url = f"@{stage_name}/testCSV.csv"
+    image_url = f"@{stage_name}/dog.jpg"
+    df = session.create_dataframe(
+        [csv_url, image_url],
+        schema=StructType([StructField("col", FileType(), nullable=True)]),
+    )
+    result = df.collect()
+    csv_row = json.loads(result[0][0])
+    assert csv_row["CONTENT_TYPE"] == "text/csv"
+    image_row = json.loads(result[1][0])
+    assert image_row["CONTENT_TYPE"] == "image/jpeg"

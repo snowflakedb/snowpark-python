@@ -12,6 +12,7 @@ from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import (
     abs,
     array_agg,
+    array_construct,
     asc,
     call_function,
     col,
@@ -26,6 +27,7 @@ from snowflake.snowpark.functions import (
     lit,
     max,
     min,
+    rank,
     row_number,
     to_char,
     to_date,
@@ -394,6 +396,121 @@ def test_row_number(session):
     )
 
 
+def test_rank(session):
+    df_to_test = session.create_dataframe(
+        [
+            ("A", 1, 2),
+            ("A", 1, 2),
+            ("A", 2, 4),
+            ("A", 3, 4),
+            ("B", 3, 1),
+            ("B", 2, 2),
+            ("B", 3, 3),
+            ("B", 1, 4),
+            ("B", 4, 5),
+        ],
+        ["cat", "val", "val2"],
+    )
+
+    # Test ascending single column
+    window_spec_asc = Window.partition_by(col("cat")).order_by(col("val").asc())
+    df_ranked_asc = df_to_test.with_column("rank", rank().over(window_spec_asc))
+    Utils.check_answer(
+        df_ranked_asc,
+        [
+            Row("A", 1, 2, 1),
+            Row("A", 1, 2, 1),
+            Row("A", 2, 4, 3),
+            Row("A", 3, 4, 4),
+            Row("B", 1, 4, 1),
+            Row("B", 2, 2, 2),
+            Row("B", 3, 1, 3),
+            Row("B", 3, 3, 3),
+            Row("B", 4, 5, 5),
+        ],
+    )
+
+    # Test descending single column
+    window_spec_desc = Window.partition_by(col("cat")).order_by(col("val").desc())
+    df_ranked_desc = df_to_test.with_column("rank", rank().over(window_spec_desc))
+    Utils.check_answer(
+        df_ranked_desc,
+        [
+            Row("A", 3, 4, 1),
+            Row("A", 2, 4, 2),
+            Row("A", 1, 2, 3),
+            Row("A", 1, 2, 3),
+            Row("B", 4, 5, 1),
+            Row("B", 3, 1, 2),
+            Row("B", 3, 3, 2),
+            Row("B", 2, 2, 4),
+            Row("B", 1, 4, 5),
+        ],
+    )
+
+    # Test ascending double column
+    window_spec_asc = Window.partition_by(col("cat")).order_by(
+        col("val").asc(), col("val2").asc()
+    )
+    df_ranked_asc = df_to_test.with_column("rank", rank().over(window_spec_asc))
+    Utils.check_answer(
+        df_ranked_asc,
+        [
+            Row("A", 1, 2, 1),
+            Row("A", 1, 2, 1),
+            Row("A", 2, 4, 3),
+            Row("A", 3, 4, 4),
+            Row("B", 1, 4, 1),
+            Row("B", 2, 2, 2),
+            Row("B", 3, 1, 3),
+            Row("B", 3, 3, 4),
+            Row("B", 4, 5, 5),
+        ],
+    )
+
+    # Test descending double column
+    window_spec_desc = Window.partition_by(col("cat")).order_by(
+        col("val").desc(), col("val2").desc()
+    )
+    df_ranked_desc = df_to_test.with_column("rank", rank().over(window_spec_desc))
+    Utils.check_answer(
+        df_ranked_desc,
+        [
+            Row("A", 3, 4, 1),
+            Row("A", 2, 4, 2),
+            Row("A", 1, 2, 3),
+            Row("A", 1, 2, 3),
+            Row("B", 4, 5, 1),
+            Row("B", 3, 3, 2),
+            Row("B", 3, 1, 3),
+            Row("B", 2, 2, 4),
+            Row("B", 1, 4, 5),
+        ],
+    )
+
+    # Test asc and desc
+    window_spec_asc_desc = Window.partition_by(col("cat")).order_by(
+        col("val").asc(), col("val2").desc()
+    )
+    df_ranked_asc_desc = df_to_test.with_column(
+        "rank", rank().over(window_spec_asc_desc)
+    )
+    Utils.check_answer(
+        df_ranked_asc_desc,
+        [
+            Row("A", 1, 2, 1),
+            Row("A", 1, 2, 1),
+            Row("A", 2, 4, 3),
+            Row("A", 3, 4, 4),
+            Row("B", 1, 4, 1),
+            Row("B", 2, 2, 2),
+            Row("B", 3, 3, 3),
+            Row("B", 3, 1, 4),
+            Row("B", 4, 5, 5),
+        ],
+    )
+
+
 def test_get(session):
     data = [
         Row(101, 1, "cat"),
@@ -408,3 +525,58 @@ def test_get(session):
     )
     get_df = agged.select("ID", get(col("VALUES"), 1).alias("ELEMENT"))
     Utils.check_answer(get_df, [Row(102, None), Row(101, '"dog"')])
+
+
+def test_array_construct_indexing(session):
+    data = [
+        Row(a=1, b="name1", c=5.2),
+        Row(a=2, b="name2", c=3.9),
+        Row(a=3, b="name3", c=10.8),
+    ]
+
+    df = session.create_dataframe(data=data)
+
+    df = df.with_column("d", array_construct(*["a", "b", "c"]))
+
+    for n, result in [
+        (
+            1,
+            [
+                Row(
+                    1,
+                    "name1",
+                    5.2,
+                    '[\n  1,\n  "name1",\n  5.2\n]',
+                    '[\n  1,\n  "name1",\n  5.2\n]',
+                )
+            ],
+        ),
+        (
+            2,
+            [
+                Row(
+                    2,
+                    "name2",
+                    3.9,
+                    '[\n  2,\n  "name2",\n  3.9\n]',
+                    '[\n  2,\n  "name2",\n  3.9\n]',
+                )
+            ],
+        ),
+        (
+            3,
+            [
+                Row(
+                    3,
+                    "name3",
+                    10.8,
+                    '[\n  3,\n  "name3",\n  10.8\n]',
+                    '[\n  3,\n  "name3",\n  10.8\n]',
+                )
+            ],
+        ),
+    ]:
+        # Each filter changes the index for the result. Test taht array construct maintains the index correctly
+        filtered = df.filter(col("a") == n)
+        filtered = filtered.with_column("arr", array_construct(*["a", "b", "c"]))
+        Utils.check_answer(filtered, result)

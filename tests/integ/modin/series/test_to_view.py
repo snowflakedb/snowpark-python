@@ -34,7 +34,7 @@ def test_to_view_basic(session, native_pandas_ser_basic) -> None:
 
 
 @sql_count_checker(query_count=8)
-def test_to_view_multiple_sessions_no_relaxed_ordering_raises(
+def test_to_view_multiple_sessions_enforce_ordering_raises(
     session,
     db_parameters,
 ) -> None:
@@ -45,9 +45,9 @@ def test_to_view_multiple_sessions_no_relaxed_ordering_raises(
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create series with relaxed_ordering disabled
+        # create series with enforce_ordering enabled
         snow_series = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", relaxed_ordering=False
+            f"(((SELECT * FROM {table_name})))", enforce_ordering=True
         ).iloc[:, 0]
 
         # create view
@@ -60,7 +60,7 @@ def test_to_view_multiple_sessions_no_relaxed_ordering_raises(
         new_session = Session.builder.configs(db_parameters).create()
         pd.session = new_session
 
-        # accessing the created view in another session fails when relaxed_ordering is disabled
+        # accessing the created view in another session fails when enforce_ordering is enabled
         with pytest.raises(
             SnowparkSQLException,
             match="Object 'VIEW_NAME' does not exist or not authorized",
@@ -75,7 +75,7 @@ def test_to_view_multiple_sessions_no_relaxed_ordering_raises(
 
 
 @sql_count_checker(query_count=5)
-def test_to_view_multiple_sessions_relaxed_ordering(
+def test_to_view_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
 ) -> None:
@@ -86,9 +86,9 @@ def test_to_view_multiple_sessions_relaxed_ordering(
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create series with relaxed_ordering enabled
+        # create series with enforce_ordering disabled
         snow_series = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", relaxed_ordering=True
+            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
         ).iloc[:, 0]
 
         # create view
@@ -101,7 +101,7 @@ def test_to_view_multiple_sessions_relaxed_ordering(
         new_session = Session.builder.configs(db_parameters).create()
         pd.session = new_session
 
-        # accessing the created view in another session succeeds when relaxed_ordering is enabled
+        # accessing the created view in another session succeeds when enforce_ordering is disabled
         res = new_session.sql(f"select * from {view_name}").collect()
         assert len(res) == 2
         new_session.close()
@@ -115,7 +115,7 @@ def test_to_view_multiple_sessions_relaxed_ordering(
 
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=6)
 def test_to_view_index(session, index, index_labels):
     try:
         # create table
@@ -124,9 +124,9 @@ def test_to_view_index(session, index, index_labels):
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create series with relaxed_ordering enabled
+        # create series with enforce_ordering disabled
         snow_series = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", relaxed_ordering=True
+            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
         ).iloc[:, 0]
 
         view_name = Utils.random_view_name()
@@ -142,7 +142,10 @@ def test_to_view_index(session, index, index_labels):
         expected_columns = expected_columns + ["_1"]
 
         # verify columns
-        actual = pd.read_snowflake(view_name).columns
+        actual = pd.read_snowflake(
+            view_name,
+            enforce_ordering=False,
+        ).columns
         assert actual.tolist() == expected_columns
     finally:
         # cleanup
@@ -150,7 +153,7 @@ def test_to_view_index(session, index, index_labels):
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=6)
 def test_to_view_multiindex(session):
     try:
         # create table
@@ -159,9 +162,9 @@ def test_to_view_multiindex(session):
             [BASIC_TYPE_DATA1, BASIC_TYPE_DATA2]
         ).write.save_as_table(table_name)
 
-        # create dataframe with relaxed_ordering enabled
+        # create dataframe with enforce_ordering disabled
         snow_dataframe = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", relaxed_ordering=True
+            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
         )
 
         # make sure dataframe has a multi-index
@@ -177,7 +180,10 @@ def test_to_view_multiindex(session):
         )
 
         # verify columns
-        actual = pd.read_snowflake(view_name).columns
+        actual = pd.read_snowflake(
+            view_name,
+            enforce_ordering=False,
+        ).columns
         assert actual.tolist() == ["_1", "_2", "_3"]
 
         with pytest.raises(

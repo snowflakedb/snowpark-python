@@ -1832,6 +1832,8 @@ def execute_mock_plan(
             join_condition = calculate_expression(
                 source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
             )
+            if join_condition.size == 0:
+                join_condition = TableEmulator([], columns=cartesian_product.columns)
             join_result = cartesian_product[join_condition].reset_index(drop=True)
             join_result.sf_types = cartesian_product.sf_types
 

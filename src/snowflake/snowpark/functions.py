@@ -210,7 +210,6 @@ from snowflake.snowpark._internal.utils import (
     check_create_map_parameter,
     deprecated,
     private_preview,
-    validate_stage_location,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -11713,7 +11712,7 @@ def build_stage_file_url(
 
 @private_preview(version="1.29.0")
 @publicapi
-def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
+def to_file(stage_file_uri: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     """
     Converts a stage file URI to a FILE value or NULL (if input is NULL), with the
     `metadata <https://docs.snowflake.com/LIMITEDACCESS/sql-reference/data-types-unstructured#file-data-type>`_
@@ -11737,15 +11736,8 @@ def to_file(stage_file_uri: str, _emit_ast: bool = True) -> Column:
         >>> result["CONTENT_TYPE"]
         'text/csv'
     """
-    # TODO: SNOW-1950688: Remove parsing workaround once the server is ready for accepting full stage URI
-    parts = validate_stage_location(stage_file_uri).split("/", maxsplit=1)
-    if len(parts) != 2:
-        raise ValueError(f"Invalid stage file URI: {stage_file_uri}")
-
     ast = build_function_expr("to_file", [stage_file_uri]) if _emit_ast else None
-
-    stage_name, relative_file_path = parts
-    c = build_stage_file_url(stage_name, relative_file_path, _emit_ast=False)
+    c = _to_col_if_lit(stage_file_uri, "to_file")
     return _call_function("to_file", c, _ast=ast, _emit_ast=_emit_ast)
 
 
@@ -12015,7 +12007,7 @@ def fl_is_document(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_is_document(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]  # doctest: +SKIP
+        >>> df.collect()[0][0]
         True
     """
     function_name = "fl_is_document"
@@ -12037,7 +12029,7 @@ def fl_is_compressed(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> # Upload a file to a stage.
         >>> r = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False, overwrite=True)
         >>> df = session.range(1).select(fl_is_compressed(to_file("@mystage/testCSV.csv")).alias("file"))
-        >>> df.collect()[0][0]  # doctest: +SKIP
+        >>> df.collect()[0][0]
         False
     """
     function_name = "fl_is_compressed"
@@ -12067,54 +12059,244 @@ def fl_is_image(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return _call_function(function_name, col_input, _emit_ast=_emit_ast)
 
 
+@private_preview(version="1.31.0")
+@publicapi
+def prompt(
+    template_string: str,
+    *exprs: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Constructs a structured OBJECT containing a template string and a list of arguments.
+    This object is useful for dynamically formatting messages, constructing structured prompts,
+    or storing formatted data for further processing, such as by Cortex AI functions.
+
+    Args:
+        template_string: A string containing numbered placeholders like {0}
+            where the number is at least 0 and less than the number of expressions specified.
+            The first expression is substituted for {0}, the second for {1}, and so on.
+        *exprs: Expressions whose values will eventually be substituted into the template string
+            in place of the numbered placeholders. These can be column names or other expressions.
+            Values can be of any type coercible to a string (for example, VARCHAR, NUMBER, etc.), or FILE.
+
+    Returns:
+        A SQL OBJECT with the following structure:
+        ``{ 'template': '<template_string>', 'args': ARRAY(<value_1>, <value_2>, ...) }``
+
+        The args array contains the value of the expressions specified in the PROMPT function call.
+
+    Note:
+
+        - This function does not perform any string formatting itself.
+          It is intended to construct an object to be consumed by Cortex AI functions.
+
+        - It is an error to use a placeholder in the template string that does not have a corresponding expression,
+          but it is not an error to have expressions that are not used in the template string.
+
+    Examples::
+
+        >>> df = session.create_dataframe([["Alice", "Monday"], ["Bob", "Tuesday"]], schema=["name", "day"])
+        >>> df.select(prompt("Hello, {0}. Today is {1}", col("name"), col("day")).alias("greeting")).show()
+        --------------------------------------------
+        |"GREETING"                                |
+        --------------------------------------------
+        |{                                         |
+        |  "args": [                               |
+        |    "Alice",                              |
+        |    "Monday"                              |
+        |  ],                                      |
+        |  "template": "Hello, {0}. Today is {1}"  |
+        |}                                         |
+        |{                                         |
+        |  "args": [                               |
+        |    "Bob",                                |
+        |    "Tuesday"                             |
+        |  ],                                      |
+        |  "template": "Hello, {0}. Today is {1}"  |
+        |}                                         |
+        --------------------------------------------
+        <BLANKLINE>
+    """
+    function_name = "prompt"
+    ast = (
+        build_function_expr(function_name, [template_string] + [expr for expr in exprs])
+        if _emit_ast
+        else None
+    )
+    exprs = [_to_col_if_str(expr, function_name) for expr in exprs]
+    return _call_function(
+        function_name, lit(template_string), *exprs, _ast=ast, _emit_ast=_emit_ast
+    )
+
+
 @private_preview(version="1.29.0")
 @publicapi
 def ai_filter(
-    predicate: ColumnOrLiteralStr, expr: ColumnOrLiteralStr, _emit_ast: bool = True
+    predicate: ColumnOrLiteralStr,
+    file: Optional[ColumnOrLiteralStr] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
-    Classifies free-form text into boolean based on a natural language predicate.
-    Returns a boolean value representing whether the predicate is valid for the provided text.
-    ``ai_filter`` will return NULL if the text is NULL.
+    Classifies free-form prompt inputs into a boolean. Currently supports both text and image filtering.
 
     Args:
-        predicate: The natural language condition that determines the result of the text string.
-        expr: A string containing the text to be classified.
+        predicate: If you’re specifying an input string, it is string containing the text to be classified;
+            If you’re filtering on one file, it is a string containing the instructions to
+            classify the file input as either TRUE or FALSE.
+        file:The column that the file is classified by based on the instructions specified in ``predicate``.
+            You can use IMAGE FILE as an input to the AI_FILTER function.
 
-    Example::
+    Note:
+        For more complicated prompts, especially with multiple file columns, you can use the :func:`prompt()`
+        function to help with creating an input, which supports formatting across both strings and FILE datatypes.
 
-        >>> if "gcp" not in session.connection.host.split("."):
-        ...     df = session.create_dataframe(["Switzerland", "Korea", "Panama"], schema=["country"])
-        ...     df.select(
-        ...         ai_filter("Is the country in Asia?", col("country")).as_("asia"),
-        ...         ai_filter("Is the country in Europe?", col("country")).as_("europe"),
-        ...         ai_filter("Is the country in North America?", col("country")).as_("north_america"),
-        ...         ai_filter("Is the country in Central America?", col("country")).as_("central_america"),
-        ...     ).show()  # doctest: +SKIP
+    Examples::
+
+        >>> # for text
+        >>> session.range(1).select(ai_filter('Is Canada in North America?').alias("answer")).show()
+        ------------
+        |"ANSWER"  |
+        ------------
+        |True      |
+        ------------
+        <BLANKLINE>
+        >>> # use prompt function
+        >>> df = session.create_dataframe(["Switzerland", "Korea"], schema=["country"])
+        >>> df.select(
+        ...     ai_filter(prompt("Is {0} in Asia?", col("country"))).as_("asia"),
+        ...     ai_filter(prompt("Is {0} in Europe?", col("country"))).as_("europe"),
+        ...     ai_filter(prompt("Is {0} in North America?", col("country"))).as_("north_america"),
+        ...     ai_filter(prompt("Is {0} in Central America?", col("country"))).as_("central_america"),
+        ... ).show()
         -----------------------------------------------------------
         |"ASIA"  |"EUROPE"  |"NORTH_AMERICA"  |"CENTRAL_AMERICA"  |
         -----------------------------------------------------------
         |False   |True      |False            |False              |
         |True    |False     |False            |False              |
-        |False   |False     |False            |True               |
         -----------------------------------------------------------
         <BLANKLINE>
-        >>> if "gcp" not in session.connection.host.split("."):
-        ...    df.filter(ai_filter("Is the country in Asia?", col("country"))).show()  # doctest: +SKIP
-        -------------
-        |"COUNTRY"  |
-        -------------
-        |Korea      |
-        -------------
+        >>> # for image
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(ai_filter("is it a dog picture?", to_file("@mystage/dog.jpg")).alias("is_dog"))
+        >>> df.show()
+        ------------
+        |"IS_DOG"  |
+        ------------
+        |True      |
+        ------------
         <BLANKLINE>
     """
-    ast = build_function_expr("ai_filter", [predicate, expr]) if _emit_ast else None
-
-    sql_func_name = "snowflake.cortex.ai_filter"
+    sql_func_name = "ai_filter"
     predicate_col = _to_col_if_lit(predicate, sql_func_name)
+    if file is None:
+        ast = build_function_expr(sql_func_name, [predicate]) if _emit_ast else None
+        return _call_function(
+            sql_func_name, predicate_col, _ast=ast, _emit_ast=_emit_ast
+        )
+    else:
+        ast = (
+            build_function_expr(sql_func_name, [predicate, file]) if _emit_ast else None
+        )
+        expr_col = _to_col_if_lit(file, sql_func_name)
+        return _call_function(
+            sql_func_name, predicate_col, expr_col, _ast=ast, _emit_ast=_emit_ast
+        )
+
+
+@private_preview(version="1.31.0")
+@publicapi
+def ai_classify(
+    expr: ColumnOrLiteralStr,
+    list_of_categories: Union[Column, List[str]],
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Classifies text or images into categories that you specify.
+
+    Args:
+        expr: The string, image, or a SQL object from :func:`prompt()` that you’re classifying.
+            If you’re classifying text, the input string is case sensitive.
+            You might get different results if you use different capitalization.
+        list_of_categories: An array of strings that represents the different categories.
+            Categories are case-sensitive. The array must contain at least 2 and no more than 100 categories.
+            If the requirements aren’t met, the function returns an error.
+
+    Returns:
+        A serialized object. The object's ``label`` field is a string that specifies the category to
+        which the input belongs. If you specify invalid values for the arguments, an error is returned.
+
+    Examples::
+
+        >>> # for text
+        >>> session.range(1).select(ai_classify('One day I will see the world', ['travel', 'cooking']).alias("answer")).show()
+        -----------------------
+        |"ANSWER"             |
+        -----------------------
+        |{                    |
+        |  "label": "travel"  |
+        |}                    |
+        -----------------------
+        <BLANKLINE>
+        >>> df = session.create_dataframe([
+        ...     ['France', ['North America', 'Europe', 'Asia']],
+        ...     ['Singapore', ['North America', 'Europe', 'Asia']],
+        ...     ['one day I will see the world', ['travel', 'cooking', 'dancing']],
+        ...     ['my lobster bisque is second to none', ['travel', 'cooking', 'dancing']]
+        ... ], schema=["data", "category"])
+        >>> df.select("data", ai_classify(col("data"), col("category"))["label"].alias("class")).sort("data").show()
+        ---------------------------------------------------
+        |"DATA"                               |"CLASS"    |
+        ---------------------------------------------------
+        |France                               |"Europe"   |
+        |Singapore                            |"Asia"     |
+        |my lobster bisque is second to none  |"cooking"  |
+        |one day I will see the world         |"travel"   |
+        ---------------------------------------------------
+        <BLANKLINE>
+        >>> # for image
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_classify(
+        ...         prompt("Please help me classify the dog within this image {0}", to_file("@mystage/dog.jpg")),
+        ...         ["French Bulldog", "Golden Retriever", "Bichon", "Cavapoo", "Beagle"]
+        ...     ).alias("classes")
+        ... )
+        >>> df.show()
+        ------------------------
+        |"CLASSES"             |
+        ------------------------
+        |{                     |
+        |  "label": "Cavapoo"  |
+        |}                     |
+        ------------------------
+        <BLANKLINE>
+
+    """
+    sql_func_name = "ai_classify"
+    ast = (
+        build_function_expr(sql_func_name, [expr, list_of_categories])
+        if _emit_ast
+        else None
+    )
+
     expr_col = _to_col_if_lit(expr, sql_func_name)
+    if isinstance(list_of_categories, list) and all(
+        isinstance(x, str) for x in list_of_categories
+    ):
+        cat_col = lit(
+            list_of_categories, datatype=ArrayType(StringType()), _emit_ast=False
+        )
+    elif isinstance(list_of_categories, Column):
+        cat_col = list_of_categories
+    else:
+        raise TypeError(
+            f"list_of_categories must be a list of str or a Column, got {list_of_categories}"
+        )
+
     return _call_function(
-        sql_func_name, predicate_col, expr_col, _ast=ast, _emit_ast=_emit_ast
+        sql_func_name, expr_col, cat_col, _ast=ast, _emit_ast=_emit_ast
     )
 
 

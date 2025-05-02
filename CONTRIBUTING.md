@@ -35,7 +35,7 @@ cd snowpark-python
 
 - Create a new Python virtual environment with any Python version that we support.
   - The Snowpark Python API supports **Python 3.9, Python 3.10, Python 3.11 and Python 3.12**.
-  - The Snowpark pandas API supports **Python 3.9, Python 3.10, and Python 3.11**. Additionally, Snowpark pandas requires **Modin 0.30.1** and **pandas 2.2.x**.
+  - The Snowpark pandas API supports **Python 3.9, Python 3.10, and Python 3.11**. Additionally, Snowpark pandas requires **Modin 0.32.0** and **pandas 2.2.x**.
 
     ```bash
     conda create --name snowpark-dev python=3.9

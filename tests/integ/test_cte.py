@@ -16,7 +16,15 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import avg, col, lit, seq1, uniform, when_matched
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    lit,
+    seq1,
+    uniform,
+    when_matched,
+    to_timestamp,
+)
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
@@ -261,6 +269,30 @@ def test_join_with_alias_dataframe(session):
             last_query = df_res.queries["queries"][-1]
             assert last_query.startswith(WITH)
             assert last_query.count(WITH) == 1
+
+
+def test_join_with_set_operation(session):
+    df1 = session.create_dataframe([[1, 2, 3], [4, 5, 6]], "a: int, b: int, c: int")
+    df2 = session.create_dataframe([[1, 1], [4, 5]], "a: int, b: int")
+
+    df1 = df1.filter(df1.a > 1)
+    df1 = df1.union_all(df1)
+
+    df3 = df1.join(df2, (df1.a == df2.a) & (df1.b == df2.b)).select(
+        df2.a.as_("a"), df2.b.as_("b"), df1.c
+    )
+    df4 = df3.except_(df1)
+
+    check_result(
+        session,
+        df4,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=2,
+        cte_union_count=1,
+        join_count=1,
+    )
 
 
 @pytest.mark.parametrize("type, action", binary_operations)
@@ -1075,23 +1107,23 @@ def test_time_series_aggregation_grouping(session):
     df = session.create_dataframe(data).to_df(
         "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
     )
+    df = df.with_column("TS", to_timestamp("TS"))
 
     res = df.analytics.time_series_agg(
         time_col="TS",
         group_by=["PRODUCT_ID"],
         aggs={"QUANTITY": ["SUM"]},
         windows=["-1D", "-7D"],
-        sliding_interval="1D",
     )
     check_result(
         session,
         res,
-        expect_cte_optimized=True,
+        expect_cte_optimized=False,
         query_count=1,
         describe_count=0,
         union_count=0,
-        join_count=8,
-        cte_join_count=4,
+        join_count=0,
+        cte_join_count=0,
         describe_count_for_optimized=6 if session._join_alias_fix else None,
     )
 

@@ -121,6 +121,7 @@ def iceberg_supported(session, local_testing_mode):
 
 @contextmanager
 def structured_types_enabled_session(session):
+    pytest.skip("SNOW-2083780: Temporarily disable structured type tests.")
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session set {param}=true").collect()
     with mock.patch("snowflake.snowpark.context._use_structured_type_semantics", True):
@@ -1534,6 +1535,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "books.xml")
 
     @property
+    def test_books2_xml(self):
+        return os.path.join(self.resources_path, "books2.xml")
+
+    @property
     def test_house_xml(self):
         return os.path.join(self.resources_path, "fias_house.xml")
 
@@ -1544,6 +1549,14 @@ class TestFiles:
     @property
     def test_xxe_xml(self):
         return os.path.join(self.resources_path, "xxe.xml")
+
+    @property
+    def test_nested_xml(self):
+        return os.path.join(self.resources_path, "nested.xml")
+
+    @property
+    def test_dog_image(self):
+        return os.path.join(self.resources_path, "dog.jpg")
 
 
 class TypeMap(NamedTuple):

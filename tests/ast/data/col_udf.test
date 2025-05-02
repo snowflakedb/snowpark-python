@@ -50,6 +50,20 @@ mod5_pandas_udf = session.udf.register_from_file(
 )
 df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect()
 
+# Test artifact_repository parameters
+def test_urllib() -> str:
+    import urllib3
+
+    return str(urllib3.exceptions.HTTPError("test"))
+
+udf(
+    func=test_urllib,
+    name="artifact_repository_udf",
+    artifact_repository="EXAMPLE_REPO",
+    artifact_repository_packages=["urllib3", "requests"],
+    resource_constraint={"architecture": "x86"},
+)
+
 ## EXPECTED UNPARSER OUTPUT
 
 add_one = udf("<lambda>", return_type=IntegerType(), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
@@ -58,9 +72,13 @@ df = session.create_dataframe([1, 2, 3], schema=["a"])
 
 df.select(add_one(col("a")).as_("ans")).collect()
 
+df = session.create_dataframe([1, 2, 3], schema=["a"])
+
 add_two = udf("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\"")
 
 df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
+
+df = session.create_dataframe([1, 2, 3], schema=["a"])
 
 param_udf = udf("<lambda [2]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", force_inline_code=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\"")
 
@@ -72,9 +90,13 @@ mod5_udf = udf("mod5", return_type=IntegerType(), input_types=[IntegerType()], m
 
 df.select(mod5_udf("a"), mod5_udf("b")).collect()
 
+df = session.create_dataframe([1, 2, 3], schema=["a"])
+
 mod5_pandas_udf = udf("pandas_apply_mod5", return_type=IntegerType(), input_types=[IntegerType()], max_batch_size=0, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
 
 df.select(mod5_pandas_udf("a"), mod5_pandas_udf("b")).collect()
+
+res10 = udf("test_urllib", return_type=StringType(), name="artifact_repository_udf", artifact_repository="EXAMPLE_REPO", artifact_repository_packages=["urllib3", "requests"], resource_constraint={"architecture": "x86"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPOSITORY_UDF\"")
 
 ## EXPECTED ENCODED AST
 
@@ -316,6 +338,71 @@ body {
 body {
   bind {
     expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 2
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 3
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 31
+          file: 2
+          start_column: 13
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
       udf {
         func {
           id: 1
@@ -499,6 +586,71 @@ body {
 body {
   eval {
     bind_id: 7
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 2
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 3
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 31
+          file: 2
+          start_column: 13
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 2
   }
 }
 body {
@@ -955,6 +1107,71 @@ body {
 body {
   bind {
     expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 2
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: 2
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 3
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 31
+          file: 2
+          start_column: 13
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
       udf {
         func {
           id: 5
@@ -1107,6 +1324,60 @@ body {
     bind_id: 16
   }
 }
+body {
+  bind {
+    expr {
+      udf {
+        artifact_repository {
+          value: "EXAMPLE_REPO"
+        }
+        artifact_repository_packages: "urllib3"
+        artifact_repository_packages: "requests"
+        func {
+          id: 6
+          name: "test_urllib"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ARTIFACT_REPOSITORY_UDF\""
+              }
+            }
+          }
+        }
+        name {
+          name {
+            name_flat {
+              name: "artifact_repository_udf"
+            }
+          }
+        }
+        parallel: 4
+        resource_constraint {
+          _1: "architecture"
+          _2: "x86"
+        }
+        return_type {
+          string_type {
+            length {
+            }
+          }
+        }
+        source_code_display: true
+        src {
+          end_column: 9
+          end_line: 87
+          file: 2
+          start_column: 8
+          start_line: 81
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 17
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -1120,6 +1391,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 30
+  minor: 31
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
