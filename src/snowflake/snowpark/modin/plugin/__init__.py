@@ -206,13 +206,14 @@ for point in post_op_switch_points:
         method=point["method"],
         backend="Snowflake",
     )
-print("#################### HYBRID MODE #################")
-print(f"######## Registered Pre-Operation Methods ########\n{', '.join(pre_op_points)}")
-print("##################################################")
-print(
-    f"######## Registered_Post-Operation_Methods #######\n{', '.join(post_op_points)}"
-)
-print("##################################################\n")
+# Remove print statements for the customer validation release
+#print("#################### HYBRID MODE #################")
+#print(f"######## Registered Pre-Operation Methods ########\n{', '.join(pre_op_points)}")
+#print("##################################################")
+#print(
+#    f"######## Registered_Post-Operation_Methods #######\n{', '.join(post_op_points)}"
+#)
+#print("##################################################\n")
 
 Backend.set_active_backends(["Snowflake", "Pandas"])
 
