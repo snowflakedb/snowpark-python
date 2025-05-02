@@ -817,6 +817,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         operation: str,
         arguments: MappingProxyType[str, Any],
     ) -> Optional[int]:
+        if (
+            api_cls_name in ("DataFrame", "Series")
+            and operation == "__init__"
+            and (data := arguments.get("data")) is not None
+        ) and (
+            (
+                isinstance(data, (pd.Series, pd.DataFrame))
+                and isinstance(data._query_compiler, type(self))
+            )
+            or (
+                is_dict_like(data)
+                and all(
+                    isinstance(v, pd.Series)
+                    and isinstance(v._query_compiler, type(self))
+                    for v in data.values()
+                )
+            )
+        ):
+            return QCCoercionCost.COST_IMPOSSIBLE
         # Transfer cost for data-centric operations is zero
         if self._is_in_memory_init(api_cls_name, operation, arguments):
             return QCCoercionCost.COST_ZERO
