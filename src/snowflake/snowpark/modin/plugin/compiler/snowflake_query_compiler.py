@@ -479,7 +479,16 @@ _RESET_ATTRS_METHODS = [
 ]
 
 # Functions which should be considered for execution outside of snowflake
-HYBRID_HIGH_OVERHEAD_METHODS = ["apply", "describe", "quantile", "read_csv", "read_json", "T", "concat", "merge"]
+HYBRID_HIGH_OVERHEAD_METHODS = [
+    "apply",
+    "describe",
+    "quantile",
+    "read_csv",
+    "read_json",
+    "T",
+    "concat",
+    "merge",
+]
 HYBRID_ITERATIVE_STYLE_METHODS = ["iterrows", "itertuples", "items", "plot"]
 HYBRID_ALL_EXPENSIVE_METHODS = (
     HYBRID_HIGH_OVERHEAD_METHODS + HYBRID_ITERATIVE_STYLE_METHODS
@@ -858,7 +867,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
 
-        return super.move_to_me_cost(other_qc, api_cls_name, operation, arguments)
+        return super().move_to_me_cost(other_qc, api_cls_name, operation, arguments)
 
     def max_cost(self) -> int:
         """
@@ -4007,9 +4016,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         first_last_present = is_first_last_in_agg_funcs(column_to_agg_func)
         if first_last_present:
             internal_frame = internal_frame.ensure_row_position_column()
-            agg_kwargs["_first_last_row_pos_col"] = (
-                internal_frame.row_position_snowflake_quoted_identifier
-            )
+            agg_kwargs[
+                "_first_last_row_pos_col"
+            ] = internal_frame.row_position_snowflake_quoted_identifier
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
@@ -6839,12 +6848,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                                 agg_func_map,
                                 agg_func.pandas_label,
                             )
-                            index_label_to_generated_qcs[agg_func.pandas_label] = (
-                                index_label_to_generated_qcs.get(
-                                    agg_func.pandas_label, []
-                                )
-                                + [new_qc]
-                            )
+                            index_label_to_generated_qcs[
+                                agg_func.pandas_label
+                            ] = index_label_to_generated_qcs.get(
+                                agg_func.pandas_label, []
+                            ) + [
+                                new_qc
+                            ]
                     correct_order_of_index_labels = list(kwargs.keys())
                     for index_label in correct_order_of_index_labels:
                         single_agg_func_query_compilers.extend(
@@ -8493,10 +8503,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             num_column_index_levels = len(column_index_names)
 
             # Extract the pandas labels and any additional kv map information returned by ApplyFunc.
-            (
-                data_column_pandas_labels,
-                data_column_kv_maps,
-            ) = list(
+            (data_column_pandas_labels, data_column_kv_maps,) = list(
                 zip(
                     *[
                         parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label(
@@ -11164,11 +11171,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     df_to_cond_identifier_mappings[k]
                     in updated_results.old_id_to_new_id_mappings.keys()
                 ):
-                    df_to_cond_identifier_mappings[k] = (
-                        updated_results.old_id_to_new_id_mappings[
-                            df_to_cond_identifier_mappings[k]
-                        ]
-                    )
+                    df_to_cond_identifier_mappings[
+                        k
+                    ] = updated_results.old_id_to_new_id_mappings[
+                        df_to_cond_identifier_mappings[k]
+                    ]
             # Add additional columns if necessary, and update `df_to_cond_identifier_mappings`
             # with new columns.
             updated_mappings = {}
@@ -11188,15 +11195,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 joined_frame = joined_frame.append_column(
                     pandas_label, pandas_lit(True)
                 )
-                updated_mappings[df_col] = (
-                    joined_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-                        [pandas_label], include_index=False
-                    )[
-                        0
-                    ][
-                        0
-                    ]
-                )
+                updated_mappings[
+                    df_col
+                ] = joined_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                    [pandas_label], include_index=False
+                )[
+                    0
+                ][
+                    0
+                ]
             df_to_cond_identifier_mappings.update(updated_mappings)
 
         other_value = None
@@ -15782,10 +15789,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         replace_mapping = {}
         snowpark_pandas_types = []
         for left, left_datatype in zip(left_result_data_identifiers, left_datatypes):
-            (
-                expression,
-                snowpark_pandas_type,
-            ) = BinaryOp.create(
+            (expression, snowpark_pandas_type,) = BinaryOp.create(
                 op, col(left), left_datatype, col(right), right_datatype
             ).compute()
             snowpark_pandas_types.append(snowpark_pandas_type)
