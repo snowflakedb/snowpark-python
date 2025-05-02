@@ -10162,10 +10162,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if is_scalar(index):
                 index = (index,)
         elif is_scalar(index):
-            index = pd.Series([index])._query_compiler
+            # SNOW-2084670
+            # Force this query compiler to be an SFQC, since with auto-switch behavior
+            # it may become a NativeQueryCompiler
+            index = pd.Series([index]).set_backend("Snowflake")._query_compiler
         # convert list like to series
         elif is_list_like(index):
-            index = pd.Series(index)
+            index = pd.Series(index).set_backend("Snowflake")
             if index.dtype == "bool":
                 # boolean list like indexer is always select rows by row position
                 return SnowflakeQueryCompiler(
