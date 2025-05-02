@@ -1042,7 +1042,7 @@ def _dropna(
             )
             check = indices == -1
             if check.any():
-                raise KeyError(list(np.compress(check, subset)))
+                raise KeyError([k.item() for k in np.compress(check, subset)])
 
     new_query_compiler = self._query_compiler.dropna(
         axis=axis,

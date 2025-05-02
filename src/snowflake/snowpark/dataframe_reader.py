@@ -366,6 +366,42 @@ class DataFrameReader:
             |Red      |Apple    |Large   |
             ------------------------------
             <BLANKLINE>
+
+    Example 13:
+        Reading an XML file with a row tag
+            >>> # Each XML record is extracted as a separate row,
+            >>> # and each field within that record becomes a separate column of type VARIANT
+            >>> _ = session.file.put("tests/resources/nested.xml", "@mystage", auto_compress=False)
+            >>> df = session.read.option("rowTag", "tag").xml("@mystage/nested.xml")
+            >>> df.show()
+            -----------------------
+            |"'test'"             |
+            -----------------------
+            |{                    |
+            |  "num": "1",        |
+            |  "obj": {           |
+            |    "bool": "true",  |
+            |    "str": "str2"    |
+            |  },                 |
+            |  "str": "str1"      |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
+
+            >>> # Query nested fields using dot notation
+            >>> from snowflake.snowpark.functions import col
+            >>> df.select(
+            ...     "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
+            ... ).show()
+            ------------------------------------------------------------------------------------------------------
+            |\"\"\"'TEST'"":""NUM\"\"\"  |\"\"\"'TEST'"":""STR\"\"\"  |\"\"\"'TEST'"":""OBJ\"\"\"  |\"\"\"'TEST'"":""OBJ"".""BOOL\"\"\"  |
+            ------------------------------------------------------------------------------------------------------
+            |"1"                   |"str1"                |{                     |"true"                         |
+            |                      |                      |  "bool": "true",     |                               |
+            |                      |                      |  "str": "str2"       |                               |
+            |                      |                      |}                     |                               |
+            ------------------------------------------------------------------------------------------------------
+            <BLANKLINE>
     """
 
     @publicapi
@@ -1039,7 +1075,7 @@ class DataFrameReader:
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
             warning(
                 "rowTag",
-                "rowTag for reading XML file is experimental. Do not use it in production",
+                "rowTag for reading XML file is in private preview since 1.31.0. Do not use it in production.",
             )
             output_schema = StructType(
                 [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
@@ -1116,6 +1152,7 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
+        udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -1173,6 +1210,19 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
+                If this parameter is provided, the workload will be executed within a Snowflake UDTF context.
+
+                The dictionary may include the following keys:
+
+                - external_access_integration (str, required): The name of the external access integration,
+                    which allows the UDTF to access external endpoints.
+
+                - imports (List[str], optional): A list of stage file names to import into the UDTF.
+                    Use this to include any private packages required by your `create_connection()` function.
+
+                - packages (List[str], optional): A list of package names (with optional version numbers)
+                    required as dependencies for your `create_connection()` function.
             fetch_merge_count: The number of fetched batches to merge into a single Parquet file
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
@@ -1214,6 +1264,27 @@ class DataFrameReader:
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
 
+        if udtf_configs is not None:
+            if "external_access_integration" not in udtf_configs:
+                raise ValueError(
+                    "external_access_integration cannot be None when udtf ingestion is used. Please refer to https://docs.snowflake.com/en/sql-reference/sql/create-external-access-integration to create external access integration"
+                )
+            partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                [[query] for query in partitioned_queries], schema=["partition"]
+            ).write.save_as_table(partitions_table, table_type="temp")
+            df = partitioner.driver.udtf_ingestion(
+                self._session,
+                struct_schema,
+                partitions_table,
+                udtf_configs["external_access_integration"],
+                fetch_size=fetch_size,
+                imports=udtf_configs.get("imports", None),
+                packages=udtf_configs.get("packages", None),
+            )
+            set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
+            return df
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
             snowflake_table_type = "TEMPORARY"
@@ -1223,7 +1294,7 @@ class DataFrameReader:
                 f"{snowflake_table_type} "
                 "TABLE "
                 f"identifier(?) "
-                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
                 f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
             params = (snowflake_table_name,)
@@ -1352,6 +1423,8 @@ class DataFrameReader:
             # with the new name for the temporary table into which the external db data was ingressed.
             # Leaving this functionality as client-side only means capturing an AST specifically for
             # this API in a new entity is not valuable from a server-side execution or AST perspective.
-            res_df = self.table(snowflake_table_name, _emit_ast=_emit_ast)
+            res_df = partitioner.driver.to_result_snowpark_df(
+                self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
+            )
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df

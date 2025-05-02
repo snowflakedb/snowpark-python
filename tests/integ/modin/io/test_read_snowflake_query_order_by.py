@@ -22,9 +22,9 @@ from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import Utils
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_select_star_with_order_by(session, caplog, relaxed_ordering):
-    expected_query_count = 6 if not relaxed_ordering else 3
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_select_star_with_order_by(session, caplog, enforce_ordering):
+    expected_query_count = 6 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # This test ensures that the presence of an ORDER BY causes us not to take the fastpath
         # of select * from table, where we just do `pd.read_snowflake("table")` instead.
@@ -43,7 +43,7 @@ def test_select_star_with_order_by(session, caplog, relaxed_ordering):
         with caplog.at_level(logging.DEBUG):
             snow_df = pd.read_snowflake(
                 f'SELECT * FROM {table_name} ORDER BY "col8"',
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
         assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
         native_df = native_df.reset_index(drop=True)
@@ -53,9 +53,9 @@ def test_select_star_with_order_by(session, caplog, relaxed_ordering):
         )
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_no_order_by_but_column_name_shadows(session, caplog, relaxed_ordering):
-    expected_query_count = 5 if not relaxed_ordering else 2
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_no_order_by_but_column_name_shadows(session, caplog, enforce_ordering):
+    expected_query_count = 5 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -68,7 +68,7 @@ def test_no_order_by_but_column_name_shadows(session, caplog, relaxed_ordering):
         with caplog.at_level(logging.DEBUG):
             df = pd.read_snowflake(
                 f'SELECT A, B, "ORDER BY" FROM {table_name}',
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
         # verify no temporary table is materialized for regular table
         assert "Materialize temporary table" not in caplog.text
@@ -77,11 +77,11 @@ def test_no_order_by_but_column_name_shadows(session, caplog, relaxed_ordering):
 
 
 @pytest.mark.parametrize("order_by_col", [1, '"ORDER BY"', '"ORDER BY 1"', "A"])
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_order_by_and_column_name_shadows(
-    session, caplog, order_by_col, relaxed_ordering
+    session, caplog, order_by_col, enforce_ordering
 ):
-    expected_query_count = 6 if not relaxed_ordering else 3
+    expected_query_count = 6 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         # Want random permutation, but need to make sure that there are no duplicates in the sorting column
@@ -98,7 +98,7 @@ def test_order_by_and_column_name_shadows(
         with caplog.at_level(logging.DEBUG):
             snow_df = pd.read_snowflake(
                 f'SELECT "ORDER BY", A, "ORDER BY 1" FROM {table_name} ORDER BY {order_by_col}',
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
         # verify warning issued since we are sorting.
         assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
@@ -108,11 +108,11 @@ def test_order_by_and_column_name_shadows(
         )
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_order_by_as_column_name_should_not_warn_negative(
-    session, caplog, relaxed_ordering
+    session, caplog, enforce_ordering
 ):
-    expected_query_count = 6 if not relaxed_ordering else 3
+    expected_query_count = 6 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -125,7 +125,7 @@ def test_order_by_as_column_name_should_not_warn_negative(
         with caplog.at_level(logging.DEBUG):
             df = pd.read_snowflake(
                 f'SELECT " ORDER BY " FROM {table_name}',
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
             df.to_pandas()  # Force materialization of snowpark dataframe backing this dataframe.
         # In this case, there is no ORDER BY, but since we use string matching, we will get a false
@@ -134,11 +134,11 @@ def test_order_by_as_column_name_should_not_warn_negative(
         assert df.columns.tolist() == [" ORDER BY "]
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
-    session, caplog, relaxed_ordering
+    session, caplog, enforce_ordering
 ):
-    expected_query_count = 6 if not relaxed_ordering else 3
+    expected_query_count = 6 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -151,7 +151,7 @@ def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
         with caplog.at_level(logging.DEBUG):
             df = pd.read_snowflake(
                 f"SELECT * FROM (SELECT * FROM {table_name} ORDER BY 1)",
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
             df.to_pandas()  # Force materialization of snowpark dataframe backing this dataframe.
         # Ideally, in this case, we would optimize away the ORDER BY, since it has no bearing
@@ -164,9 +164,9 @@ def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
         assert df.columns.tolist() == ["A", "B", "ORDER BY"]
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_order_by_with_no_limit_but_colname_shadows(session, caplog, relaxed_ordering):
-    expected_query_count = 6 if not relaxed_ordering else 3
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_order_by_with_no_limit_but_colname_shadows(session, caplog, enforce_ordering):
+    expected_query_count = 6 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         native_df = native_pd.DataFrame(
@@ -180,7 +180,7 @@ def test_order_by_with_no_limit_but_colname_shadows(session, caplog, relaxed_ord
         with caplog.at_level(logging.DEBUG):
             df = pd.read_snowflake(
                 f'SELECT * FROM {table_name} ORDER BY "LIMIT 1"',
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 df.sort_values("A").reset_index(drop=True),
@@ -189,9 +189,9 @@ def test_order_by_with_no_limit_but_colname_shadows(session, caplog, relaxed_ord
         assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_order_by_with_limit_and_name_shadows(session, caplog, relaxed_ordering):
-    expected_query_count = 6 if not relaxed_ordering else 3
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_order_by_with_limit_and_name_shadows(session, caplog, enforce_ordering):
+    expected_query_count = 6 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         native_df = native_pd.DataFrame(
@@ -204,18 +204,18 @@ def test_order_by_with_limit_and_name_shadows(session, caplog, relaxed_ordering)
         with caplog.at_level(logging.DEBUG):
             df = pd.read_snowflake(
                 f'SELECT * FROM {table_name} ORDER BY "LIMIT 1" LIMIT 2',
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
             assert len(df) == 2
         assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
 
 
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_complex_query_with_join_and_order_by(
-    session, caplog, relaxed_ordering
+    session, caplog, enforce_ordering
 ):
-    expected_query_count = 7 if not relaxed_ordering else 4
-    expected_join_count = 1 if not relaxed_ordering else 2
+    expected_query_count = 7 if enforce_ordering else 4
+    expected_join_count = 1 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         # create table
         table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -236,7 +236,7 @@ def test_read_snowflake_query_complex_query_with_join_and_order_by(
         with caplog.at_level(logging.DEBUG):
             df = pd.read_snowflake(
                 f'SELECT "price to consumer" - "cost to operator" as "profit", "mode of transportation" FROM {table_name1} NATURAL JOIN {table_name2} ORDER BY "profit"',
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
         assert ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING in caplog.text
         pdf = native_pd.DataFrame(
@@ -250,9 +250,9 @@ def test_read_snowflake_query_complex_query_with_join_and_order_by(
 
 
 @pytest.mark.parametrize("ordinal", [1, 2, 28])
-@pytest.mark.parametrize("relaxed_ordering", [True, False])
-def test_order_by_with_position_key(session, ordinal, caplog, relaxed_ordering):
-    expected_query_count = 6 if not relaxed_ordering else 3
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_order_by_with_position_key(session, ordinal, caplog, enforce_ordering):
+    expected_query_count = 6 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         column_order = [
             "col12",
@@ -302,7 +302,7 @@ def test_order_by_with_position_key(session, ordinal, caplog, relaxed_ordering):
         with caplog.at_level(logging.DEBUG):
             snow_df = pd.read_snowflake(
                 f"SELECT * from (SELECT {columns} FROM {table_name}) ORDER BY {ordinal + 1} ASC NULLS LAST",
-                relaxed_ordering=relaxed_ordering,
+                enforce_ordering=enforce_ordering,
             )
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_df.sort_values("col12").reset_index(drop=True),

@@ -122,10 +122,6 @@ def test_empty_expression(session):
     Utils.check_answer(df.select(const_udf()).collect(), [Row(1), Row(1), Row(1)])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="array_construct is not yet supported in local testing mode.",
-)
 def test_udf_with_arrays(session):
     tmp_df = session.create_dataframe([("1", "2", "3"), ("4", "5", "6")]).to_df(
         ["a", "b", "c"]
@@ -161,10 +157,6 @@ def test_udf_with_map_input(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="array_construct is not yet supported in local testing mode.",
-)
 def test_udf_with_map_return(session):
     tmp_df = session.create_dataframe([("1", "2", "3"), ("4", "5", "6")]).to_df(
         ["a", "b", "c"]
@@ -605,8 +597,6 @@ def test_geometry_type(session):
     reason="to_file is not yet supported in local testing mode.",
 )
 def test_file_type(session, resources_path):
-    if "azure" in session.connection.host.split("."):
-        pytest.skip("This test doesn't work for Azure.")
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     _ = session.sql(f"create or replace temp stage {stage_name}").collect()
     test_files = TestFiles(resources_path)

@@ -128,7 +128,6 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
-    private_preview,
     publicapi,
     quote_name,
     random_name_for_temp_object,
@@ -854,6 +853,7 @@ class Session:
         finally:
             try:
                 self._temp_table_auto_cleaner.stop()
+                self._ast_batch.clear()
                 self._conn.close()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
@@ -3549,6 +3549,7 @@ class Session:
                         TimestampType,
                         VariantType,
                         VectorType,
+                        FileType,
                     ),
                 )
                 else field.datatype
@@ -3675,7 +3676,6 @@ class Session:
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
                 )
-            # TODO SNOW-1952256: Test file type in create_dataframe once it accepts full path
             elif isinstance(field.datatype, FileType):
                 project_columns.append(to_file(column(name)).as_(name))
             else:
@@ -4062,7 +4062,6 @@ class Session:
         return self._sp_registration
 
     @property
-    @private_preview(version="1.23.0")
     def stored_procedure_profiler(self) -> StoredProcedureProfiler:
         """
         Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
@@ -4073,6 +4072,10 @@ class Session:
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
+        if sproc_name.strip().upper().startswith("SYSTEM$"):
+            # Built-in stored procedures do not have schema and cannot be described
+            # Currently all SYSTEM$ stored procedures are scalar so return false.
+            return False
         func_signature = ""
         try:
             arg_types = []
