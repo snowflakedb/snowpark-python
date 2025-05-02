@@ -6,6 +6,8 @@ import logging
 import math
 import oracledb
 import pytest
+
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
     output_type_handler,
 )
@@ -144,3 +146,20 @@ def test_external_access_integration_not_set(session):
         session.read.dbapi(
             create_connection_oracledb, table=ORACLEDB_TABLE_NAME, udtf_configs={}
         )
+
+
+def test_unicode_column_name_oracledb(session):
+    df = session.read.dbapi(create_connection_oracledb, table='"用户資料"')
+    assert df.collect() == [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")]
+
+
+def test_double_quoted_column_name_oracledb(session):
+    df = session.read.dbapi(create_connection_oracledb, table='"UserProfile"')
+    assert df.collect() == [
+        Row(
+            Id=1,
+            FullName="John Doe",
+            Country="USA",
+            Notes="This is a case-sensitive example.",
+        )
+    ]
