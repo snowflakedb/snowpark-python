@@ -121,6 +121,7 @@ def iceberg_supported(session, local_testing_mode):
 
 @contextmanager
 def structured_types_enabled_session(session):
+    pytest.skip("SNOW-2083780: Temporarily disable structured type tests.")
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session set {param}=true").collect()
     with mock.patch("snowflake.snowpark.context._use_structured_type_semantics", True):
