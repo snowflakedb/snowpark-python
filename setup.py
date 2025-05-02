@@ -28,6 +28,9 @@ INSTALL_REQ_LIST = [
     "protobuf>=3.20, <6",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
+    "tqdm",  # TODO: this is just for hybrid execution
+    "ipywidgets",  # TODO: this is just for hybrid execution
+    "fsspec>=2022.11.0",  # TODO: hybrid client needs this to run in notebooks for some reason
 ]
 REQUIRED_PYTHON_VERSION = ">=3.9, <3.13"
 
