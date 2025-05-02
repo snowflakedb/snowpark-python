@@ -1126,7 +1126,7 @@ class SelectStatement(Selectable):
             and isinstance(cols[0].child, Star)
             and not cols[0].child.expressions
             and not cols[0].child.df_alias
-            # df.select("*") doesn't have the child.expressions (this case)
+            # df.select("*") doesn't have the child.expressions
             # df.select(df["*"]) has the child.expressions
         ):
             new = copy(self)  # it copies the api_calls
@@ -1889,24 +1889,6 @@ def populate_column_dependency(
 def derive_column_states_from_subquery(
     cols: Iterable[Expression], from_: Selectable
 ) -> Optional[ColumnStateDict]:
-    """
-    Derives the column states for a subquery based on the provided columns and the from_ `Selectable`.
-    This function processes the columns in the context of a subquery, handling cases such as:
-    - Columns represented by unresolved aliases or wildcard (`*`) expressions.
-    - Columns with specific aliases or DataFrame aliases.
-    - Columns that are new, unchanged, changed, or dropped in the subquery.
-    The function ensures that column dependencies are populated and validates column names
-    against the analyzer and the source column states.
-    Args:
-        cols (Iterable[Expression]): The list of column expressions to process.
-        from_ (Selectable): The source `Selectable` object representing the subquery.
-    Returns:
-        Optional[ColumnStateDict]: A dictionary representing the derived column states,
-        or `None` if column dependencies cannot be resolved or invalid columns are encountered.
-    Raises:
-        SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED: If an unrecognized DataFrame alias is encountered.
-        DeriveColumnDependencyError: If column dependencies cannot be derived.
-    """
     analyzer = from_.analyzer
     column_states = ColumnStateDict()
     for c in cols:
