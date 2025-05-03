@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.31.0" %}
+{% set version = "1.31.1" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 
 package:
@@ -16,13 +16,12 @@ build:
   script: {{ PYTHON }} -m pip install . --no-deps -vvv
   script_env:
     - SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1
-# The following build_num update is just for noarch v1.31.0
 {% if noarch_build %}
   noarch: python
-  string: "py39_1"  # [py==39]
-  string: "py310_1"  # [py==310]
-  string: "py311_1"  # [py==311]
-  string: "py312_1"  # [py==312]
+  string: "py39_0"  # [py==39]
+  string: "py310_0"  # [py==310]
+  string: "py311_0"  # [py==311]
+  string: "py312_0"  # [py==312]
 {% endif %}
 
 {% if noarch_build and py not in [39, 310, 311, 312] %}
