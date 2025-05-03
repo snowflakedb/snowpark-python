@@ -6,6 +6,8 @@ import time
 import datetime
 from typing import List, Callable, Any, Optional, TYPE_CHECKING
 from snowflake.connector.options import pandas as pd
+
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
 )
@@ -31,6 +33,7 @@ class BaseDriver:
     ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
+        self.raw_schema = None
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
@@ -50,6 +53,7 @@ class BaseDriver:
         try:
             cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
             raw_schema = cursor.description
+            self.raw_schema = raw_schema
             return self.to_snow_type(raw_schema)
 
         except Exception as exc:
@@ -144,7 +148,8 @@ class BaseDriver:
     def data_source_data_to_pandas_df(
         data: List[Any], schema: StructType
     ) -> "pd.DataFrame":
-        columns = [col.name for col in schema.fields]
+        # unquote column name because double quotes stored in parquet file create column mismatch during copy into table
+        columns = [unquote_if_quoted(col.name) for col in schema.fields]
         # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
 

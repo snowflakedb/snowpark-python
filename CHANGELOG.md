@@ -7,6 +7,12 @@
 #### Improvements
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
+- Added support for `Session.create_dataframe()` with the stage URL and FILE data type.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
+- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
 
 ### Snowpark Local Testing Updates
 
@@ -24,10 +30,6 @@
 #### Improvements
 
 - Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
-
-#### Bug Fixes
-
-- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
 
 ## 1.31.0 (2025-04-24)
 
