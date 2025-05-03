@@ -29,7 +29,7 @@ error: "Noarch build for Python version {{ py }} is not supported. Supported ver
 {% else %}
 requirements:
   host:
-    - python >= 3.9
+    - python >=3.9
     - pip
     - setuptools >=40.6.0
     - wheel
