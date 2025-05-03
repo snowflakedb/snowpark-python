@@ -10,11 +10,12 @@ from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast, List
 
+from cachetools import cached
 from typing_extensions import ParamSpec
 
 from modin.config import MetricsMode
 from modin.logging.metrics import add_metric_handler
-
+import pandas as native_pd
 import snowflake.snowpark.session
 from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
 from snowflake.snowpark._internal.telemetry import TelemetryField, safe_telemetry
@@ -619,7 +620,106 @@ def snowpark_pandas_api_watcher(api_name: str, _time: Union[int, float]) -> None
     if len(tokens) >= 2 and tokens[0] == "pandas-api":
         modin_api_call_history.append(tokens[1])
 
+hybrid_switch_log = native_pd.DataFrame(
+    {}
+)
+
+@cached(cache={})
+def get_user_source_location(mode, group) -> str:
+    
+    import inspect
+
+    stack = inspect.stack()
+    frame_before_snowpandas = None
+    location = "<unknown>"
+    for _i, f in enumerate(reversed(stack)):
+        if f.filename is None:
+            continue
+        if "snowpark" in f.filename or "modin" in f.filename:
+            break
+        else:
+            frame_before_snowpandas = f
+    if (
+        frame_before_snowpandas is not None
+        and frame_before_snowpandas.code_context is not None
+    ):
+        location = frame_before_snowpandas.code_context[0].replace("\n", "")
+    return {'mode': mode, 'group': group, 'location': location }
+
+def get_hybrid_switch_log():
+    global hybrid_switch_log
+    return hybrid_switch_log.copy()
+
+def add_to_hybrid_switch_log(metrics: dict):
+    global hybrid_switch_log
+    try:
+        mode = metrics['mode']
+        source = get_user_source_location(mode, metrics['group'])['location']
+        if len(source) > 40:
+            source = source[0:17] + "..." + source[-20:-1] + source[-1]
+        hybrid_switch_log = native_pd.concat([hybrid_switch_log, 
+                                                native_pd.DataFrame({'source': [source],
+                                                                   'mode': [metrics['mode']],
+                                                                   'group': [metrics['group']],
+                                                                   'metric': [metrics['metric']],
+                                                                   'submetric': [metrics['submetric'] or None],
+                                                                   'value': [metrics['value']],
+                                                                   'from': [metrics['from'] if 'from' in metrics else None],
+                                                                   'to': [metrics['to'] if 'to' in metrics else None],
+                                                                   })])
+    except Exception as e:
+        print(f"Exception: {type(e).__name__} - {e}")
+        
+        
+def hybrid_metrics_watcher(metric_name: str, value: Union[int, float]) -> None:
+    if metric_name.startswith("modin.hybrid.auto"):
+        tokens = metric_name.split(".")
+        from_engine = None
+        to_engine = None
+        metric = None
+        group = None
+        submetric = None
+        if len(tokens) >= 9:
+            from_engine = tokens[4]
+            to_engine = tokens[6]
+            metric = tokens[7]
+        if len(tokens) == 9:
+            group = tokens[8]
+        if len(tokens) == 10:
+            submetric = tokens[8]
+            group = tokens[9]
+        add_to_hybrid_switch_log({'mode': 'single', 
+                                  'from': from_engine, 
+                                  'to': to_engine, 
+                                  'metric': metric, 
+                                  'submetric': submetric, 
+                                  'group': group, 
+                                  'value': value})
+    if metric_name.startswith("modin.hybrid.cast"):
+        tokens = metric_name.split(".")
+        to_engine = None
+        metric = None
+        submetric = None
+        group = None
+        if len(tokens) == 7 and tokens[3] == 'to' and tokens[5] == 'cost':
+            to_engine = tokens[4]
+            group = tokens[6]
+            metric = 'cost'
+        if len(tokens) == 6 and tokens[3] == 'decision':
+            submetric = tokens[4]
+            group = tokens[5]
+            metric = 'decision'
+        add_to_hybrid_switch_log({'mode': 'merge', 
+                                  'to': to_engine, 
+                                  'metric': metric,
+                                  'submetric': submetric,
+                                  'group': group, 
+                                  'value': value})
+        
+    
+
 
 def connect_modin_telemetry() -> None:
     MetricsMode.enable()
     add_metric_handler(snowpark_pandas_api_watcher)
+    add_metric_handler(hybrid_metrics_watcher)
