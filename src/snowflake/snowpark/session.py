@@ -3378,6 +3378,7 @@ class Session:
             requires permission to (1) CREATE STAGE (2) CREATE TABLE and (3) CREATE FILE FORMAT under the current
             database and schema.
         """
+        raise RuntimeError("this is supposed to fail")
         if data is None:
             raise ValueError("data cannot be None.")
 
