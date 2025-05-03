@@ -24,6 +24,7 @@ from snowflake.snowpark.modin.plugin.extensions.utils import is_autoswitch_enabl
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
+from snowflake.snowpark.modin.plugin._internal.telemetry import get_hybrid_switch_log
 from .general_overrides import register_pd_accessor
 
 register_pd_accessor("Index")(Index)
@@ -36,50 +37,12 @@ def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
         raise TypeError("obj must be a Snowpark pandas DataFrame or Series")
 
 
-switcheroo_log = native_pd.DataFrame(
-    {
-        "location": [],
-        "operation": [],
-        "engine": [],
-        "est. rows": [],
-        "stay_cost": [],
-        "move_cost": [],
-        "decision": [],
-    }
-)
-
-
 @register_pd_accessor("explain")
-def explain(last=5) -> native_pd.DataFrame:
-    global switcheroo_log
-    return switcheroo_log.tail(last).set_index("location")
-
-
-@register_pd_accessor("add_switcheroo_log")
-def add_switcheroo_log(
-    location: str,
-    operation: str,
-    engine: str,
-    rows: int,
-    stay_cost: int,
-    move_cost: int,
-    decision: str,
-):
-    global switcheroo_log
-    decision = native_pd.DataFrame(
-        {
-            "location": [location],
-            "operation": [operation],
-            "engine": [engine],
-            "est. rows": [rows],
-            "stay_cost": [stay_cost],
-            "move_cost": [move_cost],
-            "decision": [decision],
-        }
-    )
-    switcheroo_log = native_pd.concat([switcheroo_log, decision])
-    switcheroo_log.style.set_caption("Hybrid DataFrame Switch Point Log (Last 5)")
-
+def explain(last=20) -> native_pd.DataFrame:
+    stats = get_hybrid_switch_log().tail(20)
+    stats = stats.drop_duplicates().fillna(value=' ')
+    stats2 = stats.reset_index()
+    return stats2.set_index([ 'source', 'mode', 'from', 'to', 'metric']).drop(columns=['index', 'group'])
 
 @register_pd_accessor("read_snowflake")
 def read_snowflake(
