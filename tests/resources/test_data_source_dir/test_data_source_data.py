@@ -1224,16 +1224,3 @@ def sqlite3_db(db_path):
 
 def create_connection_to_sqlite3_db(db_path):
     return sqlite3.connect(db_path)
-
-
-def create_connection_oracledb():
-    import oracledb
-
-    host = ORACLEDB_CONNECTION_PARAMETERS["host"]
-    port = ORACLEDB_CONNECTION_PARAMETERS["port"]
-    service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
-    username = ORACLEDB_CONNECTION_PARAMETERS["username"]
-    password = ORACLEDB_CONNECTION_PARAMETERS["password"]
-    dsn = f"{host}:{port}/{service_name}"
-    connection = oracledb.connect(user=username, password=password, dsn=dsn)
-    return connection
