@@ -355,6 +355,7 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name,
         )
         self._plan_state: Optional[Dict[PlanState, Any]] = None
+        self.attributes
 
     @property
     def uuid(self) -> str:
