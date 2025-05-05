@@ -44,7 +44,7 @@ pytestmark = [
     ),
     pytest.mark.skipif(
         RUNNING_ON_JENKINS,
-        reason="pandas is not available",
+        reason="SNOW-2089683: oracledb real connection test failed on jenkins",
     ),
 ]
 
