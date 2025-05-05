@@ -5187,6 +5187,9 @@ def test_create_dataframe_x_string_y_integer(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="File data type is not supported in Local Testing",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
+)
 def test_create_dataframe_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     session.sql(f"create or replace temp stage {stage_name}").collect()
