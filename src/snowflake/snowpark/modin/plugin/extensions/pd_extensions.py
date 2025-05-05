@@ -39,7 +39,7 @@ def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
 
 @register_pd_accessor("explain")
 def explain(last=20) -> native_pd.DataFrame:
-    stats = get_hybrid_switch_log().tail(20)
+    stats = get_hybrid_switch_log().tail(last)
     stats = stats.drop_duplicates().fillna(value=' ')
     stats2 = stats.reset_index()
     return stats2.set_index([ 'source', 'mode', 'from', 'to', 'metric']).drop(columns=['index', 'group'])
