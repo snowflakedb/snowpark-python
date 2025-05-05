@@ -14,7 +14,13 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark._internal.utils import get_sorted_key_for_version
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-from snowflake.snowpark.types import StructType, StructField, VariantType
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    VariantType,
+    BinaryType,
+    BooleanType,
+)
 import snowflake.snowpark
 import logging
 
@@ -162,6 +168,15 @@ class BaseDriver:
         df = BaseDriver.df_map_method(df)(
             lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
         )
+
+        # when a column have all None data and corresponding type in snowflake is BinaryType or BooleanType,
+        # generated parquet file will have a physical type of INT32 that is not compatible with copy into,
+        # this piece of code convert those type to string type to avoid the issue, and this is a safe change
+        # since convert these two type to string will not lose any precision or information
+        for field in schema.fields:
+            if isinstance(field.datatype, (BinaryType, BooleanType)):
+                df[field.name] = df[field.name].astype("string")
+
         return df
 
     @staticmethod
