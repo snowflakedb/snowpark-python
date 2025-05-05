@@ -42,6 +42,10 @@ pytestmark = [
         not is_pandas_available,
         reason="pandas is not available",
     ),
+    pytest.mark.skipif(
+        RUNNING_ON_JENKINS,
+        reason="pandas is not available",
+    ),
 ]
 
 
