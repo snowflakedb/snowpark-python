@@ -122,6 +122,7 @@ from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     UNQUOTED_CASE_INSENSITIVE,
 )
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -355,7 +356,8 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name,
         )
         self._plan_state: Optional[Dict[PlanState, Any]] = None
-        self.attributes
+        if not isinstance(self.session._conn, MockServerConnection):
+            self.attributes
 
     @property
     def uuid(self) -> str:
