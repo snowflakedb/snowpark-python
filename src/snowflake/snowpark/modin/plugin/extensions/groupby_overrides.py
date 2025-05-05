@@ -26,12 +26,14 @@ from functools import cached_property
 from typing import Any, Callable, Literal, Optional, Sequence, Union
 
 import modin.pandas as pd
+from typing_extensions import Self
 import numpy as np  # noqa: F401
 import numpy.typing as npt
 import pandas
 import pandas.core.groupby
 from modin.pandas import Series
 from pandas._libs.lib import NoDefault, no_default
+from modin.core.storage_formats.pandas.query_compiler_caster import QueryCompilerCaster, EXTENSION_DICT_TYPE
 from pandas._typing import (
     AggFuncType,
     Axis,
@@ -97,13 +99,17 @@ _DEFAULT_BEHAVIOUR = {
     "_wrap_aggregation",
 }
 
+import abc
+class CombinedMeta(TelemetryMeta, abc.ABCMeta):
+    pass
 
 @_inherit_docstrings(
     pandas.core.groupby.DataFrameGroupBy, modify_doc=doc_replace_dataframe_with_link
 )
-class DataFrameGroupBy(metaclass=TelemetryMeta):
+class DataFrameGroupBy(QueryCompilerCaster, metaclass=CombinedMeta):
     _pandas_class = pandas.core.groupby.DataFrameGroupBy
     _return_tuple_when_iterating = False
+    _extensions: EXTENSION_DICT_TYPE = EXTENSION_DICT_TYPE(dict)
 
     def __init__(
         self,
@@ -142,6 +148,34 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         if "apply_op" not in self._kwargs:
             # Can be "apply", "transform", "filter" or "aggregate"
             self._kwargs.update({"apply_op": "apply"})
+
+    # _extensions["Snowflake"]["__init__"] = __init__
+
+    def _get_query_compiler(self):
+        if hasattr(self, "_df"):
+            return self._df._query_compiler
+        return None
+
+    def get_backend(self):
+        return self._df.get_backend()
+
+    def set_backend(self, backend, inplace: bool = False):
+        raise NotImplementedError
+
+    def _copy_into(self, other):
+        raise NotImplementedError
+        
+    @_inherit_docstrings(QueryCompilerCaster.is_backend_pinned)
+    def is_backend_pinned(self) -> bool:
+        return False
+
+    @_inherit_docstrings(QueryCompilerCaster._set_backend_pinned)
+    def _set_backend_pinned(self, pinned: bool, inplace: bool) -> Optional[Self]:
+        ErrorMessage.not_implemented()
+
+    @_inherit_docstrings(QueryCompilerCaster.pin_backend)
+    def pin_backend(self, inplace: bool = False) -> Optional[Self]:
+        ErrorMessage.not_implemented()
 
     def _override(self, **kwargs):
         """
@@ -184,7 +218,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         try:
             return object.__getattribute__(self, key)
         except AttributeError as err:
-            if key in self._columns:
+            if key != '_columns' and key in self._columns:
                 return self.__getitem__(key)
             raise err
 

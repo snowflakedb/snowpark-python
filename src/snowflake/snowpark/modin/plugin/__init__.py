@@ -162,6 +162,7 @@ pre_op_switch_points = [
 # Not all of these are currently supported in Snowpark pandas.
 # None of these need to be registered for Series because those methods always return scalars.
 aggregations = [
+    # note that head and tail are groupby-filters, not aggregations
     "tail",
     "var",
     "std",
@@ -174,6 +175,7 @@ aggregations = [
     "aggregate",
     "count",
     "nunique",
+    # TODO these cumulative functions are window functions, not aggregations, right?
     "cummax",
     "cummin",
     "cumprod",
@@ -187,7 +189,11 @@ post_op_switch_points = [
     # Series.agg can return a Series if a list of aggregations is provided
     {"class_name": "Series", "method": "agg"},
     {"class_name": "Series", "method": "aggregate"},
-] + [{"class_name": "DataFrame", "method": agg_method} for agg_method in aggregations]
+] + [{"class_name": "DataFrame", "method": agg_method} for agg_method in aggregations] + [
+    {"class_name": "DataFrameGroupBy", "method": agg_method} for agg_method in aggregations
+] + [
+    {"class_name": "SeriesGroupBy", "method": agg_method} for agg_method in aggregations
+]
 
 pre_op_points = []
 for point in pre_op_switch_points:
@@ -206,6 +212,9 @@ for point in post_op_switch_points:
         method=point["method"],
         backend="Snowflake",
     )
+
+
+
 # Remove print statements for the customer validation release
 #print("#################### HYBRID MODE #################")
 #print(f"######## Registered Pre-Operation Methods ########\n{', '.join(pre_op_points)}")
