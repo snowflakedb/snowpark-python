@@ -231,7 +231,7 @@ setup(
             "pytest-timeout>=2.4.0",
             "pytest-xdist>=3.6.1",
             "openpyxl>=3.1.5",  # used in read_excel test, not a requirement for distribution
-            "matplotlib>=3.10.1",  # used in plot tests
+            "matplotlib>=3.9.4",  # used in plot tests
             "pre-commit>=4.2.0",
             "graphviz>=0.20.3",  # used in plot tests
             "pytest-assume>=2.4.3",  # sql counter check
