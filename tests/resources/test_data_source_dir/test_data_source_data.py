@@ -30,7 +30,6 @@ from snowflake.snowpark.types import (
     TimestampType,
     NullType,
 )
-from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
 
 # we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
@@ -81,19 +80,6 @@ class FakeConnectionWithException(FakeConnection):
             raise RuntimeError("Fake exception")
         else:
             return self
-
-
-def create_connection_oracledb():
-    import oracledb
-
-    host = ORACLEDB_CONNECTION_PARAMETERS["host"]
-    port = ORACLEDB_CONNECTION_PARAMETERS["port"]
-    service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
-    username = ORACLEDB_CONNECTION_PARAMETERS["username"]
-    password = ORACLEDB_CONNECTION_PARAMETERS["password"]
-    dsn = f"{host}:{port}/{service_name}"
-    connection = oracledb.connect(user=username, password=password, dsn=dsn)
-    return connection
 
 
 oracledb_real_data = [

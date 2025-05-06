@@ -16,10 +16,10 @@ from snowflake.snowpark._internal.data_source.drivers import (
 from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
 )
+from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 from tests.resources.test_data_source_dir.test_data_source_data import (
     OracleDBType,
     oracledb_real_data,
-    create_connection_oracledb,
     oracledb_real_data_small,
 )
 from tests.utils import RUNNING_ON_JENKINS, Utils
@@ -53,6 +53,19 @@ pytestmark = [
 ORACLEDB_TABLE_NAME = "ALL_TYPE_TABLE"
 ORACLEDB_TABLE_NAME_SMALL = "ALL_TYPE_TABLE_SMALL"
 ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integration"
+
+
+def create_connection_oracledb():
+    import oracledb
+
+    host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+    port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+    service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+    username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+    password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+    dsn = f"{host}:{port}/{service_name}"
+    connection = oracledb.connect(user=username, password=password, dsn=dsn)
+    return connection
 
 
 def test_dbapi_oracledb(session):
