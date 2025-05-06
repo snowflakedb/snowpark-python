@@ -4,7 +4,6 @@
 
 import logging
 import math
-import oracledb
 import pytest
 
 from snowflake.snowpark import Row
@@ -25,12 +24,14 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
 )
 from tests.utils import RUNNING_ON_JENKINS, Utils
 
+DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
     import pandas  # noqa: F401
+    import oracledb  # noqa: F401
 
-    is_pandas_available = True
+    DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 except ImportError:
-    is_pandas_available = False
+    pass
 
 
 pytestmark = [
@@ -39,8 +40,8 @@ pytestmark = [
         reason="feature not available in local testing",
     ),
     pytest.mark.skipif(
-        not is_pandas_available,
-        reason="pandas is not available",
+        not DEPENDENCIES_PACKAGE_UNAVAILABLE,
+        reason="dependency is not available",
     ),
     pytest.mark.skipif(
         RUNNING_ON_JENKINS,
@@ -114,9 +115,6 @@ def test_oracledb_driver_coverage(caplog):
     assert "Snowpark does not support column" in caplog.text
 
 
-@pytest.mark.skipif(
-    RUNNING_ON_JENKINS, reason="Cannot connect to oracledb from jenkins"
-)
 def test_udtf_ingestion_oracledb(session):
     from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
