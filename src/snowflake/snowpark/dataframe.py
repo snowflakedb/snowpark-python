@@ -388,12 +388,13 @@ def dataframe_exception_handler():
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except SnowparkSQLException:
-                error_type, error_instance, _ = sys.exc_info()
-                final_error_without_traceback = traceback.format_exception_only(
-                    error_type, error_instance
-                )[0]
+            except SnowparkSQLException as e:
+                # capture original stack trace
+                error_type, _, tb = sys.exc_info()
+                traceback_lines = traceback.format_exception(e.__class__, e, tb)
+                formatted_traceback = "".join(traceback_lines)
 
+                # compute the trace
                 dataframes_involved = []
                 for arg in args:
                     if isinstance(arg, DataFrame):
@@ -406,8 +407,9 @@ def dataframe_exception_handler():
                     os.environ.get("SNOWPARK_PYTHON_DATAFRAME_TRACE_LENGTH_ON_ERROR", 5)
                 )
                 trace_message = [
-                    final_error_without_traceback,
-                    f"Trace of the dataframe operations that could have caused the error (total {trace_len}):\n",
+                    formatted_traceback,
+                    "\n--- Additional Debug Information ---\n",
+                    f"\nTrace of the dataframe operations that could have caused the error (total {trace_len}):\n",
                 ]
                 trace_message.extend(itertools.islice(trace, show_trace_len))
 
