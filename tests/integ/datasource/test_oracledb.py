@@ -22,14 +22,14 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_real_data,
     oracledb_real_data_small,
 )
-from tests.utils import RUNNING_ON_JENKINS, Utils
+from tests.utils import Utils, RUNNING_ON_JENKINS
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
     import pandas  # noqa: F401
     import oracledb  # noqa: F401
 
-    DEPENDENCIES_PACKAGE_UNAVAILABLE = True
+    DEPENDENCIES_PACKAGE_UNAVAILABLE = False
 except ImportError:
     pass
 
@@ -131,6 +131,8 @@ def test_oracledb_driver_coverage(caplog):
 def test_udtf_ingestion_oracledb(session):
     from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
+    his = session.query_history()
+
     def create_connection_oracledb():
         import oracledb
 
@@ -150,7 +152,15 @@ def test_udtf_ingestion_oracledb(session):
             "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION
         },
     ).order_by("ID")
+
     Utils.check_answer(df, oracledb_real_data)
+
+    # check that udtf is used
+    flag = False
+    for q in his.queries:
+        if "table(" in q.sql_text:
+            flag = True
+    assert flag
 
 
 def test_external_access_integration_not_set(session):
