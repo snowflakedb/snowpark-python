@@ -3,10 +3,15 @@
 #
 
 from enum import Enum
+from decimal import Decimal
+from datetime import date, datetime, timedelta
 from typing import List, Callable, Any
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
-from snowflake.snowpark._internal.data_source.datasource_typing import Connection
+from snowflake.snowpark._internal.data_source.datasource_typing import (
+    Connection,
+    Cursor,
+)
 from snowflake.snowpark.types import (
     StructType,
     StringType,
@@ -18,7 +23,6 @@ from snowflake.snowpark.types import (
     StructField,
     TimeType,
     IntegerType,
-    VariantType,
     TimestampTimeZone,
 )
 
@@ -26,25 +30,28 @@ from snowflake.snowpark.types import (
 logger = logging.getLogger(__name__)
 
 BASE_PYMYSQL_TYPE_TO_SNOW_TYPE = {
-    0: DecimalType,
-    1: IntegerType,
-    2: IntegerType,
-    3: IntegerType,
-    4: FloatType,
-    5: FloatType,
-    8: IntegerType,
-    9: IntegerType,
-    13: IntegerType,
-    246: DecimalType,
-    253: StringType,
-    254: StringType,
-    252: BinaryType,
-    16: StringType,
-    10: DateType,
-    11: TimeType,
-    12: TimestampType,
-    7: TimestampType,
-    245: VariantType,
+    (0, Decimal): DecimalType,
+    (246, Decimal): DecimalType,
+    (1, int): IntegerType,
+    (2, int): IntegerType,
+    (3, int): IntegerType,
+    (4, float): FloatType,
+    (5, float): FloatType,
+    (8, int): IntegerType,
+    (9, int): IntegerType,
+    (13, int): IntegerType,
+    (254, str): StringType,
+    (253, str): StringType,
+    (252, str): StringType,
+    (16, bytes): StringType,
+    (254, bytes): BinaryType,
+    (253, bytes): BinaryType,
+    (252, bytes): BinaryType,
+    (10, date): DateType,
+    (12, datetime): TimestampType,
+    (7, datetime): TimestampType,
+    (11, timedelta): TimeType,
+    (245, str): StringType,
 }
 
 
@@ -53,6 +60,29 @@ class PymysqlDriver(BaseDriver):
         self, create_connection: Callable[[], "Connection"], dbms_type: Enum
     ) -> None:
         super().__init__(create_connection, dbms_type)
+
+    def infer_schema_from_description(
+        self, table_or_query: str, cursor: "Cursor"
+    ) -> StructType:
+        if table_or_query.lower().startswith("select"):
+            cursor.execute(f"select A.* from ({table_or_query}) A limit 1")
+        else:
+            cursor.execute(f"select * from {table_or_query} limit 1")
+        first_row = cursor.fetchone()
+        raw_schema = cursor.description
+
+        if not first_row:
+            # TODO: write a doc
+            raise ValueError("cannot access a empty table")
+
+        processed_raw_schema = []
+        for value, col in zip(first_row, raw_schema):
+            new_col = list(col)
+            new_col[1] = (new_col[1], type(value))
+            processed_raw_schema.append(new_col)
+
+        self.raw_schema = processed_raw_schema
+        return self.to_snow_type(processed_raw_schema)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         """
@@ -76,7 +106,7 @@ class PymysqlDriver(BaseDriver):
             snow_type = BASE_PYMYSQL_TYPE_TO_SNOW_TYPE.get(type_code, None)
             if snow_type is None:
                 raise NotImplementedError(f"mysql type not supported: {type_code}")
-            if type_code in (0, 246):
+            if type_code in ((0, Decimal), (246, Decimal)):
                 if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"
@@ -88,9 +118,9 @@ class PymysqlDriver(BaseDriver):
                     precision if precision is not None else 38,
                     scale if scale is not None else 0,
                 )
-            elif type_code == 7:
+            elif type_code == (7, datetime):
                 data_type = snow_type(TimestampTimeZone.TZ)
-            elif type_code == 12:
+            elif type_code == (12, datetime):
                 data_type = snow_type(TimestampTimeZone.NTZ)
             else:
                 data_type = snow_type()

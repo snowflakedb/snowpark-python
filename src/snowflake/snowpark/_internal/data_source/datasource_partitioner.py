@@ -82,7 +82,9 @@ class DataSourcePartitioner:
     @cached_property
     def schema(self) -> StructType:
         if self.custom_schema is None:
-            return self.driver.infer_schema_from_description(self.table_or_query)
+            return self.driver.infer_schema_from_description_with_error_control(
+                self.table_or_query
+            )
         else:
             if isinstance(self.custom_schema, str):
                 schema = type_string_to_type_object(self.custom_schema)
