@@ -243,7 +243,7 @@ setup(
             "psutil>=7.0.0",  # testing for telemetry
             "scipy>=1.13.1",  # Snowpark pandas 3rd party library testing
             "statsmodels>=0.14.4",  # Snowpark pandas 3rd party library testing
-            "scikit-learn>=1.16.1",  # Snowpark pandas 3rd party library testing
+            "scikit-learn>=1.6.1",  # Snowpark pandas 3rd party library testing
             "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
             "snowflake-ml-python; python_version<'3.12'",
         ],
