@@ -5,12 +5,14 @@
 
 import copy
 import itertools
+import os
 import random
 import re
 import sys
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
+import traceback
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -27,6 +29,7 @@ from typing import (
 )
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.debug_utils import DataFrameTraceNode
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
@@ -171,7 +174,10 @@ from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsF
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
-from snowflake.snowpark.exceptions import SnowparkDataframeException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -341,6 +347,81 @@ def _disambiguate(
         _emit_ast=False,
     )
     return lhs_remapped, rhs_remapped
+
+
+def _get_df_trace(dataframes_involved: List["DataFrame"]) -> List[str]:
+    curr: List[DataFrameTraceNode] = []
+    visited_batch_id = set()
+    visited_format_id = set()
+
+    for df in dataframes_involved:
+        if (batch_id := df._ast_id) is not None:
+            stmt_cache = df._session._ast_batch._bind_stmt_cache
+            curr.append(DataFrameTraceNode(batch_id, stmt_cache))
+            if batch_id not in visited_batch_id:
+                visited_batch_id.add(batch_id)
+
+    trace = []
+
+    while curr:
+        next = []
+        for node in curr:
+            for child_id in node.children:
+                if child_id in visited_format_id:
+                    continue
+                visited_format_id.add(child_id)
+                next.append(DataFrameTraceNode(child_id, node.stmt_cache))
+
+            # tracing updates
+            format_id = node.get_format_id()
+            if format_id not in visited_format_id:
+                visited_format_id.add(format_id)
+                trace.append(node.get_format_src())
+
+        curr = next
+
+    return trace
+
+
+def dataframe_exception_handler():
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except SnowparkSQLException:
+                error_type, error_instance, _ = sys.exc_info()
+                final_error_without_traceback = traceback.format_exception_only(
+                    error_type, error_instance
+                )[0]
+
+                dataframes_involved = []
+                for arg in args:
+                    if isinstance(arg, DataFrame):
+                        dataframes_involved.append(arg)
+
+                trace = _get_df_trace(dataframes_involved)
+                trace_len = len(trace)
+
+                show_trace_len = int(
+                    os.environ.get("SNOWPARK_PYTHON_DATAFRAME_TRACE_LENGTH_ON_ERROR", 5)
+                )
+                trace_message = [
+                    final_error_without_traceback,
+                    f"Trace of the dataframe operations that could have caused the error (total {trace_len}):\n",
+                ]
+                trace_message.extend(itertools.islice(trace, show_trace_len))
+
+                if trace_len > show_trace_len:
+                    trace_message.append(
+                        f"... and {trace_len - show_trace_len} more.\nYou can increase the trace length by setting SNOWPARK_PYTHON_DATAFRAME_TRACE_LENGTH_ON_ERROR environment variable."
+                    )
+
+                trace_message = "\n".join(trace_message)
+                raise error_type(trace_message) from None
+
+        return wrapper
+
+    return decorator
 
 
 class DataFrame:
@@ -659,6 +740,7 @@ class DataFrame:
     def analytics(self) -> DataFrameAnalyticsFunctions:
         return self._analytics
 
+    @dataframe_exception_handler()
     @publicapi
     @overload
     def collect(
@@ -672,6 +754,7 @@ class DataFrame:
     ) -> List[Row]:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @publicapi
     @overload
     def collect(
@@ -685,6 +768,7 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def collect(
@@ -738,6 +822,7 @@ class DataFrame:
                 **kwargs,
             )
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def collect_nowait(
@@ -839,6 +924,7 @@ class DataFrame:
                 ),
             )
 
+    @dataframe_exception_handler()
     @overload
     @publicapi
     def to_local_iterator(
@@ -851,6 +937,7 @@ class DataFrame:
     ) -> Iterator[Row]:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @overload
     @publicapi
     def to_local_iterator(
@@ -863,6 +950,7 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def to_local_iterator(
@@ -963,6 +1051,7 @@ class DataFrame:
     if installed_pandas:
         import pandas  # pragma: no cover
 
+        @dataframe_exception_handler()
         @publicapi
         @overload
         def to_pandas(
@@ -975,6 +1064,7 @@ class DataFrame:
         ) -> pandas.DataFrame:
             ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @publicapi
     @overload
     def to_pandas(
@@ -987,6 +1077,7 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def to_pandas(
@@ -1062,6 +1153,7 @@ class DataFrame:
     if installed_pandas:
         import pandas
 
+        @dataframe_exception_handler()
         @publicapi
         @overload
         def to_pandas_batches(
@@ -1074,6 +1166,7 @@ class DataFrame:
         ) -> Iterator[pandas.DataFrame]:
             ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @publicapi
     @overload
     def to_pandas_batches(
@@ -1086,6 +1179,7 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def to_pandas_batches(
@@ -1154,6 +1248,7 @@ class DataFrame:
             **kwargs,
         )
 
+    @dataframe_exception_handler()
     @experimental(version="1.28.0")
     @df_collect_api_telemetry
     @publicapi
@@ -1196,6 +1291,7 @@ class DataFrame:
             **kwargs,
         )
 
+    @dataframe_exception_handler()
     @experimental(version="1.28.0")
     @df_collect_api_telemetry
     @publicapi
@@ -1239,6 +1335,7 @@ class DataFrame:
             **kwargs,
         )
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def to_df(
@@ -1292,6 +1389,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def to_snowpark_pandas(
@@ -1476,6 +1574,7 @@ class DataFrame:
         """
         return self.schema.names
 
+    @dataframe_exception_handler()
     @publicapi
     def col(self, col_name: str, _emit_ast: bool = True) -> Column:
         """Returns a reference to a column in the DataFrame."""
@@ -1490,6 +1589,7 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name), _ast=expr)
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def select(
@@ -1676,6 +1776,7 @@ class DataFrame:
 
         return self._with_plan(Project(names, join_plan or self._plan), _ast_stmt=stmt)
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def select_expr(
@@ -1736,6 +1837,7 @@ class DataFrame:
 
     selectExpr = select_expr
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def drop(
@@ -1825,6 +1927,7 @@ class DataFrame:
 
             return df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def filter(
@@ -1881,6 +1984,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def sort(
@@ -2020,6 +2124,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @experimental(version="1.5.0")
     @publicapi
     def alias(self, name: str, _emit_ast: bool = True):
@@ -2078,6 +2183,7 @@ class DataFrame:
             _copy._ast_id = stmt.uid
         return _copy
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def agg(
@@ -2163,6 +2269,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_to_relational_group_df_api_usage
     @publicapi
     def rollup(
@@ -2196,6 +2303,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @df_to_relational_group_df_api_usage
     @publicapi
     def group_by(
@@ -2269,6 +2377,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_to_relational_group_df_api_usage
     @publicapi
     def group_by_grouping_sets(
@@ -2329,6 +2438,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @df_to_relational_group_df_api_usage
     @publicapi
     def cube(
@@ -2362,6 +2472,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @publicapi
     def distinct(
         self, _ast_stmt: proto.Bind = None, _emit_ast: bool = True
@@ -2411,6 +2522,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @publicapi
     def drop_duplicates(
         self,
@@ -2484,6 +2596,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_to_relational_group_df_api_usage
     @publicapi
     def pivot(
@@ -2572,6 +2685,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def unpivot(
@@ -2652,6 +2766,7 @@ class DataFrame:
             df._ast_id = stmt.uid
         return df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def limit(
@@ -2712,6 +2827,7 @@ class DataFrame:
             Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
         )
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def union(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
@@ -2764,6 +2880,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def union_all(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
@@ -2819,6 +2936,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def union_by_name(
@@ -2881,6 +2999,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def union_all_by_name(
@@ -3018,6 +3137,7 @@ class DataFrame:
             )
         return df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def intersect(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
@@ -3068,6 +3188,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def except_(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
@@ -3117,6 +3238,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def natural_join(
@@ -3202,6 +3324,7 @@ class DataFrame:
             return self._with_plan(select_plan, _ast_stmt=stmt)
         return self._with_plan(join_plan, _ast_stmt=stmt)
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def join(
@@ -3592,6 +3715,7 @@ class DataFrame:
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def join_table_function(
@@ -3754,6 +3878,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def cross_join(
@@ -3935,6 +4060,7 @@ class DataFrame:
             )
         return self._with_plan(join_logical_plan, _ast_stmt=_ast_stmt)
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def with_column(
@@ -4007,6 +4133,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def with_columns(
@@ -4153,6 +4280,7 @@ class DataFrame:
 
         return df
 
+    @dataframe_exception_handler()
     @overload
     @publicapi
     def count(
@@ -4164,6 +4292,7 @@ class DataFrame:
     ) -> int:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @overload
     @publicapi
     def count(
@@ -4175,6 +4304,7 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @publicapi
     def count(
         self,
@@ -4250,6 +4380,7 @@ class DataFrame:
             self._set_ast_ref(self._writer._ast.dataframe_writer.df)
         return self._writer
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def copy_into_table(
@@ -4491,6 +4622,7 @@ class DataFrame:
             statement_params=statement_params, **kwargs
         )
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def show(
@@ -4947,6 +5079,7 @@ class DataFrame:
             f"The input name of {func_name}() must be a str or list/tuple of strs."
         )
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def create_or_replace_view(
@@ -5002,6 +5135,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def create_or_replace_dynamic_table(
@@ -5154,6 +5288,7 @@ class DataFrame:
             iceberg_config=iceberg_config,
         )
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def create_or_replace_temp_view(
@@ -5214,6 +5349,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def create_temp_view(
@@ -5345,6 +5481,7 @@ class DataFrame:
             self._session._analyzer.resolve(cmd), **kwargs
         )
 
+    @dataframe_exception_handler()
     @overload
     @publicapi
     def first(
@@ -5357,6 +5494,7 @@ class DataFrame:
     ) -> Union[Optional[Row], List[Row]]:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @overload
     @publicapi
     def first(
@@ -5369,6 +5507,7 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
+    @dataframe_exception_handler()
     @publicapi
     def first(
         self,
@@ -5437,6 +5576,7 @@ class DataFrame:
 
     take = first
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def sample(
@@ -5510,6 +5650,7 @@ class DataFrame:
         """
         return self._session
 
+    @dataframe_exception_handler()
     @publicapi
     def describe(
         self, *cols: Union[str, List[str]], _emit_ast: bool = True
@@ -5627,6 +5768,7 @@ class DataFrame:
 
         return res_df
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def rename(
@@ -5714,6 +5856,7 @@ class DataFrame:
 
         return self._with_plan(rename_plan, _ast_stmt=_ast_stmt)
 
+    @dataframe_exception_handler()
     @df_api_usage
     @publicapi
     def with_column_renamed(
@@ -5795,6 +5938,7 @@ class DataFrame:
             build_expr_from_snowpark_column_or_col_name(expr.col, existing)
         return self.select(new_columns, _ast_stmt=_ast_stmt, _emit_ast=False)
 
+    @dataframe_exception_handler()
     @df_collect_api_telemetry
     @publicapi
     def cache_result(
@@ -5941,6 +6085,7 @@ class DataFrame:
             cached_df._ast_id = stmt.uid
         return cached_df
 
+    @dataframe_exception_handler()
     @publicapi
     def random_split(
         self,
