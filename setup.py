@@ -219,6 +219,34 @@ setup(
             "opentelemetry-api>=1.0.0, <2.0.0",
             "opentelemetry-sdk>=1.0.0, <2.0.0",
         ],
+        "docs_CI": [
+            # Use lower bounds to constrain dependencies to avoid resolution-too-deep errors
+            *MODIN_REQUIREMENTS,
+            "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
+            "pytest-cov>=6.1.1",
+            "wrapt>=1.17.2",  # used for functools.wraps(...) in testing.
+            "coverage>=7.8.0",
+            "sphinx==5.0.2",
+            "cachetools>=5.5.2",  # used in UDF doctest
+            "pytest-timeout>=2.4.0",
+            "pytest-xdist>=3.6.1",
+            "openpyxl>=3.1.5",  # used in read_excel test, not a requirement for distribution
+            "matplotlib>=3.10.1",  # used in plot tests
+            "pre-commit>=4.2.0",
+            "graphviz>=0.20.3",  # used in plot tests
+            "pytest-assume>=2.4.3",  # sql counter check
+            "decorator>=5.2.1",  # sql counter check
+            "lxml>=5.4.0",  # used in read_xml tests
+            "tox>=4.25.0",  # used for setting up testing environments
+            "snowflake.core>=1.0.0, <2",  # Catalog
+            "oracledb>=3.1.0",  # used in data source
+            "psutil>=7.0.0",  # testing for telemetry
+            "scipy>=1.15.2",  # Snowpark pandas 3rd party library testing
+            "statsmodels>=0.14.4",  # Snowpark pandas 3rd party library testing
+            "scikit-learn>=1.16.1",  # Snowpark pandas 3rd party library testing
+            "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
+            "snowflake-ml-python; python_version<'3.12'",
+        ],
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
