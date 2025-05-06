@@ -10,6 +10,7 @@ from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
+    Cursor,
 )
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark._internal.utils import get_sorted_key_for_version
@@ -47,14 +48,21 @@ class BaseDriver:
     ) -> "Connection":
         return conn
 
-    def infer_schema_from_description(self, table_or_query: str) -> StructType:
+    def infer_schema_from_description(
+        self, table_or_query: str, cursor: "Cursor"
+    ) -> StructType:
+        cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
+        raw_schema = cursor.description
+        self.raw_schema = raw_schema
+        return self.to_snow_type(raw_schema)
+
+    def infer_schema_from_description_with_error_control(
+        self, table_or_query: str
+    ) -> StructType:
         conn = self.create_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
-            raw_schema = cursor.description
-            self.raw_schema = raw_schema
-            return self.to_snow_type(raw_schema)
+            return self.infer_schema_from_description(table_or_query, cursor)
 
         except Exception as exc:
             raise SnowparkDataframeReaderException(
