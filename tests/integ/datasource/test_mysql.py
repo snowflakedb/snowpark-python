@@ -23,6 +23,8 @@ pytestmark = [
     ),
 ]
 
+TEST_TABLE_NAME = "ALL_TYPES_TABLE"
+
 
 def create_connection_mysql():
     import pymysql
@@ -37,4 +39,5 @@ def create_connection_mysql():
 
 
 def test_mysql_end_to_end(session):
-    pass
+    df = session.read.dbapi(create_connection_mysql, table=TEST_TABLE_NAME)
+    df.show()
