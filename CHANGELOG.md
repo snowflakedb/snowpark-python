@@ -7,6 +7,7 @@
 #### Improvements
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
+- Added support for `Session.create_dataframe()` with the stage URL and FILE data type.
 
 #### Bug Fixes
 
@@ -25,6 +26,7 @@
 #### New Features
 
 - Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for `DataFrame.to_html`.
 
 #### Improvements
 
