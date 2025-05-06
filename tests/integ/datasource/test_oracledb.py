@@ -40,7 +40,7 @@ pytestmark = [
         reason="feature not available in local testing",
     ),
     pytest.mark.skipif(
-        not DEPENDENCIES_PACKAGE_UNAVAILABLE,
+        DEPENDENCIES_PACKAGE_UNAVAILABLE,
         reason="dependency is not available",
     ),
     pytest.mark.skipif(
