@@ -1373,6 +1373,12 @@ class SnowflakePlanBuilder:
         worker_column_name = "WORKER"
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]
+        mode = options.get("MODE", "PERMISSIVE").upper()
+
+        if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
+            raise ValueError(
+                f"Invalid mode: {mode}. Must be one of PERMISSIVE, DROPMALFORMED, FAILFAST."
+            )
 
         # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
         # Currently it's capped at 16.
@@ -1395,6 +1401,7 @@ class SnowflakePlanBuilder:
                 lit(num_workers),
                 lit(row_tag),
                 col(worker_column_name),
+                lit(mode),
             ),
         )
 

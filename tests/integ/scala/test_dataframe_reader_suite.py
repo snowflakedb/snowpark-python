@@ -69,6 +69,9 @@ test_file_house_xml = "fias_house.xml"
 test_file_house_large_xml = "fias_house.large.xml"
 test_file_xxe_xml = "xxe.xml"
 test_file_nested_xml = "nested.xml"
+test_file_malformed_no_closing_tag_xml = "malformed_no_closing_tag.xml"
+test_file_malformed_not_self_closing_xml = "malformed_not_self_closing.xml"
+test_file_malformed_record_xml = "malformed_record.xml"
 
 
 # In the tests below, we test both scenarios: SELECT & COPY
@@ -260,6 +263,24 @@ def setup(session, resources_path, local_testing_mode):
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name1, test_files.test_nested_xml, compress=False
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_malformed_no_closing_tag_xml,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_malformed_not_self_closing_xml,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_malformed_record_xml,
+        compress=False,
     )
     Utils.upload_to_stage(
         session, "@" + tmp_stage_name2, test_files.test_file_csv, compress=False
@@ -2019,3 +2040,56 @@ def test_read_xml_non_existing_file(session):
         session.read.option("rowTag", row_tag).xml(
             f"@{tmp_stage_name1}/non_existing_file.xml"
         )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2044853: Flaky in stored procedure test",
+)
+@pytest.mark.parametrize(
+    "file",
+    (
+        test_file_malformed_no_closing_tag_xml,
+        test_file_malformed_not_self_closing_xml,
+        test_file_malformed_record_xml,
+    ),
+)
+def test_read_malformed_xml(session, file):
+    row_tag = "record"
+
+    # permissive mode
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("mode", "permissive")
+        .xml(f"@{tmp_stage_name1}/{file}")
+    )
+    result = df.collect()
+    assert len(result) == 2
+    assert len(result[0]) == 4  # has another column 'columnNameOfCorruptRecord'
+    assert (
+        result[0]["'columnNameOfCorruptRecord'"] is not None
+        or result[1]["'columnNameOfCorruptRecord'"] is not None
+    )
+
+    # dropmalformed mode
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("mode", "dropmalformed")
+        .xml(f"@{tmp_stage_name1}/{test_file_malformed_no_closing_tag_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 1
+    assert len(result[0]) == 3
+
+    # failfast mode
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("mode", "failfast")
+        .xml(f"@{tmp_stage_name1}/{test_file_malformed_no_closing_tag_xml}")
+    )
+    with pytest.raises(SnowparkSQLException, match="Malformed XML record at bytes"):
+        df.collect()

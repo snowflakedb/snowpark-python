@@ -5,7 +5,6 @@
 import os
 import re
 import html.entities
-import logging
 import struct
 import xml.etree.ElementTree as ET
 from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
@@ -13,6 +12,8 @@ from snowflake.snowpark.files import SnowflakeFile
 
 
 DEFAULT_CHUNK_SIZE: int = 1024
+VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
+COLUMN_NAME_OF_CORRUPT_RECORD = "columnNameOfCorruptRecord"
 
 
 def replace_entity(match: re.Match) -> str:
@@ -76,7 +77,7 @@ def tag_is_self_closing(
         chunk_start_pos = file_obj.tell()
         chunk = file_obj.read(chunk_size)
         if not chunk:
-            raise EOFError("EOF reached before end of opening tag")
+            raise EOFError("Reached end of file but the tag is not closed")
 
         for idx, b in enumerate(struct.unpack(f"{len(chunk)}c", chunk)):
             # '>' inside quote should not be considered as the end of the tag
@@ -216,7 +217,7 @@ def find_next_opening_tag_pos(
             # Calculate the absolute position. Note that `data` starts at (current_pos - len(overlap)).
             absolute_pos = current_pos + pos - len(overlap)
             if absolute_pos >= end_limit:
-                raise EOFError("Found tag beyond end limit")
+                raise EOFError("Exceeded end limit before finding opening tag")
             file_obj.seek(absolute_pos)
             return absolute_pos
 
@@ -298,6 +299,7 @@ def process_xml_range(
     tag_name: str,
     approx_start: int,
     approx_end: int,
+    mode: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -316,6 +318,8 @@ def process_xml_range(
         tag_name (str): The tag that delimits records (e.g., "row").
         approx_start (int): Approximate start byte position.
         approx_end (int): Approximate end byte position.
+        mode (str): The mode for dealing with corrupt records.
+            "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -351,8 +355,19 @@ def process_xml_range(
             # decide whether the row element is self‑closing
             try:
                 is_self_close, tag_end = tag_is_self_closing(f)
-            except EOFError:
-                # malformed XML record
+            # encountering an EOFError means the XML record isn't self-closing or
+            # doesn't have a closing tag after reaching the end of the file
+            except EOFError as e:
+                if mode == "PERMISSIVE":
+                    # read util the end of file or util variant column size limit
+                    record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
+                    record_str = record_bytes.decode("utf-8", errors="replace")
+                    record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+                    yield {COLUMN_NAME_OF_CORRUPT_RECORD: record_str}
+                elif mode == "FAILFAST":
+                    raise EOFError(
+                        f"Malformed XML record at bytes {record_start}-EOF: {e}"
+                    ) from e
                 break
 
             if is_self_close:
@@ -361,31 +376,37 @@ def process_xml_range(
                 f.seek(tag_end)
                 try:
                     record_end = find_next_closing_tag_pos(f, closing_tag, chunk_size)
-                except EOFError:
-                    # incomplete XML record
+                # encountering an EOFError means the XML record isn't self-closing or
+                # doesn't have a closing tag after reaching the end of the file
+                except EOFError as e:
+                    if mode == "PERMISSIVE":
+                        # read util the end of file or util variant column size limit
+                        record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
+                        record_str = record_bytes.decode("utf-8", errors="replace")
+                        record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+                        yield {COLUMN_NAME_OF_CORRUPT_RECORD: record_str}
+                    elif mode == "FAILFAST":
+                        raise EOFError(
+                            f"Malformed XML record at bytes {record_start}-EOF: {e}"
+                        ) from e
                     break
 
             # Read the complete XML record.
             f.seek(record_start)
             record_bytes = f.read(record_end - record_start)
-            try:
-                record_str = record_bytes.decode("utf-8")
-                record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-            except UnicodeDecodeError as e:
-                logging.warning(
-                    f"Unicode decode error at bytes {record_start}-{record_end}: {e}"
-                )
-                f.seek(record_end)
-                continue
+            record_str = record_bytes.decode("utf-8", errors="replace")
+            record_str = re.sub(r"&(\w+);", replace_entity, record_str)
 
             try:
                 element = ET.fromstring(record_str)
                 yield element_to_dict(strip_namespaces(element))
             except ET.ParseError as e:
-                logging.warning(
-                    f"XML parse error at bytes {record_start}-{record_end}: {e}"
-                )
-                logging.warning(f"Record content: {record_str}")
+                if mode == "PERMISSIVE":
+                    yield {COLUMN_NAME_OF_CORRUPT_RECORD: record_str}
+                elif mode == "FAILFAST":
+                    raise RuntimeError(
+                        f"Malformed XML record at bytes {record_start}-{record_end}: {e}"
+                    )
 
             if record_end > approx_end:
                 break
@@ -395,7 +416,7 @@ def process_xml_range(
 
 
 class XMLReader:
-    def process(self, filename: str, num_workers: int, row_tag: str, i: int):
+    def process(self, filename: str, num_workers: int, row_tag: str, i: int, mode: str):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
         file size division and then moving each boundary to the end of a record,
@@ -406,10 +427,14 @@ class XMLReader:
             num_workers (int): Number of workers/chunks.
             row_tag (str): The tag name that delimits records (e.g., "row").
             i (int): The worker id.
+            mode (str): The mode for dealing with corrupt records.
+                "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
         approx_start = approx_chunk_size * i
         approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
-        for element in process_xml_range(filename, row_tag, approx_start, approx_end):
+        for element in process_xml_range(
+            filename, row_tag, approx_start, approx_end, mode
+        ):
             yield (element,)

@@ -8,6 +8,7 @@
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
 - Added support for `Session.create_dataframe()` with the stage URL and FILE data type.
+- Added support for different modes for dealing with corrupt XML records when reading an XML file using `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)`. Currently `PERMISSIVE`, `DROPMALFORMED` and `FAILFAST` are supported.
 
 #### Bug Fixes
 
