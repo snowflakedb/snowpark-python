@@ -861,9 +861,11 @@ class SelectStatement(Selectable):
         - select columns
         - exclude columns
         """
+
         return (
-            self.projection is None and len(self.projection) > 0
+            self.projection is not None and len(self.projection) > 0
         ) or self.exclude_cols is not None
+
 
     @property
     def projection_in_str(self) -> str:
