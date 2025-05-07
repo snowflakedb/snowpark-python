@@ -51,7 +51,7 @@ class DataFrameLineageNode:
             return "\n".join(code_lines)
 
     def get_source_id(self) -> str:
-        """Unique identifier of the location of the DataFrame in the source code."""
+        """Unique identifier of the location of the DataFrame creation in the source code."""
         src = self.get_src()
         if src is None:
             return ""
