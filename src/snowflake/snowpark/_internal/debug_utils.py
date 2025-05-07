@@ -6,7 +6,6 @@ from functools import cached_property
 import os
 
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
-
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 
 UNKNOWN_FILE = "__UNKNOWN_FILE__"
@@ -15,19 +14,13 @@ UNKNOWN_FILE = "__UNKNOWN_FILE__"
 class DataFrameTraceNode:
     """A node in the trace of a tree that represents the lineage of a DataFrame."""
 
-    def __init__(self, batch_id, stmt_cache) -> None:
+    def __init__(self, batch_id: int, stmt_cache) -> None:
         self.batch_id = batch_id
         self.stmt_cache = stmt_cache
 
     @cached_property
-    def children(self):
+    def children(self) -> set[int]:
         return get_dependent_bind_ids(self.stmt_cache[self.batch_id])
-
-    @cached_property
-    def api_call(self):
-        """The API call that generated this DataFrame."""
-        stmt = self.stmt_cache[self.batch_id]
-        return stmt.bind.expr.WhichOneof("variant")
 
     def get_src(self):
         """The source Stmt of the DataFrame descried by the batch_id."""
@@ -39,7 +32,9 @@ class DataFrameTraceNode:
             else None
         )
 
-    def _read_file(self, filename, start_line, end_line, start_column, end_column):
+    def _read_file(
+        self, filename, start_line, end_line, start_column, end_column
+    ) -> str:
         """Read the relevant code snippets of where the DataFrame was created. The filename given here
         must have read permissions for the executing user."""
         with open(filename) as f:
