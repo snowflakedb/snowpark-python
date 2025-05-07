@@ -866,7 +866,6 @@ class SelectStatement(Selectable):
             self.projection is not None and len(self.projection) > 0
         ) or self.exclude_cols is not None
 
-
     @property
     def projection_in_str(self) -> str:
         if not self._projection_in_str:
@@ -883,7 +882,10 @@ class SelectStatement(Selectable):
                 if self.exclude_cols is not None:
                     # we sort the exclude_cols to make sure the projection_in_str is deterministic
                     # this is done to remove test flakiness
-                    self._projection_in_str = f"{analyzer_utils.STAR}{analyzer_utils.EXCLUDE}({analyzer_utils.COMMA.join(sorted(self.exclude_cols))})"
+                    self._projection_in_str = (
+                        f"{analyzer_utils.STAR}{analyzer_utils.EXCLUDE}"
+                        f"({analyzer_utils.COMMA.join(sorted(self.exclude_cols))})"
+                    )
         return self._projection_in_str
 
     @property
