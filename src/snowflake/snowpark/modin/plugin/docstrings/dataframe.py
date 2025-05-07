@@ -4206,6 +4206,124 @@ class DataFrame(BasePandasDataset):
     def to_html():
         """
         Render a ``DataFrame`` as an HTML table.
+
+        Parameters
+        ----------
+        buf : str, Path or StringIO-like, optional, default None
+            Buffer to write to. If None, the output is returned as a string.
+
+        columns : array-like, optional, default None
+            The subset of columns to write. Writes all columns by default.
+
+        col_space : str or int, list or dict of int or str, optional
+            The minimum width of each column in CSS length units. An int is assumed to be px units..
+
+        header : bool, optional
+            Whether to print column labels, default True.
+
+        index : bool, optional, default True
+            Whether to print index (row) labels.
+
+        na_rep : str, optional, default ‘NaN’
+            String representation of NaN to use.
+
+        formatters : list, tuple or dict of one-param. functions, optional
+            Formatter functions to apply to columns’ elements by position or name. The result of each function must be a unicode string. List/tuple must be of length equal to the number of columns.
+
+        float_format : one-parameter function, optional, default None
+            Formatter function to apply to columns’ elements if they are floats. This function must return a unicode string and will be applied only to the non-NaN elements, with NaN being handled by na_rep.
+
+        sparsify : bool, optional, default True
+            Set to False for a DataFrame with a hierarchical index to print every multiindex key at each row.
+
+        index_names : bool, optional, default True
+            Prints the names of the indexes.
+
+        justify : str, default None
+            How to justify the column labels. If None uses the option from the print configuration (controlled by set_option), ‘right’ out of the box. Valid values are
+            - left
+            - right
+            - center
+            - justify
+            - justify-all
+            - start
+            - end
+            - inherit
+            - match-parent
+            - initial
+            - unset.
+
+        max_rows : int, optional
+            Maximum number of rows to display in the console.
+
+        max_cols : int, optional
+            Maximum number of columns to display in the console.
+
+        show_dimensions : bool, default False
+            Display DataFrame dimensions (number of rows by number of columns).
+
+        decimal : str, default ‘.’
+            Character recognized as decimal separator, e.g. ‘,’ in Europe.
+
+        bold_rows : bool, default True
+            Make the row labels bold in the output.
+
+        classes : str or list or tuple, default None
+            CSS class(es) to apply to the resulting html table.
+
+        escape : bool, default True
+            Convert the characters <, >, and & to HTML-safe sequences.
+
+        notebook : {True, False}, default False
+            Whether the generated HTML is for IPython Notebook.
+
+        border : int
+            A border=border attribute is included in the opening <table> tag. Default pd.options.display.html.border.
+
+        table_id : str, optional
+            A css id is included in the opening <table> tag if specified.
+
+        render_links : bool, default False
+            Convert URLs to HTML links.
+
+        encoding : str, default “utf-8”
+            Set character encoding.
+
+        Returns
+        -------
+        str or None
+            If buf is None, returns the result as a string. Otherwise returns None.
+
+        See also
+        --------
+        to_string
+            Convert DataFrame to a string.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame(data={'col1': [1, 2], 'col2': [4, 3]})
+        >>> html_string = '''<table border="1" class="dataframe">
+        ...   <thead>
+        ...     <tr style="text-align: right;">
+        ...       <th></th>
+        ...       <th>col1</th>
+        ...       <th>col2</th>
+        ...     </tr>
+        ...   </thead>
+        ...   <tbody>
+        ...     <tr>
+        ...       <th>0</th>
+        ...       <td>1</td>
+        ...       <td>4</td>
+        ...     </tr>
+        ...     <tr>
+        ...       <th>1</th>
+        ...       <td>2</td>
+        ...       <td>3</td>
+        ...     </tr>
+        ...   </tbody>
+        ... </table>'''
+        >>> assert html_string == df.to_html()
         """
 
     def to_parquet():
