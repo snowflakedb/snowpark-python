@@ -11,8 +11,8 @@ from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 UNKNOWN_FILE = "__UNKNOWN_FILE__"
 
 
-class DataFrameTraceNode:
-    """A node in the trace of a tree that represents the lineage of a DataFrame."""
+class DataFrameLineageNode:
+    """A node representing a dataframe operation in the DAG that represents the lineage of a DataFrame."""
 
     def __init__(self, batch_id: int, stmt_cache) -> None:
         self.batch_id = batch_id
@@ -20,10 +20,11 @@ class DataFrameTraceNode:
 
     @cached_property
     def children(self) -> set[int]:
+        """Returns the batch_ids of the children of this node."""
         return get_dependent_bind_ids(self.stmt_cache[self.batch_id])
 
     def get_src(self):
-        """The source Stmt of the DataFrame descried by the batch_id."""
+        """The source Stmt of the DataFrame described by the batch_id."""
         stmt = self.stmt_cache[self.batch_id]
         api_call = stmt.bind.expr.WhichOneof("variant")
         return (
@@ -49,7 +50,7 @@ class DataFrameTraceNode:
             code_lines = [line.rstrip() for line in code_lines]
             return "\n".join(code_lines)
 
-    def get_format_id(self) -> str:
+    def get_source_id(self) -> str:
         """Unique identifier of the location of the DataFrame in the source code."""
         src = self.get_src()
         if src is None:
@@ -62,8 +63,8 @@ class DataFrameTraceNode:
         end_column = src.end_column
         return f"{fileno}:{start_line}:{start_column}-{end_line}:{end_column}"
 
-    def get_format_src(self) -> str:
-        """The snippet of the source code where the DataFrame was created."""
+    def get_source_snippet(self) -> str:
+        """Read the source file and extract the snippet where the dataframe is created."""
         src = self.get_src()
         if src is None:
             return "No source"
@@ -83,7 +84,7 @@ class DataFrameTraceNode:
             code_identifier = f"{filename}:{start_line}"
         else:
             code_identifier = (
-                f"{filename}:{start_line}:{start_column}-{end_line}:{end_column}"
+                f"{filename}|{start_line}:{start_column}-{end_line}:{end_column}"
             )
 
         if filename != UNKNOWN_FILE and os.access(filename, os.R_OK):

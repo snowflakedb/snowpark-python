@@ -29,7 +29,7 @@ from typing import (
 )
 
 import snowflake.snowpark
-from snowflake.snowpark._internal.debug_utils import DataFrameTraceNode
+from snowflake.snowpark._internal.debug_utils import DataFrameLineageNode
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
@@ -351,37 +351,52 @@ def _disambiguate(
 
 
 def _get_df_lineage(dataframes_involved: List["DataFrame"]) -> List[str]:
-    curr: List[DataFrameTraceNode] = []
+    """Helper function to get the lineage of dataframes involved in the exception.
+    It gathers the lineage in the following way:
+
+    1. For each dataframe, it checks if it has an AST ID and if so, it creates a
+        DataFrameLineageNode for it.
+    2. We use BFS to traverse the lineage using dataframes from 1. as the first layer.
+    3. During each iteration, we check if the node's source_id has been visited. If not,
+        we add it to the visited set and append its source format to the trace. This step
+        is needed to avoid source_id added multiple times in lineage due to loops.
+    4. We then explore the next layer by adding the children of the current node to the
+        next layer. We check if the child ID has been visited and if not, we add it to the
+        visited set and append the DataFrameLineageNode for it to the next layer.
+    5. We repeat this process until there are no more nodes to explore.
+    """
+    curr: List[DataFrameLineageNode] = []
     visited_batch_id = set()
-    visited_format_id = set()
+    visited_source_id = set()
 
     for df in dataframes_involved:
         if (batch_id := df._ast_id) is not None:
             stmt_cache = df._session._ast_batch._bind_stmt_cache
-            curr.append(DataFrameTraceNode(batch_id, stmt_cache))
+            curr.append(DataFrameLineageNode(batch_id, stmt_cache))
             if batch_id not in visited_batch_id:
                 visited_batch_id.add(batch_id)
 
-    trace = []
+    lineage = []
 
     while curr:
-        next = []
+        next: List[DataFrameLineageNode] = []
         for node in curr:
-            for child_id in node.children:
-                if child_id in visited_format_id:
-                    continue
-                visited_format_id.add(child_id)
-                next.append(DataFrameTraceNode(child_id, node.stmt_cache))
-
             # tracing updates
-            format_id = node.get_format_id()
-            if format_id not in visited_format_id:
-                visited_format_id.add(format_id)
-                trace.append(node.get_format_src())
+            source_id = node.get_source_id()
+            if source_id not in visited_source_id:
+                visited_source_id.add(source_id)
+                lineage.append(node.get_source_snippet())
+
+            # explore next layer
+            for child_id in node.children:
+                if child_id in visited_batch_id:
+                    continue
+                visited_batch_id.add(child_id)
+                next.append(DataFrameLineageNode(child_id, node.stmt_cache))
 
         curr = next
 
-    return trace
+    return lineage
 
 
 def dataframe_exception_handler(func):
@@ -402,7 +417,7 @@ def dataframe_exception_handler(func):
             traceback_lines = traceback.format_exception(error_type, error_value, tb)
             formatted_traceback = "".join(traceback_lines)
 
-            # compute the trace
+            # get the dataframe lineage
             dataframes_involved = []
             for arg in args:
                 if isinstance(arg, DataFrame):
@@ -428,7 +443,7 @@ def dataframe_exception_handler(func):
                 if lineage_trace_len > show_lineage_len:
                     traceback_with_debug_info.append(
                         f"... and {lineage_trace_len - show_lineage_len} more.\nYou can increase "
-                        "the trace length by setting SNOWPARK_PYTHON_DATAFRAME_LINEAGE_LENGTH_ON_ERROR "
+                        "the lineage length by setting SNOWPARK_PYTHON_DATAFRAME_LINEAGE_LENGTH_ON_ERROR "
                         "environment variable."
                     )
 
