@@ -158,7 +158,11 @@ def test_udtf_ingestion_oracledb(session):
     # check that udtf is used
     flag = False
     for q in his.queries:
-        if "table(" in q.sql_text:
+        if (
+            """CREATE
+TEMPORARY  FUNCTION  data_source_udtf"""
+            in q.sql_text
+        ):
             flag = True
     assert flag
 
