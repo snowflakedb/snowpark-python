@@ -4,7 +4,7 @@
 from typing import List
 
 from snowflake.snowpark._internal.data_source.dbms_dialects import BaseDialect
-from snowflake.snowpark.types import StructType
+from snowflake.snowpark.types import StructType, TimeType
 
 
 class MysqlDialect(BaseDialect):
@@ -14,7 +14,21 @@ class MysqlDialect(BaseDialect):
         schema: StructType,
         raw_schema: List[tuple],
     ) -> str:
-        if table_or_query.lower().startswith("select"):
-            return f"""select A.* from ({table_or_query}) A"""
+        is_query = table_or_query.lower().startswith("select")
+        cols = []
+        for field, raw_field in zip(schema.fields, raw_schema):
+            if isinstance(field.datatype, TimeType):
+                if is_query:
+                    cols.append(f"""CAST(A.{raw_field[0]} AS CHAR) AS {raw_field[0]}""")
+                else:
+                    cols.append(f"""CAST({raw_field[0]} AS CHAR) AS {raw_field[0]}""")
+            else:
+                if is_query:
+                    cols.append(f"""A.{raw_field[0]} AS {raw_field[0]}""")
+                else:
+                    cols.append(raw_field[0])
+
+        if is_query:
+            return f"""SELECT {" , ".join(cols)} FROM ({table_or_query}) A"""
         else:
-            return f"""select * from {table_or_query}"""
+            return f"""SELECT {" , ".join(cols)} FROM {table_or_query}"""
