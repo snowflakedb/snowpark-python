@@ -107,6 +107,7 @@ class PymysqlDriver(BaseDriver):
             if snow_type is None:
                 raise NotImplementedError(f"mysql type not supported: {type_code}")
             if type_code in ((0, Decimal), (246, Decimal)):
+                precision -= 2
                 if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"

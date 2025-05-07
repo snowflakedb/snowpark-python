@@ -3,7 +3,9 @@
 #
 
 import pytest
-from tests.utils import RUNNING_ON_JENKINS
+
+from tests.resources.test_data_source_dir.test_mysql_data import mysql_real_data
+from tests.utils import RUNNING_ON_JENKINS, Utils
 from tests.parameters import MYSQL_CONNECTION_PARAMETERS
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
@@ -40,4 +42,4 @@ def create_connection_mysql():
 
 def test_mysql_end_to_end(session):
     df = session.read.dbapi(create_connection_mysql, table=TEST_TABLE_NAME)
-    df.show()
+    Utils.check_answer(df, mysql_real_data)
