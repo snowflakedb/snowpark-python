@@ -25,6 +25,7 @@
 #### New Features
 
 - Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for `DataFrame.to_html`.
 
 #### Improvements
 
