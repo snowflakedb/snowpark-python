@@ -866,11 +866,12 @@ class DataFrameReader:
 
               + ``mode``: Specifies the mode for dealing with corrupt XML records. The default value is ``PERMISSIVE``. The supported values are:
 
-                  - ``PERMISSIVE``: When it encounters a corrupt record, it sets all fields to null and includes a 'columnNameOfCorruptRecord' column.
+                  - ``PERMISSIVE``: When it encounters a corrupt record, it sets all fields to null and includes a `columnNameOfCorruptRecord` column.
 
                   - ``DROPMALFORMED``: Ignores the whole record that cannot be parsed correctly.
 
                   - ``FAILFAST``: When it encounters a corrupt record, it raises an exception immediately.
+
               + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
                 The default value is '_corrupt_record'.
         """
