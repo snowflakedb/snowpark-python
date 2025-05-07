@@ -2397,14 +2397,20 @@ class DataFrame:
                 resource_usage=resource_usage_collector.get_resource_usage(),
             )
         else:
-            df = self.group_by(
-                [
-                    self.col(quote_name(f.name), _emit_ast=False)
-                    for f in self.schema.fields
-                ],
-                _emit_ast=False,
-            ).agg(_emit_ast=False)
-            adjust_api_subcalls(df, "DataFrame.distinct[group_by]", len_subcalls=2)
+            with ResourceUsageCollector() as resource_usage_collector:
+                df = self.group_by(
+                    [
+                        self.col(quote_name(f.name), _emit_ast=False)
+                        for f in self.schema.fields
+                    ],
+                    _emit_ast=False,
+                ).agg(_emit_ast=False)
+            adjust_api_subcalls(
+                df,
+                "DataFrame.distinct[group_by]",
+                len_subcalls=2,
+                resource_usage=resource_usage_collector.get_resource_usage(),
+            )
 
         if _emit_ast:
             df._ast_id = stmt.uid

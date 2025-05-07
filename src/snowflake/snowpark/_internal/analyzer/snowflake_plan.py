@@ -1406,11 +1406,7 @@ class SnowflakePlanBuilder:
         ).select(worker_column_name, xml_row_number_column_name, "key", "value")
 
         # Apply dynamic pivot to get the flat table with dynamic schema
-        df = (
-            df.pivot("key")
-            .max("value")
-            .sort(worker_column_name, xml_row_number_column_name)
-        )
+        df = df.pivot("key").max("value")
 
         # Exclude the worker and row number columns
         return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"

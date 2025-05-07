@@ -105,7 +105,7 @@ class DataSourcePartitioner:
     @cached_property
     def partitions(self) -> List[str]:
         select_query = self.dialect.generate_select_query(
-            self.table_or_query, self.schema
+            self.table_or_query, self.schema, self.driver.raw_schema
         )
         logger.debug(f"Generated select query: {select_query}")
         if self.column is None:

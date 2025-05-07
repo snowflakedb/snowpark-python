@@ -3549,6 +3549,7 @@ class Session:
                         TimestampType,
                         VariantType,
                         VectorType,
+                        FileType,
                     ),
                 )
                 else field.datatype
@@ -3675,7 +3676,6 @@ class Session:
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
                 )
-            # TODO SNOW-1952256: Test file type in create_dataframe once it accepts full path
             elif isinstance(field.datatype, FileType):
                 project_columns.append(to_file(column(name)).as_(name))
             else:
@@ -4072,6 +4072,10 @@ class Session:
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
+        if sproc_name.strip().upper().startswith("SYSTEM$"):
+            # Built-in stored procedures do not have schema and cannot be described
+            # Currently all SYSTEM$ stored procedures are scalar so return false.
+            return False
         func_signature = ""
         try:
             arg_types = []

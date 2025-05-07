@@ -1075,7 +1075,7 @@ class DataFrameReader:
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
             warning(
                 "rowTag",
-                "rowTag for reading XML file is experimental. Do not use it in production",
+                "rowTag for reading XML file is in private preview since 1.31.0. Do not use it in production.",
             )
             output_schema = StructType(
                 [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
@@ -1294,7 +1294,7 @@ class DataFrameReader:
                 f"{snowflake_table_type} "
                 "TABLE "
                 f"identifier(?) "
-                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
                 f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
             params = (snowflake_table_name,)

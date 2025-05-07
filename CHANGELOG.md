@@ -1,20 +1,52 @@
 # Release History
 
-## 1.31.0 (YYYY-MM-DD)
+## 1.32.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
+- Added support for `Session.create_dataframe()` with the stage URL and FILE data type.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
+- Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `snowflake.snowpark.functions.rank` that would cause sort direction to not be respected.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
+- Added support for `DataFrame.to_html`.
+
+#### Improvements
+
+- Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+
+## 1.31.0 (2025-04-24)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
-- Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.regsiter()`
+- Added support for `restricted caller` permission of `execute_as` argument in `StoredProcedure.register()`.
 - Added support for non-select statement in `DataFrame.to_pandas()`.
-- Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`
-- Added `fetch_merge_count` parameter to `DataFrameReader.dbapi` (PrPr) for optimizing performance by merging multiple fetched data into a single Parquet file.
+- Added support for `artifact_repository` parameter to `Session.add_packages`, `Session.add_requirements`, `Session.get_packages`, `Session.remove_package`, and `Session.clear_packages`.
 - Added support for reading an XML file using a row tag by `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` (experimental).
   - Each XML record is extracted as a separate row.
   - Each field within that record becomes a separate column of type VARIANT, which can be further queried using dot notation, e.g., `col(a.b.c)`.
-- Added support for Databricks in `DataFrameReader.dbapi` (PrPr).
-- Added support for ingestion with snowflake UDTF in `DataFrameReader.dbapi` (PrPr).
+- Added updates to `DataFrameReader.dbapi` (PrPr):
+  - Added `fetch_merge_count` parameter for optimizing performance by merging multiple fetched data into a single Parquet file.
+  - Added support for Databricks.
+  - Added support for ingestion with Snowflake UDTF.
 - Added support for the following AI-powered functions in `functions.py` (Private Preview):
   - `prompt`
   - `ai_filter` (added support for `prompt()` function and image files, and changed the second argument name from `expr` to `file`)
@@ -31,7 +63,6 @@
 #### Bug Fixes
 
 - Fixed a bug in `DataFrame.group_by().pivot().agg` when the pivot column and aggregate column are the same.
-- Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where a `TypeError` was raised when `create_connection` returned a connection object of an unsupported driver type.
 - Fixed a bug where `df.limit(0)` call would not properly apply.
 - Fixed a bug in `DataFrameWriter.save_as_table` that caused reserved names to throw errors when using append mode.
@@ -45,11 +76,12 @@
 
 #### New Features
 
-- Added support for Interval experssion to `Window.range_between`.
-- Added support for `array_construct` function
+- Added support for Interval expression to `Window.range_between`.
+- Added support for `array_construct` function.
 
 #### Bug Fixes
 
+- Fixed a bug in local testing where transient `__pycache__` directory was unintentionally copied during stored procedure execution via import.
 - Fixed a bug in local testing that created incorrect result for `Column.like` calls.
 - Fixed a bug in local testing that caused `Column.getItem` and `snowpark.snowflake.functions.get` to raise `IndexError` rather than return null.
 - Fixed a bug in local testing where `df.limit(0)` call would not properly apply.

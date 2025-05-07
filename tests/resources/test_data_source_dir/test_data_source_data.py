@@ -32,6 +32,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     NullType,
 )
+from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
 
 # we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
@@ -82,6 +83,19 @@ class FakeConnectionWithException(FakeConnection):
             raise RuntimeError("Fake exception")
         else:
             return self
+
+
+def create_connection_oracledb():
+    import oracledb
+
+    host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+    port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+    service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+    username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+    password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+    dsn = f"{host}:{port}/{service_name}"
+    connection = oracledb.connect(user=username, password=password, dsn=dsn)
+    return connection
 
 
 oracledb_real_data = [
@@ -914,9 +928,36 @@ sql_server_all_type_data = [
     ),
 ]
 
+sql_server_unicode_data = [(1, "山田太郎", "日本", "これはUnicodeテストです")]
+sql_server_unicode_data_schema = (
+    ("编号", int, None, 10, 10, 0, False),
+    ("姓名", str, None, 100, 100, 0, True),
+    ("国家", str, None, 100, 100, 0, True),
+    ("备注", str, None, 255, 255, 0, True),
+)
+
+sql_server_double_quoted_data = [(1, "John Doe", "USA", "Fake note")]
+sql_server_double_quoted_data_schema = (
+    ('"Id"', int, None, 10, 10, 0, False),
+    ('"FullName"', str, None, 100, 100, 0, True),
+    ('"Country"', str, None, 100, 100, 0, True),
+    ('"Notes"', str, None, 255, 255, 0, True),
+)
 sql_server_all_type_small_data = sql_server_all_type_data[5:]
 oracledb_all_type_small_data = oracledb_all_type_data[5:]
 oracledb_all_type_small_data_result = oracledb_all_type_data_result[5:]
+
+
+def sql_server_create_connection_unicode_data():
+    return FakeConnection(
+        sql_server_unicode_data, sql_server_unicode_data_schema, "pyodbc"
+    )
+
+
+def sql_server_create_connection_double_quoted_data():
+    return FakeConnection(
+        sql_server_double_quoted_data, sql_server_double_quoted_data_schema, "pyodbc"
+    )
 
 
 def sql_server_create_connection():
