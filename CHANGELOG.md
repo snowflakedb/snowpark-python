@@ -19,6 +19,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `snowflake.snowpark.functions.rank` that would cause sort direction to not be respected.
+- Fixed a bug in `snowflake.snowpark.functions.to_timestamp_*` that would cause incorrect results on filtered data.
 
 ### Snowpark pandas API Updates
 
