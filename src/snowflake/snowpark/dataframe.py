@@ -390,8 +390,10 @@ def dataframe_exception_handler():
                 return func(*args, **kwargs)
             except SnowparkSQLException as e:
                 # capture original stack trace
-                error_type, _, tb = sys.exc_info()
-                traceback_lines = traceback.format_exception(e.__class__, e, tb)
+                error_type, error_value, tb = sys.exc_info()
+                traceback_lines = traceback.format_exception(
+                    error_type, error_value, tb
+                )
                 formatted_traceback = "".join(traceback_lines)
 
                 # compute the trace
@@ -402,24 +404,30 @@ def dataframe_exception_handler():
 
                 trace = _get_df_trace(dataframes_involved)
                 trace_len = len(trace)
-
-                show_trace_len = int(
-                    os.environ.get("SNOWPARK_PYTHON_DATAFRAME_TRACE_LENGTH_ON_ERROR", 5)
-                )
-                trace_message = [
-                    formatted_traceback,
-                    "\n--- Additional Debug Information ---\n",
-                    f"\nTrace of the dataframe operations that could have caused the error (total {trace_len}):\n",
-                ]
-                trace_message.extend(itertools.islice(trace, show_trace_len))
-
-                if trace_len > show_trace_len:
-                    trace_message.append(
-                        f"... and {trace_len - show_trace_len} more.\nYou can increase the trace length by setting SNOWPARK_PYTHON_DATAFRAME_TRACE_LENGTH_ON_ERROR environment variable."
+                if len(trace) > 0:
+                    show_trace_len = int(
+                        os.environ.get(
+                            "SNOWPARK_PYTHON_DATAFRAME_TRACE_LENGTH_ON_ERROR", 5
+                        )
                     )
+                    trace_message = [
+                        formatted_traceback,
+                        "\n--- Additional Debug Information ---\n",
+                        f"\nTrace of the dataframe operations that could have caused the error (total {trace_len}):\n",
+                    ]
+                    trace_message.extend(itertools.islice(trace, show_trace_len))
 
-                trace_message = "\n".join(trace_message)
-                raise error_type(trace_message) from None
+                    if trace_len > show_trace_len:
+                        trace_message.append(
+                            f"... and {trace_len - show_trace_len} more.\nYou can increase "
+                            "the trace length by setting SNOWPARK_PYTHON_DATAFRAME_TRACE_LENGTH_ON_ERROR "
+                            "environment variable."
+                        )
+
+                    trace_message = "\n".join(trace_message)
+                    raise error_type(trace_message) from None
+                else:
+                    raise e
 
         return wrapper
 
