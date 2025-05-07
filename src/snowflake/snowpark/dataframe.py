@@ -451,6 +451,7 @@ def dataframe_exception_handler(func):
                 _HANDLED_DATAFRAME_EXCEPTION = True
                 raise error_type(final_traceback) from None
             else:
+                # raise original exception if we can't infer the lineage
                 raise e
 
     return wrapper
