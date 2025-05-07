@@ -3645,7 +3645,7 @@ class Series(BasePandasDataset):
         --------
         >>> ser = pd.Series([1, 2, 3]).to_string()
         >>> ser
-        '0    1\n1    2\n2    3'
+        '0    1\\n1    2\\n2    3'
         """
 
     def to_timestamp():
