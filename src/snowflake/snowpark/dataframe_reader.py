@@ -864,13 +864,15 @@ class DataFrameReader:
             - When ``rowTag`` is specified, the following options are supported for reading XML files
               via :meth:`option()` or :meth:`options()`:
 
-              + ``mode``: Specifies the mode of  for dealing with corrupt XML records. The default value is ``PERMISSIVE``. The supported values are:
+              + ``mode``: Specifies the mode for dealing with corrupt XML records. The default value is ``PERMISSIVE``. The supported values are:
 
                   - ``PERMISSIVE``: When it encounters a corrupt record, it sets all fields to null and includes a 'columnNameOfCorruptRecord' column.
 
                   - ``DROPMALFORMED``: Ignores the whole record that cannot be parsed correctly.
 
                   - ``FAILFAST``: When it encounters a corrupt record, it raises an exception immediately.
+              + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
+                The default value is '_corrupt_record'.
         """
         df = self._read_semi_structured_file(path, "XML")
 

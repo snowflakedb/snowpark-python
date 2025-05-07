@@ -1374,6 +1374,9 @@ class SnowflakePlanBuilder:
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]
         mode = options.get("MODE", "PERMISSIVE").upper()
+        column_name_of_corrupt_record = options.get(
+            "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
+        )
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1402,6 +1405,7 @@ class SnowflakePlanBuilder:
                 lit(row_tag),
                 col(worker_column_name),
                 lit(mode),
+                lit(column_name_of_corrupt_record),
             ),
         )
 

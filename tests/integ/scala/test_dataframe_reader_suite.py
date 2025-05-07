@@ -2069,10 +2069,10 @@ def test_read_malformed_xml(session, file):
     )
     result = df.collect()
     assert len(result) == 2
-    assert len(result[0]) == 4  # has another column 'columnNameOfCorruptRecord'
+    assert len(result[0]) == 4  # has another column '_corrupt_record'
     assert (
-        result[0]["'columnNameOfCorruptRecord'"] is not None
-        or result[1]["'columnNameOfCorruptRecord'"] is not None
+        result[0]["'_corrupt_record'"] is not None
+        or result[1]["'_corrupt_record'"] is not None
     )
 
     # dropmalformed mode

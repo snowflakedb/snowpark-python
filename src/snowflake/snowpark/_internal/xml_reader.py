@@ -13,7 +13,6 @@ from snowflake.snowpark.files import SnowflakeFile
 
 DEFAULT_CHUNK_SIZE: int = 1024
 VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
-COLUMN_NAME_OF_CORRUPT_RECORD = "columnNameOfCorruptRecord"
 
 
 def replace_entity(match: re.Match) -> str:
@@ -300,6 +299,7 @@ def process_xml_range(
     approx_start: int,
     approx_end: int,
     mode: str,
+    column_name_of_corrupt_record: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -320,6 +320,7 @@ def process_xml_range(
         approx_end (int): Approximate end byte position.
         mode (str): The mode for dealing with corrupt records.
             "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
+        column_name_of_corrupt_record (str): The name of the column for corrupt records.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -363,7 +364,7 @@ def process_xml_range(
                     record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
                     record_str = record_bytes.decode("utf-8", errors="replace")
                     record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-                    yield {COLUMN_NAME_OF_CORRUPT_RECORD: record_str}
+                    yield {column_name_of_corrupt_record: record_str}
                 elif mode == "FAILFAST":
                     raise EOFError(
                         f"Malformed XML record at bytes {record_start}-EOF: {e}"
@@ -384,7 +385,7 @@ def process_xml_range(
                         record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
                         record_str = record_bytes.decode("utf-8", errors="replace")
                         record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-                        yield {COLUMN_NAME_OF_CORRUPT_RECORD: record_str}
+                        yield {column_name_of_corrupt_record: record_str}
                     elif mode == "FAILFAST":
                         raise EOFError(
                             f"Malformed XML record at bytes {record_start}-EOF: {e}"
@@ -402,7 +403,7 @@ def process_xml_range(
                 yield element_to_dict(strip_namespaces(element))
             except ET.ParseError as e:
                 if mode == "PERMISSIVE":
-                    yield {COLUMN_NAME_OF_CORRUPT_RECORD: record_str}
+                    yield {column_name_of_corrupt_record: record_str}
                 elif mode == "FAILFAST":
                     raise RuntimeError(
                         f"Malformed XML record at bytes {record_start}-{record_end}: {e}"
@@ -416,7 +417,15 @@ def process_xml_range(
 
 
 class XMLReader:
-    def process(self, filename: str, num_workers: int, row_tag: str, i: int, mode: str):
+    def process(
+        self,
+        filename: str,
+        num_workers: int,
+        row_tag: str,
+        i: int,
+        mode: str,
+        column_name_of_corrupt_record: str,
+    ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
         file size division and then moving each boundary to the end of a record,
@@ -429,12 +438,18 @@ class XMLReader:
             i (int): The worker id.
             mode (str): The mode for dealing with corrupt records.
                 "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
+            column_name_of_corrupt_record (str): The name of the column for corrupt records.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
         approx_start = approx_chunk_size * i
         approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
         for element in process_xml_range(
-            filename, row_tag, approx_start, approx_end, mode
+            filename,
+            row_tag,
+            approx_start,
+            approx_end,
+            mode,
+            column_name_of_corrupt_record,
         ):
             yield (element,)
