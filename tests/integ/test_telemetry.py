@@ -404,50 +404,65 @@ def test_drop_duplicates_api_calls(session):
     )
 
 
-def test_drop_api_calls(session):
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_drop_api_calls(session, use_simplified_query_generation):
     df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set(
+            "use_simplified_query_generation", use_simplified_query_generation
+        )
+        if use_simplified_query_generation:
+            drop_api_call = {"name": "DataFrame.drop[exclude]"}
+        else:
+            drop_api_call = {
+                "name": "DataFrame.drop[select]",
+                "subcalls": [{"name": "DataFrame.select"}],
+            }
 
-    drop_id = df.drop("id")
-    compare_api_calls(
-        drop_id._plan.api_calls,
-        [
-            {"name": "Session.range"},
-            {"name": "DataFrame.select"},
-            {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
-        ],
-    )
+        drop_id = df.drop("id")
+        compare_api_calls(
+            drop_id._plan.api_calls,
+            [
+                {"name": "Session.range"},
+                {"name": "DataFrame.select"},
+                drop_api_call,
+            ],
+        )
 
-    # Raise exception and make sure the new API call isn't added to the list
-    with pytest.raises(SnowparkColumnException, match=" Cannot drop all columns"):
-        drop_id.drop("id_prime")
-    compare_api_calls(
-        drop_id._plan.api_calls,
-        [
-            {"name": "Session.range"},
-            {"name": "DataFrame.select"},
-            {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
-        ],
-    )
+        # Raise exception and make sure the new API call isn't added to the list
+        with pytest.raises(SnowparkColumnException, match=" Cannot drop all columns"):
+            drop_id.drop("id_prime")
+        compare_api_calls(
+            drop_id._plan.api_calls,
+            [
+                {"name": "Session.range"},
+                {"name": "DataFrame.select"},
+                drop_api_call,
+            ],
+        )
 
-    df2 = (
-        session.range(3, 8)
-        .select(["id", col("id").alias("id_prime")])
-        .select(["id", col("id_prime").alias("id_prime_2")])
-        .select(["id", col("id_prime_2").alias("id_prime_3")])
-        .select(["id", col("id_prime_3").alias("id_prime_4")])
-        .drop("id_prime_4")
-    )
-    compare_api_calls(
-        df2._plan.api_calls,
-        [
-            {"name": "Session.range"},
-            {"name": "DataFrame.select"},
-            {"name": "DataFrame.select"},
-            {"name": "DataFrame.select"},
-            {"name": "DataFrame.select"},
-            {"name": "DataFrame.drop", "subcalls": [{"name": "DataFrame.select"}]},
-        ],
-    )
+        df2 = (
+            session.range(3, 8)
+            .select(["id", col("id").alias("id_prime")])
+            .select(["id", col("id_prime").alias("id_prime_2")])
+            .select(["id", col("id_prime_2").alias("id_prime_3")])
+            .select(["id", col("id_prime_3").alias("id_prime_4")])
+            .drop("id_prime_4")
+        )
+        compare_api_calls(
+            df2._plan.api_calls,
+            [
+                {"name": "Session.range"},
+                {"name": "DataFrame.select"},
+                {"name": "DataFrame.select"},
+                {"name": "DataFrame.select"},
+                {"name": "DataFrame.select"},
+                drop_api_call,
+            ],
+        )
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
 
 
 def test_to_df_api_calls(session):
@@ -707,10 +722,7 @@ def test_random_split(session, use_simplified_query_generation):
                             ],
                         },
                         {"name": "DataFrame.filter"},
-                        {
-                            "name": "DataFrame.drop",
-                            "subcalls": [{"name": "DataFrame.select"}],
-                        },
+                        {"name": "DataFrame.drop[exclude]"},
                     ],
                 },
             ]
@@ -723,7 +735,7 @@ def test_random_split(session, use_simplified_query_generation):
                         {"name": "Table.__init__"},
                         {"name": "DataFrame.filter"},
                         {
-                            "name": "DataFrame.drop",
+                            "name": "DataFrame.drop[select]",
                             "subcalls": [{"name": "DataFrame.select"}],
                         },
                     ],

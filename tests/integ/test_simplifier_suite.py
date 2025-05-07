@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import itertools
 import sys
 from typing import Tuple
 
@@ -77,6 +78,17 @@ def simplifier_table(session) -> None:
     table_name = Utils.random_table_name()
     Utils.create_table(session, table_name, "a int, b int")
     session._conn.run_query(f"insert into {table_name}(a, b) values (1, 2)")
+    yield table_name
+    Utils.drop_table(session, table_name)
+
+
+@pytest.fixture(scope="module")
+def large_simplifier_table(session) -> None:
+    table_name = Utils.random_table_name()
+    df = session.create_dataframe(
+        [[1, 2, 3, 4], [5, 6, 7, 8]], schema=["a", "b", "c", "d"]
+    )
+    df.write.save_as_table(table_name, table_type="temp", mode="overwrite")
     yield table_name
     Utils.drop_table(session, table_name)
 
@@ -1251,6 +1263,174 @@ def test_rename_to_existing_column_column(session):
     df4 = df3.withColumn("b", sql_expr("1"))
     assert df4.columns == ["C", "A", "B"]
     Utils.check_answer(df4, [Row(3, 3, 1)])
+
+
+@pytest.mark.parametrize("df_from", ["values", "table", "sql"])
+def test_drop_using_exclude(session, large_simplifier_table, df_from):
+    if df_from == "values":
+        df = session.create_dataframe([[1, 2, 3, 4]], schema=["a", "b", "c", "d"])
+        drop_a_query = 'SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT)))'
+        drop_ab_query = 'SELECT  *  EXCLUDE ("A", "B") FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT)))'
+    elif df_from == "table":
+        df = session.table(large_simplifier_table)
+        drop_a_query = f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table}'
+        drop_ab_query = f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table}'
+    elif df_from == "sql":
+        df = session.sql(f"select * from {large_simplifier_table}")
+        drop_a_query = (
+            f'SELECT  *  EXCLUDE ("A") FROM (select * from {large_simplifier_table})'
+        )
+        drop_ab_query = f'SELECT  *  EXCLUDE ("A", "B") FROM (select * from {large_simplifier_table})'
+    else:
+        raise ValueError("Invalid df_from value")
+
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set("use_simplified_query_generation", True)
+
+        # test we generate correct select * exclude query
+        df1 = df.drop("a")
+        assert df1.queries["queries"][0] == drop_a_query, df1.queries["queries"][0]
+
+        # repeated drop should not generate new query
+        df2 = df.drop("a").drop("a")
+        assert df2.queries["queries"][0] == drop_a_query, df2.queries["queries"][0]
+
+        # dropping non-existing column should not generate new query
+        df3 = df.drop("a").drop("f").drop("g")
+        assert df3.queries["queries"][0] == drop_a_query, df3.queries["queries"][0]
+
+        # dropping multiple columns are flattened
+        df4 = df.drop("a", "b")
+        assert df4.queries["queries"][0] == drop_ab_query, df4.queries["queries"][0]
+        df5 = df.drop("a").drop("b")
+        assert df5.queries["queries"][0] == drop_ab_query, df5.queries["queries"][0]
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
+
+
+def test_flattening_for_exclude(session, large_simplifier_table):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set("use_simplified_query_generation", True)
+        df = session.table(large_simplifier_table)
+
+        # select
+        df1 = df.select("a", "b", "c").drop("a")
+        assert (
+            df1.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C" FROM {large_simplifier_table})'
+        )
+        df2 = df.drop("a").select("b", "c").drop("b")
+        assert (
+            df2.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("B") FROM ( SELECT "B", "C" FROM ( SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table}))'
+        )
+
+        # filter
+        df3 = df.filter(col("a") > 1).drop("a")
+        assert (
+            df3.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} WHERE ("A" > 1)'
+        )
+        df4 = df.drop("a").filter(col("a") > 1).drop("b")
+        assert (
+            df4.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} WHERE ("A" > 1)'
+        )
+
+        # sort
+        df5 = df.sort("a").drop("a")
+        assert (
+            df5.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
+        )
+        df6 = df.drop("b").sort("a").drop("a")
+        assert (
+            df6.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
+        )
+
+        # limit
+        df7 = df.limit(10).drop("a")
+        assert (
+            df7.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} LIMIT 10'
+        )
+        df8 = df.drop("a").limit(10).drop("b")
+        assert (
+            df8.queries["queries"][0]
+            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} LIMIT 10'
+        )
+
+        # distinct
+        df9 = df.distinct().drop("a")
+        assert (
+            df9.queries["queries"][0]
+            == f'SELECT  DISTINCT  *  EXCLUDE ("A") FROM {large_simplifier_table}'
+        )
+        df10 = df.drop("a").distinct().drop("b")
+        assert (
+            df10.queries["queries"][0]
+            == f'SELECT  DISTINCT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table}'
+        )
+
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
+
+
+@pytest.mark.parametrize("select_cols", [["d"], ["a", "b", "c"]])
+def test_chained_operation(session, large_simplifier_table, select_cols):
+    actions = [
+        lambda df: df.select(select_cols),
+        lambda df: df.filter(col("b") > 1).sort("c"),
+        lambda df: df.drop("a"),
+        lambda df: df.distinct(),
+    ]
+    original = session.conf.get("use_simplified_query_generation")
+
+    def get_df_or_error(action_permutation):
+        try:
+            df = session.table(large_simplifier_table)
+            for action in action_permutation:
+                df = action(df)
+            assert len(df.queries["queries"]) == 1
+            df.collect()  # trigger query generation and catch errors
+            return df, None
+        except Exception as e:
+            return df, e
+
+    try:
+        for action_permutation in itertools.permutations(actions):
+            session.conf.set("use_simplified_query_generation", True)
+            df_enabled, error_enabled = get_df_or_error(action_permutation)
+
+            session.conf.set("use_simplified_query_generation", False)
+            df_disabled, error_disabled = get_df_or_error(action_permutation)
+
+            if error_enabled or error_disabled:
+                if error_disabled is None:
+                    raise AssertionError(
+                        "Raised error for simplified query generation that is not raised for non-simplified query generation",
+                        error_enabled,
+                        df_enabled._plan.api_calls,
+                    )
+                if error_enabled is None:
+                    raise AssertionError(
+                        "Raised error for non-simplified query generation that is not raised for simplified query generation",
+                        error_disabled,
+                        df_disabled._plan.api_calls,
+                    )
+                assert type(error_enabled) == type(error_disabled)
+
+                if hasattr(error_enabled, "error_code"):
+                    assert error_enabled.error_code == error_disabled.error_code
+            else:
+                Utils.check_answer(df_enabled, df_disabled)
+                Utils.check_answer(df_enabled.limit(2), df_disabled.limit(2))
+
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
 
 
 def test_chained_sort(session):
