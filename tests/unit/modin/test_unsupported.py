@@ -94,7 +94,6 @@ def test_unsupported_general(general_method, kwargs):
         ["to_feather", {"path": ""}],
         ["to_gbq", {"destination_table": ""}],
         ["to_hdf", {"path_or_buf": "", "key": ""}],
-        ["to_html", {}],
         ["to_json", {}],
         ["to_latex", {}],
         ["to_markdown", {}],
