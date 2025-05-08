@@ -282,7 +282,6 @@ def to_orc(self, path=None, *, engine="pyarrow", index=None, engine_kwargs=None)
     pass  # pragma: no cover
 
 
-@register_dataframe_not_implemented()
 def to_html(
     self,
     buf=None,
@@ -309,7 +308,10 @@ def to_html(
     render_links=False,
     encoding=None,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    WarningMessage.single_warning(
+        "DataFrame.to_html materializes data to the local machine."
+    )
+    return self._to_pandas().to_html
 
 
 @register_dataframe_not_implemented()
