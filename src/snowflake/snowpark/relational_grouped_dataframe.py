@@ -8,7 +8,6 @@ import inspect
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
-from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -37,6 +36,7 @@ from snowflake.snowpark._internal.ast.utils import (
     debug_check_missing_ast,
     with_src_position,
 )
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
@@ -410,7 +410,7 @@ class RelationalGroupedDataFrame:
             - :class:`~snowflake.snowpark.udtf.UDTFRegistration`
             - :func:`~snowflake.snowpark.functions.pandas_udtf`
         """
-
+        pandas = get_pandas()
         partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
 
         # this is the case where this is being called from spark
@@ -443,6 +443,7 @@ class RelationalGroupedDataFrame:
                     return func(keys, pdf)
                 return func(pdf)
 
+        pandas = get_pandas()
         # for vectorized UDTF
         _ApplyInPandas.end_partition._sf_vectorized_input = pandas.DataFrame
 
