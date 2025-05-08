@@ -36,7 +36,11 @@ import snowflake.snowpark.context as context
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.snowpark._internal.lazy_import_utils import (
+    get_installed_pandas,
+    get_snowpark_types,
+    get_pandas,
+)
 from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
@@ -86,13 +90,19 @@ try:
 except ImportError:
     from collections.abc import Iterable  # noqa: F401
 
-if installed_pandas:
-    from snowflake.snowpark.types import (
-        PandasDataFrame,
-        PandasDataFrameType,
-        PandasSeries,
-        PandasSeriesType,
-    )
+
+def get_pandas_types():
+    if get_installed_pandas():
+        snowflake_snowpark_types = get_snowpark_types()
+
+        return (
+            snowflake_snowpark_types.PandasDataFrame,
+            snowflake_snowpark_types.PandasDataFrameType,
+            snowflake_snowpark_types.PandasSeries,
+            snowflake_snowpark_types.PandasSeriesType,
+        )
+    return None
+
 
 if TYPE_CHECKING:
     import snowflake.snowpark.column
@@ -354,16 +364,6 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     datetime.time: TimeType,
     bytes: BinaryType,
 }
-if installed_pandas:
-    import numpy
-
-    PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
-        {
-            type(pandas.NaT): TimestampType,
-            numpy.float64: DecimalType,
-        }
-    )
-
 
 # TODO: these tuples of types can be used with isinstance, but not as a type-hints
 VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
@@ -616,6 +616,7 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
 def python_type_str_to_object(
     tp_str: str, is_return_type_for_sproc: bool = False
 ) -> Type:
+    pandas = get_pandas()
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -632,9 +633,9 @@ def python_type_str_to_object(
     # pandas.DataFrame, so we return snowpark DataFrame.
     elif tp_str == "DataFrame" and is_return_type_for_sproc:
         return snowflake.snowpark.DataFrame
-    elif tp_str in ["Series", "pd.Series"] and installed_pandas:
+    elif tp_str in ["Series", "pd.Series"] and get_installed_pandas():
         return pandas.Series
-    elif tp_str in ["DataFrame", "pd.DataFrame"] and installed_pandas:
+    elif tp_str in ["DataFrame", "pd.DataFrame"] and get_installed_pandas():
         return pandas.DataFrame
     else:
         return eval(tp_str)
@@ -699,33 +700,44 @@ def python_type_to_snow_type(
             return StructType(), False
         return MapType(key_type, value_type), False
 
-    if installed_pandas:
-        pandas_series_tps = [PandasSeries, pandas.Series]
-        if tp in pandas_series_tps or (tp_origin and tp_origin in pandas_series_tps):
-            return (
-                PandasSeriesType(
-                    python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
-                    if tp_args
-                    else None
-                ),
-                False,
-            )
+    if get_installed_pandas():
+        pandas_types = get_pandas_types()
+        pandas = get_pandas()
+        if pandas_types:
+            (
+                PandasDataFrame,
+                PandasDataFrameType,
+                PandasSeries,
+                PandasSeriesType,
+            ) = pandas_types
+            pandas_series_tps = [PandasSeries, pandas.Series]
+            if tp in pandas_series_tps or (
+                tp_origin and tp_origin in pandas_series_tps
+            ):
+                return (
+                    PandasSeriesType(
+                        python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
+                        if tp_args
+                        else None
+                    ),
+                    False,
+                )
 
-        pandas_dataframe_tps = [PandasDataFrame, pandas.DataFrame]
-        if tp in pandas_dataframe_tps or (
-            tp_origin and tp_origin in pandas_dataframe_tps
-        ):
-            return (
-                PandasDataFrameType(
-                    [
-                        python_type_to_snow_type(tp_arg, is_return_type_of_sproc)[0]
-                        for tp_arg in tp_args
-                    ]
-                    if tp_args
-                    else ()
-                ),
-                False,
-            )
+            pandas_dataframe_tps = [PandasDataFrame, pandas.DataFrame]
+            if tp in pandas_dataframe_tps or (
+                tp_origin and tp_origin in pandas_dataframe_tps
+            ):
+                return (
+                    PandasDataFrameType(
+                        [
+                            python_type_to_snow_type(tp_arg, is_return_type_of_sproc)[0]
+                            for tp_arg in tp_args
+                        ]
+                        if tp_args
+                        else ()
+                    ),
+                    False,
+                )
 
     if tp == DataFrame:
         return StructType(), False

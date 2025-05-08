@@ -222,6 +222,7 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+
 # TODO: merge fixed pandas importer changes to connector.
 def _pandas_importer():  # noqa: E302
     """Helper function to lazily import pandas and return MissingPandas if not installed."""
@@ -237,8 +238,55 @@ def _pandas_importer():  # noqa: E302
     return pandas
 
 
-pandas = _pandas_importer()
-installed_pandas = not isinstance(pandas, MissingOptionalDependency)
+class _LazyPandasProxy:
+    """A proxy object that lazily imports pandas only when needed."""
+
+    def __init__(self) -> None:  # noqa: FIR100
+        self._pandas = None
+        self._is_checked = False
+        self._is_installed = None
+
+    def _ensure_checked(self):
+        """Ensure pandas availability has been checked."""
+        if not self._is_checked:
+            self._pandas = _pandas_importer()
+            self._is_installed = not isinstance(self._pandas, MissingOptionalDependency)
+            self._is_checked = True
+
+    def __getattr__(self, name):
+        """Delegate attribute access to the pandas module."""
+        self._ensure_checked()
+        return getattr(self._pandas, name)
+
+    def __bool__(self):
+        """For compatibility with boolean checks."""
+        self._ensure_checked()
+        return self._is_installed
+
+    def __repr__(self):
+        self._ensure_checked()
+        return repr(self._pandas)
+
+
+class _LazyInstalledPandas:
+    """A proxy for the installed_pandas boolean that checks lazily."""
+
+    def __init__(self, pandas_proxy) -> None:  # noqa: FIR100
+        self._pandas_proxy = pandas_proxy
+
+    def __bool__(self):
+        self._pandas_proxy._ensure_checked()
+        return self._pandas_proxy._is_installed
+
+    def __eq__(self, other):
+        return bool(self) == other
+
+    def __repr__(self):
+        return str(bool(self))
+
+
+pandas = _LazyPandasProxy()
+installed_pandas = _LazyInstalledPandas(pandas)
 
 
 class TempObjectType(Enum):
@@ -1344,11 +1392,11 @@ def parse_table_name(table_name: str) -> List[str]:
     https://docs.snowflake.com/en/sql-reference/identifiers-syntax
 
     - Unquoted object identifiers:
-        - Start with a letter (A-Z, a-z) or an underscore (“_”).
-        - Contain only letters, underscores, decimal digits (0-9), and dollar signs (“$”).
+        - Start with a letter (A-Z, a-z) or an underscore (").
+        - Contain only letters, underscores, decimal digits (0-9), and dollar signs ($).
         - Are stored and resolved as uppercase characters (e.g. id is stored and resolved as ID).
 
-    - If you put double quotes around an identifier (e.g. “My identifier with blanks and punctuation.”),
+    - If you put double quotes around an identifier (e.g. "My identifier with blanks and punctuation."),
         the following rules apply:
         - The case of the identifier is preserved when storing and resolving the identifier (e.g. "id" is
             stored and resolved as id).

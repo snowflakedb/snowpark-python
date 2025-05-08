@@ -7,9 +7,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
-from snowflake.connector.errors import DatabaseError
-from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
@@ -22,6 +19,7 @@ from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
+    from snowflake.connector.options import pandas
     import snowflake.snowpark.dataframe
     import snowflake.snowpark.session
 
@@ -243,6 +241,8 @@ class AsyncJob:
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
+        from snowflake.connector.errors import DatabaseError
+
         if (
             is_in_stored_procedure()
             and self._session._conn._get_client_side_session_parameter(
@@ -337,6 +337,12 @@ class AsyncJob:
         async_result_type = (
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
+        if async_result_type in [
+            _AsyncResultType.PANDAS,
+            _AsyncResultType.PANDAS_BATCH,
+        ]:
+            from snowflake.connector.options import pandas
+
         self._cursor.get_results_from_sfqid(self.query_id)
         if self._num_statements is not None:
             for _ in range(self._num_statements - 1):
@@ -358,6 +364,8 @@ class AsyncJob:
             # The following section is copied from python connector.
             # Later we should expose it from python connector and reuse it.
             retry_pattern_pos = 0
+            from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
+
             while True:
                 status = self._session.connection.get_query_status(self.query_id)
                 if not self._session.connection.is_still_running(status):

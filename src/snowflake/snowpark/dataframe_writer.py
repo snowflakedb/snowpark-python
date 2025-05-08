@@ -51,7 +51,6 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import sql_expr
-from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -492,6 +491,7 @@ class DataFrameWriter:
                 )
 
             session = self._dataframe._session
+            from snowflake.snowpark.mock._connection import MockServerConnection
             if (
                 table_exists is None
                 and not isinstance(session._conn, MockServerConnection)
