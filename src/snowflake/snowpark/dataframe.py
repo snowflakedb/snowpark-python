@@ -1871,7 +1871,6 @@ class DataFrame:
     selectExpr = select_expr
 
     @dataframe_exception_handler
-    @df_api_usage
     @publicapi
     def drop(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
@@ -1917,48 +1916,83 @@ class DataFrame:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
             ast.cols.variadic = is_variadic
 
-        names = []
-        for c in exprs:
-            if isinstance(c, str):
-                names.append(c)
-            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
-                from snowflake.snowpark.mock._connection import MockServerConnection
+        with ResourceUsageCollector() as resource_usage_collector:
+            names = []
+            for c in exprs:
+                if isinstance(c, str):
+                    names.append(c)
+                elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                    from snowflake.snowpark.mock._connection import MockServerConnection
 
-                if isinstance(self._session._conn, MockServerConnection):
-                    self.schema  # to execute the plan and populate expr_to_alias
+                    if isinstance(self._session._conn, MockServerConnection):
+                        self.schema  # to execute the plan and populate expr_to_alias
 
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
+                    names.append(
+                        self._plan.expr_to_alias.get(
+                            c._expression.expr_id, c._expression.name
+                        )
                     )
-                )
-            elif (
-                isinstance(c, Column)
-                and isinstance(c._expression, UnresolvedAttribute)
-                and c._expression.df_alias
+                elif (
+                    isinstance(c, Column)
+                    and isinstance(c._expression, UnresolvedAttribute)
+                    and c._expression.df_alias
+                ):
+                    names.append(
+                        self._plan.df_aliased_col_name_to_real_col_name.get(
+                            c._expression.name, c._expression.name
+                        )
+                    )
+                elif isinstance(c, Column) and isinstance(
+                    c._expression, NamedExpression
+                ):
+                    names.append(c._expression.name)
+                else:
+                    raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(
+                        str(c)
+                    )
+
+            normalized_names = {quote_name(n) for n in names}
+            existing_names = [attr.name for attr in self._output]
+            keep_col_names = [c for c in existing_names if c not in normalized_names]
+            if not keep_col_names:
+                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+
+            if self._select_statement and self._session.conf.get(
+                "use_simplified_query_generation"
             ):
-                names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
-                        c._expression.name, c._expression.name
+                # Only drop the columns that exist in the DataFrame.
+                drop_normalized_names = [
+                    name for name in normalized_names if name in existing_names
+                ]
+                if not drop_normalized_names:
+                    df = self._with_plan(self._select_statement)
+                else:
+                    df = self._with_plan(
+                        self._select_statement.exclude(
+                            drop_normalized_names, keep_col_names
+                        )
                     )
-                )
-            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
-                names.append(c._expression.name)
             else:
-                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
+                df = self.select(list(keep_col_names), _emit_ast=False)
 
-        normalized_names = {quote_name(n) for n in names}
-        existing_names = [attr.name for attr in self._output]
-        keep_col_names = [c for c in existing_names if c not in normalized_names]
-        if not keep_col_names:
-            raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+        if self._session.conf.get("use_simplified_query_generation"):
+            add_api_call(
+                df,
+                "DataFrame.drop[exclude]",
+                resource_usage_collector.get_resource_usage(),
+            )
         else:
-            df = self.select(list(keep_col_names), _emit_ast=False)
+            adjust_api_subcalls(
+                df,
+                "DataFrame.drop[select]",
+                len_subcalls=1,
+                resource_usage=resource_usage_collector.get_resource_usage(),
+            )
 
-            if _emit_ast:
-                df._ast_id = stmt.uid
+        if _emit_ast:
+            df._ast_id = stmt.uid
 
-            return df
+        return df
 
     @dataframe_exception_handler
     @df_api_usage
@@ -2541,14 +2575,20 @@ class DataFrame:
                 resource_usage=resource_usage_collector.get_resource_usage(),
             )
         else:
-            df = self.group_by(
-                [
-                    self.col(quote_name(f.name), _emit_ast=False)
-                    for f in self.schema.fields
-                ],
-                _emit_ast=False,
-            ).agg(_emit_ast=False)
-            adjust_api_subcalls(df, "DataFrame.distinct[group_by]", len_subcalls=2)
+            with ResourceUsageCollector() as resource_usage_collector:
+                df = self.group_by(
+                    [
+                        self.col(quote_name(f.name), _emit_ast=False)
+                        for f in self.schema.fields
+                    ],
+                    _emit_ast=False,
+                ).agg(_emit_ast=False)
+            adjust_api_subcalls(
+                df,
+                "DataFrame.distinct[group_by]",
+                len_subcalls=2,
+                resource_usage=resource_usage_collector.get_resource_usage(),
+            )
 
         if _emit_ast:
             df._ast_id = stmt.uid
