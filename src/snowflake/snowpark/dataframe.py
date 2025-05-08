@@ -400,6 +400,19 @@ def _get_df_lineage(dataframes_involved: List["DataFrame"]) -> List[str]:
 
 
 def dataframe_exception_handler(func):
+    """
+    Decorator to handle exceptions in DataFrame operations. Currently, it
+    only handles SnowparkSQLException. It captures the original stack trace and
+    adds additional debug information to the exception message, including
+    the traceback of the dataframe operations that could have caused the error.
+
+    We re-raise the original exception if:
+    1. The exception is already handled (i.e., the exception handler has been
+         invoked multiple times in case of a nested dataframe operation).
+    2. The exception is not a SnowparkSQLException.
+    3. We cannot infer the lineage of the dataframes involved in the exception.
+    """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         global _HANDLED_DATAFRAME_EXCEPTION
@@ -423,7 +436,12 @@ def dataframe_exception_handler(func):
                 if isinstance(arg, DataFrame):
                     dataframes_involved.append(arg)
 
-            df_lineage = _get_df_lineage(dataframes_involved)
+            try:
+                df_lineage = _get_df_lineage(dataframes_involved)
+            except Exception:
+                # if there is any internal error while getting the lineage, just re-raise the
+                # original exception
+                raise e
             lineage_trace_len = len(df_lineage)
             if len(df_lineage) > 0:
                 show_lineage_len = int(
