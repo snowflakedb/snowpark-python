@@ -1065,13 +1065,10 @@ def _to_timestamp(
                 SnowparkLocalTestingException.raise_from_error(exc)
 
     res = column.to_frame().apply(convert_timestamp, axis=1).replace({pandas.NaT: None})
-    return pandas.Series(
-        [
-            x.to_pydatetime() if x is not None and hasattr(x, "to_pydatetime") else x
-            for x in res
-        ],
-        index=column.index,
-    )
+    return [
+        x.to_pydatetime() if x is not None and hasattr(x, "to_pydatetime") else x
+        for x in res
+    ]
 
 
 @patch("to_timestamp")
@@ -1105,7 +1102,7 @@ def mock_to_timestamp_ntz(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
         dtype=object,
-        index=result.index,
+        index=column.index,
     )
 
 
@@ -1125,7 +1122,7 @@ def mock_to_timestamp_ltz(
             TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable
         ),
         dtype=object,
-        index=result.index,
+        index=column.index,
     )
 
 
@@ -1137,14 +1134,13 @@ def mock_to_timestamp_tz(
 ):
     # _to_timestamp will use the tz present in the data.
     # Otherwise it adds an appropriate one by default.
-    result = _to_timestamp(column, fmt, try_cast, add_timezone=True)
     return ColumnEmulator(
-        data=result,
+        data=_to_timestamp(column, fmt, try_cast, add_timezone=True),
         sf_type=ColumnType(
             TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
         ),
         dtype=object,
-        index=result.index,
+        index=column.index,
     )
 
 
