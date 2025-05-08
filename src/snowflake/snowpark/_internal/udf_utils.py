@@ -28,9 +28,13 @@ from typing import (
 import cloudpickle
 
 import snowflake.snowpark
-from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal import code_generation, type_utils
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql, to_sql_no_cast
+from snowflake.snowpark._internal.lazy_import_utils import (
+    get_installed_pandas,
+    get_snowpark_types,
+    get_pandas,
+)
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     NoneType,
@@ -55,15 +59,16 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
 )
-from snowflake.snowpark.types import DataType, StructField, StructType
+from snowflake.snowpark.types import (
+    DataType,
+    StructField,
+    StructType,
+)
 from snowflake.snowpark.version import VERSION
 
-if installed_pandas:
-    from snowflake.snowpark.types import (
-        PandasDataFrame,
-        PandasDataFrameType,
-        PandasSeriesType,
-    )
+PandasSeriesType = None
+PandasDataFrameType = None
+PandasDataFrame = None
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -199,6 +204,16 @@ def get_python_types_dict_for_udtf(
 def extract_return_type_from_udtf_type_hints(
     return_type_hint, output_schema, func_name
 ) -> Union[StructType, "PandasDataFrameType", None]:
+
+    global PandasDataFrameType, PandasDataFrame
+    # Only load pandas types if they haven't been loaded yet
+    if get_installed_pandas() and (
+        PandasDataFrame is None or PandasDataFrameType is None
+    ):
+        snowpark_types = get_snowpark_types()
+        PandasDataFrame = snowpark_types.PandasDataFrame
+        PandasDataFrameType = snowpark_types.PandasDataFrameType
+
     if return_type_hint is None and output_schema is not None:
         raise ValueError(
             "The return type hint is not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
@@ -245,8 +260,13 @@ def extract_return_type_from_udtf_type_hints(
     elif return_type_hint is None:
         return None
     else:
-        if installed_pandas:  # Vectorized UDTF
-            if typing.get_origin(return_type_hint) == PandasDataFrame:
+        if get_installed_pandas():  # Vectorized UDTF
+            # Check if return_type_hint is a PandasDataFrame type
+            origin = typing.get_origin(return_type_hint)
+            if (
+                origin is not None
+                and getattr(origin, "__name__", "") == "PandasDataFrame"
+            ):
                 return PandasDataFrameType(
                     col_types=[
                         python_type_to_snow_type(x)[0]
@@ -254,7 +274,7 @@ def extract_return_type_from_udtf_type_hints(
                     ],
                     col_names=output_schema,
                 )
-            elif return_type_hint is pandas.DataFrame:
+            elif return_type_hint is get_pandas().DataFrame:
                 return PandasDataFrameType(
                     []
                 )  # placeholder, indicating the return type is pandas DataFrame
@@ -569,6 +589,17 @@ def process_file_path(file_path: str) -> str:
     return file_path
 
 
+def _ensure_pandas_types_initialized():
+    """Ensure pandas types are loaded if pandas is available"""
+    global PandasSeriesType, PandasDataFrameType
+    if get_installed_pandas() and (
+        PandasSeriesType is None or PandasDataFrameType is None
+    ):
+        snowpark_types = get_snowpark_types()
+        PandasDataFrameType = snowpark_types.PandasDataFrameType
+        PandasSeriesType = snowpark_types.PandasSeriesType
+
+
 def extract_return_input_types(
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
@@ -593,11 +624,13 @@ def extract_return_input_types(
               then just use the types inferred from type hints.
     """
 
+    _ensure_pandas_types_initialized()
+
     (
         return_type_from_type_hints,
         input_types_from_type_hints,
     ) = get_types_from_type_hints(func, object_type, output_schema)
-    if installed_pandas and return_type and return_type_from_type_hints:
+    if get_installed_pandas() and return_type and return_type_from_type_hints:
         if isinstance(return_type_from_type_hints, PandasSeriesType):
             res_return_type = (
                 return_type.element_type
@@ -635,7 +668,7 @@ def extract_return_input_types(
     res_input_types = input_types or input_types_from_type_hints
 
     if not res_return_type or (
-        installed_pandas
+        get_installed_pandas()
         and isinstance(res_return_type, PandasSeriesType)
         and not res_return_type.element_type
     ):
@@ -661,7 +694,7 @@ def extract_return_input_types(
                 f"the number of argument type hints ({len(input_types_from_type_hints)})"
             )
 
-    if not installed_pandas:
+    if not get_installed_pandas():
         return False, False, res_return_type, res_input_types
 
     if isinstance(res_return_type, PandasSeriesType):
@@ -1319,8 +1352,14 @@ def create_python_udf_or_sp(
         and registration_type in {RegistrationType.UDTF, RegistrationType.SPROC}
     ):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
-    elif installed_pandas and isinstance(return_type, PandasDataFrameType):
-        return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
+    elif get_installed_pandas():
+        # Ensure pandas types are loaded before isinstance check
+        _ensure_pandas_types_initialized()
+
+        if isinstance(return_type, PandasDataFrameType):
+            return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
+        else:
+            return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]

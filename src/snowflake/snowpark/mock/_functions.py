@@ -2118,7 +2118,7 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
                 "concat_ws expects a seperator column and one or more value column(s) to be passed in."
             )
         )
-    pdf = pandas.concat(columns, axis=1)
+    pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
     result = pdf.T.apply(
         lambda c: None
         if c.isnull().values.any()
