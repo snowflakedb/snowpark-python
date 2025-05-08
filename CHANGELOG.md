@@ -8,6 +8,8 @@
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
 - Added support for `Session.create_dataframe()` with the stage URL and FILE data type.
+- Added support for different modes for dealing with corrupt XML records when reading an XML file using `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)`. Currently `PERMISSIVE`, `DROPMALFORMED` and `FAILFAST` are supported.
+- Improved query generation for `Dataframe.drop` to use `SELECT * EXCLUDE ()` to exclude the dropped columns. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
 
 #### Bug Fixes
 
@@ -31,6 +33,14 @@
 #### Improvements
 
 - Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+
+## 1.31.1 (2025-05-05)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Updated conda build configuration to deprecate Python 3.8 support, preventing installation in incompatible environments.
 
 ## 1.31.0 (2025-04-24)
 

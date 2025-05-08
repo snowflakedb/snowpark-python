@@ -1052,6 +1052,7 @@ def execute_mock_plan(
         limit_: Optional[int] = source_plan.limit_
         offset: Optional[int] = source_plan.offset
         distinct_: bool = source_plan.distinct_
+        exclude_cols: List[str] = source_plan.exclude_cols
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
@@ -1136,6 +1137,9 @@ def execute_mock_plan(
 
         if distinct_:
             result_df = result_df.drop_duplicates()
+
+        if exclude_cols:
+            result_df = result_df.drop(columns=exclude_cols)
 
         return result_df
     if isinstance(source_plan, MockSetStatement):
