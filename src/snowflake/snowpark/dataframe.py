@@ -28,7 +28,6 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
@@ -121,6 +120,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.lazy_import_utils import get_installed_pandas, get_pandas, get_pyarrow
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     ResourceUsageCollector,
@@ -216,6 +216,7 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
+    from snowflake.connector.options import pandas, pyarrow
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
 
@@ -960,9 +961,7 @@ class DataFrame:
             _emit_ast=self._session.ast_enabled,
         )
 
-    if installed_pandas:
-        import pandas  # pragma: no cover
-
+    if get_installed_pandas():
         @publicapi
         @overload
         def to_pandas(
@@ -1020,6 +1019,7 @@ class DataFrame:
             as pandas cannot distinguish between the two.
             - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
         """
+        pandas = get_pandas() if get_installed_pandas() else None
 
         if _emit_ast:
             stmt = self._session._ast_batch.bind()
@@ -1054,13 +1054,12 @@ class DataFrame:
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
         if block:
-            if not isinstance(result, pandas.DataFrame):
+            if pandas and not isinstance(result, pandas.DataFrame):
                 return pandas.DataFrame(result)
 
         return result
 
-    if installed_pandas:
-        import pandas
+    if get_installed_pandas():
 
         @publicapi
         @overload
@@ -1179,6 +1178,8 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        get_pyarrow()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -1221,6 +1222,8 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        get_pyarrow()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -1377,7 +1380,7 @@ class DataFrame:
         # fmt: off
         import snowflake.snowpark.modin.plugin  # isort: skip  # noqa: F401
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
-        import modin.pandas as pd  # isort: skip
+        pd = lazy_import("modin.pandas")  # isort: skip
         # fmt: on
 
         # AST.

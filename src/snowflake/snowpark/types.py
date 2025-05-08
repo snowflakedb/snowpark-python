@@ -14,8 +14,10 @@ from typing import Generic, List, Optional, Type, TypeVar, Union, Dict, Any
 import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 
 # Use correct version from here:
+get_pandas()
 from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
 
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
