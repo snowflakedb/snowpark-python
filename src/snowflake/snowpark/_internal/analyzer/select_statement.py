@@ -718,6 +718,7 @@ class SelectStatement(Selectable):
         analyzer: "Analyzer",
         schema_query: Optional[str] = None,
         distinct: bool = False,
+        exclude_cols: Optional[Set[str]] = None,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -731,6 +732,8 @@ class SelectStatement(Selectable):
         self._sql_query = None
         self._schema_query = schema_query
         self.distinct_: bool = distinct
+        # An optional set to store the columns that should be excluded from the projection
+        self.exclude_cols: Optional[Set[str]] = exclude_cols
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
@@ -772,6 +775,7 @@ class SelectStatement(Selectable):
             analyzer=self.analyzer,
             schema_query=self.schema_query,
             distinct=self.distinct_,
+            exclude_cols=self.exclude_cols,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
@@ -802,6 +806,7 @@ class SelectStatement(Selectable):
             # directly copy the current schema fields
             schema_query=self._schema_query,
             distinct=self.distinct_,
+            exclude_cols=self.exclude_cols,
         )
 
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
@@ -820,7 +825,7 @@ class SelectStatement(Selectable):
     @property
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
-            if not self.projection and not self.has_clause:
+            if not self.has_projection and not self.has_clause:
                 self.column_states = self.from_.column_states
             else:
                 super().column_states  # will assign value to self._column_states
@@ -851,23 +856,43 @@ class SelectStatement(Selectable):
         )
 
     @property
+    def has_projection(self) -> bool:
+        """Boolean that indicates if the SelectStatement has the following forms of projection:
+        - select columns
+        - exclude columns
+        """
+
+        return (
+            self.projection is not None and len(self.projection) > 0
+        ) or self.exclude_cols is not None
+
+    @property
     def projection_in_str(self) -> str:
         if not self._projection_in_str:
-            self._projection_in_str = (
-                analyzer_utils.COMMA.join(
+            if self.projection:
+                assert (
+                    self.exclude_cols is None
+                ), "We should not have reached this state. There is likely a bug in flattening logic."
+                self._projection_in_str = analyzer_utils.COMMA.join(
                     self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
                     for x in self.projection
                 )
-                if self.projection
-                else analyzer_utils.STAR
-            )
+            else:
+                self._projection_in_str = analyzer_utils.STAR
+                if self.exclude_cols is not None:
+                    # we sort the exclude_cols to make sure the projection_in_str is deterministic
+                    # this is done to remove test flakiness
+                    self._projection_in_str = (
+                        f"{analyzer_utils.STAR}{analyzer_utils.EXCLUDE}"
+                        f"({analyzer_utils.COMMA.join(sorted(self.exclude_cols))})"
+                    )
         return self._projection_in_str
 
     @property
     def sql_query(self) -> str:
         if self._sql_query:
             return self._sql_query
-        if not self.has_clause and not self.projection:
+        if not self.has_clause and not self.has_projection:
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
@@ -920,7 +945,7 @@ class SelectStatement(Selectable):
     def schema_query(self) -> str:
         if self._schema_query:
             return self._schema_query
-        if not self.projection:
+        if not self.has_projection:
             self._schema_query = self.from_.schema_query
             return self._schema_query
         self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query})"
@@ -1180,6 +1205,9 @@ class SelectStatement(Selectable):
         elif self.distinct_:
             # .distinct().select() != .select().distinct() therefore we cannot flatten
             can_be_flattened = False
+        elif self.exclude_cols is not None:
+            # exclude syntax only support: SELECT * EXCLUDE(col1, col2) FROM TABLE
+            can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
                 self.column_states, new_column_states
@@ -1303,7 +1331,7 @@ class SelectStatement(Selectable):
             and (not self.offset)
             # .order_by(col1).select(col2).distinct() cannot be flattened because
             # SELECT DISTINCT B FROM TABLE ORDER BY A is not valid SQL
-            and (not (self.order_by and self.projection))
+            and (not (self.order_by and self.has_projection))
             and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
@@ -1325,6 +1353,42 @@ class SelectStatement(Selectable):
             new.attributes = self.attributes
         return new
 
+    def exclude(
+        self, exclude_cols: List[str], keep_cols: List[str]
+    ) -> "SelectStatement":
+        """List of quoted column names to be dropped from the current select
+        statement.
+        """
+        # .select().drop(); cannot be flattened; exclude syntax is select * exclude ...
+
+        # .order_by().drop() can be flattened
+        # .filter().drop() can be flattened
+        # .limit().drop() can be flattened
+        # .distinct().drop() can be flattened
+        can_be_flattened = not self.flatten_disabled and not self.projection
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            new._merge_projection_complexity_with_subquery = False
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                analyzer=self.analyzer,
+            )
+
+        new.exclude_cols = new.exclude_cols or set()
+        new.exclude_cols.update(exclude_cols)
+
+        # Use keep_cols and select logic to derive updated column_states for new
+        new_column_states = derive_column_states_from_subquery(
+            [Attribute(col, DataType()) for col in keep_cols], self
+        )
+        assert new_column_states is not None
+        new.column_states = new_column_states
+        return new
+
     def set_operator(
         self,
         *selectables: Union[
@@ -1336,7 +1400,7 @@ class SelectStatement(Selectable):
         if (
             isinstance(self.from_, SetStatement)
             and not self.has_clause
-            and not self.projection
+            and not self.has_projection
         ):
             last_operator = self.from_.set_operands[-1].operator
             if operator == last_operator:

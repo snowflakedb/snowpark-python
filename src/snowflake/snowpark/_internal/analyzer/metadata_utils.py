@@ -171,7 +171,7 @@ def infer_metadata(
                 ]
             # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
             # which means source_plan has the same metadata as its child plan, we can use it directly
-            if source_plan.projection is None:
+            if not source_plan.has_projection:
                 # We can only retrieve the cached metadata when there is an underlying SnowflakePlan
                 # or it's a SelectableEntity
                 if source_plan.from_._snowflake_plan is not None:
@@ -231,7 +231,7 @@ def cache_metadata_if_selectable(
             # we should cache it on the child plan too.
             # This is necessary SelectStatement.select() will need the column states of the child plan
             # (check the implementation of derive_column_states_from_subquery().
-            if source_plan.projection is None:
+            if not source_plan.has_projection:
                 if source_plan.from_._snowflake_plan is not None:
                     source_plan.from_._snowflake_plan._metadata = metadata
                 elif isinstance(source_plan.from_, SelectableEntity):

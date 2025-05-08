@@ -19259,7 +19259,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self._raise_not_implemented_error_for_timedelta()
 
         level = [level]
-
         index_names = self.get_index_names()
 
         # Check to see if we have a MultiIndex, if we do, make sure we remove

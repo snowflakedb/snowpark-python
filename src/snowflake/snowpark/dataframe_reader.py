@@ -846,6 +846,34 @@ class DataFrameReader:
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
+
+        Notes about reading XML files using a row tag:
+
+            - We support reading XML by specifying the element tag that represents a single record using the ``rowTag``
+              option. See Example 13 in :class:`DataFrameReader`.
+
+            - Each XML record is flattened into a single row, with each XML element or attribute mapped to a column.
+              All columns are represented with the variant type to accommodate heterogeneous or nested data. Therefore,
+              every column value has a size limit due to the variant type.
+
+            - The column names are derived from the XML element names. It will always be wrapped by single quotes.
+
+            - To parse the nested XML under a row tag, you can use dot notation ``.`` to query the nested fields in
+              a DataFrame. See Example 13 in :class:`DataFrameReader`.
+
+            - When ``rowTag`` is specified, the following options are supported for reading XML files
+              via :meth:`option()` or :meth:`options()`:
+
+              + ``mode``: Specifies the mode for dealing with corrupt XML records. The default value is ``PERMISSIVE``. The supported values are:
+
+                  - ``PERMISSIVE``: When it encounters a corrupt record, it sets all fields to null and includes a `columnNameOfCorruptRecord` column.
+
+                  - ``DROPMALFORMED``: Ignores the whole record that cannot be parsed correctly.
+
+                  - ``FAILFAST``: When it encounters a corrupt record, it raises an exception immediately.
+
+              + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
+                The default value is '_corrupt_record'.
         """
         df = self._read_semi_structured_file(path, "XML")
 

@@ -1555,6 +1555,18 @@ class TestFiles:
         return os.path.join(self.resources_path, "nested.xml")
 
     @property
+    def test_malformed_no_closing_tag_xml(self):
+        return os.path.join(self.resources_path, "malformed_no_closing_tag.xml")
+
+    @property
+    def test_malformed_not_self_closing_xml(self):
+        return os.path.join(self.resources_path, "malformed_not_self_closing.xml")
+
+    @property
+    def test_malformed_record_xml(self):
+        return os.path.join(self.resources_path, "malformed_record.xml")
+
+    @property
     def test_dog_image(self):
         return os.path.join(self.resources_path, "dog.jpg")
 
