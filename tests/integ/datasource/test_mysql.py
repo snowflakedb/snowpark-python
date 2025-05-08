@@ -32,6 +32,10 @@ pytestmark = [
     pytest.mark.skipif(
         RUNNING_ON_JENKINS, reason="cannot access external datasource from jenkins"
     ),
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="feature not available in local testing",
+    ),
 ]
 
 TEST_TABLE_NAME = "ALL_TYPES_TABLE"
