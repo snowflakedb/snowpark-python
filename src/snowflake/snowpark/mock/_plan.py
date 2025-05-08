@@ -147,7 +147,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, cast_column_to
-from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,
@@ -183,6 +182,9 @@ from snowflake.snowpark.types import (
     VariantType,
     _NumericType,
 )
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -430,6 +432,8 @@ def handle_range_frame_indexing(
         return idx
 
     if order_spec:
+        import pandas as pd
+
         ordered_windows = [
             handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
             for win in res.rolling(EntireWindowIndexer())
@@ -831,6 +835,7 @@ def handle_udtf_expression(
 ):
 
     # TODO: handle and support imports + other udtf attributes.
+    import pandas as pd
 
     udtf_registry = analyzer.session.udtf
     udtf_name = exp.func_name
@@ -1023,6 +1028,7 @@ def execute_mock_plan(
     expr_to_alias: Optional[Dict[str, str]] = None,
 ) -> Union[TableEmulator, List[Row]]:
     import numpy as np
+    import pandas as pd
 
     if expr_to_alias is None:
         expr_to_alias = plan.expr_to_alias
@@ -2203,6 +2209,7 @@ def calculate_expression(
     setting keep_literal to false returns a ColumnEmulator wrapping the Python datatype of a Literal
     """
     import numpy as np
+    import pandas as pd
 
     registry = MockedFunctionRegistry.get_or_create()
 

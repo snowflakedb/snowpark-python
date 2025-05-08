@@ -8,16 +8,20 @@ import math
 import os
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    Literal,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 from snowflake.connector import ProgrammingError
 from snowflake.connector.cursor import SnowflakeCursor
-from snowflake.connector.options import pyarrow
-from snowflake.connector.pandas_tools import (
-    _create_temp_stage,
-    _create_temp_file_format,
-    build_location_helper,
-)
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Except,
@@ -33,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.lazy_import_utils import get_pyarrow, get_pandas_tools
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     ALREADY_QUOTED,
@@ -58,6 +63,9 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+if TYPE_CHECKING:
+    from snowflake.connector.options import pyarrow
 
 LEFT_PARENTHESIS = "("
 RIGHT_PARENTHESIS = ")"
@@ -1960,7 +1968,13 @@ def write_arrow(
     """
     # SNOW-1904593: This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
     # It should be pushed down into the connector, but would require a minimum required version bump.
-    import pyarrow.parquet  # type: ignore
+
+    # Lazy load pyarrow_parquet and pandas_tools modules
+    pyarrow_parquet = get_pyarrow().parquet
+    pandas_tools = get_pandas_tools()
+    _create_temp_stage = pandas_tools._create_temp_stage
+    _create_temp_file_format = pandas_tools._create_temp_file_format
+    build_location_helper = pandas_tools.build_location_helper
 
     if database is not None and schema is None:
         raise ProgrammingError(
@@ -2001,7 +2015,7 @@ def write_arrow(
         for file_number, offset in enumerate(range(0, len(table), chunk_size)):
             # write chunk to disk
             chunk_path = os.path.join(tmp_folder, f"{table_name}_{file_number}.parquet")
-            pyarrow.parquet.write_table(
+            pyarrow_parquet.write_table(
                 table.slice(offset=offset, length=chunk_size),
                 chunk_path,
                 **kwargs,
