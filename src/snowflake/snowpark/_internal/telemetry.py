@@ -123,7 +123,6 @@ class TelemetryField(Enum):
 API_CALLS_TO_ADJUST = {
     "to_df": 1,
     "select_expr": 1,
-    "drop": 1,
     "agg": 2,
     "with_column": 1,
     "with_columns": 1,
