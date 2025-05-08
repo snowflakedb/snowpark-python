@@ -1,0 +1,12 @@
+<test>
+    <record>
+      <id>41</id>
+      <name>Joe Biden</name>
+      <email>joe@example.com</email>
+    </record>
+    <record>
+      <id>42</id>
+      <name>Jane Doe</name>
+      <email>jane@example.com</email
+    </record>
+</test>
