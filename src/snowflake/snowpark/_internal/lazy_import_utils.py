@@ -9,7 +9,8 @@ def lazy_import(module_name):
         with _lazy_import_lock:
             # Double check to make sure if another thread has added this module already
             if module_name not in _lazy_import_cache:
-                _lazy_import_cache[module_name] = __import__(module_name)
+                import importlib
+                _lazy_import_cache[module_name] = importlib.import_module(module_name)
     return _lazy_import_cache[module_name]
 
 # Lazy import helper functions
