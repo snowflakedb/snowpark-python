@@ -870,6 +870,7 @@ func = pickle.loads(bytes.fromhex('{pickled_func.hex()}'))
     if object_type == TempObjectType.PROCEDURE:
         func_code = f"""
 def {_DEFAULT_HANDLER_NAME}({args}):
+{get_removing_sql_nulls_code(args, 4)}
     return func({args})
 """
     else:
@@ -920,6 +921,7 @@ class {_DEFAULT_HANDLER_NAME}(func):
             if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
                 func_code = f"""{func_code}
     def process(self, {wrapper_params}):
+{get_removing_sql_nulls_code(wrapper_params, 8)}
         return lock_function_once(super().process, process_invoked)({func_args})
 """
             if hasattr(func, TABLE_FUNCTION_END_PARTITION_METHOD):
@@ -942,6 +944,7 @@ class {_DEFAULT_HANDLER_NAME}(func):
         lock_function_once(super().__init__, init_invoked)()
 
     def accumulate(self, {args}):
+{get_removing_sql_nulls_code(args, 8)}
         return lock_function_once(super().accumulate, accumulate_invoked)({args})
 
     def merge(self, other_agg_state):
@@ -955,6 +958,7 @@ class {_DEFAULT_HANDLER_NAME}(func):
 invoked = InvokedFlag()
 
 def {_DEFAULT_HANDLER_NAME}({wrapper_params}):
+{get_removing_sql_nulls_code(wrapper_params, 4)}
     return lock_function_once(func, invoked)({func_args})
 """.rstrip()
 
@@ -991,6 +995,26 @@ import pandas
 {deserialization_code}
 {func_code}
 """.strip()
+
+
+def get_removing_sql_nulls_code(args: str, indentation_size: int = 0) -> str:
+    """
+    Generates Python code lines for removing SQL null values for a list of arguments.
+
+    Each generated line assigns the result of remove_sql_null(arg_name) back to arg_name.
+    Arguments are extracted from a comma-separated string.
+    """
+    indentation_size = max(0, indentation_size)
+    arg_names = [arg_name.strip() for arg_name in args.split(",") if arg_name.strip()]
+    if not arg_names:
+        return ""
+    indentation = " " * indentation_size
+    removing_sql_null_lines = [
+        f"""{indentation}{arg_name} = None if getattr({arg_name}, "is_sql_null", False) else {arg_name}"""
+        for arg_name in arg_names
+    ]
+    removing_sql_nulls_code = "\n".join(removing_sql_null_lines)
+    return removing_sql_nulls_code
 
 
 def add_snowpark_package_to_sproc_packages(
