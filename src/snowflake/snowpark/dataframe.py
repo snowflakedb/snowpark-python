@@ -28,8 +28,6 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas, pandas, pyarrow
-
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -121,6 +119,11 @@ from snowflake.snowpark._internal.ast.utils import (
     build_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.lazy_import_utils import (
+    get_installed_pandas,
+    get_pyarrow,
+    get_pandas,
+)
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     ResourceUsageCollector,
@@ -216,6 +219,7 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
+    from snowflake.connector.options import pandas, pyarrow
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
 
@@ -974,8 +978,8 @@ class DataFrame:
             _emit_ast=self._session.ast_enabled,
         )
 
-    if installed_pandas:
-        import pandas  # pragma: no cover
+    if get_installed_pandas():
+        pandas = get_pandas()  # pragma: no cover
 
         @publicapi
         @overload
@@ -986,7 +990,7 @@ class DataFrame:
             block: bool = True,
             _emit_ast: bool = True,
             **kwargs: Dict[str, Any],
-        ) -> pandas.DataFrame:
+        ) -> "pandas.DataFrame":
             ...  # pragma: no cover
 
     @publicapi
@@ -1069,14 +1073,12 @@ class DataFrame:
         # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
-                return pandas.DataFrame(
-                    result, columns=[attr.name for attr in self._plan.attributes]
-                )
+                return pandas.DataFrame(result)
 
         return result
 
-    if installed_pandas:
-        import pandas
+    if get_installed_pandas():
+        pandas = get_pandas()
 
         @publicapi
         @overload
@@ -1087,7 +1089,7 @@ class DataFrame:
             block: bool = True,
             _emit_ast: bool = True,
             **kwargs: Dict[str, Any],
-        ) -> Iterator[pandas.DataFrame]:
+        ) -> Iterator["pandas.DataFrame"]:
             ...  # pragma: no cover
 
     @publicapi
@@ -1195,6 +1197,8 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        get_pyarrow()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -1237,6 +1241,8 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        get_pyarrow()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -6622,6 +6628,7 @@ def map(
         # If the map is vectorized, we need to add pandas to packages if not
         # already added. Also update the input_types and output_schema to
         # be PandasDataFrameType.
+        pandas = get_pandas()
         packages = add_package_to_existing_packages(packages, pandas)
         input_types = [PandasDataFrameType(input_types)]
         output_schema = PandasDataFrameType(output_types, udtf_output_cols)
@@ -6634,9 +6641,10 @@ def map(
     ]
 
     if vectorized:
+        pandas = get_pandas()
 
         def wrap_result(result):
-            if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
+            if isinstance(result, pandas().DataFrame) or isinstance(result, tuple):
                 return result
             return (result,)
 
