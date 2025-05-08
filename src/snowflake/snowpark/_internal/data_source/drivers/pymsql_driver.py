@@ -67,7 +67,7 @@ class PymysqlDriver(BaseDriver):
         if table_or_query.lower().startswith("select"):
             cursor.execute(f"select A.* from ({table_or_query}) A limit 1")
         else:
-            cursor.execute(f"select * from {table_or_query} limit 1")
+            cursor.execute(f"select * from `{table_or_query}` limit 1")
         first_row = cursor.fetchone()
         raw_schema = cursor.description
 

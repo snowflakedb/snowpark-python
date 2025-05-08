@@ -19,16 +19,18 @@ class MysqlDialect(BaseDialect):
         for field, raw_field in zip(schema.fields, raw_schema):
             if isinstance(field.datatype, TimeType):
                 if is_query:
-                    cols.append(f"""CAST(A.{raw_field[0]} AS CHAR) AS {raw_field[0]}""")
+                    cols.append(
+                        f"""CAST(A.`{raw_field[0]}` AS CHAR) AS {raw_field[0]}"""
+                    )
                 else:
-                    cols.append(f"""CAST({raw_field[0]} AS CHAR) AS {raw_field[0]}""")
+                    cols.append(f"""CAST(`{raw_field[0]}` AS CHAR) AS {raw_field[0]}""")
             else:
                 if is_query:
-                    cols.append(f"""A.{raw_field[0]} AS {raw_field[0]}""")
+                    cols.append(f"""A.`{raw_field[0]}` AS {raw_field[0]}""")
                 else:
-                    cols.append(raw_field[0])
+                    cols.append(f"`{raw_field[0]}`")
 
         if is_query:
             return f"""SELECT {" , ".join(cols)} FROM ({table_or_query}) A"""
         else:
-            return f"""SELECT {" , ".join(cols)} FROM {table_or_query}"""
+            return f"""SELECT {" , ".join(cols)} FROM `{table_or_query}`"""

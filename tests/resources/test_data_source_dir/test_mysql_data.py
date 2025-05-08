@@ -1,9 +1,24 @@
 import datetime
+from collections import namedtuple
 from decimal import Decimal
 
 import pytz
 
 from snowflake.snowpark import Row
+
+
+MysqlType = namedtuple(
+    "MysqlType",
+    [
+        "name",
+        "type_code",
+        "display_size",
+        "internal_size",
+        "precision",
+        "scale",
+        "null_ok",
+    ],
+)
 
 mysql_real_data = [
     Row(
