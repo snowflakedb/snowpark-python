@@ -1,0 +1,74 @@
+import threading
+import time
+
+_lazy_import_cache = {}
+_lazy_import_lock = threading.Lock()
+
+def lazy_import(module_name):
+    if module_name not in _lazy_import_cache:
+        with _lazy_import_lock:
+            # Double check to make sure if another thread has added this module already
+            if module_name not in _lazy_import_cache:
+                _lazy_import_cache[module_name] = __import__(module_name)
+    return _lazy_import_cache[module_name]
+
+# Lazy import helper functions
+def get_installed_pandas():
+    return lazy_import("snowflake.connector.options.installed_pandas")
+
+def get_pandas():
+    return lazy_import("snowflake.connector.options.pandas")
+
+def get_snowpark_types():
+    return lazy_import("snowflake.snowpark.types")
+
+def get_numpy():
+    return lazy_import("numpy")
+
+def get_pyarrow():
+    return lazy_import("snowflake.connector.options.pyarrow")
+
+def get_write_pandas():
+    return lazy_import("snowflake.connector.pandas_tools.write_pandas")
+
+# ---- Test in main ----
+def main():
+    # Clear cache
+    _lazy_import_cache.clear()
+
+    print("Testing get_numpy()...")
+    np = get_numpy()
+    assert np.array([1, 2, 3]).tolist() == [1, 2, 3]
+    print("numpy loaded and works.")
+
+    print("Testing cache behavior...")
+    before = time.time()
+    np2 = get_numpy()
+    after = time.time()
+    assert np2 is np
+    assert (after - before) < 0.01
+    print("Cache works as expected.")
+
+    try:
+        print("Testing get_installed_pandas()...")
+        pandas_check = get_installed_pandas()
+        print("loaded installed_pandas:", pandas_check)
+    except ModuleNotFoundError:
+        print("installed_pandas module not found (expected if not present in your env)")
+
+    try:
+        print("Testing get_pandas()...")
+        pandas_mod = get_pandas()
+        print("loaded pandas shim/module:", pandas_mod)
+    except ModuleNotFoundError:
+        print("options.pandas module not found (expected if not present in your env)")
+
+    try:
+        print("Testing get_snowpark_types()...")
+        types_mod = get_snowpark_types()
+        print("loaded snowpark types module:", types_mod)
+    except ModuleNotFoundError:
+        print("snowpark.types not found (expected if snowpark not available in your zip)")
+
+if __name__ == "__main__":
+    main()
