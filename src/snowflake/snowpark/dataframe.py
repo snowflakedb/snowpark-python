@@ -28,7 +28,6 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -962,6 +961,7 @@ class DataFrame:
         )
 
     if get_installed_pandas():
+        pandas = get_pandas()  # pragma: no cover
         @publicapi
         @overload
         def to_pandas(
@@ -1019,7 +1019,6 @@ class DataFrame:
             as pandas cannot distinguish between the two.
             - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
         """
-        pandas = get_pandas() if get_installed_pandas() else None
 
         if _emit_ast:
             stmt = self._session._ast_batch.bind()
@@ -1054,12 +1053,13 @@ class DataFrame:
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
         if block:
-            if pandas and not isinstance(result, pandas.DataFrame):
+            if not isinstance(result, pandas.DataFrame):
                 return pandas.DataFrame(result)
 
         return result
 
     if get_installed_pandas():
+        pandas = get_pandas()
 
         @publicapi
         @overload
@@ -1380,9 +1380,7 @@ class DataFrame:
         # fmt: off
         import snowflake.snowpark.modin.plugin  # isort: skip  # noqa: F401
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
-        pd = lazy_import("modin.pandas")  # isort: skip
-        # fmt: on
-
+        import modin.pandas as pd  # isort: skip        # fmt: on
         # AST.
         stmt = None
         if _emit_ast:
