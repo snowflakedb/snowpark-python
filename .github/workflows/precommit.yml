@@ -94,7 +94,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         cloud-provider: [aws, gcp, azure]
         exclude:
           # only run macos with aws py3.9 for doctest
@@ -238,7 +238,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12" ]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         cloud-provider: [aws]
         exclude:
           # only run each version on one os
@@ -528,7 +528,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
-        python-version: [ "3.9", "3.10", "3.11" ]
+        python-version: [ "3.9", "3.10", "3.11", "3.12", "3.13" ]
         cloud-provider: [aws, gcp, azure]
         exclude:
           # only run macos with aws py3.9 for doctest
