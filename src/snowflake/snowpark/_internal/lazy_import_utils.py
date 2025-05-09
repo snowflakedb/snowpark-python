@@ -1,24 +1,21 @@
-import threading
 import time
-
+import importlib
 _lazy_import_cache = {}
-_lazy_import_lock = threading.Lock()
 
 def lazy_import(module_name):
     if module_name not in _lazy_import_cache:
-        with _lazy_import_lock:
-            # Double check to make sure if another thread has added this module already
             if module_name not in _lazy_import_cache:
-                import importlib
                 _lazy_import_cache[module_name] = importlib.import_module(module_name)
     return _lazy_import_cache[module_name]
 
 # Lazy import helper functions
 def get_installed_pandas():
-    return lazy_import("snowflake.connector.options.installed_pandas")
+    mod = importlib.import_module("snowflake.connector.options")
+    return getattr(mod, "installed_pandas")
 
 def get_pandas():
-    return lazy_import("snowflake.connector.options.pandas")
+    mod = importlib.import_module("snowflake.connector.options")
+    return getattr(mod, "pandas")
 
 def get_snowpark_types():
     return lazy_import("snowflake.snowpark.types")
