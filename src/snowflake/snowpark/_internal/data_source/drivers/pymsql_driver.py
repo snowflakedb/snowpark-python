@@ -5,7 +5,7 @@
 from enum import Enum
 from decimal import Decimal
 from datetime import date, datetime, timedelta
-from typing import List, Callable, Any
+from typing import List, Callable, Any, Type
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import (
@@ -68,17 +68,14 @@ class PymysqlDriver(BaseDriver):
             cursor.execute(f"select A.* from ({table_or_query}) A limit 1")
         else:
             cursor.execute(f"select * from `{table_or_query}` limit 1")
-        first_row = cursor.fetchone()
+        data = cursor.fetchall()
         raw_schema = cursor.description
-
-        if not first_row:
-            # TODO: write a doc
-            raise ValueError("cannot access a empty table")
+        raw_types = self.infer_type_from_data(data, len(raw_schema))
 
         processed_raw_schema = []
-        for value, col in zip(first_row, raw_schema):
+        for type, col in zip(raw_types, raw_schema):
             new_col = list(col)
-            new_col[1] = (new_col[1], type(value))
+            new_col[1] = (new_col[1], type)
             processed_raw_schema.append(new_col)
 
         self.raw_schema = processed_raw_schema
@@ -144,3 +141,19 @@ class PymysqlDriver(BaseDriver):
     ) -> "Connection":
         conn.read_timeout = query_timeout if query_timeout != 0 else None
         return conn
+
+    def infer_type_from_data(
+        self, data: List[tuple], number_of_columns: int
+    ) -> List[Type]:
+
+        raw_data_types_set = [set() for _ in range(number_of_columns)]
+        for row in data:
+            for i, col in enumerate(row):
+                raw_data_types_set[i].add(type(col))
+        types = [
+            type_set.pop()
+            if len(type_set) == 1 and not isinstance(next(iter(type_set)), type(None))
+            else str
+            for type_set in raw_data_types_set
+        ]
+        return types
