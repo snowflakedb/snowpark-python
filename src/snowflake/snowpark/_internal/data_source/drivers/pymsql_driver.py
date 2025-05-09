@@ -142,17 +142,18 @@ class PymysqlDriver(BaseDriver):
         conn.read_timeout = query_timeout if query_timeout != 0 else None
         return conn
 
-    def infer_type_from_data(
-        self, data: List[tuple], number_of_columns: int
-    ) -> List[Type]:
+    @staticmethod
+    def infer_type_from_data(data: List[tuple], number_of_columns: int) -> List[Type]:
 
         raw_data_types_set = [set() for _ in range(number_of_columns)]
         for row in data:
             for i, col in enumerate(row):
                 raw_data_types_set[i].add(type(col))
+        # NoneType is not exposed in python <3.10 have to define it ourselves
+        NoneType = type(None)
         types = [
             type_set.pop()
-            if len(type_set) == 1 and not isinstance(next(iter(type_set)), type(None))
+            if len(type_set) == 1 and next(iter(type_set)) != NoneType
             else str
             for type_set in raw_data_types_set
         ]

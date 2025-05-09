@@ -115,3 +115,33 @@ def test_double_quoted_column_name_oracledb(session):
             Notes="This is a case-sensitive example.",
         )
     ]
+
+
+@pytest.mark.parametrize(
+    "data, number_of_columns, expected_result",
+    [
+        (
+            [(1, 2.00, "aa", b"asd")],
+            4,
+            [int, float, str, bytes],
+        ),
+        (
+            [],
+            4,
+            [str, str, str, str],
+        ),
+        (
+            [(1, 2.00, None, b"asd")],
+            4,
+            [int, float, str, bytes],
+        ),
+        (
+            [(1, 2.00, "aa", b"asd"), (1, 2.00, "aa", "asd")],
+            4,
+            [int, float, str, str],
+        ),
+    ],
+)
+def test_infer_type_from_data(data, number_of_columns, expected_result):
+    result = PymysqlDriver.infer_type_from_data(data, number_of_columns)
+    assert result == expected_result
