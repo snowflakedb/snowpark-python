@@ -1997,7 +1997,7 @@ def test_show_dataframe_spark(session):
                     ),
                 ),
                 StructField("col_17", ArrayType()),
-                StructField("col_18", MapType()),
+                StructField("col_18", StructType()),
             ]
         )
         df = session.create_dataframe([data], schema=schema)
@@ -5186,6 +5186,9 @@ def test_create_dataframe_x_string_y_integer(session):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="File data type is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
 )
 def test_create_dataframe_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)

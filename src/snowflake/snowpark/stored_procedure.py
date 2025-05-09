@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    RegistrationType,
     add_snowpark_package_to_sproc_packages,
     check_execute_as_arg,
     check_python_runtime_version,
@@ -1003,6 +1004,7 @@ class StoredProcedureRegistration:
                     all_imports=all_imports,
                     all_packages=all_packages,
                     raw_imports=imports,
+                    registration_type=RegistrationType.SPROC,
                     is_permanent=is_permanent,
                     replace=replace,
                     if_not_exists=if_not_exists,
