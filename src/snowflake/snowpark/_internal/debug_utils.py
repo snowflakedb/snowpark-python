@@ -49,8 +49,8 @@ class DataFrameLineageNode:
             if end_line != 0:
                 # Should we make this inference based on python version?
                 # If the end line is not 0, we need to trim the start and end columns
-                code_lines[0] = code_lines[0][start_column - 1 :]
-                code_lines[-1] = code_lines[-1][:end_column]
+                code_lines[0] = code_lines[0][start_column:]
+                code_lines[-1] = code_lines[-1][: end_column + 1]
 
             code_lines = [line.rstrip() for line in code_lines]
             return "\n".join(code_lines)
