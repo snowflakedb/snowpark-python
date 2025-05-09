@@ -230,7 +230,6 @@ _logger = getLogger(__name__)
 _ONE_MILLION = 1000000
 _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
-_HANDLED_DATAFRAME_EXCEPTION = False
 
 
 def _generate_prefix(prefix: str) -> str:
@@ -417,11 +416,10 @@ def dataframe_exception_handler(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        global _HANDLED_DATAFRAME_EXCEPTION
         try:
             return func(*args, **kwargs)
         except SnowparkSQLException as e:
-            if _HANDLED_DATAFRAME_EXCEPTION:
+            if "--- Additional Debug Information ---" in str(e):
                 # The exception handler can be invoked multiple times in
                 # case of a nested dataframe operation. We only want to
                 # add the debug information once. If the exception is
@@ -467,7 +465,6 @@ def dataframe_exception_handler(func):
                     )
 
                 final_traceback = "\n".join(traceback_with_debug_info)
-                _HANDLED_DATAFRAME_EXCEPTION = True
                 raise error_type(final_traceback) from None
             else:
                 # raise original exception if we can't infer the lineage
