@@ -86,7 +86,7 @@ class DataFrameLineageNode:
 
         # Build the code identifier to find the operations where the DataFrame was created
         if end_column == 0:
-            code_identifier = f"{filename}:{start_line}"
+            code_identifier = f"{filename}|{start_line}"
         else:
             code_identifier = (
                 f"{filename}|{start_line}:{start_column}-{end_line}:{end_column}"
