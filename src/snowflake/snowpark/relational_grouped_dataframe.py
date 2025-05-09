@@ -412,7 +412,7 @@ class RelationalGroupedDataFrame:
             - :class:`~snowflake.snowpark.udtf.UDTFRegistration`
             - :func:`~snowflake.snowpark.functions.pandas_udtf`
         """
-        get_pandas()
+        pandas = get_pandas()
         partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
 
         # this is the case where this is being called from spark
@@ -433,7 +433,6 @@ class RelationalGroupedDataFrame:
 
         class _ApplyInPandas:
             def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
-                pandas = get_pandas()
                 if key_columns is not None:
                     np = get_numpy()
                     key_list = [pdf[key].iloc[0] for key in key_columns]
@@ -445,6 +444,7 @@ class RelationalGroupedDataFrame:
                     return func(keys, pdf)
                 return func(pdf)
 
+        pandas = get_pandas()
         # for vectorized UDTF
         _ApplyInPandas.end_partition._sf_vectorized_input = pandas.DataFrame
 
