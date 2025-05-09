@@ -49,7 +49,7 @@ from snowflake.snowpark.types import (
     VectorType,
     File,
 )
-from tests.utils import TestData, TestFiles, Utils
+from tests.utils import TestData, TestFiles, Utils, IS_IN_STORED_PROC_LOCALFS
 
 pytestmark = [
     pytest.mark.udf,
@@ -595,6 +595,9 @@ def test_geometry_type(session):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="to_file is not yet supported in local testing mode.",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
 )
 def test_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)

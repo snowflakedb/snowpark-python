@@ -60,6 +60,7 @@ from tests.utils import (
     iceberg_supported,
     structured_types_enabled_session,
     structured_types_supported,
+    IS_IN_STORED_PROC_LOCALFS,
 )
 
 # Map of structured type enabled state to test params
@@ -1685,6 +1686,9 @@ def test_non_nullable_schema(structured_type_session, structured_type_support):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="File type is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
 )
 def test_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
