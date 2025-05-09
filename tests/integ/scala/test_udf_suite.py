@@ -43,6 +43,7 @@ from snowflake.snowpark.types import (
     NullType,
     ShortType,
     StringType,
+    StructType,
     TimestampType,
     TimeType,
     VariantType,
@@ -1182,3 +1183,13 @@ def test_repro_snow_415682(session, is_sample_data_available):
             Row(1.0),
         ],
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing.",
+)
+def test_object_return(session):
+    udf1 = udf(lambda: {"foo": "bar"}, return_type=StructType())
+    desc_df = session.sql(f"SELECT GET_DDL('function', '{udf1.name}()')")
+    assert "\nRETURNS OBJECT\n" in desc_df.collect()[0][0]

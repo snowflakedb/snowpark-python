@@ -403,15 +403,9 @@ class MapType(DataType):
         value_contains_null: bool = True,
     ) -> None:
         if context._should_use_structured_type_semantics():
-            if (key_type is None and value_type is not None) or (
-                key_type is not None and value_type is None
-            ):
-                raise ValueError(
-                    "Must either set both key_type and value_type or leave both unset."
-                )
-            self.structured = (
-                structured if structured is not None else key_type is not None
-            )
+            if key_type is None or value_type is None:
+                raise ValueError("MapType requires key and value type be set.")
+            self.structured = True
             self.key_type = key_type
             self.value_type = value_type
         else:

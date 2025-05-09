@@ -1997,7 +1997,7 @@ def test_show_dataframe_spark(session):
                     ),
                 ),
                 StructField("col_17", ArrayType()),
-                StructField("col_18", MapType()),
+                StructField("col_18", StructType()),
             ]
         )
         df = session.create_dataframe([data], schema=schema)

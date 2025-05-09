@@ -204,6 +204,8 @@ def convert_sf_to_sp_type(
         return ArrayType(semi_structured_fill)
     if column_type_name == "VARIANT":
         return VariantType()
+    if context._should_use_structured_type_semantics() and column_type_name == "OBJECT":
+        return StructType()
     if column_type_name in {"OBJECT", "MAP"}:
         return MapType(semi_structured_fill, semi_structured_fill)
     if column_type_name == "GEOGRAPHY":
@@ -690,6 +692,10 @@ def python_type_to_snow_type(
             if tp_args
             else None
         )
+        if (
+            key_type is None or value_type is None
+        ) and context._should_use_structured_type_semantics():
+            return StructType(), False
         return MapType(key_type, value_type), False
 
     if installed_pandas:
