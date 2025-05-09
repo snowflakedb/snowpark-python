@@ -39,11 +39,16 @@ class DataFrameLineageNode:
         """Read the relevant code snippets of where the DataFrame was created. The filename given here
         must have read permissions for the executing user."""
         with open(filename) as f:
-            lines = f.readlines()
-            if end_line == 0:
-                code_lines = lines[start_line - 1 : start_line]
-            else:
-                code_lines = lines[start_line - 1 : end_line]
+            code_lines = []
+            for i, line in enumerate(f, 1):
+                if end_line == 0 and i == start_line:
+                    code_lines.append(line)
+                elif end_line != 0 and start_line <= i <= end_line:
+                    code_lines.append(line)
+
+            if end_line != 0:
+                # Should we make this inference based on python version?
+                # If the end line is not 0, we need to trim the start and end columns
                 code_lines[0] = code_lines[0][start_column - 1 :]
                 code_lines[-1] = code_lines[-1][:end_column]
 
