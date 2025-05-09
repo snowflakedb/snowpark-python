@@ -4,6 +4,7 @@
 #
 
 import copy
+import functools
 import itertools
 import random
 import re
@@ -22,6 +23,7 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    Type,
     Union,
     overload,
 )
@@ -56,6 +58,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     Star,
     UnresolvedAttribute,
+    UnresolvedColumnRegex,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -174,6 +177,7 @@ from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     abs as abs_,
+    approx_percentile,
     col,
     count,
     hash as hash_,
@@ -186,6 +190,8 @@ from snowflake.snowpark.functions import (
     sql_expr,
     stddev,
     to_char,
+    to_json,
+    object_construct_keep_null,
 )
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
@@ -206,6 +212,7 @@ from snowflake.snowpark.types import (
     StructType,
     _NumericType,
 )
+from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -1489,6 +1496,33 @@ class DataFrame:
             return Column(Star(self._output), _ast=expr)
         else:
             return Column(self._resolve(col_name), _ast=expr)
+
+    def col_regex(self, regex: str, case_sensitive: bool = False) -> Column:
+        """Selects column based on the column name specified as a regex and returns a ``Column`` reference to it.
+        Args:
+            regex: regular expression used to match columns
+
+        Examples:
+            >>> df = session.create_dataframe([[1, 2, 3, 4]]).to_df(["col1", "col2_a", "col2_b", "col3"])
+            >>> df.select(df.col_regex("col2_.*")).collect()
+            [Row(COL2_A=2, COL2_B=3)]
+
+        """
+        if not isinstance(regex, str):
+            raise ValueError(
+                f"regex provided to col_regex() must be string, got {type(regex)} with value of {regex} instead."
+            )
+        expressions = []
+        flag = 0 if case_sensitive else re.IGNORECASE
+        for column in self.schema:
+            # test for both quoted or unquoted since user could write regex for both scenario
+            if re.match(regex, column.name, flags=flag):
+                expressions.append(
+                    Attribute(column.name, column.datatype, column.nullable)
+                )
+        if not expressions:
+            raise ValueError(f"No columns matched for the provided regex:{regex}")
+        return Column(UnresolvedColumnRegex(expressions))
 
     @df_api_usage
     @publicapi
@@ -3156,6 +3190,55 @@ class DataFrame:
             df._ast_id = stmt.uid
 
         return df
+
+    @df_api_usage
+    @publicapi
+    def transform(
+        self, func: Callable, *args, _emit_ast: bool = True, **kwargs
+    ) -> "DataFrame":
+        """Applies a custom transformation function to the DataFrame, enabling chaining
+        of transformations.
+
+        This method allows you to apply a user-defined function to the current DataFrame
+        and returns the transformed DataFrame, which can be further transformed by chaining
+        additional operations.
+
+        Example::
+            >>> data = [("A", 100), ("B", -50), ("C", 150), ("D", 0)]
+            >>> df = session.createDataFrame(data, ["product_id", "amount"])
+            >>> def filter_positive(df: DataFrame) -> DataFrame:
+            ...     return df.filter(df["amount"] > 0)
+            >>> def add_discount(df: DataFrame) -> DataFrame:
+            ...     return df.with_column("discounted_price", df["amount"] * 0.9)
+            >>> transformed_df = (
+            ...     df.transform(filter_positive)
+            ...       .transform(add_discount)
+            ...       .select("product_id", "discounted_price")
+            ...       .sort("product_id")
+            ... )
+            >>> transformed_df.show()
+            -------------------------------------
+            |"PRODUCT_ID"  |"DISCOUNTED_PRICE"  |
+            -------------------------------------
+            |A             |90.0                |
+            |C             |135.0               |
+            -------------------------------------
+            <BLANKLINE>
+
+        Args:
+            func: A callable that takes a DataFrame as input and returns a transformed DataFrame.
+            args: Additional positional arguments to pass to the custom transformation function.
+            kwargs: Additional keyword arguments to pass to the custom transformation function.
+
+        Returns:
+            DataFrame: The transformed DataFrame after applying the function.
+        """
+        # TODO: build ast for dataframe.transform
+        result = func(self, *args, **kwargs)
+        assert isinstance(
+            result, DataFrame
+        ), f"Expected return value to be an instance of class DataFrame, got {type(result)} instead."
+        return result
 
     @df_api_usage
     @publicapi
@@ -5550,6 +5633,80 @@ class DataFrame:
         """
         return self._session
 
+    def _calculate_statistics(
+        self,
+        cols: List[str],
+        stat_func_dict: Dict[str, Callable],
+        source_api: str,
+    ) -> "DataFrame":
+        """
+        Calculates the statistics for the specified columns.
+        This method is used for the implementation of the `describe` and `summary` method.
+        """
+        df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
+
+        # ignore non-numeric and non-string columns
+        numerical_string_col_type_dict = {
+            field.name: field.datatype
+            for field in df.schema.fields
+            if isinstance(field.datatype, (StringType, _NumericType))
+        }
+
+        # if no columns should be selected, just return stat names
+        if len(numerical_string_col_type_dict) == 0:
+            df = self._session.create_dataframe(
+                list(stat_func_dict.keys()), schema=["summary"], _emit_ast=False
+            )
+            # We need to set the API calls for this to same API calls for describe
+            # Also add the new API calls for creating this DataFrame to the describe subcalls
+            adjust_api_subcalls(
+                df,
+                f"DataFrame.{source_api}",
+                precalls=self._plan.api_calls,
+                subcalls=df._plan.api_calls,
+            )
+
+            return df
+
+        # otherwise, calculate stats
+        with ResourceUsageCollector() as resource_usage_collector:
+            res_df = None
+            for name, func in stat_func_dict.items():
+                agg_cols = []
+                for c, t in numerical_string_col_type_dict.items():
+                    # for string columns, we need to convert all stats to string
+                    # such that they can be fitted into one column
+                    if isinstance(t, StringType):
+                        if name.lower() in ["mean", "stddev"] or name.endswith("%"):
+                            agg_cols.append(to_char(func(lit(None))).as_(c))
+                        else:
+                            agg_cols.append(to_char(func(c)))
+                    else:
+                        agg_cols.append(func(c))
+                agg_stat_df = (
+                    self.agg(agg_cols, _emit_ast=False)
+                    .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
+                    .select(
+                        lit(name).as_("summary"),
+                        *numerical_string_col_type_dict.keys(),
+                        _emit_ast=False,
+                    )
+                )
+                res_df = (
+                    res_df.union(agg_stat_df, _emit_ast=False)
+                    if res_df
+                    else agg_stat_df
+                )
+
+        adjust_api_subcalls(
+            res_df,
+            f"DataFrame.{source_api}",
+            precalls=self._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+            resource_usage=resource_usage_collector.get_resource_usage(),
+        )
+        return res_df
+
     @publicapi
     def describe(
         self, *cols: Union[str, List[str]], _emit_ast: bool = True
@@ -5588,15 +5745,6 @@ class DataFrame:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
         cols = parse_positional_args_to_list(*cols)
-        df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
-
-        # ignore non-numeric and non-string columns
-        numerical_string_col_type_dict = {
-            field.name: field.datatype
-            for field in df.schema.fields
-            if isinstance(field.datatype, (StringType, _NumericType))
-        }
-
         stat_func_dict = {
             "count": count,
             "mean": mean,
@@ -5604,66 +5752,89 @@ class DataFrame:
             "min": min_,
             "max": max_,
         }
-
-        # if no columns should be selected, just return stat names
-        if len(numerical_string_col_type_dict) == 0:
-            df = self._session.create_dataframe(
-                list(stat_func_dict.keys()), schema=["summary"], _emit_ast=False
-            )
-            # We need to set the API calls for this to same API calls for describe
-            # Also add the new API calls for creating this DataFrame to the describe subcalls
-            adjust_api_subcalls(
-                df,
-                "DataFrame.describe",
-                precalls=self._plan.api_calls,
-                subcalls=df._plan.api_calls,
-            )
-
-            if _emit_ast:
-                df._ast_id = stmt.uid
-
-            return df
-
-        # otherwise, calculate stats
-        with ResourceUsageCollector() as resource_usage_collector:
-            res_df = None
-            for name, func in stat_func_dict.items():
-                agg_cols = []
-                for c, t in numerical_string_col_type_dict.items():
-                    # for string columns, we need to convert all stats to string
-                    # such that they can be fitted into one column
-                    if isinstance(t, StringType):
-                        if name in ["mean", "stddev"]:
-                            agg_cols.append(to_char(func(lit(None))).as_(c))
-                        else:
-                            agg_cols.append(to_char(func(c)))
-                    else:
-                        agg_cols.append(func(c))
-                agg_stat_df = (
-                    self.agg(agg_cols, _emit_ast=False)
-                    .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
-                    .select(
-                        lit(name).as_("summary"),
-                        *numerical_string_col_type_dict.keys(),
-                        _emit_ast=False,
-                    )
-                )
-                res_df = (
-                    res_df.union(agg_stat_df, _emit_ast=False)
-                    if res_df
-                    else agg_stat_df
-                )
-
-        adjust_api_subcalls(
-            res_df,
-            "DataFrame.describe",
-            precalls=self._plan.api_calls,
-            subcalls=res_df._plan.api_calls.copy(),
-            resource_usage=resource_usage_collector.get_resource_usage(),
-        )
+        res_df = self._calculate_statistics(cols, stat_func_dict, "describe")
 
         if _emit_ast:
             res_df._ast_id = stmt.uid
+
+        return res_df
+
+    @publicapi
+    def summary(self, *statistics: str, _emit_ast: bool = True) -> "DataFrame":
+        """
+        Computes specified statistics for all numeric and string columns.
+        Non-numeric and non-string columns will be ignored when calling this method.
+        Available statistics are: ``count``, ``mean``, ``stddev``, ``min``, ``max`` and
+        arbitrary approximate percentiles specified as a percentage (e.g., 75%).
+        If no statistics are given, this function computes ``count``, ``mean``, ``stddev``, ``min``,
+        approximate quartiles (percentiles at 25%, 50%, and 75%), and ``max``.
+        If no columns are provided, this function computes statistics for all numerical or
+        string columns.
+        Example::
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> desc_result = df.summary().sort("SUMMARY").show()
+            -------------------------------------------------------
+            |"SUMMARY"  |"A"                 |"B"                 |
+            -------------------------------------------------------
+            |25%        |1.5                 |2.5                 |
+            |50%        |2.0                 |3.0                 |
+            |75%        |2.5                 |3.5                 |
+            |count      |2.0                 |2.0                 |
+            |max        |3.0                 |4.0                 |
+            |mean       |2.0                 |3.0                 |
+            |min        |1.0                 |2.0                 |
+            |stddev     |1.4142135623730951  |1.4142135623730951  |
+            -------------------------------------------------------
+            <BLANKLINE>
+        Args:
+            statistics: The names of columns whose basic statistics are computed.
+        """
+        # TODO: capture ast
+        # get stats that we want to calculate
+        stat_func_dict = {}
+        for s in statistics:
+            if s.lower() == "count":
+                stat_func_dict[s] = count
+            elif s.lower() == "mean":
+                stat_func_dict[s] = mean
+            elif s.lower() == "stddev":
+                stat_func_dict[s] = stddev
+            elif s.lower() == "min":
+                stat_func_dict[s] = min_
+            elif s.lower() == "max":
+                stat_func_dict[s] = max_
+            elif s.endswith("%"):
+                try:
+                    number = float(s[:-1])
+                except Exception as ex:
+                    raise ValueError(f"Unable to parse {s} as a percentile: {ex}.")
+                if number < 0 or number > 100:
+                    raise ValueError(
+                        "requirement failed: Percentiles must be in the range [0, 1]."
+                    )
+                stat_func_dict[s] = functools.partial(
+                    approx_percentile, percentile=number / 100
+                )
+            else:
+                raise ValueError(f"{s} is not a recognized statistic.")
+
+        # if stats are not specified, use the following default stats
+        if not stat_func_dict:
+            stat_func_dict = {
+                "count": count,
+                "mean": mean,
+                "stddev": stddev,
+                "min": min_,
+                "25%": lambda c: approx_percentile(c, 0.25),
+                "50%": lambda c: approx_percentile(c, 0.50),
+                "75%": lambda c: approx_percentile(c, 0.75),
+                "max": max_,
+            }
+
+        # calculate stats on all columns
+        res_df = self._calculate_statistics([], stat_func_dict, "summary")
+
+        # TODO: handle ast
 
         return res_df
 
@@ -6209,6 +6380,23 @@ Query List:
         ]
         return dtypes
 
+    def to_json(self) -> "DataFrame":
+        """
+        Converts each row of the DataFrame into a JSON string.
+
+        Example:
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.to_json().show()
+            -------------------
+            |"TO_JSON"        |
+            -------------------
+            |{"A":1,"B":"a"}  |
+            |{"A":2,"B":"b"}  |
+            -------------------
+            <BLANKLINE>
+        """
+        return self.select(to_json(object_construct_keep_null("*")).alias("TO_JSON"))
+
     def _with_plan(self, plan, _ast_stmt=None) -> "DataFrame":
         """
         :param proto.Bind ast_stmt: The AST statement protobuf corresponding to this value.
@@ -6361,6 +6549,471 @@ Query List:
         """
         print(self._format_schema(level))  # noqa: T201: we need to print here.
 
+    def _parse_and_register_udtf_for_map(
+        self,
+        func: Callable,
+        output_types: List[StructType],
+        output_column_names: Optional[List[str]],
+        imports: Optional[List[Union[str, Tuple[str, str]]]],
+        packages: Optional[List[Union[str, ModuleType]]],
+        immutable: bool,
+        vectorized: bool,
+        max_batch_size: Optional[int],
+        df_columns: List[str],
+        is_flat_map: bool,
+    ) -> Tuple[UserDefinedTableFunction, List[Column]]:
+        if len(output_types) == 0:
+            raise ValueError("output_types cannot be empty.")
+
+        if output_column_names is None:
+            output_column_names = [f"C_{i+1}" for i in range(len(output_types))]
+        elif len(output_column_names) != len(output_types):
+            raise ValueError(
+                "'output_column_names' and 'output_types' must be of the same size."
+            )
+        output_columns = [
+            col(f"${i + len(df_columns) + 1}").alias(
+                col_name
+            )  # this is done to avoid collision with original table columns
+            for i, col_name in enumerate(output_column_names)
+        ]
+
+        packages = packages or list(self._session.get_packages().values())
+        packages = add_package_to_existing_packages(
+            packages, "snowflake-snowpark-python"
+        )
+
+        input_types = [field.datatype for field in self.schema.fields]
+        udtf_output_cols = [f"c{i}" for i in range(len(output_types))]
+        output_schema = StructType(
+            [
+                StructField(col, type_)
+                for col, type_ in zip(udtf_output_cols, output_types)
+            ]
+        )
+
+        if vectorized:
+            # If the map is vectorized, we need to add pandas to packages if not
+            # already added. Also update the input_types and output_schema to
+            # be PandasDataFrameType.
+            packages = add_package_to_existing_packages(packages, pandas)
+            input_types = [PandasDataFrameType(input_types)]
+            output_schema = PandasDataFrameType(output_types, udtf_output_cols)
+
+        if is_flat_map:
+            _MapFunc = self._get_udtf_class_for_flat_map(func, vectorized, df_columns)
+        else:
+            _MapFunc = self._get_udtf_class_for_map(func, vectorized, df_columns)
+
+        map_udtf = self._session.udtf.register(
+            _MapFunc,
+            output_schema=output_schema,
+            input_types=input_types,
+            input_names=df_columns,
+            imports=imports,
+            packages=packages,
+            immutable=immutable,
+            max_batch_size=max_batch_size,
+        )
+        return map_udtf, output_columns
+
+    def _get_udtf_class_for_map(
+        self, func: Callable, vectorized: bool, df_columns: List[str]
+    ) -> Type:
+        if vectorized:
+
+            def wrap_result(result):  # pragma: no cover
+                if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
+                    return result
+                return (result,)
+
+            class _MapFunc:
+                def process(self, pdf):  # pragma: no cover
+                    return wrap_result(func(pdf))
+
+        else:
+
+            def wrap_result(result):  # pragma: no cover
+                if isinstance(result, Row):
+                    return tuple(result)
+                elif isinstance(result, tuple):
+                    return result
+                else:
+                    return (result,)
+
+            class _MapFunc:
+                def process(self, *argv):  # pragma: no cover
+                    input_args_to_row = Row(*df_columns)
+                    yield wrap_result(func(input_args_to_row(*argv)))
+
+        return _MapFunc
+
+    def _get_udtf_class_for_flat_map(
+        self, func: Callable, vectorized: bool, df_columns: List[str]
+    ) -> Type:
+        if vectorized:
+
+            def wrap_result(result):  # pragma: no cover
+                if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
+                    return result
+                return (result,)
+
+            class _FlatMapFunc:
+                def end_partition(self, pdf):  # pragma: no cover
+                    return wrap_result(func(pdf))
+
+        else:
+
+            def wrap_result(result):  # pragma: no cover
+                if isinstance(result, Row):
+                    return tuple(result)
+                elif isinstance(result, tuple):
+                    return result
+                else:
+                    return (result,)
+
+            class _FlatMapFunc:
+                def process(self, *argv):  # pragma: no cover
+                    input_args_to_row = Row(*df_columns)
+                    for row in func(input_args_to_row(*argv)):
+                        yield wrap_result(row)
+
+        return _FlatMapFunc
+
+    def map(
+        self,
+        func: Callable,
+        output_types: List[StructType],
+        *,
+        output_column_names: Optional[List[str]] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
+        immutable: bool = False,
+        partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
+        vectorized: bool = False,
+        max_batch_size: Optional[int] = None,
+    ):
+        """Returns a new DataFrame with the result of applying ``func`` to each of the
+        rows of the specified DataFrame. The function must return either a scalar value
+        or a tuple containing the same number of elements as specified in the
+        ``output_types`` argument. This method is used for one-to-one row transformations.
+
+        This function registers a temporary `UDTF
+        <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ and
+        returns a new DataFrame with the result of applying the `func` function to each row of the
+        given DataFrame.
+
+        Args:
+            dataframe: The DataFrame instance.
+            func: A function to be applied to every row of the DataFrame.
+            output_types: A list of types for values generated by the ``func``
+            output_column_names: A list of names to be assigned to the resulting columns.
+            imports: A list of imports that are required to run the function. This argument is passed
+                on when registering the UDTF.
+            packages: A list of packages that are required to run the function. This argument is passed
+                on when registering the UDTF.
+            immutable: A flag to specify if the result of the func is deterministic for the same input.
+            partition_by: Specify the partitioning column(s) for the UDTF.
+            vectorized: A flag to determine if the UDTF process should be vectorized. See
+                `vectorized UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-vectorized#udtfs-with-a-vectorized-process-method>`_.
+            max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
+
+        Example 1::
+
+            >>> from snowflake.snowpark.types import IntegerType
+            >>> import pandas as pd
+            >>> df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
+            >>> new_df = df.map(lambda row: row[0] * row[0], output_types=[IntegerType()])
+            >>> new_df.order_by("c_1").show()
+            ---------
+            |"C_1"  |
+            ---------
+            |100    |
+            |400    |
+            ---------
+            <BLANKLINE>
+
+        Example 2::
+
+            >>> new_df = df.map(lambda row: (row[1], row[0] * 3), output_types=[StringType(), IntegerType()])
+            >>> new_df.order_by("c_1").show()
+            -----------------
+            |"C_1"  |"C_2"  |
+            -----------------
+            |a      |30     |
+            |b      |60     |
+            -----------------
+            <BLANKLINE>
+
+        Example 3::
+
+            >>> new_df = df.map(
+            ...     lambda row: (row[1], row[0] * 3),
+            ...     output_types=[StringType(), IntegerType()],
+            ...     output_column_names=['col1', 'col2']
+            ... )
+            >>> new_df.order_by("col1").show()
+            -------------------
+            |"COL1"  |"COL2"  |
+            -------------------
+            |a       |30      |
+            |b       |60      |
+            -------------------
+            <BLANKLINE>
+
+        Example 4::
+
+            >>> new_df = df.map(lambda pdf: pdf['COL1']*3, output_types=[IntegerType()], vectorized=True, packages=["pandas"])
+            >>> new_df.order_by("c_1").show()
+            ---------
+            |"C_1"  |
+            ---------
+            |30     |
+            |60     |
+            ---------
+            <BLANKLINE>
+
+        Example 5::
+
+            >>> new_df = df.map(
+            ...     lambda pdf: (pdf['COL1']*3, pdf['COL2']+"b"),
+            ...     output_types=[IntegerType(), StringType()],
+            ...     output_column_names=['A', 'B'],
+            ...     vectorized=True,
+            ...     packages=["pandas"],
+            ... )
+            >>> new_df.order_by("A").show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |30   |ab   |
+            |60   |bb   |
+            -------------
+            <BLANKLINE>
+
+        Example 6::
+
+            >>> new_df = df.map(
+            ...     lambda pdf: ((pdf.shape[0],) * len(pdf), (pdf.shape[1],) * len(pdf)),
+            ...     output_types=[IntegerType(), IntegerType()],
+            ...     output_column_names=['rows', 'cols'],
+            ...     partition_by="col3",
+            ...     vectorized=True,
+            ...     packages=["pandas"],
+            ... )
+            >>> new_df.show()
+            -------------------
+            |"ROWS"  |"COLS"  |
+            -------------------
+            |2       |3       |
+            |2       |3       |
+            -------------------
+            <BLANKLINE>
+
+        Note:
+            1. The result of the ``func`` function must be either a scalar value or
+            a tuple containing the same number of elements as specified in the
+            ``output_types`` argument.
+
+            2. When using the ``vectorized`` option, the ``func`` function must accept
+            a pandas DataFrame as input and return either a pandas DataFrame, or a
+            tuple of pandas Series/arrays.
+        """
+        df_columns = self.columns
+        map_udtf, output_columns = self._parse_and_register_udtf_for_map(
+            func=func,
+            output_types=output_types,
+            output_column_names=output_column_names,
+            imports=imports,
+            packages=packages,
+            immutable=immutable,
+            vectorized=vectorized,
+            max_batch_size=max_batch_size,
+            df_columns=df_columns,
+            is_flat_map=False,
+        )
+
+        return self.join_table_function(
+            map_udtf(*df_columns).over(partition_by=partition_by)
+        ).select(*output_columns)
+
+    def flat_map(
+        self,
+        func: Callable,
+        output_types: List[StructType],
+        *,
+        output_column_names: Optional[List[str]] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
+        immutable: bool = False,
+        partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
+        vectorized: bool = False,
+        max_batch_size: Optional[int] = None,
+    ):
+        """Returns a new DataFrame with the result of applying ``func`` to each of the
+        rows of the specified DataFrame. This function is similar to :meth:`Dataframe.map`,
+        but it expects the `func` function to return an iterable of values for each row and
+        is used for one to many transformations.
+
+        This function registers a temporary `UDTF
+        <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ and
+        returns a new DataFrame with the result of applying the `func` function to each row of the
+        given DataFrame.
+
+        Args:
+            dataframe: The DataFrame instance.
+            func: A function to be applied to every row of the DataFrame.
+            output_types: A list of types for values generated by the ``func``
+            output_column_names: A list of names to be assigned to the resulting columns.
+            imports: A list of imports that are required to run the function. This argument is passed
+                on when registering the UDTF.
+            packages: A list of packages that are required to run the function. This argument is passed
+                on when registering the UDTF.
+            immutable: A flag to specify if the result of the func is deterministic for the same input.
+            partition_by: Specify the partitioning column(s) for the UDTF. Default partition by is 1 when
+                vectorized is ``True`` and all data is processed in single partition.
+            vectorized: When true, the UDTF is registered using vectorized ``end_partition``, see
+                `vectorized UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-vectorized#udtfs-with-a-vectorized-process-method>`_.
+                Otherwise, data is processed row-by-row using and registered UDTF using ``process`` method.
+            max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
+
+        Example 1::
+
+            >>> from snowflake.snowpark.types import IntegerType
+            >>> import pandas as pd
+            >>> df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
+            >>> new_df = df.flat_map(lambda row: (row[0] * row[0], row[0] + row[0]), output_types=[IntegerType()])
+            >>> new_df.order_by("c_1").show()
+            ---------
+            |"C_1"  |
+            ---------
+            |20     |
+            |40     |
+            |100    |
+            |400    |
+            ---------
+            <BLANKLINE>
+
+        Example 2::
+
+            >>> new_df = df.flat_map(
+            ...     lambda row: [(row[1], row[0]), (row[1], row[0] * 2), (row[1], row[0] * 3)],
+            ...     output_types=[StringType(), IntegerType()]
+            ... )
+            >>> new_df.order_by("c_1", "c_2").show()
+            -----------------
+            |"C_1"  |"C_2"  |
+            -----------------
+            |a      |10     |
+            |a      |20     |
+            |a      |30     |
+            |b      |20     |
+            |b      |40     |
+            |b      |60     |
+            -----------------
+            <BLANKLINE>
+
+        Example 3::
+
+            >>> new_df = df.flat_map(
+            ...     lambda row: [(row[1], row[0]), (row[1], row[0] * 2), (row[1], row[0] * 3)],
+            ...     output_types=[StringType(), IntegerType()],
+            ...     output_column_names=["col1", "col2"]
+            ... )
+            >>> new_df.order_by("col1", "col2").show()
+            -------------------
+            |"COL1"  |"COL2"  |
+            -------------------
+            |a       |10      |
+            |a       |20      |
+            |a       |30      |
+            |b       |20      |
+            |b       |40      |
+            |b       |60      |
+            -------------------
+            <BLANKLINE>
+
+        Example 4::
+
+            >>> data = [
+            ...     [['A', 'B', 'C'], 'Guard', 7],
+            ...     [['D', 'E'], 'Forward', 14],
+            ...     [['F', 'G', 'H', 'I', 'J'], 'Center', 19],
+            ... ]
+            >>> df = session.create_dataframe(data, schema=["team", "position", "points"])
+            >>> df.flat_map(
+            ...     lambda pdf: pdf.explode('TEAM'),
+            ...     output_types=[StringType(), StringType(), IntegerType()],
+            ...     output_column_names=["team", "position", "points"],
+            ...     vectorized=True,
+            ...     packages=["pandas"]
+            ... ).order_by("team").show()
+            ----------------------------------
+            |"TEAM"  |"POSITION"  |"POINTS"  |
+            ----------------------------------
+            |A       |Guard       |7         |
+            |B       |Guard       |7         |
+            |C       |Guard       |7         |
+            |D       |Forward     |14        |
+            |E       |Forward     |14        |
+            |F       |Center      |19        |
+            |G       |Center      |19        |
+            |H       |Center      |19        |
+            |I       |Center      |19        |
+            |J       |Center      |19        |
+            ----------------------------------
+            <BLANKLINE>
+
+        Example 5::
+
+            >>> df.flat_map(
+            ...     lambda pdf: ((len(pdf.iloc[0]["TEAM"]),), (pdf.iloc[0]["POSITION"],)),
+            ...     output_types=[IntegerType(), StringType()],
+            ...     output_column_names=["size", "position"],
+            ...     vectorized=True,
+            ...     partition_by=["position"],
+            ...     packages=["pandas"]
+            ... ).order_by("size").show()
+            -----------------------
+            |"SIZE"  |"POSITION"  |
+            -----------------------
+            |2       |Forward     |
+            |3       |Guard       |
+            |5       |Center      |
+            -----------------------
+            <BLANKLINE>
+
+        Note:
+            1. The result of the ``func`` function must be an iterable. Each element of the
+            iterable must either be a scalar value, or a tuple containing the same number of
+            elements and types as specified in the ``output_types`` argument.
+
+            2. When using ``vectorized`` option, the ``func`` function must accept a pandas
+            Dataframe as input and
+
+            3. Specifying ``partition_by`` is highly recommended ``vectorized`` option is set
+            for optimal load balancing.
+        """
+        df_columns = self.columns
+        map_udtf, output_columns = self._parse_and_register_udtf_for_map(
+            func=func,
+            output_types=output_types,
+            output_column_names=output_column_names,
+            imports=imports,
+            packages=packages,
+            immutable=immutable,
+            vectorized=vectorized,
+            max_batch_size=max_batch_size,
+            df_columns=df_columns,
+            is_flat_map=True,
+        )
+
+        partition_by = lit(1) if (partition_by is None and vectorized) else partition_by
+
+        return self.join_table_function(
+            map_udtf(*df_columns).over(partition_by=partition_by)
+        ).select(*output_columns)
+
     where = filter
 
     # Add the following lines so API docs have them
@@ -6394,227 +7047,12 @@ Query List:
     order_by = sort
     orderBy = order_by
     printSchema = print_schema
+    foreach = map
+    toJSON = to_json
+    flatMap = flat_map
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets
     # joinTableFunction = join_table_function
     # naturalJoin = natural_join
     # withColumns = with_columns
-
-
-def map(
-    dataframe: DataFrame,
-    func: Callable,
-    output_types: List[StructType],
-    *,
-    output_column_names: Optional[List[str]] = None,
-    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
-    packages: Optional[List[Union[str, ModuleType]]] = None,
-    immutable: bool = False,
-    partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
-    vectorized: bool = False,
-    max_batch_size: Optional[int] = None,
-):
-    """Returns a new DataFrame with the result of applying `func` to each of the
-    rows of the specified DataFrame.
-
-    This function registers a temporary `UDTF
-    <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ and
-    returns a new DataFrame with the result of applying the `func` function to each row of the
-    given DataFrame.
-
-    Args:
-        dataframe: The DataFrame instance.
-        func: A function to be applied to every row of the DataFrame.
-        output_types: A list of types for values generated by the ``func``
-        output_column_names: A list of names to be assigned to the resulting columns.
-        imports: A list of imports that are required to run the function. This argument is passed
-            on when registering the UDTF.
-        packages: A list of packages that are required to run the function. This argument is passed
-            on when registering the UDTF.
-        immutable: A flag to specify if the result of the func is deterministic for the same input.
-        partition_by: Specify the partitioning column(s) for the UDTF.
-        vectorized: A flag to determine if the UDTF process should be vectorized. See
-            `vectorized UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-vectorized#udtfs-with-a-vectorized-process-method>`_.
-        max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
-
-    Example 1::
-
-        >>> from snowflake.snowpark.types import IntegerType
-        >>> from snowflake.snowpark.dataframe import map
-        >>> import pandas as pd
-        >>> df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
-        >>> new_df = map(df, lambda row: row[0] * row[0], output_types=[IntegerType()])
-        >>> new_df.order_by("c_1").show()
-        ---------
-        |"C_1"  |
-        ---------
-        |100    |
-        |400    |
-        ---------
-        <BLANKLINE>
-
-    Example 2::
-
-        >>> new_df = map(df, lambda row: (row[1], row[0] * 3), output_types=[StringType(), IntegerType()])
-        >>> new_df.order_by("c_1").show()
-        -----------------
-        |"C_1"  |"C_2"  |
-        -----------------
-        |a      |30     |
-        |b      |60     |
-        -----------------
-        <BLANKLINE>
-
-    Example 3::
-
-        >>> new_df = map(
-        ...     df,
-        ...     lambda row: (row[1], row[0] * 3),
-        ...     output_types=[StringType(), IntegerType()],
-        ...     output_column_names=['col1', 'col2']
-        ... )
-        >>> new_df.order_by("col1").show()
-        -------------------
-        |"COL1"  |"COL2"  |
-        -------------------
-        |a       |30      |
-        |b       |60      |
-        -------------------
-        <BLANKLINE>
-
-    Example 4::
-
-        >>> new_df = map(df, lambda pdf: pdf['COL1']*3, output_types=[IntegerType()], vectorized=True, packages=["pandas"])
-        >>> new_df.order_by("c_1").show()
-        ---------
-        |"C_1"  |
-        ---------
-        |30     |
-        |60     |
-        ---------
-        <BLANKLINE>
-
-    Example 5::
-
-        >>> new_df = map(
-        ...     df,
-        ...     lambda pdf: (pdf['COL1']*3, pdf['COL2']+"b"),
-        ...     output_types=[IntegerType(), StringType()],
-        ...     output_column_names=['A', 'B'],
-        ...     vectorized=True,
-        ...     packages=["pandas"],
-        ... )
-        >>> new_df.order_by("A").show()
-        -------------
-        |"A"  |"B"  |
-        -------------
-        |30   |ab   |
-        |60   |bb   |
-        -------------
-        <BLANKLINE>
-
-    Example 6::
-
-        >>> new_df = map(
-        ...     df,
-        ...     lambda pdf: ((pdf.shape[0],) * len(pdf), (pdf.shape[1],) * len(pdf)),
-        ...     output_types=[IntegerType(), IntegerType()],
-        ...     output_column_names=['rows', 'cols'],
-        ...     partition_by="col3",
-        ...     vectorized=True,
-        ...     packages=["pandas"],
-        ... )
-        >>> new_df.show()
-        -------------------
-        |"ROWS"  |"COLS"  |
-        -------------------
-        |2       |3       |
-        |2       |3       |
-        -------------------
-        <BLANKLINE>
-
-    Note:
-        1. The result of the `func` function must be either a scalar value or
-        a tuple containing the same number of elements as specified in the
-        `output_types` argument.
-
-        2. When using the `vectorized` option, the `func` function must accept
-        a pandas DataFrame as input and return either a pandas DataFrame, or a
-        tuple of pandas Series/arrays.
-    """
-    if len(output_types) == 0:
-        raise ValueError("output_types cannot be empty.")
-
-    if output_column_names is None:
-        output_column_names = [f"c_{i+1}" for i in range(len(output_types))]
-    elif len(output_column_names) != len(output_types):
-        raise ValueError(
-            "'output_column_names' and 'output_types' must be of the same size."
-        )
-
-    df_columns = dataframe.columns
-    packages = packages or list(dataframe._session.get_packages().values())
-    packages = add_package_to_existing_packages(packages, "snowflake-snowpark-python")
-
-    input_types = [field.datatype for field in dataframe.schema.fields]
-    udtf_output_cols = [f"c{i}" for i in range(len(output_types))]
-    output_schema = StructType(
-        [StructField(col, type_) for col, type_ in zip(udtf_output_cols, output_types)]
-    )
-
-    if vectorized:
-        # If the map is vectorized, we need to add pandas to packages if not
-        # already added. Also update the input_types and output_schema to
-        # be PandasDataFrameType.
-        packages = add_package_to_existing_packages(packages, pandas)
-        input_types = [PandasDataFrameType(input_types)]
-        output_schema = PandasDataFrameType(output_types, udtf_output_cols)
-
-    output_columns = [
-        col(f"${i + len(df_columns) + 1}").alias(
-            col_name
-        )  # this is done to avoid collision with original table columns
-        for i, col_name in enumerate(output_column_names)
-    ]
-
-    if vectorized:
-
-        def wrap_result(result):
-            if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
-                return result
-            return (result,)
-
-        class _MapFunc:
-            def process(self, pdf):
-                return wrap_result(func(pdf))
-
-    else:
-
-        def wrap_result(result):
-            if isinstance(result, Row):
-                return tuple(result)
-            elif isinstance(result, tuple):
-                return result
-            else:
-                return (result,)
-
-        class _MapFunc:
-            def process(self, *argv):
-                input_args_to_row = Row(*df_columns)
-                yield wrap_result(func(input_args_to_row(*argv)))
-
-    map_udtf = dataframe._session.udtf.register(
-        _MapFunc,
-        output_schema=output_schema,
-        input_types=input_types,
-        input_names=df_columns,
-        imports=imports,
-        packages=packages,
-        immutable=immutable,
-        max_batch_size=max_batch_size,
-    )
-
-    return dataframe.join_table_function(
-        map_udtf(*df_columns).over(partition_by=partition_by)
-    ).select(*output_columns)
