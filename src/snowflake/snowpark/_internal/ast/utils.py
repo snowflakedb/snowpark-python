@@ -742,7 +742,8 @@ def with_src_position(
         # Once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
         # e.g. Jupyter notebooks, REPLs, calls to exec, etc.
-        if frame is None:
+        filename = frame.f_code.co_filename if frame is not None else ""
+        if frame is None or not Path(filename).is_file():
             src.file = __intern_string("")
             return expr_ast
 
