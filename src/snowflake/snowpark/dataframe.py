@@ -4799,6 +4799,7 @@ class DataFrame:
             + line
         )
 
+    @publicapi
     def _show_string_spark(
         self,
         num_rows: int = 20,
