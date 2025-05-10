@@ -61,6 +61,8 @@ DEVELOPMENT_REQUIREMENTS = [
     "tox",  # used for setting up testing environments
     "snowflake.core>=1.0.0, <2",  # Catalog
     "psutil",  # testing for telemetry
+    "protoc-wheel-0==21.1",  # protoc 3.20.0
+    "mypy-protobuf",
 ]
 
 # read the version
