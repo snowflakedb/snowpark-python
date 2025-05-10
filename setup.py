@@ -44,7 +44,7 @@ MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     ### For private customer releases 
     #"modin @ git+https://github.com/sfc-gh-joshi/modin.git@joshi/hybrid-do-not-release",  # TODO point at main
-    "modin @ git+https://github.com/modin-project/modin.git@hybrid-client-alpha",
+    "modin @ git+https://github.com/modin-project/modin.git@main",
     "tqdm",
 ]
 DEVELOPMENT_REQUIREMENTS = [
