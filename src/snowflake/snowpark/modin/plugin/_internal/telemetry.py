@@ -625,10 +625,8 @@ hybrid_switch_log = native_pd.DataFrame(
 )
 
 @cached(cache={})
-def get_user_source_location(mode, group) -> str:
-    
+def get_user_source_location(group) -> str:
     import inspect
-
     stack = inspect.stack()
     frame_before_snowpandas = None
     location = "<unknown>"
@@ -644,81 +642,43 @@ def get_user_source_location(mode, group) -> str:
         and frame_before_snowpandas.code_context is not None
     ):
         location = frame_before_snowpandas.code_context[0].replace("\n", "")
-    return {'mode': mode, 'group': group, 'location': location }
+    return { 'group': group, 'source': location }
+
+
 
 def get_hybrid_switch_log():
     global hybrid_switch_log
     return hybrid_switch_log.copy()
-
-def add_to_hybrid_switch_log(metrics: dict):
+        
+        
+def hybrid_metrics_watcher(metric_name: str, metric_value: Union[int, float]) -> None:
     global hybrid_switch_log
-    try:
-        mode = metrics['mode']
-        source = get_user_source_location(mode, metrics['group'])['location']
-        if len(source) > 40:
-            source = source[0:17] + "..." + source[-20:-1] + source[-1]
-        hybrid_switch_log = native_pd.concat([hybrid_switch_log, 
-                                                native_pd.DataFrame({'source': [source],
-                                                                   'mode': [metrics['mode']],
-                                                                   'group': [metrics['group']],
-                                                                   'metric': [metrics['metric']],
-                                                                   'submetric': [metrics['submetric'] or None],
-                                                                   'value': [metrics['value']],
-                                                                   'from': [metrics['from'] if 'from' in metrics else None],
-                                                                   'to': [metrics['to'] if 'to' in metrics else None],
-                                                                   })])
-    except Exception as e:
-        print(f"Exception: {type(e).__name__} - {e}")
-        
-        
-def hybrid_metrics_watcher(metric_name: str, value: Union[int, float]) -> None:
+    mode = None
     if metric_name.startswith("modin.hybrid.auto"):
-        tokens = metric_name.split(".")
-        from_engine = None
-        to_engine = None
-        metric = None
-        group = None
-        submetric = None
-        if len(tokens) >= 9:
-            from_engine = tokens[4]
-            to_engine = tokens[6]
-            metric = tokens[7]
-        if len(tokens) == 9:
-            group = tokens[8]
-        if len(tokens) == 10:
-            submetric = tokens[8]
-            group = tokens[9]
-        add_to_hybrid_switch_log({'mode': 'single', 
-                                  'from': from_engine, 
-                                  'to': to_engine, 
-                                  'metric': metric, 
-                                  'submetric': submetric, 
-                                  'group': group, 
-                                  'value': value})
-    if metric_name.startswith("modin.hybrid.cast"):
-        tokens = metric_name.split(".")
-        to_engine = None
-        metric = None
-        submetric = None
-        group = None
-        if len(tokens) == 7 and tokens[3] == 'to' and tokens[5] == 'cost':
-            to_engine = tokens[4]
-            group = tokens[6]
-            metric = 'cost'
-        if len(tokens) == 6 and tokens[3] == 'decision':
-            submetric = tokens[4]
-            group = tokens[5]
-            metric = 'decision'
-        add_to_hybrid_switch_log({'mode': 'merge', 
-                                  'to': to_engine, 
-                                  'metric': metric,
-                                  'submetric': submetric,
-                                  'group': group, 
-                                  'value': value})
-        
+        mode = "auto"
+    elif metric_name.startswith("modin.hybrid.merge"):
+        mode = "merge"
+    else:
+        return
+    tokens = metric_name.split(".")[3:]
+    entry = {'mode': mode}
+    while len(tokens) >= 2:
+        key = tokens.pop(0)
+        if key == 'api':
+            value = tokens.pop(0) + '.' + tokens.pop(0)
+        else:
+            value = tokens.pop(0)
+        entry[key] = value
     
-
-
+    if len(tokens) == 1:
+        key = tokens.pop(0)
+        entry[key] = metric_value
+    
+    source = get_user_source_location(entry['group'])
+    entry['source'] = source['source']
+    new_row = native_pd.DataFrame(entry, index=[0])
+    hybrid_switch_log = native_pd.concat([hybrid_switch_log, new_row])
+ 
 def connect_modin_telemetry() -> None:
     MetricsMode.enable()
     add_metric_handler(snowpark_pandas_api_watcher)
