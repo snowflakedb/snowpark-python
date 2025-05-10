@@ -1261,6 +1261,10 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    def find_table_function_in_sql_tree(self, plan: SnowflakePlan):
+        for node in plan.children_plan_nodes:
+            self.find_table_function_in_sql_tree(node)
+
     def create_or_replace_dynamic_table(
         self,
         name: str,
@@ -1278,6 +1282,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
+        self.find_table_function_in_sql_tree(child)
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
 
