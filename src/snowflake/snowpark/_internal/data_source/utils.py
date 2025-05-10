@@ -176,7 +176,7 @@ def _upload_and_copy_into_table(
     copy_into_table_query = f"""
     COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
     FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
-    MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
+    MATCH_BY_COLUMN_NAME=CASE_SENSITIVE
     PURGE=TRUE
     ON_ERROR={on_error}
     {DATA_SOURCE_SQL_COMMENT}
