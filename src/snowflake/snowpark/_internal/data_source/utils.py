@@ -13,12 +13,14 @@ from snowflake.snowpark._internal.data_source.dbms_dialects import (
     OracledbDialect,
     SqlServerDialect,
     DatabricksDialect,
+    PostgresDialect,
 )
 from snowflake.snowpark._internal.data_source.drivers import (
     SqliteDriver,
     OracledbDriver,
     PyodbcDriver,
     DatabricksDriver,
+    Psycopg2Driver,
 )
 import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
@@ -41,6 +43,7 @@ class DBMS_TYPE(Enum):
     ORACLE_DB = "ORACLE_DB"
     SQLITE_DB = "SQLITE3_DB"
     DATABRICKS_DB = "DATABRICKS_DB"
+    POSTGRES_DB = "POSTGRES_DB"
     UNKNOWN = "UNKNOWN"
 
 
@@ -49,6 +52,7 @@ class DRIVER_TYPE(str, Enum):
     ORACLEDB = "oracledb"
     SQLITE3 = "sqlite3"
     DATABRICKS = "databricks.sql.client"
+    PSYCOPG2 = "psycopg2.extensions"
     UNKNOWN = "unknown"
 
 
@@ -57,6 +61,7 @@ DBMS_MAP = {
     DBMS_TYPE.ORACLE_DB: OracledbDialect,
     DBMS_TYPE.SQLITE_DB: Sqlite3Dialect,
     DBMS_TYPE.DATABRICKS_DB: DatabricksDialect,
+    DBMS_TYPE.POSTGRES_DB: PostgresDialect,
 }
 
 DRIVER_MAP = {
@@ -64,6 +69,7 @@ DRIVER_MAP = {
     DRIVER_TYPE.ORACLEDB: OracledbDriver,
     DRIVER_TYPE.SQLITE3: SqliteDriver,
     DRIVER_TYPE.DATABRICKS: DatabricksDriver,
+    DRIVER_TYPE.PSYCOPG2: Psycopg2Driver,
 }
 
 UDTF_PACKAGE_MAP = {
@@ -74,6 +80,7 @@ UDTF_PACKAGE_MAP = {
         "msodbcsql",
         "snowflake-snowpark-python",
     ],
+    DBMS_TYPE.POSTGRES_DB: ["psycopg2", "snowflake-snowpark-python"],
 }
 
 
@@ -118,6 +125,7 @@ DBMS_MAPPING = {
     DRIVER_TYPE.ORACLEDB: lambda conn: DBMS_TYPE.ORACLE_DB,
     DRIVER_TYPE.SQLITE3: lambda conn: DBMS_TYPE.SQLITE_DB,
     DRIVER_TYPE.DATABRICKS: lambda conn: DBMS_TYPE.DATABRICKS_DB,
+    DRIVER_TYPE.PSYCOPG2: lambda conn: DBMS_TYPE.POSTGRES_DB,
 }
 
 

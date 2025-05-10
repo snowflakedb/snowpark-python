@@ -55,7 +55,7 @@ class DataSourceReader:
                 yield result
             elif self.fetch_size > 0:
                 cap_size = self.fetch_merge_count * self.fetch_size
-                cursor = cursor.execute(partition)
+                cursor.execute(partition)
                 batch = []
                 while True:
                     rows = cursor.fetchmany(self.fetch_size)
