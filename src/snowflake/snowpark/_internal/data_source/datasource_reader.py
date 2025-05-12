@@ -1,10 +1,12 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import pickle
 from enum import Enum
 
 from typing import List, Any, Iterator, Type, Callable, Optional
+
+import cloudpickle
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
@@ -28,7 +30,11 @@ class DataSourceReader:
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
     ) -> None:
-        self.driver = driver_class(create_connection, dbms_type)
+        self.pickled_create_connection_callback = cloudpickle.dumps(
+            create_connection, protocol=pickle.HIGHEST_PROTOCOL
+        )
+        self.driver_class = driver_class
+        self.dbms_type = dbms_type
         self.schema = schema
         self.fetch_size = fetch_size
         self.query_timeout = query_timeout
@@ -36,6 +42,11 @@ class DataSourceReader:
         self.fetch_merge_count = fetch_merge_count
 
     def read(self, partition: str) -> Iterator[List[Any]]:
+        self.driver = self.driver_class(
+            cloudpickle.loads(self.pickled_create_connection_callback),
+            self.dbms_type,
+        )
+
         conn = self.driver.prepare_connection(
             self.driver.create_connection(), self.query_timeout
         )
