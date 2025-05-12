@@ -5,6 +5,7 @@
 import datetime
 from decimal import Decimal
 
+from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StructType,
@@ -40,7 +41,7 @@ pytestmark = [
 ]
 
 
-TEST_TABLE_NAME = "test_schema.ALL_TYPE_TABLE"
+POSTGRES_TABLE_NAME = "test_schema.ALL_TYPE_TABLE"
 EXPECTED_TEST_DATA = [
     (
         -6645531000000000000,
@@ -267,6 +268,51 @@ EXPECTED_TEST_DATA = [
         "960b86a9-a8dd-4634-bc1f-956ae6589726",
         "<root><element>47</element></root>",
     ),
+    (
+        None,
+        6,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        "null",
+        "null",
+        None,
+        None,
+        None,
+        None,
+        "null",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        6,
+        6,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ),
 ]
 EXPECTED_TYPE = StructType(
     [
@@ -319,6 +365,7 @@ EXPECTED_TYPE = StructType(
         StructField("XML_COL", StringType(16777216), nullable=True),
     ]
 )
+POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_postgres_test_integration"
 
 
 def create_postgres_connection():
@@ -327,7 +374,10 @@ def create_postgres_connection():
 
 @pytest.mark.parametrize(
     "input_type, input_value",
-    [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
+    [
+        ("table", POSTGRES_TABLE_NAME),
+        ("query", f"(SELECT * FROM {POSTGRES_TABLE_NAME})"),
+    ],
 )
 def test_basic_postgres(session, input_type, input_value):
     input_dict = {
@@ -350,3 +400,58 @@ def test_error_case(session, input_type, input_value, error_message):
     }
     with pytest.raises(SnowparkDataframeReaderException, match=error_message):
         session.read.dbapi(create_postgres_connection, **input_dict)
+
+
+def test_query_timeout(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match=r"due to exception 'QueryCanceled\('canceling statement due to statement timeout",
+    ):
+        session.read.dbapi(
+            create_postgres_connection,
+            table=POSTGRES_TABLE_NAME,
+            query_timeout=1,
+            session_init_statement=["SELECT pg_sleep(5)"],
+        )
+
+
+def test_external_access_integration_not_set(session):
+    with pytest.raises(
+        ValueError,
+        match="external_access_integration cannot be None when udtf ingestion is used.",
+    ):
+        session.read.dbapi(
+            create_postgres_connection, table=POSTGRES_TABLE_NAME, udtf_configs={}
+        )
+
+
+def test_unicode_column_name_postgres(session):
+    df = session.read.dbapi(
+        create_postgres_connection, table='test_schema."用户資料"'
+    ).order_by("編號")
+    assert df.collect() == [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")]
+    assert df.columns == ['"編號"', '"姓名"', '"國家"', '"備註"']
+
+
+def test_udtf_ingestion_postgres(session, caplog):
+    from tests.parameters import POSTGRES_CONNECTION_PARAMETERS
+
+    def create_connection_postgres():
+        import psycopg2
+
+        return psycopg2.connect(**POSTGRES_CONNECTION_PARAMETERS)
+
+    df = session.read.dbapi(
+        create_connection_postgres,
+        table=POSTGRES_TABLE_NAME,
+        udtf_configs={
+            "external_access_integration": POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION
+        },
+    ).order_by("BIGSERIAL_COL")
+
+    assert df.collect() == EXPECTED_TEST_DATA
+    # assert UDTF creation and UDTF call
+    assert (
+        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
+        and "table(data_source_udtf" in caplog.text
+    )

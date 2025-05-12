@@ -173,16 +173,10 @@ class Psycopg2Driver(BaseDriver):
         super().__init__(create_connection, dbms_type)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
-        # TODO: Implement this method to convert PostgreSQL types to Snowflake types.
-        # https://other-docs.snowflake.com/en/connectors/postgres6/view-data#postgresql-to-snowflake-data-type-mapping
-        # psycopg2 type code: https://github.com/psycopg/psycopg2/blob/master/psycopg/pgtypes.h
-        # https://www.postgresql.org/docs/current/datatype.html
+        # The psycopg2 spec is defined in the following links:
         # https://www.psycopg.org/docs/cursor.html#cursor.description
-        # https://www.psycopg.org/docs/extensions.html#psycopg2.extensions.Column.type_code
-        #   https://www.postgresql.org/docs/current/catalog-pg-type.html
-        #   https://www.psycopg.org/docs/advanced.html#type-casting-from-sql-to-python
-        fields = []
         # https://www.psycopg.org/docs/extensions.html#psycopg2.extensions.Column
+        fields = []
         for (
             name,
             type_code,
@@ -222,14 +216,6 @@ class Psycopg2Driver(BaseDriver):
         data: List[Any], schema: StructType
     ) -> "pd.DataFrame":
         df = BaseDriver.data_source_data_to_pandas_df(data, schema)
-        # psycopg2 returns binary data as memoryview, we need to convert it to bytes
-        binary_type_indexes = [
-            i
-            for i, field in enumerate(schema.fields)
-            if isinstance(field.datatype, BinaryType)
-        ]
-        col_names = df.columns[binary_type_indexes]
-        df[col_names] = BaseDriver.df_map_method(df[col_names])(lambda x: bytes(x))
 
         variant_type_indexes = [
             i
@@ -259,8 +245,8 @@ class Psycopg2Driver(BaseDriver):
             project_columns, _emit_ast=_emit_ast
         )
 
+    @staticmethod
     def prepare_connection(
-        self,
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
@@ -275,4 +261,97 @@ class Psycopg2Driver(BaseDriver):
             lambda data, cursor: data,
         )
         register_type(SNOWPARK_INTERVAL_STR, conn)
+
+        # by default psycopg2 returns binary data as memoryview
+        # to avoid using pandas to convert memoryview to bytes, we use the following native psycopg2 type conversion
+        # psycopg2.extensions.new_type() only works for text format data, it returns bytes as hex string
+        # we reconstruct the bytes from hex string
+        SNOWPARK_BYTE = new_type(
+            (Psycopg2TypeCode.BYTEAOID.value,),
+            "SNOWPARK_BYTE_BYTES",
+            lambda data, cursor: bytes.fromhex(data[2:])
+            if data is not None
+            else None,  # [2:] to skip the '\\x' prefix
+        )
+        register_type(SNOWPARK_BYTE, conn)
+
+        if query_timeout:
+            # https://www.postgresql.org/docs/current/runtime-config-client.html#GUC-STATEMENT-TIMEOUT
+            # postgres default uses milliseconds
+            conn.cursor().execute(f"SET STATEMENT_TIMEOUT = {query_timeout * 1000}")
         return conn
+
+    def udtf_class_builder(
+        self, fetch_size: int = 1000, schema: StructType = None
+    ) -> type:
+        create_connection = self.create_connection
+
+        # TODO: SNOW-2101485 ues class method to prepare connection
+        # ideally we should use the same function as prepare_connection
+        # however, since we introduce new module for new driver support and initially the new module is not available in the backend
+        # so if registering UDTF which uses the class method, cloudpickle will pickle the class method along with
+        # the new module -- this leads to not being able to find the new module when unpickling on the backend.
+        # once the new module is available in the backend, we can use the class method.
+        def prepare_connection_in_udtf(
+            conn: "Connection",
+            query_timeout: int = 0,
+        ) -> "Connection":
+            # The following is to align with Snowflake Connector behavior which get Interval as string
+            # the default behavior of psycopg2 is to get Interval as datetime.timedelta
+            # https://other-docs.snowflake.com/en/connectors/postgres6/view-data#postgresql-to-snowflake-data-type-mapping
+            from psycopg2.extensions import new_type, register_type
+
+            # we do not use Psycopg2TypeCode.INTERVALOID.value because UTDF pickles the psycopg2_driver module
+            # unpickling in the UDTF would results in module not found error if package not available in the backend
+            SNOWPARK_INTERVAL_STR = new_type(
+                (1186,),
+                "SNOWPARK_INTERVAL_STR",
+                lambda data, cursor: data,
+            )
+            register_type(SNOWPARK_INTERVAL_STR, conn)
+
+            if query_timeout:
+                # https://www.postgresql.org/docs/current/runtime-config-client.html#GUC-STATEMENT-TIMEOUT
+                # postgres default uses milliseconds
+                conn.cursor().execute(f"SET STATEMENT_TIMEOUT = {query_timeout * 1000}")
+            return conn
+
+        binary_column_indexes = [
+            i
+            for i, field in enumerate(schema.fields)
+            if isinstance(field.datatype, BinaryType)
+        ]
+        time_column_indexes = [
+            i
+            for i, field in enumerate(schema.fields)
+            if isinstance(field.datatype, TimeType)
+        ]
+
+        # postgres returns binary data as memoryview, we need to convert it to bytes
+        def convert_rows(rows_to_update):
+            ret = []
+            for row in rows_to_update:
+                # convert tuple to list to make it mutable
+                new_row = list(row)
+                # convert bytes to hexstring so that variant column can be cast to bytes
+                for idx in binary_column_indexes:
+                    new_row[idx] = bytes(row[idx]).hex() if row[idx] else None
+                # remove timezone info from time columns
+                for idx in time_column_indexes:
+                    new_row[idx] = row[idx].replace(tzinfo=None) if row[idx] else None
+                # convert list back to tuple as UDTF requires tuple
+                ret.append(tuple(new_row))
+            return ret
+
+        class UDTFIngestion:
+            def process(self, query: str):
+                conn = prepare_connection_in_udtf(create_connection())
+                cursor = conn.cursor()
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    yield from convert_rows(rows)
+
+        return UDTFIngestion

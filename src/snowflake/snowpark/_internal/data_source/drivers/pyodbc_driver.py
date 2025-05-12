@@ -116,8 +116,8 @@ class PyodbcDriver(BaseDriver):
 
         return UDTFIngestion
 
+    @staticmethod
     def prepare_connection(
-        self,
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":

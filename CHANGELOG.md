@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added PostgreSQL support to `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
+
 #### Improvements
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.

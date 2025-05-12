@@ -109,8 +109,8 @@ class OracledbDriver(BaseDriver):
 
         return StructType(fields)
 
+    @staticmethod
     def prepare_connection(
-        self,
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
