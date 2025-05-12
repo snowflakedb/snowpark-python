@@ -58,6 +58,7 @@ from snowflake.snowpark._internal.utils import (
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
     XML_READER_FILE_PATH,
+    XML_READER_SQL_COMMENT,
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
@@ -1159,7 +1160,10 @@ class DataFrameReader:
                 _emit_ast=False,
             )
         df._reader = self
-        set_api_call_source(df, f"DataFrameReader.{format.lower()}")
+        if xml_reader_udtf:
+            set_api_call_source(df, XML_READER_SQL_COMMENT)
+        else:
+            set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
 
     @private_preview(version="1.29.0")
