@@ -418,39 +418,36 @@ def dataframe_exception_handler(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except SnowparkSQLException as e:
-            if "--- Additional Debug Information ---" in str(e):
+        except SnowparkSQLException as original_exception:
+            # capture original stack trace
+            error_type, error_value, tb = sys.exc_info()
+            formatted_last_frame = str(
+                traceback.format_exception(error_type, error_value, tb)[-1]
+            )
+
+            if "--- Additional Debug Information ---" in formatted_last_frame:
                 # The exception handler can be invoked multiple times in
                 # case of a nested dataframe operation. We only want to
                 # add the debug information once. If the exception is
                 # already handled, we just re-raise it.
-                raise e
-            # capture original stack trace
-            error_type, error_value, tb = sys.exc_info()
-            traceback_lines = traceback.format_exception(error_type, error_value, tb)
-            formatted_traceback = "".join(traceback_lines)
-
-            # get the dataframe lineage
-            dataframes_involved = []
-            for arg in args:
-                if isinstance(arg, DataFrame):
-                    dataframes_involved.append(arg)
+                raise original_exception
 
             try:
+                # get the dataframe lineage
+                dataframes_involved = []
+                for arg in args:
+                    if isinstance(arg, DataFrame):
+                        dataframes_involved.append(arg)
+
                 df_lineage = _get_df_lineage(dataframes_involved)
-            except Exception:
-                # if there is any internal error while getting the lineage, just re-raise the
-                # original exception
-                raise e
-            lineage_trace_len = len(df_lineage)
-            if len(df_lineage) > 0:
+                lineage_trace_len = len(df_lineage)
                 show_lineage_len = int(
                     os.environ.get(
                         "SNOWPARK_PYTHON_DATAFRAME_LINEAGE_LENGTH_ON_ERROR", 5
                     )
                 )
                 traceback_with_debug_info = [
-                    formatted_traceback,
+                    formatted_last_frame,
                     "\n--- Additional Debug Information ---\n",
                     f"\nTrace of the dataframe operations that could have caused the error (total {lineage_trace_len}):\n",
                 ]
@@ -465,10 +462,17 @@ def dataframe_exception_handler(func):
                     )
 
                 final_traceback = "\n".join(traceback_with_debug_info)
-                raise error_type(final_traceback) from None
-            else:
+            except Exception:
+                # if there is any internal error while getting the lineage, just re-raise the
+                # original exception
+                raise original_exception
+
+            if lineage_trace_len == 0:
                 # raise original exception if we can't infer the lineage
-                raise e
+                raise original_exception
+
+            # add the debug information to the exception message and raise from the original exception
+            raise error_type(final_traceback) from original_exception
 
     return wrapper
 
