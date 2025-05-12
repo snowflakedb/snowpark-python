@@ -39,6 +39,7 @@ pytestmark = [
 ]
 
 TEST_TABLE_NAME = "ALL_TYPES_TABLE"
+MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION = "mysql_integration"
 
 
 def create_connection_mysql():
@@ -145,3 +146,41 @@ def test_double_quoted_column_name_oracledb(session):
 def test_infer_type_from_data(data, number_of_columns, expected_result):
     result = PymysqlDriver.infer_type_from_data(data, number_of_columns)
     assert result == expected_result
+
+
+def test_udtf_ingestion_oracledb(session):
+    from tests.parameters import MYSQL_CONNECTION_PARAMETERS
+
+    his = session.query_history()
+
+    def create_connection_mysql():
+        import pymysql
+
+        conn = pymysql.connect(
+            user=MYSQL_CONNECTION_PARAMETERS["username"],
+            password=MYSQL_CONNECTION_PARAMETERS["password"],
+            host=MYSQL_CONNECTION_PARAMETERS["host"],
+            database=MYSQL_CONNECTION_PARAMETERS["database"],
+        )
+        return conn
+
+    df = session.read.dbapi(
+        create_connection_mysql,
+        table=TEST_TABLE_NAME,
+        udtf_configs={
+            "external_access_integration": MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION
+        },
+    ).order_by("ID")
+
+    Utils.check_answer(df, mysql_real_data)
+
+    # check that udtf is used
+    flag = False
+    for q in his.queries:
+        if (
+            """CREATE
+TEMPORARY  FUNCTION  data_source_udtf"""
+            in q.sql_text
+        ):
+            flag = True
+    assert flag
