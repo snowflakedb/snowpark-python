@@ -84,6 +84,7 @@ from snowflake.snowpark.functions import (
     cume_dist,
     current_database,
     current_session,
+    date_format,
     date_part,
     date_trunc,
     dateadd,
@@ -1988,6 +1989,41 @@ def test_to_date(session):
     ]
     df = session.create_dataframe(data5).to_df(["a"])
     Utils.check_answer(df.select(to_date(df.a, "YYYY-MM-DD")), expected5)
+
+
+def test_date_format(session):
+    df = session.create_dataframe(
+        [
+            (date(2025, 1, 1), "A"),
+            (date(2025, 2, 2), "B"),
+            (date(2025, 3, 3), "A"),
+            (date(2025, 4, 4), "A"),
+        ],
+        ["date", "cat"],
+    )
+
+    # Check format works
+    Utils.check_answer(
+        df.withColumn("FORMATTED", date_format("DATE", "MMYYYY")),
+        [
+            Row(date(2025, 1, 1), "A", "012025"),
+            Row(date(2025, 2, 2), "B", "022025"),
+            Row(date(2025, 3, 3), "A", "032025"),
+            Row(date(2025, 4, 4), "A", "042025"),
+        ],
+    )
+
+    # Check format after filter works
+    Utils.check_answer(
+        df.filter(col("CAT") == "A").withColumn(
+            "FORMATTED", date_format("DATE", "MMYYYY")
+        ),
+        [
+            Row(date(2025, 1, 1), "A", "012025"),
+            Row(date(2025, 3, 3), "A", "032025"),
+            Row(date(2025, 4, 4), "A", "042025"),
+        ],
+    )
 
 
 @pytest.mark.skipif(

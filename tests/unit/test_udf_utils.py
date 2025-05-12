@@ -12,6 +12,7 @@ import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.udf_utils import (
+    RegistrationType,
     add_snowpark_package_to_sproc_packages,
     cleanup_failed_permanent_registration,
     create_python_udf_or_sp,
@@ -294,6 +295,7 @@ def test_copy_grant_for_udf_or_sp_registration(
             all_imports="",
             all_packages="",
             raw_imports=None,
+            registration_type=RegistrationType.UDF,
             is_permanent=True,
             replace=False,
             if_not_exists=False,
@@ -302,7 +304,6 @@ def test_copy_grant_for_udf_or_sp_registration(
         if copy_grants:
             mock_run_query.assert_called_once()
             assert "COPY GRANTS" in mock_run_query.call_args[0][0]
-    pass
 
 
 def test_create_python_udf_or_sp_with_none_session():
@@ -324,6 +325,7 @@ def test_create_python_udf_or_sp_with_none_session():
             all_imports="",
             all_packages="",
             raw_imports=None,
+            registration_type=RegistrationType.UDF,
             is_permanent=True,
             replace=False,
             if_not_exists=False,

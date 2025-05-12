@@ -1102,6 +1102,7 @@ def mock_to_timestamp_ntz(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 
@@ -1121,6 +1122,7 @@ def mock_to_timestamp_ltz(
             TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 
@@ -1138,6 +1140,7 @@ def mock_to_timestamp_tz(
             TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 

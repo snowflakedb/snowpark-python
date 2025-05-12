@@ -37,7 +37,7 @@ def test_read_snowflake_call_sproc(session, enforce_ordering):
         CREATE OR REPLACE PROCEDURE filter_by_role(tableName VARCHAR, role VARCHAR)
         RETURNS TABLE(id NUMBER, name VARCHAR, role VARCHAR)
         LANGUAGE PYTHON
-        RUNTIME_VERSION = '3.8'
+        RUNTIME_VERSION = '3.9'
         PACKAGES = ('snowflake-snowpark-python')
         HANDLER = 'filter_by_role'
         AS $$from snowflake.snowpark.functions import col
@@ -70,7 +70,7 @@ def test_read_snowflake_call_sproc_enforce_ordering_neg(session):
         CREATE OR REPLACE PROCEDURE filter_by_role(tableName VARCHAR, role VARCHAR)
         RETURNS TABLE(id NUMBER, name VARCHAR, role VARCHAR)
         LANGUAGE PYTHON
-        RUNTIME_VERSION = '3.8'
+        RUNTIME_VERSION = '3.9'
         PACKAGES = ('snowflake-snowpark-python')
         HANDLER = 'filter_by_role'
         AS $$from snowflake.snowpark.functions import col

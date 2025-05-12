@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.open_telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    RegistrationType,
     check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -40,7 +41,7 @@ from snowflake.snowpark._internal.utils import (
     warning,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.types import DataType, MapType
+from snowflake.snowpark.types import DataType, MapType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -750,7 +751,7 @@ class UDAFRegistration:
                     "_do_register_udaf",
                     "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object.",
                 )
-                return_type = MapType()
+                return_type = StructType()
 
         # Capture original parameters.
         if _emit_ast:
@@ -831,6 +832,7 @@ class UDAFRegistration:
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
+                registration_type=RegistrationType.UDAF,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,

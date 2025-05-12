@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.open_telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    RegistrationType,
     check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -1088,6 +1089,7 @@ class UDTFRegistration:
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
+                registration_type=RegistrationType.UDTF,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,

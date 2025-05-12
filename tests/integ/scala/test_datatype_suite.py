@@ -60,6 +60,7 @@ from tests.utils import (
     iceberg_supported,
     structured_types_enabled_session,
     structured_types_supported,
+    IS_IN_STORED_PROC_LOCALFS,
 )
 
 # Map of structured type enabled state to test params
@@ -587,11 +588,10 @@ def test_structured_dtypes_negative(structured_type_session, structured_type_sup
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
 
-    # Maptype requires both key and value type be set if either is set
-    with pytest.raises(
-        ValueError,
-        match="Must either set both key_type and value_type or leave both unset.",
-    ):
+    with pytest.raises(ValueError, match="MapType requires key and value type be set."):
+        MapType()
+
+    with pytest.raises(ValueError, match="MapType requires key and value type be set."):
         MapType(StringType())
 
 
@@ -633,7 +633,7 @@ def test_udaf_structured_map_downcast(
             "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object."
             in caplog.text
         )
-        assert MapCollector._return_type == MapType()
+        assert MapCollector._return_type == StructType()
 
 
 @pytest.mark.skipif(
@@ -1054,8 +1054,8 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     expected_semi_schema = StructType(
         [
             StructField("ARR", ArrayType(), nullable=True),
-            StructField("MAP", MapType(), nullable=True),
-            StructField("OBJ", MapType(), nullable=True),
+            StructField("MAP", StructType(), nullable=True),
+            StructField("OBJ", StructType(), nullable=True),
         ]
     )
     expected_structured_schema = StructType(
@@ -1084,8 +1084,8 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
         schema=StructType(
             [
                 StructField("arr", ArrayType()),
-                StructField("map", MapType()),
-                StructField("obj", MapType()),
+                StructField("map", StructType()),
+                StructField("obj", StructType()),
             ]
         ),
     )
@@ -1685,6 +1685,9 @@ def test_non_nullable_schema(structured_type_session, structured_type_support):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="File type is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
 )
 def test_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)

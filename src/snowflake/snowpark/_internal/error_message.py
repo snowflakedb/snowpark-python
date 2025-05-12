@@ -128,6 +128,17 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def DF_XML_ROW_TAG_NOT_FOUND(
+        row_tag: Optional[str] = None,
+        file_path: Optional[str] = None,
+    ) -> SnowparkDataframeReaderException:
+        if row_tag is not None and file_path is not None:
+            msg = f"Cannot find the row tag '{row_tag}' in the XML file {file_path}."
+        else:
+            msg = "Cannot find the row tag in the XML file."
+        return SnowparkDataframeReaderException(msg)
+
+    @staticmethod
     def DF_CROSS_TAB_COUNT_TOO_LARGE(
         count: int, max_count: int
     ) -> SnowparkDataframeException:
