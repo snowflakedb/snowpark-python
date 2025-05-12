@@ -150,6 +150,10 @@ class SnowflakePlan(LogicalPlan):
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
+                    from snowflake.snowpark._internal.analyzer.select_statement import (
+                        Selectable,
+                    )
+
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
@@ -209,10 +213,6 @@ class SnowflakePlan(LogicalPlan):
                             )
                             raise ne.with_traceback(tb) from None
                         else:
-                            from snowflake.snowpark._internal.analyzer.select_statement import (
-                                Selectable,
-                            )
-
                             # We need the potential double quotes for invalid identifier
                             match = SnowflakePlan.Decorator.__wrap_exception_regex_match_with_double_quotes.match(
                                 e.msg
@@ -277,11 +277,53 @@ class SnowflakePlan(LogicalPlan):
                                 e
                             )
                             raise ne.with_traceback(tb) from None
-                    else:
-                        ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                            e
-                        )
-                        raise ne.with_traceback(tb) from None
+                    elif e.sqlstate == "42601" and "SELECT with no columns" in e.msg:
+                        # This is a special case when the select statement has no columns,
+                        # and it's a reading XML query.
+
+                        def search_read_file_node(
+                            node: Union[SnowflakePlan, Selectable]
+                        ) -> Optional[ReadFileNode]:
+                            for child in node.children_plan_nodes:
+                                source_plan = (
+                                    child.source_plan
+                                    if isinstance(child, SnowflakePlan)
+                                    else child.snowflake_plan.source_plan
+                                )
+                                if isinstance(source_plan, ReadFileNode):
+                                    return source_plan
+                                result = search_read_file_node(child)
+                                if result:
+                                    return result
+                            return None
+
+                        for arg in args:
+                            if isinstance(arg, SnowflakePlan):
+                                read_file_node = search_read_file_node(arg)
+                                if (
+                                    read_file_node
+                                    and read_file_node.xml_reader_udtf is not None
+                                ):
+                                    row_tag = read_file_node.options.get(
+                                        XML_ROW_TAG_STRING
+                                    )
+                                    file_path = read_file_node.path
+                                    ne = SnowparkClientExceptionMessages.DF_XML_ROW_TAG_NOT_FOUND(
+                                        row_tag, file_path
+                                    )
+                                    raise ne.with_traceback(tb) from None
+                            # when the describe query fails, the arg is a query string
+                            elif isinstance(arg, str):
+                                if f'"{XML_ROW_DATA_COLUMN_NAME}"' in arg:
+                                    ne = (
+                                        SnowparkClientExceptionMessages.DF_XML_ROW_TAG_NOT_FOUND()
+                                    )
+                                    raise ne.with_traceback(tb) from None
+
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        e
+                    )
+                    raise ne.with_traceback(tb) from None
 
             return wrap
 
