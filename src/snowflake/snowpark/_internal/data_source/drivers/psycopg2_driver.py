@@ -286,7 +286,7 @@ class Psycopg2Driver(BaseDriver):
     ) -> type:
         create_connection = self.create_connection
 
-        # TODO: SNOW-2101485 ues class method to prepare connection
+        # TODO: SNOW-2101485 use class method to prepare connection
         # ideally we should use the same function as prepare_connection
         # however, since we introduce new module for new driver support and initially the new module is not available in the backend
         # so if registering UDTF which uses the class method, cloudpickle will pickle the class method along with
