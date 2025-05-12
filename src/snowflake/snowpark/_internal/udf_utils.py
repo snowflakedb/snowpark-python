@@ -58,11 +58,11 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
 
-if get_installed_pandas():
-    snowpark_types= get_snowpark_types()
-    PandasDataFrame = snowpark_types.PandasDataFrame
-    PandasDataFrameType = snowpark_types.PandasDataFrameType
-    PandasSeriesType = snowpark_types.PandasSeriesType
+# if get_installed_pandas():
+#     snowpark_types= get_snowpark_types()
+#     PandasDataFrame = snowpark_types.PandasDataFrame
+#     PandasDataFrameType = snowpark_types.PandasDataFrameType
+#     PandasSeriesType = snowpark_types.PandasSeriesType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -198,6 +198,13 @@ def get_python_types_dict_for_udtf(
 def extract_return_type_from_udtf_type_hints(
     return_type_hint, output_schema, func_name
 ) -> Union[StructType, "PandasDataFrameType", None]:
+
+    global PandasDataFrameType, PandasDataFrame
+    if get_installed_pandas():
+        snowpark_types = get_snowpark_types()
+        PandasDataFrame = snowpark_types.PandasDataFrame
+        PandasDataFrameType = snowpark_types.PandasDataFrameType
+
     if return_type_hint is None and output_schema is not None:
         raise ValueError(
             "The return type hint is not set but 'output_schema' has only column names. You can either use a StructType instance for 'output_schema', or use"
@@ -591,6 +598,12 @@ def extract_return_input_types(
            2. return_type and input_types are not provided, but type hints are provided,
               then just use the types inferred from type hints.
     """
+
+    global PandasSeriesType, PandasDataFrameType
+    if get_installed_pandas():
+        snowpark_types = get_snowpark_types()
+        PandasDataFrameType = snowpark_types.PandasDataFrameType
+        PandasSeriesType = snowpark_types.PandasSeriesType
 
     (
         return_type_from_type_hints,
