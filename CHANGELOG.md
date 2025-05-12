@@ -21,6 +21,9 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+- Added support for Mysql in `DataFrameWriter.dbapi` (PrPr).
+
 #### Improvements
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
