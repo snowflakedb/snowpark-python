@@ -126,11 +126,21 @@ class PymysqlDriver(BaseDriver):
         return StructType(fields)
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
-        # create_connection = self.create_connection
+        create_connection = self.create_connection
 
         class UDTFIngestion:
             def process(self, query: str):
-                pass
+                def hexify_binary(row):
+                    return tuple(v.hex() if isinstance(v, bytes) else v for v in row)
+
+                conn = create_connection()
+                cursor = conn.cursor()
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    yield from [hexify_binary(row) for row in rows]
 
         return UDTFIngestion
 
