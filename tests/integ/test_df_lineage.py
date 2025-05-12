@@ -37,19 +37,39 @@ if sys.version_info >= (3, 11):
 else:
     LOCATION_PATTERN = r"(\d+)"
 
+# check if operating system is Windows
+if sys.platform.startswith("win"):
+    SEP = "\\"
+else:
+    SEP = "/"
+
+CURR_FILE_PATH = os.path.dirname(os.path.abspath(__file__))
+DATAFRAME_GENERATOR1_PATH = os.path.join(
+    os.path.dirname(CURR_FILE_PATH),
+    "resources",
+    "test_df_debug_dir",
+    "dataframe_generator1.py",
+)
+DATAFRAME_GENERATOR2_PATH = os.path.join(
+    os.path.dirname(CURR_FILE_PATH),
+    "resources",
+    "test_df_debug_dir",
+    "dataframe_generator2.py",
+)
+
 
 def test_simple_dataframe_lineage(session):
     df_simple = DataFrameGenerator1(session).simple_dataframe()
     err_df = df_simple.select("does_not_exist")
     if sys.version_info >= (3, 11):
         expected_lineage = [
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}: df_simple.select("does_not_exist")'
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: self.session.create_dataframe"
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:  df_simple.select("does_not_exist")',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
         ]
     else:
         expected_lineage = [
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}:     err_df = df_simple.select("does_not_exist")'
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:         return self.session.create_dataframe"
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:     err_df = df_simple.select("does_not_exist")',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:         return self.session.create_dataframe",
         ]
 
     expected_error_match = ".*".join(BASE_DEBUG_ERROR + expected_lineage)
@@ -64,17 +84,17 @@ def test_binary_dataframe_lineage(session):
 
     if sys.version_info >= (3, 11):
         expected_lineage = [
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}: df_binary.select("does_not_exist")'
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: df1.union(df2)"
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: self.session.create_dataframe"
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: self.session.create_dataframe"
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:  df_binary.select("does_not_exist")',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  df1.union(df2)",
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
         ]
     else:
         expected_lineage = [
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}:     err_df = df_binary.select("does_not_exist")'
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:         return df1.union(df2)"
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:             self.session.create_dataframe"
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:             self.session.create_dataframe"
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:     err_df = df_binary.select("does_not_exist")',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:         return df1.union(df2)",
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:             self.session.create_dataframe",
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:             self.session.create_dataframe",
         ]
 
     expected_error_match = ".*".join(BASE_DEBUG_ERROR + expected_lineage)
@@ -86,15 +106,15 @@ def test_binary_dataframe_lineage(session):
 def test_dataframe_lineage_with_describe(session):
     if sys.version_info >= (3, 11):
         expected_lineage = [
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: self.session.create_dataframe",
-            f'resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: df2.select("non_existent_column"), on="id", how="inner"',
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: self.session.create_dataframe",
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
+            f'{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  df2.select("non_existent_column"), on="id", how="inner"',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
         ]
     else:
         expected_lineage = [
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:         df1 = self.session.create_dataframe",
-            f'resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:         return df1.join(df2.select("non_existent_column"), on="id", how="inner")',
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:         df2 = self.session.create_dataframe",
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:         df1 = self.session.create_dataframe",
+            f'{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:         return df1.join(df2.select("non_existent_column"), on="id", how="inner")',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:         df2 = self.session.create_dataframe",
         ]
 
     expected_error_match = ".*".join(BASE_DEBUG_ERROR + expected_lineage)
@@ -108,15 +128,15 @@ def test_with_loops_and_nested_calls(session):
 
     if sys.version_info >= (3, 11):
         expected_lineage = [
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}: df.select("does_not_exist")',
-            f'resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: df.with_column("new_col", df["id"] + i)',
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: self.session.create_dataframe",
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:  df.select("does_not_exist")',
+            f'{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  df.with_column("new_col", df["id"] + i)',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
         ]
     else:
         expected_lineage = [
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}:     err_df = df.select("does_not_exist")',
-            f'resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:             df = df.with_column("new_col", df["id"] + i)',
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:         df = self.session.create_dataframe",
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:     err_df = df.select("does_not_exist")',
+            f'{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:             df = df.with_column("new_col", df["id"] + i)',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:         df = self.session.create_dataframe",
         ]
     expected_error_match = ".*".join(BASE_DEBUG_ERROR + expected_lineage)
     with pytest.raises(SnowparkSQLException, match=expected_error_match) as exc_info:
@@ -160,17 +180,17 @@ def test_multiple_files(session):
 
     if sys.version_info >= (3, 11):
         expected_lineage = [
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}: join_df.select("does_not_exist")',
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}: df1.join(df2, on="id", how="inner")',
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}: self.session.create_dataframe",
-            f"resources/test_df_debug_dir/dataframe_generator2.py|{LOCATION_PATTERN}: self.session.create_dataframe",
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:  join_df.select("does_not_exist")',
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:  df1.join(df2, on="id", how="inner")',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
+            f"{DATAFRAME_GENERATOR2_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
         ]
     else:
         expected_lineage = [
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}:     err_df = join_df.select("does_not_exist")',
-            f'integ/test_df_lineage.py|{LOCATION_PATTERN}:     join_df = df1.join(df2, on="id", how="inner")',
-            f"resources/test_df_debug_dir/dataframe_generator1.py|{LOCATION_PATTERN}:         return self.session.create_dataframe",
-            f"resources/test_df_debug_dir/dataframe_generator2.py|{LOCATION_PATTERN}:         return self.session.create_dataframe",
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:     err_df = join_df.select("does_not_exist")',
+            f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:     join_df = df1.join(df2, on="id", how="inner")',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:         return self.session.create_dataframe",
+            f"{DATAFRAME_GENERATOR2_PATH}|{LOCATION_PATTERN}:         return self.session.create_dataframe",
         ]
     expected_error_match = ".*".join(BASE_DEBUG_ERROR + expected_lineage)
     with pytest.raises(SnowparkSQLException, match=expected_error_match):
