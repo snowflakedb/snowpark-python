@@ -174,8 +174,10 @@ class BaseDriver:
         # this piece of code convert those type to string type to avoid the issue, and this is a safe change
         # since convert these two type to string will not lose any precision or information
         for field in schema.fields:
-            if isinstance(field.datatype, (BinaryType, BooleanType)):
+            if isinstance(field.datatype, BinaryType):
                 df[field.name] = df[field.name].astype("string")
+            if isinstance(field.datatype, BooleanType):
+                df[field.name] = df[field.name].astype("bool")
 
         return df
 
