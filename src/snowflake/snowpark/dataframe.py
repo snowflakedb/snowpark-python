@@ -975,7 +975,7 @@ class DataFrame:
         )
 
     if get_installed_pandas():
-        pandas = get_pandas()  # pragma: no cover
+        from snowflake.connector.options import pandas # pragma: no cover
         @publicapi
         @overload
         def to_pandas(
@@ -985,7 +985,7 @@ class DataFrame:
             block: bool = True,
             _emit_ast: bool = True,
             **kwargs: Dict[str, Any],
-        ) -> pandas.DataFrame:
+        ) -> "pandas.DataFrame":
             ...  # pragma: no cover
 
     @publicapi
@@ -1073,8 +1073,7 @@ class DataFrame:
         return result
 
     if get_installed_pandas():
-        pandas = get_pandas()
-
+        from snowflake.connector.options import pandas
         @publicapi
         @overload
         def to_pandas_batches(
@@ -1084,7 +1083,7 @@ class DataFrame:
             block: bool = True,
             _emit_ast: bool = True,
             **kwargs: Dict[str, Any],
-        ) -> Iterator[pandas.DataFrame]:
+        ) -> Iterator["pandas.DataFrame"]:
             ...  # pragma: no cover
 
     @publicapi
@@ -6631,9 +6630,10 @@ def map(
     ]
 
     if vectorized:
+        from snowflake.connector.options import pandas
 
         def wrap_result(result):
-            if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
+            if isinstance(result, pandas().DataFrame) or isinstance(result, tuple):
                 return result
             return (result,)
 

@@ -16,7 +16,7 @@ from typing import (
     Union,
 )
 
-from snowflake.snowpark.mock._options import pandas
+# from snowflake.snowpark.mock._options import pandas
 
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
@@ -59,6 +59,7 @@ from snowflake.snowpark.types import (
 )
 
 if TYPE_CHECKING:
+    import pandas
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -122,6 +123,7 @@ class NopConnection(MockServerConnection):
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         source_plan = plan.source_plan
+        import pandas
 
         if hasattr(source_plan, "execution_queries"):
             # If temp read-only table, explicitly create it.
