@@ -35,6 +35,11 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_list_like
 
+from snowflake.snowpark._internal.utils import (
+    STAGE_PREFIX,
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.mock._stage_registry import extract_stage_name_and_prefix
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
@@ -391,8 +396,23 @@ class PandasOnSnowflakeIO(BaseIO):
                 "filepath_or_buffer must be a path to a file or folder stored locally or on a Snowflake stage."
             )
 
-        if kwargs["engine"] != "snowflake" and is_local_filepath(filepath_or_buffer):
+        if (
+            filepath_or_buffer is not None
+            and isinstance(filepath_or_buffer, str)
+            and filepath_or_buffer.lower().startswith("s3")
+        ):
+            session = get_active_session()
+            temp_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+            dirname = os.path.dirname(filepath_or_buffer)
+            basename = os.path.basename(filepath_or_buffer)
+            session.sql(
+                f"CREATE OR REPLACE TEMPORARY STAGE {temp_stage_name} URL='{dirname}'"
+            ).collect()
+            filepath_or_buffer = (
+                f"{STAGE_PREFIX}{os.path.join(temp_stage_name, basename)}"
+            )
 
+        if kwargs["engine"] != "snowflake" and is_local_filepath(filepath_or_buffer):
             return cls.query_compiler_cls.from_file_with_pandas("csv", **kwargs)
 
         WarningMessage.mismatch_with_pandas(
