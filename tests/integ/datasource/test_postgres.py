@@ -36,7 +36,7 @@ except ImportError:
     pass
 
 pytestmark = [
-    pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'postgres2'"),
+    pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'psycopg2'"),
     pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration"),
 ]
 
