@@ -37,13 +37,7 @@ if sys.version_info >= (3, 11):
 else:
     LOCATION_PATTERN = r"(\d+)"
 
-# check if operating system is Windows
-if sys.platform.startswith("win"):
-    SEP = "\\"
-else:
-    SEP = "/"
-
-CURR_FILE_PATH = os.path.dirname(os.path.abspath(__file__))
+CURR_FILE_PATH = os.path.dirname(__file__)
 DATAFRAME_GENERATOR1_PATH = os.path.join(
     os.path.dirname(CURR_FILE_PATH),
     "resources",
