@@ -119,7 +119,9 @@ class OracledbDriver(BaseDriver):
             conn.outputtypehandler = output_type_handler
         return conn
 
-    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+    def udtf_class_builder(
+        self, fetch_size: int = 1000, schema: StructType = None
+    ) -> type:
         create_connection = self.create_connection
 
         def oracledb_output_type_handler(cursor, metadata):
