@@ -194,7 +194,7 @@ class TestWithGlobalSettings:
         native_pd.set_option("display.max_rows", None)
         pd.set_option("display.max_rows", None)
 
-        with SqlCounter(select_count=2):
+        with SqlCounter(select_count=1):
             snow_str = repr(self.snow_df)
         native_str = repr(self.native_df)
 
