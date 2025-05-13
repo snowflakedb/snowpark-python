@@ -136,9 +136,6 @@ tmp_stage_only_json_file = Utils.random_stage_name()
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(session, resources_path, local_testing_mode):
-    # TODO SNOW-2098847: remove this workaround after fixing the issue
-    session._use_scoped_temp_objects = False
-
     test_files = TestFiles(resources_path)
     if not local_testing_mode:
         Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
