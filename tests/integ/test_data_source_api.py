@@ -933,6 +933,10 @@ def test_double_quoted_column_name_sql_server(session):
     ]
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
 def test_local_create_connection_function(session, db_parameters):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
