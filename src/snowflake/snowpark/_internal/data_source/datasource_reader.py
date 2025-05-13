@@ -85,4 +85,5 @@ class DataSourceReader:
             conn.close()
 
     def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
+        assert self.driver  # self.driver is guaranteed to be initialized in read()
         return self.driver.data_source_data_to_pandas_df(data, self.schema)
