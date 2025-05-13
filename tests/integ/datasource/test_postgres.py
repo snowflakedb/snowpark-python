@@ -6,6 +6,11 @@ import datetime
 from decimal import Decimal
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.data_source.drivers import Psycopg2Driver
+from snowflake.snowpark._internal.data_source.drivers.psycopg2_driver import (
+    Psycopg2TypeCode,
+)
+from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StructType,
@@ -455,3 +460,27 @@ def test_udtf_ingestion_postgres(session, caplog):
         "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
         and "table(data_source_udtf" in caplog.text
     )
+
+
+def test_to_snow_type(session):
+    # Test unsupported numeric precision and scale
+    snowpark_type = Psycopg2Driver(
+        create_postgres_connection, DBMS_TYPE.POSTGRES_DB
+    ).to_snow_type([("INVALID_COL", 1700, 1000, 1000, None, None, True)])
+    assert len(snowpark_type.fields) == 1 and snowpark_type.fields[
+        0
+    ].datatype == DecimalType(38, 0)
+
+    # Test unsupported type code
+    with pytest.raises(NotImplementedError):
+        nonexisting_type_code = -1
+        Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB).to_snow_type(
+            [("UNSUPPORTED_COL", nonexisting_type_code, None, None, None, None, True)]
+        )
+
+    # Test unsupported type code
+    with pytest.raises(NotImplementedError):
+        unimplemented_code = Psycopg2TypeCode.ACLITEMOID
+        Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB).to_snow_type(
+            [("UNSUPPORTED_COL", unimplemented_code, None, None, None, None, True)]
+        )

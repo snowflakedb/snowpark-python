@@ -186,7 +186,12 @@ class Psycopg2Driver(BaseDriver):
             scale,
             _null_ok,
         ) in schema:
-            type_code = Psycopg2TypeCode(type_code)
+            try:
+                type_code = Psycopg2TypeCode(type_code)
+            except ValueError:
+                raise NotImplementedError(
+                    f"Postgres type not supported: {type_code} for column: {name}"
+                )
             snow_type = BASE_POSTGRES_TYPE_TO_SNOW_TYPE.get(type_code)
             if snow_type is None:
                 raise NotImplementedError(
