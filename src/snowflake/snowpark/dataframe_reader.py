@@ -1186,6 +1186,7 @@ class DataFrameReader:
         session_init_statement: Optional[Union[str, List[str]]] = None,
         udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
+        enable_multiprocessing: bool = False,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1259,6 +1260,7 @@ class DataFrameReader:
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
                 Parquet file and uploaded separately.
+            enable_multiprocessing: Whether to use multiprocessing for parallel fetching.
 
         Example::
             .. code-block:: python
@@ -1344,8 +1346,12 @@ class DataFrameReader:
                 statement_params=statements_params_for_telemetry, _emit_ast=False
             )
 
+            fetch_executor = (
+                ProcessPoolExecutor if enable_multiprocessing else ThreadPoolExecutor
+            )
+
             try:
-                with ProcessPoolExecutor(
+                with fetch_executor(
                     max_workers=max_workers
                 ) as process_executor, ThreadPoolExecutor(
                     max_workers=max_workers
