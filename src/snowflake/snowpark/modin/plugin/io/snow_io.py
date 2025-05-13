@@ -399,7 +399,10 @@ class PandasOnSnowflakeIO(BaseIO):
         if (
             filepath_or_buffer is not None
             and isinstance(filepath_or_buffer, str)
-            and filepath_or_buffer.lower().startswith("s3")
+            and any(
+                filepath_or_buffer.lower().startswith(prefix)
+                for prefix in ["s3://", "s3china://", "s3gov://"]
+            )
         ):
             session = get_active_session()
             temp_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
