@@ -16,7 +16,7 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
-- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the locally defined `create_connection` function was incompatible with multiprocessing.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 
 ### Snowpark Local Testing Updates
 
