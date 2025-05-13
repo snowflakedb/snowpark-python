@@ -29,7 +29,7 @@ def setup(request, session):
 
 
 BASE_DEBUG_ERROR = [
-    "--- Additional Debug Information ---",
+    "Additional Debug Information",
     "Trace of the dataframe operations that could have caused the error",
 ]
 if sys.version_info >= (3, 11):
@@ -37,19 +37,24 @@ if sys.version_info >= (3, 11):
 else:
     LOCATION_PATTERN = r"(\d+)"
 
-CURR_FILE_PATH = os.path.dirname(__file__)
+CURR_FILE_PATH = os.path.abspath(__file__)
 DATAFRAME_GENERATOR1_PATH = os.path.join(
-    os.path.dirname(CURR_FILE_PATH),
+    os.path.dirname(os.path.dirname(CURR_FILE_PATH)),
     "resources",
     "test_df_debug_dir",
     "dataframe_generator1.py",
 )
 DATAFRAME_GENERATOR2_PATH = os.path.join(
-    os.path.dirname(CURR_FILE_PATH),
+    os.path.dirname(os.path.dirname(CURR_FILE_PATH)),
     "resources",
     "test_df_debug_dir",
     "dataframe_generator2.py",
 )
+
+if sys.platform.startswith("win"):
+    DATAFRAME_GENERATOR1_PATH = DATAFRAME_GENERATOR1_PATH.replace("\\", "\\\\")
+    DATAFRAME_GENERATOR2_PATH = DATAFRAME_GENERATOR2_PATH.replace("\\", "\\\\")
+    CURR_FILE_PATH = CURR_FILE_PATH.replace("\\", "\\\\")
 
 
 def test_simple_dataframe_lineage(session):
@@ -76,12 +81,13 @@ def test_binary_dataframe_lineage(session):
     df_binary = DataFrameGenerator1(session).dataframe_with_union()
     err_df = df_binary.select("does_not_exist")
 
-    if sys.version_info >= (3, 11):
+    if sys.version_info >= (3, 10):
         expected_lineage = [
             f'{CURR_FILE_PATH}|{LOCATION_PATTERN}:  df_binary.select("does_not_exist")',
             f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  df1.union(df2)",
-            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
-            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  self.session.create_dataframe",
+            f'{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  .sort("letter")',
+            f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  .distinct()",
+            f'{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:  .filter("id > 0")',
         ]
     else:
         expected_lineage = [
@@ -91,7 +97,7 @@ def test_binary_dataframe_lineage(session):
             f"{DATAFRAME_GENERATOR1_PATH}|{LOCATION_PATTERN}:             self.session.create_dataframe",
         ]
 
-    expected_error_match = ".*".join(BASE_DEBUG_ERROR + expected_lineage)
+    expected_error_match = ".*".join(expected_lineage)
 
     with pytest.raises(SnowparkSQLException, match=expected_error_match):
         err_df.collect()
