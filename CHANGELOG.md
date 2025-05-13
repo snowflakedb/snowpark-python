@@ -15,6 +15,7 @@
 - Added support for different modes for dealing with corrupt XML records when reading an XML file using `session.read.option('mode', <mode>), option('rowTag', <tag_name>).xml(<stage_file_path>)`. Currently `PERMISSIVE`, `DROPMALFORMED` and `FAILFAST` are supported.
 - Improved the error message of the XML reader when the specified row tag is not found in the file.
 - Improved query generation for `Dataframe.drop` to use `SELECT * EXCLUDE ()` to exclude the dropped columns. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
+- Added support for `VariantType` to `StructType.from_json`
 
 #### Bug Fixes
 
@@ -34,6 +35,7 @@
 
 - Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `DataFrame.to_html`.
+- Added support for `DataFrame.to_string` and `Series.to_string`.
 
 #### Improvements
 
