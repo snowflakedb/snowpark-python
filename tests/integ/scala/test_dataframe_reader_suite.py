@@ -399,7 +399,7 @@ def test_read_csv(session, mode):
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         df3.collect()
-    assert "is out of range" in str(ex_info)
+    assert "is out of range" in str(ex_info.value)
 
 
 @pytest.mark.xfail(
@@ -590,7 +590,7 @@ def test_read_csv_incorrect_schema(session, mode):
     df = reader.option("purge", False).schema(incorrect_schema).csv(test_file_on_stage)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.collect()
-    assert "Number of columns in file (3) does not match" in str(ex_info)
+    assert "Number of columns in file (3) does not match" in str(ex_info.value)
 
 
 @pytest.mark.skipif(

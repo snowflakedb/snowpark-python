@@ -472,7 +472,15 @@ def dataframe_exception_handler(func):
                 raise original_exception
 
             # add the debug information to the exception message and raise from the original exception
-            raise error_type(final_traceback) from original_exception
+            raise error_type(
+                message=final_traceback,
+                error_code=original_exception.error_code,
+                conn_error=original_exception.conn_error,
+                sfqid=original_exception.sfqid,
+                query=original_exception.query,
+                sql_error_code=original_exception.sql_error_code,
+                raw_message=original_exception.raw_message,
+            ) from original_exception
 
     return wrapper
 

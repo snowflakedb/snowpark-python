@@ -1268,28 +1268,28 @@ def test_select_negative_select(session):
     # Select with empty sequences
     with pytest.raises(ValueError) as ex_info:
         df.select()
-    assert "The input of select() cannot be empty" in str(ex_info)
+    assert "The input of select() cannot be empty" in str(ex_info.value)
 
     with pytest.raises(ValueError) as ex_info:
         df.select([])
-    assert "The input of select() cannot be empty" in str(ex_info)
+    assert "The input of select() cannot be empty" in str(ex_info.value)
 
     # select columns which don't exist
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select("not_exists_column").collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(["not_exists_column"]).collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(col("not_exists_column")).collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select([col("not_exists_column")]).collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
 
 def test_drop_and_dropcolumns(session):
@@ -1392,8 +1392,8 @@ def test_rollup(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.rollup(list()).agg(sum_(col("value"))).show()
 
-    assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
-        ex_info
+    assert "001003 (42000): " in str(ex_info.value) and "SQL compilation error" in str(
+        ex_info.value
     )
 
     # rollup() on 1 column
@@ -1518,8 +1518,8 @@ def test_cube(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.cube(list()).agg(sum_(col("value"))).show()
 
-    assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
-        ex_info
+    assert "001003 (42000): " in str(ex_info.value) and "SQL compilation error" in str(
+        ex_info.value
     )
 
     # cube() on 1 column

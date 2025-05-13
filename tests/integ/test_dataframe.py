@@ -2231,8 +2231,8 @@ def test_create_dataframe_large_without_batch_insert(session):
         analyzer.ARRAY_BIND_THRESHOLD = 400_000
         with pytest.raises(SnowparkSQLException) as ex_info:
             session.create_dataframe([1] * 200_001).collect()
-        assert "SQL compilation error" in str(ex_info)
-        assert "maximum number of expressions in a list exceeded" in str(ex_info)
+        assert "SQL compilation error" in str(ex_info.value)
+        assert "maximum number of expressions in a list exceeded" in str(ex_info.value)
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
@@ -3785,7 +3785,7 @@ def test_call_with_statement_params(session):
     # collect
     with pytest.raises(SnowparkSQLException) as exc:
         df.collect(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         df.collect(statement_params=statement_params_correct_date_format)
         == expected_rows
@@ -3798,7 +3798,7 @@ def test_call_with_statement_params(session):
                 statement_params=statement_params_wrong_date_format.copy()
             )
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         list(
             df.to_local_iterator(
@@ -3811,7 +3811,7 @@ def test_call_with_statement_params(session):
     # to_pandas
     with pytest.raises(SnowparkSQLException) as exc:
         df.to_pandas(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert_frame_equal(
         df.to_pandas(statement_params=statement_params_correct_date_format.copy()),
         pandas_df,
@@ -3828,7 +3828,7 @@ def test_call_with_statement_params(session):
             ),
             ignore_index=True,
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert_frame_equal(
         pd.concat(
             list(
@@ -3850,7 +3850,7 @@ def test_call_with_statement_params(session):
     # show
     with pytest.raises(SnowparkSQLException) as exc:
         df.show(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     df.show(statement_params=statement_params_correct_date_format.copy())
 
     # create_or_replace_view
@@ -3876,7 +3876,7 @@ def test_call_with_statement_params(session):
     # first
     with pytest.raises(SnowparkSQLException) as exc:
         df.first(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
 
     assert (
         df.first(statement_params=statement_params_correct_date_format.copy())
@@ -3888,7 +3888,7 @@ def test_call_with_statement_params(session):
         df.cache_result(
             statement_params=statement_params_wrong_date_format.copy()
         ).collect()
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
 
     assert (
         df.cache_result(
@@ -3903,7 +3903,7 @@ def test_call_with_statement_params(session):
             weights=[0.5, 0.5],
             statement_params=statement_params_wrong_date_format.copy(),
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         len(
             df.random_split(

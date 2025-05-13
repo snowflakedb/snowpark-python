@@ -486,15 +486,12 @@ def test_column_constructors_col(session):
     assert df.select(col("CoL")).collect() == [Row(1)]
     assert df.select(col('"COL"')).collect() == [Row(1)]
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col('"Col"')).collect()
-    assert "invalid identifier" in str(ex_info)
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col("COL .")).collect()
-    assert "invalid identifier" in str(ex_info)
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col('"CoL"')).collect()
-    assert "invalid identifier" in str(ex_info)
 
 
 def test_column_constructors_select(session):
@@ -508,10 +505,10 @@ def test_column_constructors_select(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select('"Col"').collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select("COL .").collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
 
 
 @pytest.mark.xfail(
@@ -533,16 +530,16 @@ def test_sql_expr_column(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sql_expr('"Col"')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sql_expr("COL .")).collect()
-    assert "syntax error" in str(ex_info)
+    assert "syntax error" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sql_expr('"CoL"')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sql_expr("col .")).collect()
-    assert "syntax error" in str(ex_info)
+    assert "syntax error" in str(ex_info.value)
 
 
 def test_errors_for_aliased_columns(session, local_testing_mode):
@@ -556,15 +553,15 @@ def test_errors_for_aliased_columns(session, local_testing_mode):
     with pytest.raises(exc) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
     if not local_testing_mode:
-        assert "You can only define aliases for the root" in str(ex_info)
+        assert "You can only define aliases for the root" in str(ex_info.value)
     else:
-        assert "invalid identifier" in str(ex_info)
+        assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(exc) as ex_info:
         df.group_by(col("a")).agg(avg(col("a").as_("b"))).collect()
     if not local_testing_mode:
-        assert "You can only define aliases for the root" in str(ex_info)
+        assert "You can only define aliases for the root" in str(ex_info.value)
     else:
-        assert "invalid identifier" in str(ex_info)
+        assert "invalid identifier" in str(ex_info.value)
 
 
 def test_like(session):
@@ -668,7 +665,7 @@ def test_regexp(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.string4(session).where(col("A").regexp("+*")).collect()
-    assert "Invalid regular expression" in str(ex_info)
+    assert "Invalid regular expression" in str(ex_info.value)
 
     # Test when pattern is a column of literal strings
     df = session.create_dataframe(
@@ -728,7 +725,7 @@ def test_when_case(session, local_testing_mode):
             when(col("a").is_null(), lit("a")).when(col("a") == 1, lit(6)).as_("a")
         ).collect()
     if not local_testing_mode:
-        assert "Numeric value 'a' is not recognized" in str(ex_info)
+        assert "Numeric value 'a' is not recognized" in str(ex_info.value)
 
 
 def test_lit_contains_single_quote(session):
