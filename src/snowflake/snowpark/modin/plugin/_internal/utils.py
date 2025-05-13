@@ -1889,9 +1889,14 @@ def count_rows(df: OrderedDataFrame) -> int:
     """
     Returns the number of rows of a Snowpark DataFrame.
     """
+    if df.row_count is not None:
+        return df.row_count
     df = df.ensure_row_count_column()
     rowset = df.select(df.row_count_snowflake_quoted_identifier).limit(1).collect()
-    return 0 if len(rowset) == 0 else rowset[0][0]
+    row_count = 0 if len(rowset) == 0 else rowset[0][0]
+    df.row_count = row_count
+    df.row_count_upper_bound = row_count
+    return row_count
 
 
 def append_columns(
