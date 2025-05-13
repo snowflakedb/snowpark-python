@@ -342,6 +342,54 @@ def to_records(
     pass  # pragma: no cover
 
 
+def to_string(
+    self,
+    buf=None,
+    columns=None,
+    col_space=None,
+    header=True,
+    index=True,
+    na_rep="NaN",
+    formatters=None,
+    float_format=None,
+    sparsify=None,
+    index_names=True,
+    justify=None,
+    max_rows=None,
+    min_rows=None,
+    max_cols=None,
+    show_dimensions=False,
+    decimal=".",
+    line_width=None,
+    max_colwidth=None,
+    encoding=None,
+):  # noqa: PR01, RT01, D200
+    WarningMessage.single_warning(
+        "DataFrame.to_string materializes data to the local machine."
+    )
+    return self._to_pandas().to_string(
+        buf=buf,
+        columns=columns,
+        col_space=col_space,
+        header=header,
+        index=index,
+        na_rep=na_rep,
+        formatters=formatters,
+        float_format=float_format,
+        sparsify=sparsify,
+        index_names=index_names,
+        justify=justify,
+        max_rows=max_rows,
+        min_rows=min_rows,
+        max_cols=max_cols,
+        show_dimensions=show_dimensions,
+        decimal=decimal,
+        line_width=line_width,
+        max_colwidth=max_colwidth,
+        encoding=encoding,
+    )
+
+
 @register_dataframe_not_implemented()
 def to_stata(
     self,

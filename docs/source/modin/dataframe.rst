@@ -235,3 +235,5 @@ DataFrame
 
     DataFrame.to_csv
     DataFrame.to_html
+    DataFrame.to_string
+    
