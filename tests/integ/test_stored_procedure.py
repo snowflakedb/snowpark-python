@@ -1036,11 +1036,11 @@ def test_sp_negative(session, local_testing_mode):
     empty_sp = sproc()
     with pytest.raises(TypeError) as ex_info:
         empty_sp(session)
-    assert "Invalid function: not a function or callable" in str(ex_info.value)
+    assert "Invalid function: not a function or callable" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         sproc(1, return_type=IntegerType())
-    assert "Invalid function: not a function or callable" in str(ex_info.value)
+    assert "Invalid function: not a function or callable" in str(ex_info)
 
     # if return_type is specified, it must be passed with keyword argument
     with pytest.raises(
@@ -1056,13 +1056,13 @@ def test_sp_negative(session, local_testing_mode):
     with pytest.raises(ValueError) as ex_info:
         f_sp("a", "")
     assert "Incorrect number of arguments passed to the stored procedure" in str(
-        ex_info.value
+        ex_info
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.call("f", 1).collect()
 
-    assert "Unknown function" in str(ex_info.value)
+    assert "Unknown function" in str(ex_info)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         sproc(
@@ -1071,7 +1071,7 @@ def test_sp_negative(session, local_testing_mode):
             input_types=[IntegerType()],
             name="invalid name",
         )
-    assert "The object name 'invalid name' is invalid" in str(ex_info.value)
+    assert "The object name 'invalid name' is invalid" in str(ex_info)
 
     # incorrect data type
     int_sp = sproc(
@@ -1079,13 +1079,11 @@ def test_sp_negative(session, local_testing_mode):
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp("x")
-    assert "is not recognized" in str(ex_info.value) or "Unexpected type" in str(
-        ex_info.value
-    )
+    assert "is not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp(None)
-    assert "Python Interpreter Error" in str(ex_info.value)
+    assert "Python Interpreter Error" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1093,7 +1091,7 @@ def test_sp_negative(session, local_testing_mode):
         def g(_, x):
             return x
 
-    assert "Invalid function: not a function or callable" in str(ex_info.value)
+    assert "Invalid function: not a function or callable" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1101,7 +1099,7 @@ def test_sp_negative(session, local_testing_mode):
         def _(_: Session, x: int, y: int):
             return x + y
 
-    assert "The return type must be specified" in str(ex_info.value)
+    assert "The return type must be specified" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1112,7 +1110,7 @@ def test_sp_negative(session, local_testing_mode):
     assert (
         "Excluding session argument in stored procedure, "
         "the number of arguments (2) is different from "
-        "the number of argument type hints (1)" in str(ex_info.value)
+        "the number of argument type hints (1)" in str(ex_info)
     )
 
     with pytest.raises(TypeError) as ex_info:
@@ -1121,7 +1119,7 @@ def test_sp_negative(session, local_testing_mode):
         def _(_: Session, x: int, y: Union[int, float]) -> Union[int, float]:
             return x + y
 
-    assert "invalid type typing.Union[int, float]" in str(ex_info.value)
+    assert "invalid type typing.Union[int, float]" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1130,7 +1128,7 @@ def test_sp_negative(session, local_testing_mode):
             return x + y
 
     assert "The first argument of stored proc function should be Session" in str(
-        ex_info.value
+        ex_info
     )
 
     with pytest.raises(ValueError) as ex_info:
@@ -1139,7 +1137,7 @@ def test_sp_negative(session, local_testing_mode):
         def _(_: Session, x: int, y: int) -> int:
             return x + y
 
-    assert "name must be specified for permanent stored proc" in str(ex_info.value)
+    assert "name must be specified for permanent stored proc" in str(ex_info)
 
     with pytest.raises(ValueError) as ex_info:
 
@@ -1147,9 +1145,7 @@ def test_sp_negative(session, local_testing_mode):
         def _(_: Session, x: int, y: int) -> int:
             return x + y
 
-    assert "stage_location must be specified for permanent stored proc" in str(
-        ex_info.value
-    )
+    assert "stage_location must be specified for permanent stored proc" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1159,7 +1155,7 @@ def test_sp_negative(session, local_testing_mode):
         ) -> PandasSeries[int]:
             return x + y
 
-    assert "pandas stored procedure is not supported" in str(ex_info.value)
+    assert "pandas stored procedure is not supported" in str(ex_info)
 
 
 @pytest.mark.skipif(

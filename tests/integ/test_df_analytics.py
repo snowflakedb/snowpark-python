@@ -126,7 +126,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "aggs must be a dictionary" in str(exc.value)
+    assert "aggs must be a dictionary" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.analytics.moving_agg(
@@ -135,7 +135,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "aggs must not be empty" in str(exc.value)
+    assert "aggs must not be empty" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.analytics.moving_agg(
@@ -144,7 +144,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "non-empty lists of strings as values" in str(exc.value)
+    assert "non-empty lists of strings as values" in str(exc)
 
     with pytest.raises(TypeError) as exc:
         df.analytics.moving_agg(
@@ -153,7 +153,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by="ORDERDATE",
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "order_by must be a list" in str(exc.value)
+    assert "order_by must be a list" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.analytics.moving_agg(
@@ -162,7 +162,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=[],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "order_by must not be empty" in str(exc.value)
+    assert "order_by must not be empty" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.analytics.moving_agg(
@@ -171,7 +171,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=[1],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "order_by must be a list of strings" in str(exc.value)
+    assert "order_by must be a list of strings" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.analytics.moving_agg(
@@ -180,7 +180,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "window_sizes must be a list of integers > 0" in str(exc.value)
+    assert "window_sizes must be a list of integers > 0" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.analytics.moving_agg(
@@ -189,7 +189,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "window_sizes must be a list of integers > 0" in str(exc.value)
+    assert "window_sizes must be a list of integers > 0" in str(exc)
 
     with pytest.raises(TypeError) as exc:
         df.analytics.moving_agg(
@@ -198,7 +198,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "window_sizes must be a list" in str(exc.value)
+    assert "window_sizes must be a list" in str(exc)
 
     with pytest.raises(ValueError) as exc:
         df.analytics.moving_agg(
@@ -207,7 +207,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             order_by=["ORDERDATE"],
             group_by=["PRODUCTKEY"],
         ).collect()
-    assert "window_sizes must not be empty" in str(exc.value)
+    assert "window_sizes must not be empty" in str(exc)
 
     if not local_testing_mode:  # Local Testing raises NotImplementedError instead
         with pytest.raises(SnowparkSQLException) as exc:
@@ -217,7 +217,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
                 order_by=["ORDERDATE"],
                 group_by=["PRODUCTKEY"],
             ).collect()
-        assert "Sliding window frame unsupported for function" in str(exc.value)
+        assert "Sliding window frame unsupported for function" in str(exc)
 
     def bad_formatter(input_col, agg):
         return f"{agg}_{input_col}"
@@ -230,7 +230,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             group_by=["PRODUCTKEY"],
             col_formatter=bad_formatter,
         ).collect()
-    assert "positional arguments but 3 were given" in str(exc.value)
+    assert "positional arguments but 3 were given" in str(exc)
 
     with pytest.raises(TypeError) as exc:
         df.analytics.moving_agg(
@@ -240,7 +240,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
             group_by=["PRODUCTKEY"],
             col_formatter="bad_formatter",
         ).collect()
-    assert "formatter must be a callable function" in str(exc.value)
+    assert "formatter must be a callable function" in str(exc)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
