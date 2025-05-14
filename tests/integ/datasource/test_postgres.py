@@ -466,7 +466,7 @@ def test_to_snow_type(session):
     # Test unsupported numeric precision and scale
     snowpark_type = Psycopg2Driver(
         create_postgres_connection, DBMS_TYPE.POSTGRES_DB
-    ).to_snow_type([("INVALID_COL", 1700, 1000, 1000, None, None, True)])
+    ).to_snow_type([("INVALID_COL", 1700, None, None, 1000, 1000, True)])
     assert len(snowpark_type.fields) == 1 and snowpark_type.fields[
         0
     ].datatype == DecimalType(38, 0)
