@@ -556,15 +556,15 @@ def test_errors_for_aliased_columns(session, local_testing_mode):
     with pytest.raises(exc) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
     if not local_testing_mode:
-        assert "You can only define aliases for the root" in str(ex_info)
+        assert "You can only define aliases for the root" in str(ex_info.value)
     else:
-        assert "invalid identifier" in str(ex_info)
+        assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(exc) as ex_info:
         df.group_by(col("a")).agg(avg(col("a").as_("b"))).collect()
     if not local_testing_mode:
-        assert "You can only define aliases for the root" in str(ex_info)
+        assert "You can only define aliases for the root" in str(ex_info.value)
     else:
-        assert "invalid identifier" in str(ex_info)
+        assert "invalid identifier" in str(ex_info.value)
 
 
 def test_like(session):
