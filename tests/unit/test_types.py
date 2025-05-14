@@ -1099,6 +1099,7 @@ def test_snow_type_to_dtype_str():
         (LongType(), "bigint", '"long"', "long", "long"),
         (ShortType(), "smallint", '"short"', "short", "short"),
         (StringType(), "string", '"string"', "string", "string"),
+        (VariantType(), "variant", '"variant"', "variant", "variant"),
         (
             StructType(
                 [StructField("a", StringType()), StructField("b", IntegerType())]
@@ -1386,6 +1387,7 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
                 ]
             ),
         ),
+        (StructType, StructType([StructField("variant", VariantType())])),
         (
             StructField,
             StructField("AA", StringType()),
