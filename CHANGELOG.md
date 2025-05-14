@@ -12,7 +12,7 @@
 - Improved the error message of the XML reader when the specified row tag is not found in the file.
 - Improved query generation for `Dataframe.drop` to use `SELECT * EXCLUDE ()` to exclude the dropped columns. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
 - Added support for `VariantType` to `StructType.from_json`
-- Added support for parameter `is_return_table` in `Session.call`, which control if a dataframe is returned.
+- Added support for parameter `is_return_table` in `Session.call`, which can be used to set the return type of the functions a `DataFrame` object.
 
 #### Bug Fixes
 

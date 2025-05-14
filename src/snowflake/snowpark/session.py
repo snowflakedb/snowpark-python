@@ -4123,8 +4123,8 @@ class Session:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
                 as a table return type.
-            is_return_table: When set to a non-null value, it signifies whether the return type of sproc_name
-                is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
+            is_return_table: When set to True, the return value of this function is a DataFrame object.
+                This is useful when the given stored procedure's return type is a table.
 
         Example::
 
