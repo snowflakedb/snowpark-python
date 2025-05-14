@@ -24,7 +24,7 @@ actual_pandas_version = version.parse(pandas.__version__)
 supported_modin_version = "0.32.0"
 
 install_modin_msg = (
-    f"Please set the modin version as {supported_modin_version} from the Packages menu at the top of your notebook."
+    f"Please set the modin version as {supported_modin_version} in the Packages menu at the top of your notebook."
     if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
     else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 )
