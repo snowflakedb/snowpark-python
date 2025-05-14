@@ -398,14 +398,14 @@ def test_copy_csv_negative(session, tmp_stage_name1, tmp_table_name):
         )
     assert (
         f"Cannot create the target table {table_name_not_exist} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()"
-        in str(exec_info.value)
+        in str(exec_info)
     )
 
     # case 2: copy into an existing table table with unmatched transformations
     with pytest.raises(SnowparkSQLException) as exec_info:
         df.copy_into_table(tmp_table_name, transformations=[col("$s1").as_("c1_alias")])
     assert "Insert value list does not match column list expecting 3 but got 1" in str(
-        exec_info.value
+        exec_info
     )
 
 
@@ -668,7 +668,7 @@ def test_copy_csv_negative_test_with_column_names(session, tmp_stage_name1):
             )
         assert (
             "Number of column names provided to copy into does not match the number of transformations provided. Number of column names: 1, number of transformations: 2"
-            in str(exec_info.value)
+            in str(exec_info)
         )
 
         # case 2: column names contains unknown columns
@@ -678,7 +678,7 @@ def test_copy_csv_negative_test_with_column_names(session, tmp_stage_name1):
                 target_columns=["c1", "c2", "c3", "c4"],
                 transformations=[col("$1"), col("$2"), col("$3"), col("$4")],
             )
-        assert "invalid identifier 'C4'" in str(exec_info.value)
+        assert "invalid identifier 'C4'" in str(exec_info)
     finally:
         Utils.drop_table(session, table_name)
 
@@ -1103,14 +1103,14 @@ def test_copy_non_csv_negative_test(
             df.copy_into_table(table_name)
         assert (
             f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()"
-            in str(exec_info.value)
+            in str(exec_info)
         )
 
     with pytest.raises(SnowparkDataframeReaderException) as exec_info:
         df.copy_into_table(table_name, transformations=[col("$1").as_("A")])
     assert (
         f"Cannot create the target table {table_name} because Snowpark cannot determine the column names to use. You should create the table before calling copy_into_table()"
-        in str(exec_info.value)
+        in str(exec_info)
     )
 
     Utils.create_table(session, table_name, "c1 String")
@@ -1121,7 +1121,7 @@ def test_copy_non_csv_negative_test(
             )
         assert (
             "Insert value list does not match column list expecting 1 but got 2"
-            in str(exec_info.value)
+            in str(exec_info)
         )
     finally:
         Utils.drop_table(session, table_name)

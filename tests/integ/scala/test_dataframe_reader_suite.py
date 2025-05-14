@@ -136,6 +136,9 @@ tmp_stage_only_json_file = Utils.random_stage_name()
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(session, resources_path, local_testing_mode):
+    # TODO SNOW-2098847: remove this workaround after fixing the issue
+    session._use_scoped_temp_objects = False
+
     test_files = TestFiles(resources_path)
     if not local_testing_mode:
         Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
@@ -399,7 +402,7 @@ def test_read_csv(session, mode):
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         df3.collect()
-    assert "is out of range" in str(ex_info.value)
+    assert "is out of range" in str(ex_info)
 
 
 @pytest.mark.xfail(
@@ -590,7 +593,7 @@ def test_read_csv_incorrect_schema(session, mode):
     df = reader.option("purge", False).schema(incorrect_schema).csv(test_file_on_stage)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.collect()
-    assert "Number of columns in file (3) does not match" in str(ex_info.value)
+    assert "Number of columns in file (3) does not match" in str(ex_info)
 
 
 @pytest.mark.skipif(
@@ -1971,10 +1974,6 @@ def test_read_multiple_csvs(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-2044853: Flaky in stored procedure test",
-)
 @pytest.mark.parametrize(
     "file,row_tag,expected_row_count,expected_column_count",
     [
@@ -1997,10 +1996,6 @@ def test_read_xml_row_tag(
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-2044853: Flaky in stored procedure test",
-)
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
     stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
@@ -2011,10 +2006,6 @@ def test_read_xml_no_xxe(session):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
-)
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-2044853: Flaky in stored procedure test",
 )
 def test_read_xml_query_nested_data(session):
     row_tag = "tag"
@@ -2046,10 +2037,6 @@ def test_read_xml_non_existing_file(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-2044853: Flaky in stored procedure test",
-)
 @pytest.mark.parametrize(
     "file",
     (
@@ -2060,12 +2047,13 @@ def test_read_xml_non_existing_file(session):
 )
 def test_read_malformed_xml(session, file):
     row_tag = "record"
+    file_path = f"@{tmp_stage_name1}/{file}"
 
     # permissive mode
     df = (
         session.read.option("rowTag", row_tag)
         .option("mode", "permissive")
-        .xml(f"@{tmp_stage_name1}/{file}")
+        .xml(file_path)
     )
     result = df.collect()
     assert len(result) == 2
@@ -2079,7 +2067,7 @@ def test_read_malformed_xml(session, file):
     df = (
         session.read.option("rowTag", row_tag)
         .option("mode", "dropmalformed")
-        .xml(f"@{tmp_stage_name1}/{test_file_malformed_no_closing_tag_xml}")
+        .xml(file_path)
     )
     result = df.collect()
     assert len(result) == 1
@@ -2087,9 +2075,29 @@ def test_read_malformed_xml(session, file):
 
     # failfast mode
     df = (
-        session.read.option("rowTag", row_tag)
-        .option("mode", "failfast")
-        .xml(f"@{tmp_stage_name1}/{test_file_malformed_no_closing_tag_xml}")
+        session.read.option("rowTag", row_tag).option("mode", "failfast").xml(file_path)
     )
     with pytest.raises(SnowparkSQLException, match="Malformed XML record at bytes"):
         df.collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+def test_read_xml_row_tag_not_found(session):
+    row_tag = "non-existing-tag"
+    df = session.read.option("rowTag", row_tag).xml(
+        f"@{tmp_stage_name1}/{test_file_books_xml}"
+    )
+
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="Cannot find the row tag"
+    ):
+        df.collect()
+
+    # also works for nested query plan
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="Cannot find the row tag"
+    ):
+        df.filter(lit(True)).collect()
