@@ -538,7 +538,7 @@ def test_series_to_pandas():
     assert_series_equal(snow_series.to_pandas(), pandas_series)
 
 
-@sql_count_checker(query_count=2, union_count=1)
+@sql_count_checker(query_count=1, union_count=1)
 def test_single_row_frame_to_series_to_pandas():
     # create a Snowpark pandas with single row
     native_df = native_pd.DataFrame(

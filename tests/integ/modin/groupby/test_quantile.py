@@ -251,7 +251,7 @@ def test_quantile_raises():
         df.groupby("key").quantile().to_pandas()
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_quantile_out_of_bounds_q_raises():
     # https://github.com/pandas-dev/pandas/issues/27470
     df = pd.DataFrame({"a": [0, 0, 0, 1, 1, 1], "b": range(6)})
