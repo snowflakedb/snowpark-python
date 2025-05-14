@@ -2562,7 +2562,7 @@ def test_empty_df_loc_set_scalar():
     with pytest.raises(ValueError, match="cannot set a frame with no defined columns"):
         native_df.loc[0] = 1
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         snow_df.loc[0] = 1
         assert_snowpark_pandas_equal_to_pandas(
             snow_df,
@@ -2573,7 +2573,7 @@ def test_empty_df_loc_set_scalar():
     # Check `loc` with column scalar on empty DataFrame.
     native_df = native_pd.DataFrame()
     snow_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         with pytest.raises(
             ValueError, match="cannot set a frame with no defined index and a scalar"
         ):
@@ -2590,7 +2590,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty index.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_df, native_df, row_loc, inplace=True, check_column_type=False
         )
@@ -2598,7 +2598,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty index.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_df, native_df, col_loc, inplace=True, check_column_type=False
         )
@@ -2606,7 +2606,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty columns.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2617,7 +2617,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty columns.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         col_loc(snow_df)
         assert_snowpark_pandas_equal_to_pandas(
             snow_df,
@@ -2629,7 +2629,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2], columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty index and columns.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2640,7 +2640,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2], columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty index and columns.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2650,7 +2650,7 @@ def test_empty_df_loc_set_scalar():
 
     # Test enlargening of empty DataFrame
     snow_df = pd.DataFrame()
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         snow_df.loc[0] = 0
         snow_df.loc[:, 0] = 0
         assert_snowpark_pandas_equal_to_pandas(
@@ -2996,9 +2996,9 @@ def test_df_loc_set_with_column_wise_list_like_item(
             )
 
     expected_join_count = 3 if len(item) > 1 else 2
-    # 4 extra queries for index, 1 for converting to native pandas in loc_set_helper, 2 for iter and 1 for tolist
+    # 3 extra queries for index, 1 for converting to native pandas in loc_set_helper, 1 for iter and 1 for tolist
     with SqlCounter(
-        query_count=5 if item_type_name == "index" else 1,
+        query_count=4 if item_type_name == "index" else 1,
         join_count=expected_join_count,
     ):
         eval_snowpark_pandas_result(
@@ -3056,9 +3056,9 @@ def test_df_loc_set_with_row_wise_list_like_item(
         if len(item) > 1:
             # When col_key is list and item's length > 1 or new label exists, both native pandas and Snowpark pandas
             # raises error if the length of item and col_key do not match when col_key length > 1
-            # 4 extra queries for index, 1 for converting to native pandas in loc_set_helper, 2 for iter and 1 for tolist
+            # 3 extra queries for index, 1 for converting to native pandas in loc_set_helper, 1 for iter and 1 for tolist
             with SqlCounter(
-                query_count=4 if item_type_name == "index" else 0, join_count=0
+                query_count=3 if item_type_name == "index" else 0, join_count=0
             ):
                 eval_snowpark_pandas_result(
                     snow_df,
@@ -3081,9 +3081,9 @@ def test_df_loc_set_with_row_wise_list_like_item(
                 if len(col_key) <= len(item)
                 else item + ([item[-1]] * (len(col_key) - len(item)))
             )
-            # 4 extra queries for index, 1 for converting to native pandas in loc_set_helper, 2 for iter and 1 for tolist
+            # 3 extra queries for index, 1 for converting to native pandas in loc_set_helper, 1 for iter and 1 for tolist
             with SqlCounter(
-                query_count=5 if item_type_name == "index" else 1, join_count=2
+                query_count=4 if item_type_name == "index" else 1, join_count=2
             ):
                 eval_snowpark_pandas_result(
                     snow_df, native_df, loc_set_helper, inplace=True
@@ -3100,9 +3100,9 @@ def test_df_loc_set_with_row_wise_list_like_item(
             native_df.loc[row_key, col_key] = try_convert_index_to_native(
                 item_to_type(item)
             )
-        # 3 extra queries for index, 2 for iter and 1 for tolist
+        # 2 extra queries for index, 1 for iter and 1 for tolist
         with SqlCounter(
-            query_count=3 if item_type_name == "index" else 0, join_count=0
+            query_count=2 if item_type_name == "index" else 0, join_count=0
         ):
             snowpark_err_msg = (
                 "Must have equal len keys and value when setting with an iterable"
@@ -3113,9 +3113,9 @@ def test_df_loc_set_with_row_wise_list_like_item(
 
     else:
         # Both Snowpark pandas and Native pandas should have same non-error behavior.
-        # 4 extra queries for index, 1 for converting to native pandas in loc_set_helper, 2 for iter and 1 for tolist
+        # 3 extra queries for index, 1 for converting to native pandas in loc_set_helper, 1 for iter and 1 for tolist
         with SqlCounter(
-            query_count=5 if item_type_name == "index" else 1, join_count=2
+            query_count=4 if item_type_name == "index" else 1, join_count=2
         ):
             eval_snowpark_pandas_result(
                 snow_df, native_df, loc_set_helper, inplace=True
@@ -3711,7 +3711,7 @@ def test_df_loc_set_with_empty_key_and_list_like_item(
             df.loc[_key] = try_convert_index_to_native(item)
 
     # 4 extra queries, 1 for converting to native pandas in loc_set_helper, 2 for iter and 1 for tolist
-    with SqlCounter(query_count=5, join_count=2):
+    with SqlCounter(query_count=4, join_count=2):
         eval_snowpark_pandas_result(
             simple_snowpark_pandas_df,
             simple_native_pandas_df,
@@ -4094,7 +4094,7 @@ def test_df_loc_full_set_row_from_list_like(row_obj):
         df.loc[:] = obj
         return df
 
-    query_count = 1 if isinstance(row_obj, list) else 4
+    query_count = 1 if isinstance(row_obj, list) else 3
     with SqlCounter(query_count=query_count):
         eval_snowpark_pandas_result(
             snow_df,
@@ -4293,7 +4293,7 @@ def test_df_loc_set_series_value_slice_key(key, row_loc):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_fix_1829928():
     vars = [
         -0.974507,
