@@ -251,17 +251,19 @@ def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(col("a"))
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(current_date())
     assert "Invalid argument types for function" in str(
-        ex_info
-    ) or "Unexpected type" in str(ex_info)
+        ex_info.value
+    ) or "Unexpected type" in str(ex_info.value)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(lit(""))
-    assert "not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
+    assert "not recognized" in str(ex_info.value) or "Unexpected type" in str(
+        ex_info.value
+    )
 
 
 def test_stored_procedure_with_column_datatype(session, local_testing_mode):
