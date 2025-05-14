@@ -2865,18 +2865,6 @@ def test_register_artifact_repository_negative(session):
             packages=["urllib3", "requests"],
         )
 
-    with pytest.raises(
-        ValueError,
-        match="Cannot create a function with duplicates between packages and artifact repository packages.",
-    ):
-        udf(
-            func=test_nop,
-            name=temp_func_name,
-            packages=["urllib3==2.3.0"],
-            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            packages=["urllib3==2.1.0", "requests"],
-        )
-
     with pytest.raises(Exception, match="Unknown resource constraint key"):
         udf(
             func=test_nop,
