@@ -29,7 +29,7 @@ install_modin_msg = (
     else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 )
 install_pandas_msg = (
-    f"Please set the pandas version as {supported_pandas_major_version}.{supported_pandas_minor_version}.x from the Packages menu at the top of your notebook."
+    f"Please set the pandas version as {supported_pandas_major_version}.{supported_pandas_minor_version}.x in the Packages menu at the top of your notebook."
     if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
     else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 )
