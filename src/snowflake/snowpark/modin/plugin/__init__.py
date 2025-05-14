@@ -7,7 +7,7 @@ import sys
 
 from packaging import version
 
-import snowflake.snowpark._internal.utils
+from snowflake.snowpark._internal.utils import is_interactive
 
 if sys.version_info.major == 3 and sys.version_info.minor == 8:
     raise RuntimeError(
@@ -15,7 +15,11 @@ if sys.version_info.major == 3 and sys.version_info.minor == 8:
     )  # pragma: no cover
 
 
-install_msg = 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
+install_msg = (
+    "Please pick the right version of Python from the picker to install."
+    if is_interactive()
+    else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
+)
 
 # pandas import needs to come before Python version + modin checks,
 # since modin may raise its own warnings/errors on the wrong pandas version
