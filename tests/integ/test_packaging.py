@@ -378,7 +378,7 @@ def test_add_packages_artifact_repository(session):
             func=test_urllib,
             name=temp_func_name,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=["urllib3"],
+            packages=["urllib3"],
         )
 
         # Test UDF call
@@ -479,7 +479,7 @@ def test_add_requirements_artifact_repository(
             func=test_urllib,
             name=temp_func_name,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=["urllib3"],
+            packages=["urllib3"],
         )
         # Test UDF call
         df = session.create_dataframe([1]).to_df(["a"])

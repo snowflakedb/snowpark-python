@@ -630,7 +630,7 @@ def test_udaf_artifact_repository(session):
         return_type=StringType(),
         input_types=[IntegerType()],
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
     df = session.create_dataframe([(1,)], schema=["a"])
     Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])
@@ -641,7 +641,7 @@ def test_udaf_artifact_repository(session):
             return_type=StringType(),
             input_types=[IntegerType()],
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"architecture": "x86"},
         )
     except SnowparkSQLException as ex:
@@ -694,7 +694,7 @@ def test_udaf_artifact_repository_from_file(session, tmpdir):
         return_type=StringType(),
         input_types=[IntegerType()],
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
     df = session.create_dataframe([(1,)], schema=["a"])
     Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])

@@ -1963,7 +1963,7 @@ def test_sproc_artifact_repository(session):
         session=session,
         return_type=StringType(),
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
     assert artifact_repo_sproc(session=session) == "test"
 
@@ -1973,7 +1973,7 @@ def test_sproc_artifact_repository(session):
             session=session,
             return_type=StringType(),
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"architecture": "x86"},
         )
     except SnowparkSQLException as ex:
@@ -2009,7 +2009,7 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
         file_path,
         "artifact_repo_test",
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
     assert artifact_repo_sproc(session=session) == "test"
 
