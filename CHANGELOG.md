@@ -37,7 +37,7 @@
 #### Improvements
 
 - Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
-- Show more relevant error messages when the Modin version is not matching with the one we supported in interactive environment (e.g. Snowflake Notebook).
+- Show more relevant error messages when the Modin version is not matching with the one we supported in Snowflake Notebook.
 
 ## 1.31.1 (2025-05-05)
 

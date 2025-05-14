@@ -7,7 +7,6 @@ import sys
 
 from packaging import version
 
-from snowflake.snowpark._internal.utils import is_interactive
 
 if sys.version_info.major == 3 and sys.version_info.minor == 8:
     raise RuntimeError(
@@ -16,8 +15,8 @@ if sys.version_info.major == 3 and sys.version_info.minor == 8:
 
 
 install_msg = (
-    "Please pick the right version of Python from the picker to install."
-    if is_interactive()
+    "Please install the right version of Python from the picker."
+    if "snowbook" in sys.modules
     else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 )
 
