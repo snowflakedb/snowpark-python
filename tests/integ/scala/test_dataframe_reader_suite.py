@@ -1971,10 +1971,6 @@ def test_read_multiple_csvs(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-2044853: Flaky in stored procedure test",
-)
 @pytest.mark.parametrize(
     "file,row_tag,expected_row_count,expected_column_count",
     [
@@ -1997,10 +1993,6 @@ def test_read_xml_row_tag(
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-2044853: Flaky in stored procedure test",
-)
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
     stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
@@ -2011,10 +2003,6 @@ def test_read_xml_no_xxe(session):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
-)
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-2044853: Flaky in stored procedure test",
 )
 def test_read_xml_query_nested_data(session):
     row_tag = "tag"
@@ -2046,10 +2034,6 @@ def test_read_xml_non_existing_file(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="SNOW-2044853: Flaky in stored procedure test",
-)
 @pytest.mark.parametrize(
     "file",
     (
@@ -2060,12 +2044,13 @@ def test_read_xml_non_existing_file(session):
 )
 def test_read_malformed_xml(session, file):
     row_tag = "record"
+    file_path = f"@{tmp_stage_name1}/{file}"
 
     # permissive mode
     df = (
         session.read.option("rowTag", row_tag)
         .option("mode", "permissive")
-        .xml(f"@{tmp_stage_name1}/{file}")
+        .xml(file_path)
     )
     result = df.collect()
     assert len(result) == 2
@@ -2079,7 +2064,7 @@ def test_read_malformed_xml(session, file):
     df = (
         session.read.option("rowTag", row_tag)
         .option("mode", "dropmalformed")
-        .xml(f"@{tmp_stage_name1}/{test_file_malformed_no_closing_tag_xml}")
+        .xml(file_path)
     )
     result = df.collect()
     assert len(result) == 1
@@ -2087,9 +2072,7 @@ def test_read_malformed_xml(session, file):
 
     # failfast mode
     df = (
-        session.read.option("rowTag", row_tag)
-        .option("mode", "failfast")
-        .xml(f"@{tmp_stage_name1}/{test_file_malformed_no_closing_tag_xml}")
+        session.read.option("rowTag", row_tag).option("mode", "failfast").xml(file_path)
     )
     with pytest.raises(SnowparkSQLException, match="Malformed XML record at bytes"):
         df.collect()
