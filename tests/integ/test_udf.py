@@ -1297,11 +1297,11 @@ def test_udf_negative(session, local_testing_mode):
     if not local_testing_mode:
         with pytest.raises(SnowparkSQLException) as ex_info:
             session.sql("select f(1)").collect()
-        assert "Unknown function" in str(ex_info)
+        assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(call_udf("f", "x")).collect()
-    assert "Unknown function" in str(ex_info)
+    assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         udf(
@@ -1310,7 +1310,7 @@ def test_udf_negative(session, local_testing_mode):
             input_types=[IntegerType()],
             name="invalid name",
         )
-    assert "The object name 'invalid name' is invalid" in str(ex_info)
+    assert "The object name 'invalid name' is invalid" in str(ex_info.value)
 
     # incorrect data type
     udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
@@ -1318,13 +1318,13 @@ def test_udf_negative(session, local_testing_mode):
         df1.select(udf2("x")).collect()
     assert (
         local_testing_mode
-        or "Numeric value" in str(ex_info)
-        and "is not recognized" in str(ex_info)
+        or "Numeric value" in str(ex_info.value)
+        and "is not recognized" in str(ex_info.value)
     )
     df2 = session.create_dataframe([1, None]).to_df("x")
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.select(udf2("x")).collect()
-    assert "Python Interpreter Error" in str(ex_info)
+    assert "Python Interpreter Error" in str(ex_info.value)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1644,7 +1644,7 @@ def test_udf_replace(session):
             input_types=[IntegerType(), IntegerType()],
             replace=False,
         )
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     # Expect second UDF version to still be there.
     Utils.check_answer(

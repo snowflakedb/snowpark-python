@@ -217,7 +217,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
                 order_by=["ORDERDATE"],
                 group_by=["PRODUCTKEY"],
             ).collect()
-        assert "Sliding window frame unsupported for function" in str(exc)
+        assert "Sliding window frame unsupported for function" in str(exc.value)
 
     def bad_formatter(input_col, agg):
         return f"{agg}_{input_col}"
