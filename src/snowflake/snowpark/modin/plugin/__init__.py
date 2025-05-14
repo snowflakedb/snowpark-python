@@ -13,13 +13,6 @@ if sys.version_info.major == 3 and sys.version_info.minor == 8:
         "Snowpark pandas does not support Python 3.8. Please update to Python 3.9 or later."
     )  # pragma: no cover
 
-
-install_msg = (
-    "Please install the right version of Python from the picker."
-    if "snowbook" in sys.modules
-    else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
-)
-
 # pandas import needs to come before Python version + modin checks,
 # since modin may raise its own warnings/errors on the wrong pandas version
 import pandas  # isort: skip  # noqa: E402
@@ -28,6 +21,19 @@ import pandas  # isort: skip  # noqa: E402
 supported_pandas_major_version = 2
 supported_pandas_minor_version = 2
 actual_pandas_version = version.parse(pandas.__version__)
+supported_modin_version = "0.32.0"
+
+install_modin_msg = (
+    f"Please set the modin version as {supported_modin_version} from the Packages menu at the top of your notebook."
+    if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
+    else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
+)
+install_pandas_msg = (
+    f"Please set the pandas version as {supported_pandas_major_version}.{supported_pandas_minor_version}.x from the Packages menu at the top of your notebook."
+    if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
+    else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
+)
+
 if (
     actual_pandas_version.major != supported_pandas_major_version
     and actual_pandas_version.minor != supported_pandas_minor_version
@@ -35,22 +41,21 @@ if (
     raise RuntimeError(
         f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
         + f" Snowpark pandas ({supported_pandas_major_version}.{supported_pandas_minor_version}.x). "
-        + install_msg
+        + install_pandas_msg
     )  # pragma: no cover
 
 try:
     import modin  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
     raise ModuleNotFoundError(
-        "Modin is not installed. " + install_msg
+        "Modin is not installed. " + install_modin_msg
     )  # pragma: no cover
 
-supported_modin_version = "0.32.0"
 if version.parse(modin.__version__) != version.parse(supported_modin_version):
     raise ImportError(
         f"The Modin version installed ({modin.__version__}) does not match the supported Modin version in"
         + f" Snowpark pandas ({supported_modin_version}). "
-        + install_msg
+        + install_modin_msg
     )  # pragma: no cover
 
 
