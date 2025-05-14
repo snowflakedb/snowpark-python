@@ -289,7 +289,7 @@ def create_or_replace_view(
     return self._query_compiler.create_or_replace_view(
         name=name,
         comment=comment,
-        index=False,
+        index=index,
         index_label=index_label,
     )
 
