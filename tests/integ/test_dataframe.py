@@ -1326,14 +1326,13 @@ def test_join_on_order(session, local_testing_mode):
     """
     Test that an 'on' clause in a different order from the data frame re-orders the columns correctly.
     """
-    length = 134217728 if not local_testing_mode else None
     df1 = session.create_dataframe([(1, "A", 3)], schema=["A", "B", "C"])
     df2 = session.create_dataframe([(1, "A", 4)], schema=["A", "B", "D"])
 
     df3 = df1.join(df2, on=["B", "A"])
     assert df3.schema == StructType(
         [
-            StructField("B", StringType(length), nullable=False),
+            StructField("B", StringType(), nullable=False),
             StructField("A", LongType(), nullable=False),
             StructField("C", LongType(), nullable=False),
             StructField("D", LongType(), nullable=False),
@@ -1997,7 +1996,7 @@ def test_show_dataframe_spark(session):
                     ),
                 ),
                 StructField("col_17", ArrayType()),
-                StructField("col_18", MapType()),
+                StructField("col_18", StructType()),
             ]
         )
         df = session.create_dataframe([data], schema=schema)
@@ -5186,6 +5185,9 @@ def test_create_dataframe_x_string_y_integer(session):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="File data type is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
 )
 def test_create_dataframe_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)

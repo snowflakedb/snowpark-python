@@ -8,8 +8,10 @@
 
 - Invoking snowflake system procedures does not invoke an additional `describe procedure` call to check the return type of the procedure.
 - Added support for `Session.create_dataframe()` with the stage URL and FILE data type.
-- Added support for different modes for dealing with corrupt XML records when reading an XML file using `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)`. Currently `PERMISSIVE`, `DROPMALFORMED` and `FAILFAST` are supported.
+- Added support for different modes for dealing with corrupt XML records when reading an XML file using `session.read.option('mode', <mode>), option('rowTag', <tag_name>).xml(<stage_file_path>)`. Currently `PERMISSIVE`, `DROPMALFORMED` and `FAILFAST` are supported.
+- Improved the error message of the XML reader when the specified row tag is not found in the file.
 - Improved query generation for `Dataframe.drop` to use `SELECT * EXCLUDE ()` to exclude the dropped columns. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
+- Added support for `VariantType` to `StructType.from_json`
 
 #### Bug Fixes
 
@@ -21,6 +23,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `snowflake.snowpark.functions.rank` that would cause sort direction to not be respected.
+- Fixed a bug in `snowflake.snowpark.functions.to_timestamp_*` that would cause incorrect results on filtered data.
 
 ### Snowpark pandas API Updates
 
@@ -28,6 +31,8 @@
 
 - Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `DataFrame.to_html`.
+- Added support for `DataFrame.to_string` and `Series.to_string`.
+- Added support for reading files from S3 buckets using `pd.read_csv`.
 
 #### Improvements
 

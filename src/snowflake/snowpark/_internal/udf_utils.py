@@ -10,6 +10,7 @@ import sys
 import typing
 import zipfile
 from copy import deepcopy
+from enum import Enum
 from logging import getLogger
 from types import ModuleType
 from typing import (
@@ -110,6 +111,13 @@ ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}
 class UDFColumn(NamedTuple):
     datatype: DataType
     name: str
+
+
+class RegistrationType(Enum):
+    UDF = "UDF"
+    UDAF = "UDAF"
+    UDTF = "UDTF"
+    SPROC = "SPROC"
 
 
 class ExtensionFunctionProperties:
@@ -1266,6 +1274,7 @@ def create_python_udf_or_sp(
     replace: bool,
     if_not_exists: bool,
     raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
+    registration_type: RegistrationType,
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner", "restricted caller"]] = None,
     api_call_source: Optional[str] = None,
@@ -1288,7 +1297,12 @@ def create_python_udf_or_sp(
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
-    if isinstance(return_type, StructType) and not return_type.structured:
+
+    if (
+        isinstance(return_type, StructType)
+        and not return_type.structured
+        and registration_type in {RegistrationType.UDTF, RegistrationType.SPROC}
+    ):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     elif installed_pandas and isinstance(return_type, PandasDataFrameType):
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
