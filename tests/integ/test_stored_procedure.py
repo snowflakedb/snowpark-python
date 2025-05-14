@@ -1062,7 +1062,7 @@ def test_sp_negative(session, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.call("f", 1).collect()
 
-    assert "Unknown function" in str(ex_info)
+    assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         sproc(
@@ -1071,7 +1071,7 @@ def test_sp_negative(session, local_testing_mode):
             input_types=[IntegerType()],
             name="invalid name",
         )
-    assert "The object name 'invalid name' is invalid" in str(ex_info)
+    assert "The object name 'invalid name' is invalid" in str(ex_info.value)
 
     # incorrect data type
     int_sp = sproc(
@@ -1079,11 +1079,13 @@ def test_sp_negative(session, local_testing_mode):
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp("x")
-    assert "is not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
+    assert "is not recognized" in str(ex_info.value) or "Unexpected type" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp(None)
-    assert "Python Interpreter Error" in str(ex_info)
+    assert "Python Interpreter Error" in str(ex_info.value)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1502,7 +1504,7 @@ def test_sp_replace(session):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
         )
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     # Expect second sp version to still be there.
     assert add_sp(1, 2) == 4

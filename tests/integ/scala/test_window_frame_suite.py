@@ -271,7 +271,7 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_bounde
         ).collect()
         if not local_testing_mode:
             assert "Cumulative window frame unsupported for function MIN" in str(
-                ex_info
+                ex_info.value
             )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -280,13 +280,15 @@ def test_range_between_should_accept_at_most_one_order_by_expression_when_bounde
         ).collect()
         if not local_testing_mode:
             assert "Cumulative window frame unsupported for function MIN" in str(
-                ex_info
+                ex_info.value
             )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(min_("key").over(window.range_between(-1, 1))).collect()
         if not local_testing_mode:
-            assert "Sliding window frame unsupported for function MIN" in str(ex_info)
+            assert "Sliding window frame unsupported for function MIN" in str(
+                ex_info.value
+            )
 
 
 def test_range_between_should_accept_non_numeric_values_only_when_unbounded(
@@ -312,7 +314,7 @@ def test_range_between_should_accept_non_numeric_values_only_when_unbounded(
         ).collect()
         if not local_testing_mode:
             assert "Cumulative window frame unsupported for function MIN" in str(
-                ex_info
+                ex_info.value
             )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
@@ -321,13 +323,15 @@ def test_range_between_should_accept_non_numeric_values_only_when_unbounded(
         ).collect()
         if not local_testing_mode:
             assert "Cumulative window frame unsupported for function MIN" in str(
-                ex_info
+                ex_info.value
             )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(min_("value").over(window.range_between(-1, 1))).collect()
         if not local_testing_mode:
-            assert "Sliding window frame unsupported for function MIN" in str(ex_info)
+            assert "Sliding window frame unsupported for function MIN" in str(
+                ex_info.value
+            )
 
 
 @pytest.mark.skipif(

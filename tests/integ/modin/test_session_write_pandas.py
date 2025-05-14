@@ -110,7 +110,9 @@ def test_write_pandas_with_overwrite(
                         auto_create_table=auto_create_table,
                         use_logical_type=use_logical_type,
                     )
-                assert "Insert value list does not match column list" in str(ex_info)
+                assert "Insert value list does not match column list" in str(
+                    ex_info.value
+                )
 
         with SqlCounter(query_count=1):
             with pytest.raises(SnowparkClientException) as ex_info:
