@@ -745,6 +745,7 @@ def with_src_position(
         if frame is None:
             src.file = __intern_string("")
             return expr_ast
+
         # The context argument specifies the number of lines of context to capture around the current line.
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.

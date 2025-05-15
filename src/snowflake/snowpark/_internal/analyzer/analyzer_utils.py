@@ -200,7 +200,6 @@ ANY = " ANY "
 ICEBERG = " ICEBERG "
 RENAME_FIELDS = " RENAME FIELDS"
 ADD_FIELDS = " ADD FIELDS"
-NEW_LINE = "\n"
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -613,9 +612,9 @@ def set_operator_statement(left: str, right: str, operator: str) -> str:
         LEFT_PARENTHESIS
         + left
         + RIGHT_PARENTHESIS
-        + NEW_LINE
+        + SPACE
         + operator
-        + NEW_LINE
+        + SPACE
         + LEFT_PARENTHESIS
         + right
         + RIGHT_PARENTHESIS
