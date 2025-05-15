@@ -61,6 +61,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "tox",  # used for setting up testing environments
     "snowflake.core>=1.0.0, <2",  # Catalog
     "psutil",  # testing for telemetry
+    "lxml",  # used in XML reader unit tests
 ]
 
 # read the version

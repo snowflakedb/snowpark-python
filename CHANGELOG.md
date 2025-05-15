@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Improvements
+
+- Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+
 ### Snowpark Local Testing Updates
 
 ### Snowpark pandas API Updates
