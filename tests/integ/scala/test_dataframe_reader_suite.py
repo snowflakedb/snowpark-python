@@ -265,24 +265,6 @@ def setup(session, resources_path, local_testing_mode):
         session, "@" + tmp_stage_name1, test_files.test_nested_xml, compress=False
     )
     Utils.upload_to_stage(
-        session,
-        "@" + tmp_stage_name1,
-        test_files.test_malformed_no_closing_tag_xml,
-        compress=False,
-    )
-    Utils.upload_to_stage(
-        session,
-        "@" + tmp_stage_name1,
-        test_files.test_malformed_not_self_closing_xml,
-        compress=False,
-    )
-    Utils.upload_to_stage(
-        session,
-        "@" + tmp_stage_name1,
-        test_files.test_malformed_record_xml,
-        compress=False,
-    )
-    Utils.upload_to_stage(
         session, "@" + tmp_stage_name2, test_files.test_file_csv, compress=False
     )
     yield
@@ -2004,6 +1986,10 @@ def test_read_xml_no_xxe(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2044853: Flaky in stored procedure test",
+)
 def test_read_xml_query_nested_data(session):
     row_tag = "tag"
     df = session.read.option("rowTag", row_tag).xml(
@@ -2098,3 +2084,122 @@ def test_read_xml_row_tag_not_found(session):
         SnowparkDataframeReaderException, match="Cannot find the row tag"
     ):
         df.filter(lit(True)).collect()
+
+
+@pytest.mark.parametrize(
+    "file_format_name,infer_schema",
+    [
+        ("ab_c1", True),
+        ("ABC", True),
+        ('"a$B12""cD"', True),
+        ('"a$B12""cD"', False),
+    ],
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+def test_read_file_with_enforced_existing_file_format(
+    session, file_format_name, infer_schema
+):
+    try:
+        session.sql(
+            f"CREATE OR REPLACE TEMP FILE FORMAT {file_format_name} TYPE = 'CSV' FIELD_DELIMITER = ','"
+        ).collect()
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+        df_reader = session.read.option("FORMAT_NAME", file_format_name).option(
+            "ENFORCE_EXISTING_FILE_FORMAT", True
+        )
+
+        if not infer_schema:
+            df_reader = df_reader.schema(user_schema)
+
+        df = df_reader.csv(test_file_on_stage)
+
+        # Verify there are no queries related to temp file format creation or removal
+        assert len(df.queries["queries"]) == 1
+        assert len(df.queries["post_actions"]) == 0
+
+        result = df.collect()
+
+        assert len(result) == 2
+        assert len(result[0]) == 3
+    finally:
+        session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+def test_enforce_existing_file_format_with_additional_format_type_options(session):
+    file_format_name = "ABC"
+
+    try:
+        session.sql(
+            f"CREATE OR REPLACE TEMP FILE FORMAT {file_format_name} TYPE = 'CSV' FIELD_DELIMITER = ','"
+        ).collect()
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+        with pytest.raises(
+            ValueError,
+            match="Option 'ENFORCE_EXISTING_FILE_FORMAT' can not be used with any format type options.",
+        ):
+            (
+                session.read.option("FORMAT_NAME", file_format_name)
+                .option("ENFORCE_EXISTING_FILE_FORMAT", True)
+                .option(
+                    "DELIMITER", "!"
+                )  # Forbidden option if ENFORCE_EXISTING_FILE_FORMAT is set
+                .csv(test_file_on_stage)
+            )
+    finally:
+        session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+def test_enforce_existing_file_format_without_providing_format_name(session):
+    file_format_name = "ABC"
+
+    try:
+        session.sql(
+            f"CREATE OR REPLACE TEMP FILE FORMAT {file_format_name} TYPE = 'CSV' FIELD_DELIMITER = ','"
+        ).collect()
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+        with pytest.raises(
+            ValueError,
+            match="Setting the ENFORCE_EXISTING_FILE_FORMAT option requires providing FORMAT_NAME.",
+        ):
+            (
+                session.read.option("ENFORCE_EXISTING_FILE_FORMAT", True).csv(
+                    test_file_on_stage
+                )
+            )
+    finally:
+        session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Read option 'FORMAT_NAME' not supported in local testing mode",
+)
+def test_enforce_existing_file_format_object_doesnt_exist(session):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+    df = (
+        session.read.schema(StructType([StructField("xyz", StringType())]))
+        .option("FORMAT_NAME", "NON_EXISTENT_FILE_FORMAT")
+        .option("ENFORCE_EXISTING_FILE_FORMAT", True)
+        .csv(test_file_on_stage)
+    )
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="File format 'NON_EXISTENT_FILE_FORMAT' does not exist or not authorized.",
+    ):
+        df.collect()
