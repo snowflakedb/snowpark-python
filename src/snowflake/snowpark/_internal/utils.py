@@ -53,6 +53,7 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
@@ -216,7 +217,7 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
 # TODO: merge fixed pandas importer changes to connector.
-def _pandas_importer():  # noqa: E302
+def pandas():  # noqa: E302
     """Helper function to lazily import pandas and return MissingPandas if not installed."""
     from snowflake.connector.options import MissingPandas
 
@@ -229,9 +230,12 @@ def _pandas_importer():  # noqa: E302
         pass  # pragma: no cover
     return pandas
 
+def install_pandas():
+    return not isinstance(pandas, MissingOptionalDependency)
 
-pandas = _pandas_importer()
-installed_pandas = not isinstance(pandas, MissingOptionalDependency)
+
+# pandas = get_pandas()
+# installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):

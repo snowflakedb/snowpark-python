@@ -4,13 +4,13 @@
 
 from enum import Enum
 
-from typing import List, Any, Iterator, Type, Callable, Optional
+from typing import List, Any, Iterator, Type, Callable, Optional, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
+from snowflake.snowpark._internal.lazy_import_utils import lazy_import
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
-from snowflake.connector.options import pandas as pd
 import logging
 
 logger = logging.getLogger(__name__)
@@ -73,5 +73,10 @@ class DataSourceReader:
             cursor.close()
             conn.close()
 
+    # For the type cehcker only
+    if TYPE_CHECKING:
+        from snowflake.connector.options import pandas as pd
+
     def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
+        lazy_import("snowflake.connector.options.pandas")
         return self.driver.data_source_data_to_pandas_df(data, self.schema)
