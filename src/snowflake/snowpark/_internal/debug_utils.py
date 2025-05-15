@@ -41,16 +41,24 @@ class DataFrameLineageNode:
         with open(filename) as f:
             code_lines = []
             for i, line in enumerate(f, 1):
-                if end_line == 0 and i == start_line:
-                    code_lines.append(line)
-                elif end_line != 0 and start_line <= i <= end_line:
-                    code_lines.append(line)
+                if end_line == 0:
+                    if i == start_line:
+                        code_lines.append(line)
+                        break
+                else:
+                    if start_line <= i <= end_line:
+                        code_lines.append(line)
+                    elif i > end_line:
+                        break
 
             if end_line != 0:
                 # Should we make this inference based on python version?
                 # If the end line is not 0, we need to trim the start and end columns
-                code_lines[0] = code_lines[0][start_column - 1 :]
-                code_lines[-1] = code_lines[-1][:end_column]
+                if start_line == end_line:
+                    code_lines[0] = code_lines[0][start_column:end_column]
+                else:
+                    code_lines[0] = code_lines[0][start_column:]
+                    code_lines[-1] = code_lines[-1][:end_column]
 
             code_lines = [line.rstrip() for line in code_lines]
             return "\n".join(code_lines)
