@@ -1042,6 +1042,7 @@ class SnowflakePlanBuilder:
                 base_location: the base directory that snowflake can write iceberg metadata and files to
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
+                iceberg_version: Overrides the version of iceberg to use.
             table_exists: whether the table already exists in the database.
                 Only used for APPEND and TRUNCATE mode.
         """

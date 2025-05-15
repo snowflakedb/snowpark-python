@@ -333,6 +333,9 @@ class DataFrameWriter:
 
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
+                * iceberg_version: Overrides the version of iceberg to use.
+
+
         Example 1::
 
             Basic table saves
