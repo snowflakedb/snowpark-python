@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
+    TableFunctionJoin,
 )
 
 if TYPE_CHECKING:
@@ -665,6 +666,7 @@ class SnowflakePlanBuilder:
         # on the optimized plan. During the final query generation, no schema query is needed,
         # this helps reduces un-necessary overhead for the describing call.
         self._skip_schema_query = skip_schema_query
+        self.lists = []
 
     @SnowflakePlan.Decorator.wrap_exception
     def build(
@@ -1304,8 +1306,41 @@ class SnowflakePlanBuilder:
         )
 
     def find_table_function_in_sql_tree(self, plan: SnowflakePlan):
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectTableFunction,
+            Selectable,
+        )
+
+        self.lists.append(plan)
+        if isinstance(plan, SelectTableFunction) and isinstance(
+            plan.snowflake_plan.source_plan, TableFunctionJoin
+        ):
+            if (
+                plan.snowflake_plan.source_plan.right_cols == ["*"]
+                and len(plan.snowflake_plan.children_plan_nodes) == 1
+            ):
+                child_plan = plan.snowflake_plan.children_plan_nodes[0]
+                if isinstance(child_plan, Selectable):
+                    child_plan = child_plan.snowflake_plan
+                plan.snowflake_plan.source_plan.right_cols = (
+                    plan.snowflake_plan.quoted_identifiers[
+                        len(child_plan.quoted_identifiers) :
+                    ]
+                )
+                new_plan = self.session._analyzer.resolve(
+                    plan.snowflake_plan.source_plan
+                )
+                plan._snowflake_plan = new_plan
+                return plan
+        plan_2_resolve = None
         for node in plan.children_plan_nodes:
-            self.find_table_function_in_sql_tree(node)
+            plan_2_resolve = self.find_table_function_in_sql_tree(node)
+        if plan_2_resolve:
+            return self.session._analyzer.resolve(
+                plan.snowflake_plan.source_plan
+                if isinstance(plan, Selectable)
+                else plan.source_plan
+            )
 
     def create_or_replace_dynamic_table(
         self,
@@ -1324,7 +1359,9 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
-        self.find_table_function_in_sql_tree(child)
+        child = copy.deepcopy(child)
+        child = self.find_table_function_in_sql_tree(child)
+
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
 
