@@ -72,7 +72,7 @@ def check_df_debug_lineage(expected_lineage, exc_info, total_length):
     assert (
         re.search(
             re.escape(
-                f"Trace of the dataframe operations that could have caused the error (total {total_length}):"
+                f"Trace of the most recent dataframe operations associated with the error (total {total_length}):"
             ),
             str(exc_info.value.message),
         )

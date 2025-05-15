@@ -449,7 +449,7 @@ def dataframe_exception_handler(func):
                 traceback_with_debug_info = [
                     formatted_last_frame,
                     "\n--- Additional Debug Information ---\n",
-                    f"\nTrace of the dataframe operations that could have caused the error (total {lineage_trace_len}):\n",
+                    f"\nTrace of the most recent dataframe operations associated with the error (total {lineage_trace_len}):\n",
                 ]
                 for node in itertools.islice(df_lineage, show_lineage_len):
                     traceback_with_debug_info.append(node.get_source_snippet())
