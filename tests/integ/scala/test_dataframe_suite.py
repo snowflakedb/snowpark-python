@@ -567,7 +567,7 @@ def test_joins_on_result_scan(session):
 def test_df_stat_corr(session):
     with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.string1(session).stat.corr("a", "b")
-    assert "Numeric value 'a' is not recognized" in str(exec_info)
+    assert "Numeric value 'a' is not recognized" in str(exec_info.value)
 
     assert TestData.null_data2(session).stat.corr("a", "b") is None
     assert (
@@ -588,7 +588,7 @@ def test_df_stat_corr(session):
 def test_df_stat_cov(session):
     with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.string1(session).stat.cov("a", "b")
-    assert "Numeric value 'a' is not recognized" in str(exec_info)
+    assert "Numeric value 'a' is not recognized" in str(exec_info.value)
 
     assert TestData.null_data2(session).stat.cov("a", "b") == 0
     assert (
@@ -622,12 +622,12 @@ def test_df_stat_approx_quantile(session):
     with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.approx_numbers(session).stat.approx_quantile("a", [-1])
     assert "Invalid value [-1.0] for function 'APPROX_PERCENTILE_ESTIMATE'" in str(
-        exec_info
+        exec_info.value
     )
 
     with pytest.raises(SnowparkSQLException) as exec_info:
         TestData.string1(session).stat.approx_quantile("a", [0.5])
-    assert "Numeric value 'test1' is not recognized" in str(exec_info)
+    assert "Numeric value 'test1' is not recognized" in str(exec_info.value)
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "num int")
@@ -1277,19 +1277,19 @@ def test_select_negative_select(session):
     # select columns which don't exist
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select("not_exists_column").collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(["not_exists_column"]).collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(col("not_exists_column")).collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select([col("not_exists_column")]).collect()
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
 
 def test_drop_and_dropcolumns(session):
@@ -1392,8 +1392,8 @@ def test_rollup(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.rollup(list()).agg(sum_(col("value"))).show()
 
-    assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
-        ex_info
+    assert "001003 (42000): " in str(ex_info.value) and "SQL compilation error" in str(
+        ex_info.value
     )
 
     # rollup() on 1 column
@@ -1518,8 +1518,8 @@ def test_cube(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.cube(list()).agg(sum_(col("value"))).show()
 
-    assert "001003 (42000): " in str(ex_info) and "SQL compilation error" in str(
-        ex_info
+    assert "001003 (42000): " in str(ex_info.value) and "SQL compilation error" in str(
+        ex_info.value
     )
 
     # cube() on 1 column
@@ -2112,7 +2112,7 @@ def test_create_or_replace_temporary_view(session, db_parameters, local_testing_
             assert session is not session2
             with pytest.raises(SnowparkSQLException) as ex_info:
                 session2.table(view_name).collect()
-                assert "does not exist or not authorized" in str(ex_info)
+            assert "does not exist or not authorized" in str(ex_info.value)
 
 
 def test_create_temp_view(session):
