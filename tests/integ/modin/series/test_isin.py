@@ -61,12 +61,12 @@ def _test_isin_with_snowflake_logic(s, values):
         (np.array([]), 3),
         (np.array([1, 2, 1]), 3),
         (np.array([None, 1, 2]), 3),
-        (native_pd.Series(), 5),
+        (native_pd.Series(), 4),
         # (native_pd.Series([2, 3], index=["A", "B"]), 1), # not supported anymore because of index type mismatch
         # (native_pd.Series(index=["A", "B"]), 1), # not supported anymore because of index type mismatch
         (native_pd.Series([None, -10]), 4),
         (native_pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}), 3),
-        (native_pd.Index([4, 5, 6]), 4),
+        (native_pd.Index([4, 5, 6]), 5),
     ],
 )
 def test_isin_integer_data(values, expected_query_count):

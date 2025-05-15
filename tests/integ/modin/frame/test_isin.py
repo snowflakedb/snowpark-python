@@ -229,7 +229,7 @@ def test_isin_with_dict(df, values):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_isin_duplicate_columns_negative():
     with pytest.raises(ValueError, match="cannot compute isin with a duplicate axis."):
         df = pd.DataFrame({"A": [1, 2, 3]})

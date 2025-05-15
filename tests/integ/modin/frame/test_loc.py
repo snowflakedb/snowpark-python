@@ -2562,7 +2562,7 @@ def test_empty_df_loc_set_scalar():
     with pytest.raises(ValueError, match="cannot set a frame with no defined columns"):
         native_df.loc[0] = 1
 
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         snow_df.loc[0] = 1
         assert_snowpark_pandas_equal_to_pandas(
             snow_df,
@@ -2590,7 +2590,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty index.
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snow_df, native_df, row_loc, inplace=True, check_column_type=False
         )
@@ -2598,7 +2598,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty index.
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snow_df, native_df, col_loc, inplace=True, check_column_type=False
         )
@@ -2606,7 +2606,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty columns.
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2617,7 +2617,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty columns.
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         col_loc(snow_df)
         assert_snowpark_pandas_equal_to_pandas(
             snow_df,
@@ -2629,7 +2629,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2], columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty index and columns.
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2640,7 +2640,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2], columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with column scalar on empty DataFrame with non-empty index and columns.
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2650,7 +2650,7 @@ def test_empty_df_loc_set_scalar():
 
     # Test enlargening of empty DataFrame
     snow_df = pd.DataFrame()
-    with SqlCounter(query_count=0):
+    with SqlCounter(query_count=1):
         snow_df.loc[0] = 0
         snow_df.loc[:, 0] = 0
         assert_snowpark_pandas_equal_to_pandas(
