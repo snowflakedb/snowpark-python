@@ -263,7 +263,7 @@ def create_or_replace_view(
     name: Union[str, Iterable[str]],
     *,
     comment: Optional[str] = None,
-    index: bool = True,
+    index: bool = False,
     index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
@@ -280,7 +280,7 @@ def create_or_replace_view(
             that specifies the database name, schema name, and view name.
         comment: Adds a comment for the created view. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
-        index: default True
+        index: default False
             If true, save DataFrame index columns in view columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
@@ -310,7 +310,7 @@ def create_or_replace_dynamic_table(
     data_retention_time: Optional[int] = None,
     max_data_extension_time: Optional[int] = None,
     iceberg_config: Optional[dict] = None,
-    index: bool = True,
+    index: bool = False,
     index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
@@ -354,7 +354,7 @@ def create_or_replace_dynamic_table(
             - base_location: the base directory that snowflake can write iceberg metadata and files to.
             - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
             - storage_serialization_policy: specifies the storage serialization policy for the table.
-        index: default True
+        index: default False
             If true, save DataFrame index columns as table columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
@@ -389,7 +389,7 @@ def to_view(
     name: Union[str, Iterable[str]],
     *,
     comment: Optional[str] = None,
-    index: bool = True,
+    index: bool = False,
     index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
@@ -406,7 +406,7 @@ def to_view(
             that specifies the database name, schema name, and view name.
         comment: Adds a comment for the created view. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
-        index: default True
+        index: default False
             If true, save DataFrame index columns in view columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
@@ -436,7 +436,7 @@ def to_dynamic_table(
     data_retention_time: Optional[int] = None,
     max_data_extension_time: Optional[int] = None,
     iceberg_config: Optional[dict] = None,
-    index: bool = True,
+    index: bool = False,
     index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
@@ -480,7 +480,7 @@ def to_dynamic_table(
             - base_location: the base directory that snowflake can write iceberg metadata and files to.
             - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
             - storage_serialization_policy: specifies the storage serialization policy for the table.
-        index: default True
+        index: default False
             If true, save DataFrame index columns as table columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
