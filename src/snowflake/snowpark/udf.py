@@ -993,6 +993,7 @@ class UDFRegistration:
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
+            artifact_repository=artifact_repository,
         )
 
         runtime_version_from_requirement = None
