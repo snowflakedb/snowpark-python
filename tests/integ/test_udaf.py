@@ -647,7 +647,7 @@ def test_udaf_artifact_repository(session):
     except SnowparkSQLException as ex:
         assert (
             "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-            in str(ex)
+            in str(ex.value)
         )
 
 
