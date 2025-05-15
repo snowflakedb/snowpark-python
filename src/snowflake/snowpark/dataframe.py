@@ -462,6 +462,9 @@ def dataframe_exception_handler(func):
                     )
 
                 final_traceback = "\n".join(traceback_with_debug_info)
+            lineage_trace_len = 0
+            try:
+                # Code that might set lineage_trace_len
             except Exception:
                 # if there is any internal error while getting the lineage, just re-raise the
                 # original exception
