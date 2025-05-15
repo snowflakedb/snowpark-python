@@ -14,7 +14,7 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 from tests.integ.modin.utils import (
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
-from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 def eval_snowpark_pandas_result(*args, **kwargs):
@@ -184,11 +184,9 @@ def test_groupby_bfill_ffill_multiindex_with_level(method, level, limit):
 
 
 @pytest.mark.parametrize("method", ["bfill", "ffill"])
-@pytest.mark.parametrize(
-    "by_info", [(["I", "A"], 1), (["A"], 0), (["A", "B"], 1), (10, 0)]
-)
-def test_groupby_bfill_ffill_multiindex_negative(method, by_info):
-    by_list, expected_query_count = by_info
+@pytest.mark.parametrize("by_list", [["I", "A"], ["A"], ["A", "B"], 10])
+@sql_count_checker(query_count=0)
+def test_groupby_bfill_ffill_multiindex_negative(method, by_list):
     native_df = native_pd.DataFrame(
         TEST_DF_DATA_2, index=TEST_DF_INDEX_2, columns=TEST_DF_COLUMNS_2
     )
@@ -199,17 +197,15 @@ def test_groupby_bfill_ffill_multiindex_negative(method, by_info):
         by_list = None
     else:
         level = None
-
-    with SqlCounter(query_count=expected_query_count):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: getattr(df.groupby(by_list, level=level, axis=0), method)(
-                limit=None
-            ),
-            expect_exception=True,
-            expect_exception_type=IndexError if level is not None else KeyError,
-        )
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: getattr(df.groupby(by_list, level=level, axis=0), method)(
+            limit=None
+        ),
+        expect_exception=True,
+        expect_exception_type=IndexError if level is not None else KeyError,
+    )
 
 
 @pytest.mark.parametrize("method", ["bfill", "ffill"])

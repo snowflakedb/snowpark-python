@@ -379,7 +379,7 @@ def test_insert_compatible_index(df_index, value_index):
         ),  # length and type mismatch
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_insert_index_num_levels_mismatch_negative(df_index, value_index):
     snow_df = pd.DataFrame({"col1": ["p", "q", "r"]}, index=native_pd.Index(df_index))
     value = pd.DataFrame({"col2": ["w", "x", "y"]}, index=native_pd.Index(value_index))
@@ -568,7 +568,7 @@ def test_insert_into_empty_dataframe_index_dtype_mismatch():
         snow_df.to_pandas()
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_insert_empty_list_into_empty_dataframe():
     snow_df = pd.DataFrame()
     native_df = native_pd.DataFrame()

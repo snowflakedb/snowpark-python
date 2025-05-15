@@ -160,12 +160,11 @@ def test_qcut_series_single_element_negative(q, s):
     ],
 )
 @pytest.mark.parametrize("s", [native_pd.Series([0]), native_pd.Series([1])])
+@sql_count_checker(query_count=2)
 def test_qcut_series_single_element(q, s):
     native_ans = native_pd.qcut(s, q, duplicates="drop", labels=False)
-
-    with SqlCounter(query_count=1 if q == 1 else 2):
-        ans = pd.qcut(pd.Series(s), q, duplicates="drop", labels=False)
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
+    ans = pd.qcut(pd.Series(s), q, duplicates="drop", labels=False)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
 
 @pytest.mark.xfail(reason="TODO: SNOW-1225562 support retbins")
