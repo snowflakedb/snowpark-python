@@ -7,7 +7,6 @@ import logging
 import random
 from decimal import Decimal
 from unittest import mock
-import json
 
 import pytest
 
