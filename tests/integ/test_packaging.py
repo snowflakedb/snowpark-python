@@ -388,6 +388,7 @@ def test_add_packages_artifact_repository(session):
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session.remove_package("numpy", artifact_repository=artifact_repository)
+        session.remove_package("urllib3", artifact_repository=artifact_repository)
         assert len(session.get_packages(artifact_repository)) == 0
 
 
