@@ -1,5 +1,13 @@
 # Release History
 
+## 1.33.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+### Snowpark Local Testing Updates
+
+### Snowpark pandas API Updates
+
 ## 1.32.0 (2025-05-15)
 
 ### Snowpark Python API Updates
