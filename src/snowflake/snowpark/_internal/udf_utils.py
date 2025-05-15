@@ -1109,7 +1109,7 @@ def resolve_imports_and_packages(
         resolved_packages = []
         if not packages and session:
             resolved_packages = list(
-                session._artifact_repository_packages[artifact_repository].values()
+                session._resolve_packages([], artifact_repository=artifact_repository)
             )
         elif packages:
             if not all(isinstance(package, str) for package in packages):
