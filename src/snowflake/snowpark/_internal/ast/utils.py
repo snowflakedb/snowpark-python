@@ -742,11 +742,9 @@ def with_src_position(
         # Once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
         # e.g. Jupyter notebooks, REPLs, calls to exec, etc.
-        filename = frame.f_code.co_filename if frame is not None else ""
-        if frame is None or not Path(filename).is_file():
+        if frame is None:
             src.file = __intern_string("")
             return expr_ast
-
         # The context argument specifies the number of lines of context to capture around the current line.
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.
