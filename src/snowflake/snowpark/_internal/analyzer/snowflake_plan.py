@@ -666,7 +666,6 @@ class SnowflakePlanBuilder:
         # on the optimized plan. During the final query generation, no schema query is needed,
         # this helps reduces un-necessary overhead for the describing call.
         self._skip_schema_query = skip_schema_query
-        self.lists = []
 
     @SnowflakePlan.Decorator.wrap_exception
     def build(
@@ -1311,7 +1310,6 @@ class SnowflakePlanBuilder:
             Selectable,
         )
 
-        self.lists.append(plan)
         if isinstance(plan, SelectTableFunction) and isinstance(
             plan.snowflake_plan.source_plan, TableFunctionJoin
         ):
