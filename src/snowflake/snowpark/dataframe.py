@@ -5554,7 +5554,10 @@ class DataFrame:
 
     @publicapi
     def describe(
-        self, *cols: Union[str, List[str]], _emit_ast: bool = True
+        self,
+        *cols: Union[str, List[str]],
+        strings_include_math_stats=False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
@@ -5579,6 +5582,7 @@ class DataFrame:
 
         Args:
             cols: The names of columns whose basic statistics are computed.
+            strings_include_math_stats: Whether StringType columns should have mean and stddev stats included.
         """
         stmt = None
         if _emit_ast:
@@ -5635,7 +5639,10 @@ class DataFrame:
                     # for string columns, we need to convert all stats to string
                     # such that they can be fitted into one column
                     if isinstance(t, StringType):
-                        if name in ["mean", "stddev"]:
+                        if not strings_include_math_stats and name in [
+                            "mean",
+                            "stddev",
+                        ]:
                             agg_cols.append(to_char(func(lit(None))).as_(c))
                         else:
                             agg_cols.append(to_char(func(c)))
