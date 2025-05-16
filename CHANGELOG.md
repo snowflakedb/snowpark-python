@@ -16,6 +16,7 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+- Fixed a bug when create dynamic table on a table function cause error.
 
 ### Snowpark Local Testing Updates
 
