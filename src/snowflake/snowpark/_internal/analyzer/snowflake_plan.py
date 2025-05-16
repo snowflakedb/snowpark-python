@@ -1420,6 +1420,7 @@ class SnowflakePlanBuilder:
         column_name_of_corrupt_record = options.get(
             "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
         )
+        strip_namespaces = options.get("STRIPNAMESPACES", True)
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1449,6 +1450,7 @@ class SnowflakePlanBuilder:
                 col(worker_column_name),
                 lit(mode),
                 lit(column_name_of_corrupt_record),
+                lit(strip_namespaces),
             ),
         )
 
