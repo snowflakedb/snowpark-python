@@ -5592,6 +5592,7 @@ class DataFrame:
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+            expr.strings_include_math_stats = strings_include_math_stats
 
         cols = parse_positional_args_to_list(*cols)
         df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
