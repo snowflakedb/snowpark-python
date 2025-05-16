@@ -2,4 +2,4 @@
 
 
 # Update this for the versions
-VERSION = (1, 31, 1)
+VERSION = (9, 31, 2)

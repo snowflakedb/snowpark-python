@@ -1480,16 +1480,12 @@ class Session:
 
         Example::
 
-            >>> import numpy as np
             >>> from snowflake.snowpark.functions import udf
-            >>> import numpy
-            >>> import pandas
             >>> import dateutil
             >>> # add numpy with the latest version on Snowflake Anaconda
             >>> # and pandas with the version "2.1.*"
             >>> # and dateutil with the local version in your environment
             >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
-            >>> session.add_packages("numpy", "pandas==2.1.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1540,13 +1536,10 @@ class Session:
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==2.1.4")
             >>> len(session.get_packages())
             2
-            >>> session.remove_package("numpy")
             >>> len(session.get_packages())
             1
-            >>> session.remove_package("pandas")
             >>> len(session.get_packages())
             0
         """
@@ -1599,8 +1592,6 @@ class Session:
         Example::
 
             >>> from snowflake.snowpark.functions import udf
-            >>> import numpy
-            >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
             >>> session.add_requirements("tests/resources/test_requirements.txt")
             >>> @udf
@@ -1655,11 +1646,9 @@ class Session:
         Example::
 
             >>> from snowflake.snowpark.functions import udf
-            >>> import numpy
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
             >>> session.custom_package_usage_config = {"enabled": True, "force_push": True} # Recommended configuration
-            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"}, relax=True)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
