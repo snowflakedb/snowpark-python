@@ -29,7 +29,7 @@ class DataSourceReader:
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
     ) -> None:
-        # we use cloudpickle pickled the callback function so that local function and function defined in
+        # we use cloudpickle to pickle the callback function so that local function and function defined in
         # __main__ can be pickled and unpickled in subprocess
         self.pickled_create_connection_callback = cloudpickle.dumps(
             create_connection, protocol=pickle.HIGHEST_PROTOCOL
