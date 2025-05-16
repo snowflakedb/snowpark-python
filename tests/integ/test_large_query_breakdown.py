@@ -11,12 +11,23 @@ from unittest.mock import patch
 import pytest
 
 from snowflake.snowpark._internal.analyzer import analyzer
-from snowflake.snowpark.functions import col, lit, sum_distinct, when_matched
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
+from snowflake.snowpark.functions import col, lit, sum_distinct, when_matched, cast
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
+)
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    IntegerType,
+    StringType,
+    FloatType,
 )
 from tests.integ.test_deepcopy import (
     create_df_with_deep_nested_with_column_dependencies,
@@ -902,3 +913,49 @@ def test_plotter(large_query_df, enabled, plotting_score_threshold):
             ] = original_score_threshold
         else:
             del os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"]
+
+
+def test_dynamic_table_join_table_function(session):
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    test_udtf = session.udtf.register(
+        TestVolumeModels,
+        name=function_name,
+        is_permanent=False,
+        stage_location=stage_name,
+        packages=["numpy", "pandas", "snowflake-snowpark-python"],
+        output_schema=StructType([StructField("DUMMY", IntegerType())]),
+    )
+
+    (
+        session.create_dataframe(
+            [[100002, 100316, 9, "2025-02-03", 3.932, "2025-02-03 23:41:29.093 -0800"]],
+            schema=[
+                "SITEID",
+                "COMPETITOR_ID",
+                "GRADEID",
+                "OBSERVATION_DATE",
+                "OBSERVED_PRICE",
+                "LAST_UPDATED",
+            ],
+        ).write.save_as_table("dy_tb", mode="overwrite")
+    )
+    df_input = session.table("dy_tb")
+    df_t = df_input.join_table_function(
+        test_udtf(
+            cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+        ).over(partition_by=iter(["SITEID"]))
+    )
+
+    df_t.create_or_replace_dynamic_table(
+        "TEST_UDTF",
+        warehouse="EXCEPTION_FIX_WH",
+        lag="1 minute",
+        is_transient=True,
+    )
