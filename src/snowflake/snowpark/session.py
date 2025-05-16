@@ -1949,6 +1949,11 @@ class Session:
         Returns:
             List[str]: List of package specifiers
         """
+        # Always include cloudpickle
+        extra_modules = [cloudpickle]
+        if include_pandas:
+            extra_modules.append("pandas")
+
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
         if (
@@ -1983,7 +1988,9 @@ class Session:
                 elif len(errors) > 0:
                     raise RuntimeError(errors)
 
-            return list(result_dict.values())
+            return list(result_dict.values()) + self._get_req_identifiers_list(
+                extra_modules, result_dict
+            )
 
         package_table = "information_schema.packages"
         if not self.get_current_database():
@@ -2029,11 +2036,6 @@ class Session:
                         result_dict[name] = str(package)
                 else:
                     result_dict[name] = str(package)
-
-            # Always include cloudpickle
-            extra_modules = [cloudpickle]
-            if include_pandas:
-                extra_modules.append("pandas")
 
             return list(result_dict.values()) + self._get_req_identifiers_list(
                 extra_modules, result_dict
