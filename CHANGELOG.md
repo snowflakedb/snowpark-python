@@ -11,6 +11,7 @@
 #### Improvements
 
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
+- Added `iceberg_version` option to table creation functions.
 
 ## 1.32.0 (2025-05-15)
 
@@ -29,6 +30,7 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 
 ### Snowpark Local Testing Updates
 
