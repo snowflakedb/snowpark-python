@@ -924,38 +924,65 @@ def test_dynamic_table_join_table_function(session):
     stage_name = Utils.random_stage_name()
     Utils.create_stage(session, stage_name, is_temporary=True)
 
-    test_udtf = session.udtf.register(
-        TestVolumeModels,
-        name=function_name,
-        is_permanent=False,
-        stage_location=stage_name,
-        packages=["numpy", "pandas", "snowflake-snowpark-python"],
-        output_schema=StructType([StructField("DUMMY", IntegerType())]),
-    )
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
 
-    (
-        session.create_dataframe(
-            [[100002, 100316, 9, "2025-02-03", 3.932, "2025-02-03 23:41:29.093 -0800"]],
-            schema=[
-                "SITEID",
-                "COMPETITOR_ID",
-                "GRADEID",
-                "OBSERVATION_DATE",
-                "OBSERVED_PRICE",
-                "LAST_UPDATED",
-            ],
-        ).write.save_as_table("dy_tb", mode="overwrite")
-    )
-    df_input = session.table("dy_tb")
-    df_t = df_input.join_table_function(
-        test_udtf(
-            cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
-        ).over(partition_by=iter(["SITEID"]))
-    )
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
 
     df_t.create_or_replace_dynamic_table(
         "TEST_UDTF",
         warehouse="EXCEPTION_FIX_WH",
         lag="1 minute",
         is_transient=True,
+    )
+    Utils.check_answer(
+        df_t,
+        [
+            Row(
+                SITEID=100002,
+                COMPETITOR_ID=100316,
+                GRADEID=9,
+                OBSERVATION_DATE="2025-02-03",
+                OBSERVED_PRICE=3.932,
+                LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                DUMMY=1,
+            )
+        ],
     )
