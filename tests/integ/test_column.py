@@ -76,7 +76,7 @@ def test_try_cast_work_cast_not_work(session, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as execinfo:
         df.select(df["a"].cast("date")).collect()
     if not local_testing_mode:
-        assert "Date 'aaa' is not recognized" in str(execinfo)
+        assert "Date 'aaa' is not recognized" in str(execinfo.value)
 
     Utils.check_answer(
         df.select(df["a"].try_cast("date")), [Row(None)]
