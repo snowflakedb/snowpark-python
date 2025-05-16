@@ -9,6 +9,7 @@ import struct
 from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
 from snowflake.snowpark.files import SnowflakeFile
 
+# lxml is only a dev dependency so use try/except to import it if available
 try:
     import lxml.etree as ET
 

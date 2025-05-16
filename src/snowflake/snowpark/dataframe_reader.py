@@ -1153,7 +1153,7 @@ class DataFrameReader:
                 handler_name,
                 output_schema=output_schema,
                 input_types=input_types,
-                packages=["snowflake-snowpark-python", "lxml"],
+                packages=["snowflake-snowpark-python", "lxml<6"],
                 replace=True,
             )
         else:
