@@ -1,6 +1,18 @@
 # Release History
 
-## 1.32.0 (YYYY-MM-DD)
+## 1.33.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+### Snowpark Local Testing Updates
+
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
+
+## 1.32.0 (2025-05-15)
 
 ### Snowpark Python API Updates
 
@@ -37,7 +49,6 @@
 #### Improvements
 
 - Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
-- Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 
 ## 1.31.1 (2025-05-05)
 
