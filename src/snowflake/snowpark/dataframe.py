@@ -4371,7 +4371,7 @@ class DataFrame:
 
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
-                * iceberg_version: Overrides the version of iceberg to use.
+                * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
 
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """

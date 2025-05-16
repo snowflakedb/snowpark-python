@@ -334,7 +334,7 @@ class DataFrameWriter:
 
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
-                * iceberg_version: Overrides the version of iceberg to use.
+                * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
 
 
         Example 1::
