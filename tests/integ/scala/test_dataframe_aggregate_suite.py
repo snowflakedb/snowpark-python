@@ -388,7 +388,9 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
             "month", subquery_df.select("month").sort("month")
         ).agg(sum(col("amount"))).collect()
 
-    assert "Invalid subquery pivot order by must be distinct query" in str(ex_info)
+    assert "Invalid subquery pivot order by must be distinct query" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.monthly_sales(session).pivot(
@@ -1137,7 +1139,7 @@ def test_decimal_sum_over_window_should_work(session):
 def test_aggregate_function_in_groupby(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data4(session).group_by(sum(col('"KEY"'))).count().collect()
-    assert "is not a valid group by expression" in str(ex_info)
+    assert "is not a valid group by expression" in str(ex_info.value)
 
 
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):

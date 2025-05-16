@@ -1,6 +1,18 @@
 # Release History
 
-## 1.32.0 (YYYY-MM-DD)
+## 1.33.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+### Snowpark Local Testing Updates
+
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
+
+## 1.32.0 (2025-05-15)
 
 ### Snowpark Python API Updates
 
@@ -11,12 +23,14 @@
 - Added support for different modes for dealing with corrupt XML records when reading an XML file using `session.read.option('mode', <mode>), option('rowTag', <tag_name>).xml(<stage_file_path>)`. Currently `PERMISSIVE`, `DROPMALFORMED` and `FAILFAST` are supported.
 - Improved the error message of the XML reader when the specified row tag is not found in the file.
 - Improved query generation for `Dataframe.drop` to use `SELECT * EXCLUDE ()` to exclude the dropped columns. To enable this feature, set `session.conf.set("use_simplified_query_generation", True)`.
+- Added support for `VariantType` to `StructType.from_json`
 
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
 - Fixed a bug when create dynamic table on a table function cause error.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 
 ### Snowpark Local Testing Updates
 
@@ -32,6 +46,7 @@
 - Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `DataFrame.to_html`.
 - Added support for `DataFrame.to_string` and `Series.to_string`.
+- Added support for reading files from S3 buckets using `pd.read_csv`.
 
 #### Improvements
 

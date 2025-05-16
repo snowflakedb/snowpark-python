@@ -992,6 +992,8 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
             return TimestampType(timezone=_all_timestamp_types[json_value].tz)
         elif json_value == "decimal":
             return DecimalType()
+        elif json_value == "variant":
+            return VariantType()
         elif _FIXED_DECIMAL_PATTERN.match(json_value):
             m = _FIXED_DECIMAL_PATTERN.match(json_value)
             return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]

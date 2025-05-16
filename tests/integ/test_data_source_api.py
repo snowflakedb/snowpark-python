@@ -6,8 +6,10 @@ import functools
 import logging
 import math
 import os
+import subprocess
 import tempfile
 import datetime
+from textwrap import dedent
 from unittest import mock
 from unittest.mock import patch, MagicMock, PropertyMock
 
@@ -929,3 +931,49 @@ def test_double_quoted_column_name_sql_server(session):
     assert df.collect() == [
         Row(Id=1, FullName="John Doe", Country="USA", Notes="Fake note")
     ]
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_local_create_connection_function(session, db_parameters):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
+
+        # test local function definition
+        def local_create_connection():
+            import sqlite3
+
+            return sqlite3.connect(dbpath)
+
+        df = session.read.dbapi(
+            local_create_connection,
+            table=table_name,
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+        )
+        assert df.order_by("ID").collect() == assert_data
+
+        # test function is defined in the main
+        code = dedent(
+            f"""
+        if __name__ == "__main__":
+            import sqlite3
+            from snowflake.snowpark import Session
+
+            def local_create_connection():
+                return sqlite3.connect("{str(dbpath)}")
+
+            session = Session.builder.configs({str(db_parameters)}).create()
+            df = session.read.dbapi(
+                local_create_connection,
+                table='{table_name}',
+                custom_schema='{SQLITE3_DB_CUSTOM_SCHEMA_STRING}',
+            )
+            assert df.collect()
+            print("successful ingestion")
+        """
+        )
+        result = subprocess.run(["python", "-c", code], capture_output=True, text=True)
+        assert "successful ingestion" in result.stdout
