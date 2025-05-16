@@ -1003,25 +1003,24 @@ def test_merge_no_join_keys_common_index_with_data_negative(left_df, right_df):
 
 
 @pytest.mark.parametrize(
-    "left_on, right_on, expected_query_count, expected_join_count",
+    "left_on, right_on, expected_join_count",
     [
-        (np.array(["a", "b", "c", "x", "y"]), "right_d", 5, 2),
-        ([np.array(["a", "b", "c", "x", "y"]), "A"], ["right_d", "A"], 5, 2),
-        ("left_d", np.array(["a", "b", "c", "x", "y"]), 5, 2),
-        (["left_d", "A"], [np.array(["a", "b", "c", "x", "y"]), "A"], 5, 2),
-        (["left_d", "A"], (np.array(["a", "b", "c", "x", "y"]), "A"), 5, 2),  # tuple
+        (np.array(["a", "b", "c", "x", "y"]), "right_d", 2),
+        ([np.array(["a", "b", "c", "x", "y"]), "A"], ["right_d", "A"], 2),
+        ("left_d", np.array(["a", "b", "c", "x", "y"]), 2),
+        (["left_d", "A"], [np.array(["a", "b", "c", "x", "y"]), "A"], 2),
+        (["left_d", "A"], (np.array(["a", "b", "c", "x", "y"]), "A"), 2),  # tuple
         (
             np.array(["a", "b", "c", "x", "y"]),
             np.array(["x", "y", "c", "a", "b"]),
-            7,
             3,
         ),
     ],
 )
 def test_merge_on_array_like_keys(
-    left_df, right_df, left_on, right_on, how, expected_query_count, expected_join_count
+    left_df, right_df, left_on, right_on, how, expected_join_count
 ):
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         _verify_merge(left_df, right_df, how=how, left_on=left_on, right_on=right_on)
 
 
@@ -1052,7 +1051,7 @@ def test_merge_on_array_like_keys_conflict_negative(left_df, right_df):
         np.array(["a", "b", "c", "a", "b", "c"]),  # too long
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_merge_on_array_like_keys_length_mismatch_negative(left_df, right_df, left_on):
     # Native pandas raises
     # ValueError: The truth value of an array with more than one element is ambiguous

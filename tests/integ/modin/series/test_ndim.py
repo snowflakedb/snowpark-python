@@ -22,7 +22,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
         "empty column",
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_series_ndim(series_input):
     eval_snowpark_pandas_result(
         pd.Series(series_input),
