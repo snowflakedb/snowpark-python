@@ -284,14 +284,14 @@ class SnowflakePlan(LogicalPlan):
                         def search_read_file_node(
                             node: Union[SnowflakePlan, Selectable]
                         ) -> Optional[ReadFileNode]:
+                            source_plan = (
+                                node.source_plan
+                                if isinstance(node, SnowflakePlan)
+                                else node.snowflake_plan.source_plan
+                            )
+                            if isinstance(source_plan, ReadFileNode):
+                                return source_plan
                             for child in node.children_plan_nodes:
-                                source_plan = (
-                                    child.source_plan
-                                    if isinstance(child, SnowflakePlan)
-                                    else child.snowflake_plan.source_plan
-                                )
-                                if isinstance(source_plan, ReadFileNode):
-                                    return source_plan
                                 result = search_read_file_node(child)
                                 if result:
                                     return result
