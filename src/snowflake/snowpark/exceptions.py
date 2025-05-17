@@ -103,7 +103,7 @@ class SnowparkSQLException(SnowparkClientException):
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
         pretty_sfqid = f"{self.sfqid}: " if self.sfqid else ""
         self._pretty_msg = (
-            f"{pretty_error_code}{pretty_sfqid}{self.message}{self.debug_context}"
+            f"{pretty_error_code}{pretty_sfqid}{self.message}{self.debug_context or ''}"
         )
 
     def __repr__(self):

@@ -176,7 +176,6 @@ def get_df_transform_trace_message(
     df_transform_trace_nodes = _get_df_transform_trace(df_ast_id, stmt_cache)
     if len(df_transform_trace_nodes) == 0:
         return None
-    df_transform_trace_nodes = _get_df_transform_trace(df_ast_id, stmt_cache)
     show_trace_length = int(
         os.environ.get(SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH, 5)
     )
