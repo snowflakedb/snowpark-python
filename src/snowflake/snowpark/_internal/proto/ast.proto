@@ -820,7 +820,7 @@ message DataframeCopyIntoTable {
   Expr df = 2;
   repeated string files = 3;
   repeated Tuple_String_Expr format_type_options = 4;
-  repeated Tuple_String_String iceberg_config = 5;
+  repeated Tuple_String_Expr iceberg_config = 5;
   google.protobuf.StringValue pattern = 6;
   SrcPosition src = 7;
   repeated Tuple_String_String statement_params = 8;
@@ -2534,7 +2534,7 @@ message WriteTable {
   bool create_temp_table = 7;
   google.protobuf.Int64Value data_retention_time = 8;
   google.protobuf.BoolValue enable_schema_evolution = 9;
-  repeated Tuple_String_String iceberg_config = 10;
+  repeated Tuple_String_Expr iceberg_config = 10;
   google.protobuf.Int64Value max_data_extension_time = 11;
   SaveMode mode = 12;
   SrcPosition src = 13;
