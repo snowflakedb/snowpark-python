@@ -163,7 +163,7 @@ class SnowflakePlan(LogicalPlan):
                 except SnowparkSQLException as e:
                     error_type, _, tb = sys.exc_info()
 
-                    df_ast_id = snowflake_plan._df_ast_id
+                    df_ast_id = snowflake_plan.df_ast_id
                     stmt_cache = snowflake_plan.session._ast_batch._bind_stmt_cache
                     df_transform_debug_trace = None
                     if df_ast_id is not None and stmt_cache is not None:
@@ -212,7 +212,7 @@ class SnowflakePlan(LogicalPlan):
                     df_ast_id, stmt_cache = None, None
                     for arg in args:
                         if isinstance(arg, SnowflakePlan):
-                            df_ast_id = arg._df_ast_id
+                            df_ast_id = arg.df_ast_id
                             stmt_cache = arg.session._ast_batch._bind_stmt_cache
                             break
                     df_transform_debug_trace = None
