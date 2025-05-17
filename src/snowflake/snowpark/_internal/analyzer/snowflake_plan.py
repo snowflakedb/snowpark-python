@@ -284,14 +284,14 @@ class SnowflakePlan(LogicalPlan):
                         def search_read_file_node(
                             node: Union[SnowflakePlan, Selectable]
                         ) -> Optional[ReadFileNode]:
+                            source_plan = (
+                                node.source_plan
+                                if isinstance(node, SnowflakePlan)
+                                else node.snowflake_plan.source_plan
+                            )
+                            if isinstance(source_plan, ReadFileNode):
+                                return source_plan
                             for child in node.children_plan_nodes:
-                                source_plan = (
-                                    child.source_plan
-                                    if isinstance(child, SnowflakePlan)
-                                    else child.snowflake_plan.source_plan
-                                )
-                                if isinstance(source_plan, ReadFileNode):
-                                    return source_plan
                                 result = search_read_file_node(child)
                                 if result:
                                     return result
@@ -1048,6 +1048,7 @@ class SnowflakePlanBuilder:
                 base_location: the base directory that snowflake can write iceberg metadata and files to
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
+                iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
             table_exists: whether the table already exists in the database.
                 Only used for APPEND and TRUNCATE mode.
         """
@@ -1425,6 +1426,7 @@ class SnowflakePlanBuilder:
         column_name_of_corrupt_record = options.get(
             "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
         )
+        strip_namespaces = options.get("STRIPNAMESPACES", True)
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1454,6 +1456,7 @@ class SnowflakePlanBuilder:
                 col(worker_column_name),
                 lit(mode),
                 lit(column_name_of_corrupt_record),
+                lit(strip_namespaces),
             ),
         )
 

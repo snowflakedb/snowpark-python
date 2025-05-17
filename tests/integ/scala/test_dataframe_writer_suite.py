@@ -231,6 +231,7 @@ def test_iceberg(session, local_testing_mode):
             "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
             "catalog": "SNOWFLAKE",
             "base_location": "snowpark_python_tests",
+            "iceberg_version": 3,
         },
     )
     try:

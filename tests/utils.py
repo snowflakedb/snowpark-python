@@ -1566,6 +1566,14 @@ class TestFiles:
         return os.path.join(self.resources_path, "malformed_record.xml")
 
     @property
+    def test_xml_declared_namespace(self):
+        return os.path.join(self.resources_path, "declared_namespace.xml")
+
+    @property
+    def test_xml_undeclared_namespace(self):
+        return os.path.join(self.resources_path, "undeclared_namespace.xml")
+
+    @property
     def test_dog_image(self):
         return os.path.join(self.resources_path, "dog.jpg")
 
