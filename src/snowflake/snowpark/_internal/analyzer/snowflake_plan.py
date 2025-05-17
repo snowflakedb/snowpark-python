@@ -175,6 +175,8 @@ class SnowflakePlan(LogicalPlan):
                                 df_ast_id, stmt_cache
                             )
                     except Exception:
+                        # If we encounter an error when getting the df_transform_debug_trace,
+                        # we will ignore the error and not add the debug trace to the error message.
                         pass
 
                     if "unexpected 'as'" in e.msg.lower():

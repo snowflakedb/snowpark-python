@@ -4,6 +4,7 @@
 
 from functools import cached_property
 import os
+import sys
 from typing import Any, Dict, List, Optional
 
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
@@ -46,19 +47,19 @@ class DataFrameTraceNode:
         with open(filename) as f:
             code_lines = []
             for i, line in enumerate(f, 1):
-                if end_line == 0:
-                    if i == start_line:
-                        code_lines.append(line)
-                        break
-                else:
+                if sys.version_info >= (3, 11):
                     if start_line <= i <= end_line:
                         code_lines.append(line)
                     elif i > end_line:
                         break
+                else:
+                    # For python 3.9/3.10, we do not extract the end line from the source code
+                    # so we just read the start line and return.
+                    if i == start_line:
+                        code_lines.append(line)
+                        break
 
-            if end_line != 0:
-                # Should we make this inference based on python version?
-                # If the end line is not 0, we need to trim the start and end columns
+            if sys.version_info >= (3, 11):
                 if start_line == end_line:
                     code_lines[0] = code_lines[0][start_column:end_column]
                 else:

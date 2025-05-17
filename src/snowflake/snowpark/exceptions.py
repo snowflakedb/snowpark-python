@@ -99,6 +99,7 @@ class SnowparkSQLException(SnowparkClientException):
         self.sql_error_code = sql_error_code or getattr(self.conn_error, "errno", None)
         self.raw_message = raw_message or getattr(self.conn_error, "raw_msg", None)
         self.debug_context = debug_context
+
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
         pretty_sfqid = f"{self.sfqid}: " if self.sfqid else ""
         self._pretty_msg = (

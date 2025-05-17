@@ -171,9 +171,7 @@ from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsF
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
-from snowflake.snowpark.exceptions import (
-    SnowparkDataframeException,
-)
+from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
