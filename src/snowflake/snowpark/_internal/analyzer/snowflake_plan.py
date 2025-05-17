@@ -4,6 +4,7 @@
 #
 import copy
 import difflib
+import functools
 import re
 import sys
 import uuid
@@ -150,31 +151,30 @@ class SnowflakePlan(LogicalPlan):
         __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
         @staticmethod
-        def wrap_sql_exception(func):
+        def enrich_sql_exception_with_debug_trace(
+            func, snowflake_plan: "SnowflakePlan"
+        ):
             """This decorator is used to add additional debug information when SnowparkSQLException is raised."""
 
+            @functools.wraps(func)
             def wrap(*args, **kwargs):
                 try:
                     return func(*args, **kwargs)
                 except SnowparkSQLException as e:
                     error_type, _, tb = sys.exc_info()
-                    # extract df_ast_id, stmt_cache from args
-                    df_ast_id, stmt_cache = None, None
-                    for arg in args:
-                        if isinstance(arg, SnowflakePlan):
-                            df_ast_id = arg._df_ast_id
-                            stmt_cache = arg.session._ast_batch._bind_stmt_cache
-                            break
+
+                    df_ast_id = snowflake_plan._df_ast_id
+                    stmt_cache = snowflake_plan.session._ast_batch._bind_stmt_cache
                     df_transform_debug_trace = None
-                    try:
-                        if df_ast_id is not None and stmt_cache is not None:
+                    if df_ast_id is not None and stmt_cache is not None:
+                        try:
                             df_transform_debug_trace = get_df_transform_trace_message(
                                 df_ast_id, stmt_cache
                             )
-                    except Exception:
-                        # If we encounter an error when getting the df_transform_debug_trace,
-                        # we will ignore the error and not add the debug trace to the error message.
-                        pass
+                        except Exception:
+                            # If we encounter an error when getting the df_transform_debug_trace,
+                            # we will ignore the error and not add the debug trace to the error message.
+                            pass
 
                     ne = error_type(
                         message=e.message,
@@ -552,14 +552,18 @@ class SnowflakePlan(LogicalPlan):
             return [attr.name for attr in self.attributes]
 
     @property
-    @Decorator.wrap_sql_exception
     def attributes(self) -> List[Attribute]:
         if self._metadata.attributes is not None:
             return self._metadata.attributes
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        attributes = analyze_attributes(self.schema_query, self.session)
+        wrapped_analyze_attributes = (
+            SnowflakePlan.Decorator.enrich_sql_exception_with_debug_trace(
+                analyze_attributes, self
+            )
+        )
+        attributes = wrapped_analyze_attributes(self.schema_query, self.session)
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
