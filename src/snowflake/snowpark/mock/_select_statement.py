@@ -76,6 +76,7 @@ class MockSelectable(LogicalPlan, ABC):
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
+        self.df_ast_ids = None
 
     @property
     def analyzer(self) -> "Analyzer":
@@ -121,6 +122,12 @@ class MockSelectable(LogicalPlan, ABC):
                 {},
             )
         return self._column_states
+
+    def add_df_ast_id(self, df_ast_id: int):
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [df_ast_id]
+        elif self.df_ast_ids[-1] != df_ast_id:
+            self.df_ast_ids.append(df_ast_id)
 
     def to_subqueryable(self) -> "Selectable":
         """Some queries can be used in a subquery. Some can't. For details, refer to class SelectSQL."""
