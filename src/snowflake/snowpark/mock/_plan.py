@@ -208,7 +208,7 @@ class MockExecutionPlan(LogicalPlan):
         )
         self.api_calls = []
         self._attributes = None
-        self._df_ast_id = None
+        self.df_ast_id = None
 
     @property
     def attributes(self) -> List[Attribute]:

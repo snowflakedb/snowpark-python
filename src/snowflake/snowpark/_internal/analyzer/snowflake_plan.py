@@ -470,7 +470,7 @@ class SnowflakePlan(LogicalPlan):
         self._plan_state: Optional[Dict[PlanState, Any]] = None
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
-        self._df_ast_id: Optional[int] = None
+        self.df_ast_id: Optional[int] = None
 
     @property
     def uuid(self) -> str:
@@ -689,7 +689,7 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
-        plan._df_ast_id = self._df_ast_id
+        plan.df_ast_id = self.df_ast_id
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -723,7 +723,7 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
-        copied_plan._df_ast_id = self._df_ast_id
+        copied_plan.df_ast_id = self.df_ast_id
 
         return copied_plan
 
