@@ -80,7 +80,7 @@ def mock_query_generator(mock_session) -> QueryGenerator:
     def mock_resolve(x):
         snowflake_plan = mock_snowflake_plan()
         snowflake_plan.source_plan = x
-        snowflake_plan._df_ast_id = None
+        snowflake_plan.df_ast_id = None
         if hasattr(x, "post_actions"):
             snowflake_plan.post_actions = x.post_actions
         return snowflake_plan
