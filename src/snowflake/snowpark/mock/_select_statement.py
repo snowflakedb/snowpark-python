@@ -76,6 +76,7 @@ class MockSelectable(LogicalPlan, ABC):
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
+        self.df_ast_ids = None
 
     @property
     def analyzer(self) -> "Analyzer":
