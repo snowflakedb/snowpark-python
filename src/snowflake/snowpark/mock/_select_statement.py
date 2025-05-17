@@ -123,6 +123,12 @@ class MockSelectable(LogicalPlan, ABC):
             )
         return self._column_states
 
+    def add_df_ast_id(self, df_ast_id: int):
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [df_ast_id]
+        elif self.df_ast_ids[-1] != df_ast_id:
+            self.df_ast_ids.append(df_ast_id)
+
     def to_subqueryable(self) -> "Selectable":
         """Some queries can be used in a subquery. Some can't. For details, refer to class SelectSQL."""
         return self
