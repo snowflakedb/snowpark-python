@@ -23,6 +23,8 @@ from typing import (
     Union,
 )
 
+from snowflake.snowpark.exceptions import SnowparkSQLException
+
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
@@ -148,7 +150,44 @@ class SnowflakePlan(LogicalPlan):
         __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
         @staticmethod
+        def wrap_sql_exception(func):
+            """This decorator is used to add additional debug information when SnowparkSQLException is raised."""
+
+            def wrap(*args, **kwargs):
+                try:
+                    return func(*args, **kwargs)
+                except SnowparkSQLException as e:
+                    tb = sys.exc_info()[2]
+                    # extract df_ast_id, stmt_cache from args
+                    df_ast_id, stmt_cache = None, None
+                    for arg in args:
+                        if isinstance(arg, SnowflakePlan):
+                            df_ast_id = arg._df_ast_id
+                            stmt_cache = arg.session._ast_batch._bind_stmt_cache
+                            break
+                    try:
+                        if df_ast_id is not None and stmt_cache is not None:
+                            df_transform_debug_trace = get_df_transform_trace_message(
+                                df_ast_id, stmt_cache
+                            )
+                    except Exception:
+                        pass
+
+                    conn_error = e.conn_error
+                    # re-raise the original exception with additional debug information
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        conn_error, debug_context=df_transform_debug_trace
+                    )
+                    raise ne.with_traceback(tb) from None
+
+            return wrap
+
+        @staticmethod
         def wrap_exception(func):
+            """This wrapper is used to wrap snowflake connector ProgrammingError into SnowparkSQLException.
+            It also adds additional debug information to the raised exception when possible.
+            """
+
             def wrap(*args, **kwargs):
                 try:
                     return func(*args, **kwargs)
@@ -505,6 +544,7 @@ class SnowflakePlan(LogicalPlan):
             return [attr.name for attr in self.attributes]
 
     @property
+    @Decorator.wrap_sql_exception
     def attributes(self) -> List[Attribute]:
         if self._metadata.attributes is not None:
             return self._metadata.attributes
