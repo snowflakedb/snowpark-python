@@ -168,28 +168,39 @@ def _get_df_transform_trace(
 
 
 def get_df_transform_trace_message(
-    df_ast_id: int, stmt_cache: Dict[int, proto.Stmt]
+    df_ast_id: Optional[int], stmt_cache: Optional[Dict[int, proto.Stmt]]
 ) -> Optional[str]:
+    """Get the transform trace message for the dataframe involved in the exception.
+
+    Args:
+        df_ast_id: The AST ID of the dataframe involved in the exception.
+        stmt_cache: The statement cache of the session.
+
+    Returns:
+        A string representing the transform trace message.
+    """
     if df_ast_id is None or stmt_cache is None:
         return None
 
     df_transform_trace_nodes = _get_df_transform_trace(df_ast_id, stmt_cache)
     if len(df_transform_trace_nodes) == 0:
         return None
+
+    df_transform_trace_length = len(df_transform_trace_nodes)
     show_trace_length = int(
         os.environ.get(SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH, 5)
     )
 
     debug_info_lines = [
         "\n\n--- Additional Debug Information ---\n",
-        f"Trace of the most recent dataframe operations associated with the error (total {len(df_transform_trace_nodes)}):\n",
+        f"Trace of the most recent dataframe operations associated with the error (total {df_transform_trace_length}):\n",
     ]
     for node in df_transform_trace_nodes[:show_trace_length]:
         debug_info_lines.append(node.get_source_snippet())
-    if len(df_transform_trace_nodes) > show_trace_length:
+    if df_transform_trace_length > show_trace_length:
         debug_info_lines.append(
-            f"... and {len(df_transform_trace_nodes) - show_trace_length} more.\nYou can increase "
-            "the lineage length by setting SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH "
+            f"... and {df_transform_trace_length - show_trace_length} more.\nYou can increase "
+            f"the lineage length by setting {SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH} "
             "environment variable."
         )
     return "\n".join(debug_info_lines)

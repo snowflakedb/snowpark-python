@@ -208,7 +208,6 @@ class SnowflakePlan(LogicalPlan):
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
 
-                    df_transform_debug_trace = None
                     # extract df_ast_id, stmt_cache from args
                     df_ast_id, stmt_cache = None, None
                     for arg in args:
@@ -216,6 +215,7 @@ class SnowflakePlan(LogicalPlan):
                             df_ast_id = arg._df_ast_id
                             stmt_cache = arg.session._ast_batch._bind_stmt_cache
                             break
+                    df_transform_debug_trace = None
                     try:
                         if df_ast_id is not None and stmt_cache is not None:
                             df_transform_debug_trace = get_df_transform_trace_message(
