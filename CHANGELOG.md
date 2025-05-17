@@ -7,6 +7,7 @@
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leds to a `SnowparkSQLException`. This feature depends on Snowpark AST to be enabled which can be done using ...
 
 ### Snowpark Local Testing Updates
 

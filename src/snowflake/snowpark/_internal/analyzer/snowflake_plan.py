@@ -161,7 +161,7 @@ class SnowflakePlan(LogicalPlan):
                 try:
                     return func(*args, **kwargs)
                 except SnowparkSQLException as e:
-                    error_type, _, tb = sys.exc_info()
+                    tb = sys.exc_info()[2]
 
                     df_ast_id = snowflake_plan.df_ast_id
                     stmt_cache = snowflake_plan.session._ast_batch._bind_stmt_cache
@@ -176,17 +176,21 @@ class SnowflakePlan(LogicalPlan):
                             # we will ignore the error and not add the debug trace to the error message.
                             pass
 
-                    ne = error_type(
-                        message=e.message,
-                        error_code=e.error_code,
-                        conn_error=e.conn_error,
-                        sfqid=e.sfqid,
-                        query=e.query,
-                        sql_error_code=e.sql_error_code,
-                        raw_message=e.raw_message,
-                        debug_context=df_transform_debug_trace,
-                    )
-                    raise ne.with_traceback(tb) from None
+                    if hasattr(e, "__class__"):
+                        ne = e.__class__(
+                            message=e.message,
+                            error_code=e.error_code,
+                            conn_error=e.conn_error,
+                            sfqid=e.sfqid,
+                            query=e.query,
+                            sql_error_code=e.sql_error_code,
+                            raw_message=e.raw_message,
+                            debug_context=df_transform_debug_trace,
+                        )
+                        raise ne.with_traceback(tb) from None
+                    else:
+                        # If we cannot create a new exception, we will raise the original exception.
+                        raise e.with_traceback(tb) from None
 
             return wrap
 
