@@ -397,6 +397,9 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name,
         )
         self._plan_state: Optional[Dict[PlanState, Any]] = None
+        # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
+        # we will store the ast_id here.
+        self._df_ast_id: Optional[int] = None
 
     @property
     def uuid(self) -> str:
@@ -585,7 +588,7 @@ class SnowflakePlan(LogicalPlan):
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
-            return SnowflakePlan(
+            plan = SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
                 copy.deepcopy(self.post_actions) if self.post_actions else None,
@@ -598,7 +601,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         else:
-            return SnowflakePlan(
+            plan = SnowflakePlan(
                 self.queries.copy() if self.queries else [],
                 self.schema_query,
                 self.post_actions.copy() if self.post_actions else None,
@@ -610,6 +613,8 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
+        plan._df_ast_id = self._df_ast_id
+        return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if self.source_plan:
@@ -642,6 +647,7 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
+        copied_plan._df_ast_id = self._df_ast_id
 
         return copied_plan
 

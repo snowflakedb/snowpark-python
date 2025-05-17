@@ -219,6 +219,11 @@ def _deepcopy_selectable_fields(
     # field by default and let it rebuild when needed. As far as we have other fields
     # copied correctly, the plan can be recovered properly.
     to_selectable._is_valid_for_replacement = True
+    to_selectable.df_ast_ids = (
+        from_selectable.df_ast_ids.copy()
+        if from_selectable.df_ast_ids is not None
+        else None
+    )
 
 
 class Selectable(LogicalPlan, ABC):
@@ -256,6 +261,7 @@ class Selectable(LogicalPlan, ABC):
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         self._encoded_node_id_with_query: Optional[str] = None
+        self.df_ast_ids: Optional[List[int]] = None
 
     @property
     def analyzer(self) -> "Analyzer":
@@ -362,6 +368,11 @@ class Selectable(LogicalPlan, ABC):
             # We update the alias maps for the snowflake plan similar to how it is
             # updated after analyzer.resolve() step.
             self._snowflake_plan.add_aliases(self.analyzer.generated_alias_maps)
+            # Add df ast ids to the snowflake plan.
+            if self.df_ast_ids is not None:
+                # Add the last df ast id to the snowflake plan as the most recent
+                # dataframe operation to create this plan.
+                self._snowflake_plan._df_ast_id = self.df_ast_ids[-1]
         return self._snowflake_plan
 
     @property
@@ -473,6 +484,16 @@ class Selectable(LogicalPlan, ABC):
             self._snowflake_plan = resolved_snowflake_plan
 
         return self
+
+    def add_df_ast_id(self, ast_id: int) -> None:
+        """Method to add a df ast id to the selectable.
+        This is used to track the df ast ids that are used in creating the
+        sql for this selectable.
+        """
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
 
 
 class SelectableEntity(Selectable):
@@ -652,6 +673,10 @@ class SelectSnowflakePlan(Selectable):
             if query.params:
                 self._query_params.extend(query.params)
 
+        # Copy the df ast ids from the snowflake plan.
+        if (df_ast_id := self._snowflake_plan._df_ast_id) is not None:
+            self.df_ast_ids = [df_ast_id]
+
     def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
         copied = SelectSnowflakePlan(
             snowflake_plan=deepcopy(self._snowflake_plan, memodict),
@@ -763,6 +788,10 @@ class SelectStatement(Selectable):
         ] = None
         # Metadata/Attributes for the plan
         self._attributes: Optional[List[Attribute]] = None
+        # Copy the df ast ids from the from_ selectable.
+        self.df_ast_ids = (
+            from_.df_ast_ids.copy() if from_.df_ast_ids is not None else None
+        )
 
     def __copy__(self):
         new = SelectStatement(
@@ -791,7 +820,7 @@ class SelectStatement(Selectable):
         new._merge_projection_complexity_with_subquery = (
             self._merge_projection_complexity_with_subquery
         )
-
+        new.df_ast_ids = self.df_ast_ids.copy() if self.df_ast_ids is not None else None
         return new
 
     def __deepcopy__(self, memodict={}) -> "SelectStatement":  # noqa: B006
@@ -1236,6 +1265,9 @@ class SelectStatement(Selectable):
             # there is no need to flatten the projection complexity since the child
             # select projection is already flattened with the current select.
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
@@ -1275,6 +1307,9 @@ class SelectStatement(Selectable):
             new.column_states = self.column_states
             new.where = And(self.where, col) if self.where is not None else col
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
@@ -1308,6 +1343,9 @@ class SelectStatement(Selectable):
             new.order_by = cols + (self.order_by or [])
             new.column_states = self.column_states
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1342,6 +1380,9 @@ class SelectStatement(Selectable):
             new.distinct_ = True
             new.column_states = self.column_states
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1372,6 +1413,9 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1468,6 +1512,9 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
 
