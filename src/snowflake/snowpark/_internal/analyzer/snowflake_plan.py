@@ -4,6 +4,7 @@
 #
 import copy
 import difflib
+import functools
 import re
 import sys
 import uuid
@@ -23,6 +24,8 @@ from typing import (
     Union,
 )
 
+from snowflake.snowpark.exceptions import SnowparkSQLException
+
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
@@ -30,6 +33,9 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
+)
+from snowflake.snowpark._internal.debug_utils import (
+    get_df_transform_trace_message,
 )
 
 if TYPE_CHECKING:
@@ -145,7 +151,51 @@ class SnowflakePlan(LogicalPlan):
         __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
         @staticmethod
+        def enrich_sql_exception_with_debug_trace(
+            func, snowflake_plan: "SnowflakePlan"
+        ):
+            """This decorator is used to add additional debug information when SnowparkSQLException is raised."""
+
+            @functools.wraps(func)
+            def wrap(*args, **kwargs):
+                try:
+                    return func(*args, **kwargs)
+                except SnowparkSQLException as e:
+                    error_type, _, tb = sys.exc_info()
+
+                    df_ast_id = snowflake_plan.df_ast_id
+                    stmt_cache = snowflake_plan.session._ast_batch._bind_stmt_cache
+                    df_transform_debug_trace = None
+                    if df_ast_id is not None and stmt_cache is not None:
+                        try:
+                            df_transform_debug_trace = get_df_transform_trace_message(
+                                df_ast_id, stmt_cache
+                            )
+                        except Exception:
+                            # If we encounter an error when getting the df_transform_debug_trace,
+                            # we will ignore the error and not add the debug trace to the error message.
+                            pass
+
+                    ne = error_type(
+                        message=e.message,
+                        error_code=e.error_code,
+                        conn_error=e.conn_error,
+                        sfqid=e.sfqid,
+                        query=e.query,
+                        sql_error_code=e.sql_error_code,
+                        raw_message=e.raw_message,
+                        debug_context=df_transform_debug_trace,
+                    )
+                    raise ne.with_traceback(tb) from None
+
+            return wrap
+
+        @staticmethod
         def wrap_exception(func):
+            """This wrapper is used to wrap snowflake connector ProgrammingError into SnowparkSQLException.
+            It also adds additional debug information to the raised exception when possible.
+            """
+
             def wrap(*args, **kwargs):
                 try:
                     return func(*args, **kwargs)
@@ -157,9 +207,28 @@ class SnowflakePlan(LogicalPlan):
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
+
+                    # extract df_ast_id, stmt_cache from args
+                    df_ast_id, stmt_cache = None, None
+                    for arg in args:
+                        if isinstance(arg, SnowflakePlan):
+                            df_ast_id = arg.df_ast_id
+                            stmt_cache = arg.session._ast_batch._bind_stmt_cache
+                            break
+                    df_transform_debug_trace = None
+                    try:
+                        if df_ast_id is not None and stmt_cache is not None:
+                            df_transform_debug_trace = get_df_transform_trace_message(
+                                df_ast_id, stmt_cache
+                            )
+                    except Exception:
+                        # If we encounter an error when getting the df_transform_debug_trace,
+                        # we will ignore the error and not add the debug trace to the error message.
+                        pass
+
                     if "unexpected 'as'" in e.msg.lower():
                         ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
-                            query
+                            query, debug_context=df_transform_debug_trace
                         )
                         raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
@@ -170,7 +239,7 @@ class SnowflakePlan(LogicalPlan):
                         )
                         if not match:  # pragma: no cover
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
+                                e, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                         col = match.group(1)
@@ -192,7 +261,9 @@ class SnowflakePlan(LogicalPlan):
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
-                                orig_col_name, query
+                                orig_col_name,
+                                query,
+                                debug_context=df_transform_debug_trace,
                             )
                             raise ne.with_traceback(tb) from None
                         elif (
@@ -209,7 +280,7 @@ class SnowflakePlan(LogicalPlan):
                             > 1
                         ):
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-                                col, col, query
+                                col, col, query, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                         else:
@@ -219,7 +290,7 @@ class SnowflakePlan(LogicalPlan):
                             )
                             if not match:  # pragma: no cover
                                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                    e
+                                    e, debug_context=df_transform_debug_trace
                                 )
                                 raise ne.with_traceback(tb) from None
                             col = match.group(1)
@@ -274,7 +345,7 @@ class SnowflakePlan(LogicalPlan):
 
                             e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
+                                e, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42601" and "SELECT with no columns" in e.msg:
@@ -321,7 +392,7 @@ class SnowflakePlan(LogicalPlan):
                                     raise ne.with_traceback(tb) from None
 
                     ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                        e
+                        e, debug_context=df_transform_debug_trace
                     )
                     raise ne.with_traceback(tb) from None
 
@@ -487,7 +558,12 @@ class SnowflakePlan(LogicalPlan):
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        attributes = analyze_attributes(self.schema_query, self.session)
+        wrapped_analyze_attributes = (
+            SnowflakePlan.Decorator.enrich_sql_exception_with_debug_trace(
+                analyze_attributes, self
+            )
+        )
+        attributes = wrapped_analyze_attributes(self.schema_query, self.session)
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
