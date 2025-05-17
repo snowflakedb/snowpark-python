@@ -607,6 +607,7 @@ class DataFrame:
         else:
             self._select_statement = None
 
+        # Setup the ast id for the dataframe.
         self.__ast_id = None
         if _emit_ast:
             self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
