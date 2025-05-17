@@ -298,23 +298,26 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
         query: Optional[str] = None,
+        debug_context: Optional[str] = None,
     ) -> SnowparkSQLUnexpectedAliasException:
         return SnowparkSQLUnexpectedAliasException(
             "You can only define aliases for the root Columns in a DataFrame returned by "
             "select() and agg(). You cannot use aliases for Columns in expressions.",
             error_code="1301",
             query=query,
+            debug_context=debug_context,
         )
 
     @staticmethod
     def SQL_PYTHON_REPORT_INVALID_ID(
-        name: str, query: Optional[str] = None
+        name: str, query: Optional[str] = None, debug_context: Optional[str] = None
     ) -> SnowparkSQLInvalidIdException:
         return SnowparkSQLInvalidIdException(
             f'The column specified in df("{name}") '
             f"is not present in the output of the DataFrame.",
             error_code="1302",
             query=query,
+            debug_context=debug_context,
         )
 
     @staticmethod
@@ -322,6 +325,7 @@ class SnowparkClientExceptionMessages:
         c1: str,
         c2: str,
         query: Optional[str] = None,
+        debug_context: Optional[str] = None,
     ) -> SnowparkSQLAmbiguousJoinException:
         return SnowparkSQLAmbiguousJoinException(
             f"The reference to the column '{c1}' is ambiguous. The column is "
@@ -333,13 +337,17 @@ class SnowparkClientExceptionMessages:
             f"the DataFrame.join() method for more details.",
             error_code="1303",
             query=query,
+            debug_context=debug_context,
         )
 
     @staticmethod
     def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
         pe: ProgrammingError,
+        debug_context: Optional[str] = None,
     ) -> SnowparkSQLException:
-        return SnowparkSQLException(pe.msg, error_code="1304", conn_error=pe)
+        return SnowparkSQLException(
+            pe.msg, error_code="1304", conn_error=pe, debug_context=debug_context
+        )
 
     @staticmethod
     def SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(

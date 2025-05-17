@@ -31,6 +31,9 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
 )
+from snowflake.snowpark._internal.debug_utils import (
+    get_df_transform_trace_message,
+)
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -157,9 +160,26 @@ class SnowflakePlan(LogicalPlan):
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
+
+                    df_transform_debug_trace = None
+                    # extract df_ast_id, stmt_cache from args
+                    df_ast_id, stmt_cache = None, None
+                    for arg in args:
+                        if isinstance(arg, SnowflakePlan):
+                            df_ast_id = arg._df_ast_id
+                            stmt_cache = arg.session._ast_batch._bind_stmt_cache
+                            break
+                    try:
+                        if df_ast_id is not None and stmt_cache is not None:
+                            df_transform_debug_trace = get_df_transform_trace_message(
+                                df_ast_id, stmt_cache
+                            )
+                    except Exception:
+                        pass
+
                     if "unexpected 'as'" in e.msg.lower():
                         ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
-                            query
+                            query, debug_context=df_transform_debug_trace
                         )
                         raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
@@ -170,7 +190,7 @@ class SnowflakePlan(LogicalPlan):
                         )
                         if not match:  # pragma: no cover
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
+                                e, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                         col = match.group(1)
@@ -192,7 +212,9 @@ class SnowflakePlan(LogicalPlan):
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
-                                orig_col_name, query
+                                orig_col_name,
+                                query,
+                                debug_context=df_transform_debug_trace,
                             )
                             raise ne.with_traceback(tb) from None
                         elif (
@@ -209,7 +231,7 @@ class SnowflakePlan(LogicalPlan):
                             > 1
                         ):
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-                                col, col, query
+                                col, col, query, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                         else:
@@ -219,7 +241,7 @@ class SnowflakePlan(LogicalPlan):
                             )
                             if not match:  # pragma: no cover
                                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                    e
+                                    e, debug_context=df_transform_debug_trace
                                 )
                                 raise ne.with_traceback(tb) from None
                             col = match.group(1)
@@ -274,7 +296,7 @@ class SnowflakePlan(LogicalPlan):
 
                             e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
+                                e, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42601" and "SELECT with no columns" in e.msg:
@@ -321,7 +343,7 @@ class SnowflakePlan(LogicalPlan):
                                     raise ne.with_traceback(tb) from None
 
                     ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                        e
+                        e, debug_context=df_transform_debug_trace
                     )
                     raise ne.with_traceback(tb) from None
 
@@ -397,6 +419,9 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name,
         )
         self._plan_state: Optional[Dict[PlanState, Any]] = None
+        # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
+        # we will store the ast_id here.
+        self._df_ast_id: Optional[int] = None
 
     @property
     def uuid(self) -> str:
@@ -585,7 +610,7 @@ class SnowflakePlan(LogicalPlan):
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
-            return SnowflakePlan(
+            plan = SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
                 copy.deepcopy(self.post_actions) if self.post_actions else None,
@@ -598,7 +623,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         else:
-            return SnowflakePlan(
+            plan = SnowflakePlan(
                 self.queries.copy() if self.queries else [],
                 self.schema_query,
                 self.post_actions.copy() if self.post_actions else None,
@@ -610,6 +635,8 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
+        plan._df_ast_id = self._df_ast_id
+        return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if self.source_plan:
@@ -642,6 +669,7 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
+        copied_plan._df_ast_id = self._df_ast_id
 
         return copied_plan
 

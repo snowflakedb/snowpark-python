@@ -4,14 +4,19 @@
 
 from functools import cached_property
 import os
+from typing import Any, Dict, List, Optional
 
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 UNKNOWN_FILE = "__UNKNOWN_FILE__"
+SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
+    "SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH"
+)
 
 
-class DataFrameLineageNode:
+class DataFrameTraceNode:
     """A node representing a dataframe operation in the DAG that represents the lineage of a DataFrame."""
 
     def __init__(self, batch_id: int, stmt_cache) -> None:
@@ -107,3 +112,84 @@ class DataFrameLineageNode:
             )
             return f"{code_identifier}: {code}"
         return code_identifier
+
+
+def _get_df_transform_trace(
+    batch_id: int,
+    stmt_cache: Dict[int, Any],
+) -> List[DataFrameTraceNode]:
+    """Helper function to get the transform trace of the dataframe involved in the exception.
+    It gathers the lineage in the following way:
+
+    1. Start by creating a DataFrameTraceNode for the given batch_id.
+    2. We use BFS to traverse the lineage using the node created in 1. as the first layer.
+    3. During each iteration, we check if the node's source_id has been visited. If not,
+        we add it to the visited set and append its source format to the trace. This step
+        is needed to avoid source_id added multiple times in lineage due to loops.
+    4. We then explore the next layer by adding the children of the current node to the
+        next layer. We check if the child ID has been visited and if not, we add it to the
+        visited set and append the DataFrameTraceNode for it to the next layer.
+    5. We repeat this process until there are no more nodes to explore.
+
+    Args:
+        batch_id: The batch ID of the dataframe involved in the exception.
+        stmt_cache: The statement cache of the session.
+
+    Returns:
+        A list of DataFrameTraceNode objects representing the transform trace of the dataframe.
+    """
+    visited_batch_id = set()
+    visited_source_id = set()
+
+    visited_batch_id.add(batch_id)
+    curr = [DataFrameTraceNode(batch_id, stmt_cache)]
+    lineage = []
+
+    while curr:
+        next: List[DataFrameTraceNode] = []
+        for node in curr:
+            # tracing updates
+            source_id = node.get_source_id()
+            if source_id not in visited_source_id:
+                visited_source_id.add(source_id)
+                lineage.append(node)
+
+            # explore next layer
+            for child_id in node.children:
+                if child_id in visited_batch_id:
+                    continue
+                visited_batch_id.add(child_id)
+                next.append(DataFrameTraceNode(child_id, stmt_cache))
+
+        curr = next
+
+    return lineage
+
+
+def get_df_transform_trace_message(
+    df_ast_id: int, stmt_cache: Dict[int, proto.Stmt]
+) -> Optional[str]:
+    if df_ast_id is None or stmt_cache is None:
+        return None
+
+    df_transform_trace_nodes = _get_df_transform_trace(df_ast_id, stmt_cache)
+    if len(df_transform_trace_nodes) == 0:
+        return None
+    df_transform_trace_nodes = _get_df_transform_trace(df_ast_id, stmt_cache)
+    show_trace_length = int(
+        os.environ.get(SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH, 5)
+    )
+
+    debug_info_lines = [
+        "\n\n--- Additional Debug Information ---\n",
+        f"Trace of the most recent dataframe operations associated with the error (total {len(df_transform_trace_nodes)}):\n",
+    ]
+    for node in df_transform_trace_nodes[:show_trace_length]:
+        debug_info_lines.append(node.get_source_snippet())
+    if len(df_transform_trace_nodes) > show_trace_length:
+        debug_info_lines.append(
+            f"... and {len(df_transform_trace_nodes) - show_trace_length} more.\nYou can increase "
+            "the lineage length by setting SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH "
+            "environment variable."
+        )
+    return "\n".join(debug_info_lines)

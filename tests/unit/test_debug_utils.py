@@ -7,7 +7,7 @@ import os
 import pytest
 
 from snowflake.snowpark._internal.ast.batch import AstBatch
-from snowflake.snowpark._internal.debug_utils import DataFrameLineageNode
+from snowflake.snowpark._internal.debug_utils import DataFrameTraceNode
 
 
 curr_file_path = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +36,7 @@ def test_read_file(
 
     stmt_cache = {1: stmt}
 
-    LineageNode = DataFrameLineageNode(1, stmt_cache)
+    LineageNode = DataFrameTraceNode(1, stmt_cache)
     result = LineageNode._read_file(
         filename=str(test_file_path),
         start_line=start_line,

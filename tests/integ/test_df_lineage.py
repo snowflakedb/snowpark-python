@@ -11,6 +11,9 @@ from tests.resources.test_df_debug_dir.dataframe_generator1 import DataFrameGene
 from tests.resources.test_df_debug_dir.dataframe_generator2 import DataFrameGenerator2
 
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH,
+)
 
 pytestmark = [
     pytest.mark.skipif(
@@ -21,19 +24,16 @@ pytestmark = [
 ]
 
 
-LINAGE_ENV_VAR = "SNOWPARK_PYTHON_DATAFRAME_LINEAGE_LENGTH_ON_ERROR"
-
-
 @pytest.fixture(autouse=True)
 def setup(request, session):
     original = session.ast_enabled
     set_ast_state(AstFlagSource.TEST, True)
-    if LINAGE_ENV_VAR in os.environ:
-        del os.environ[LINAGE_ENV_VAR]
+    if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
+        del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
     yield
     set_ast_state(AstFlagSource.TEST, original)
-    if LINAGE_ENV_VAR in os.environ:
-        del os.environ[LINAGE_ENV_VAR]
+    if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
+        del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
 
 
 if sys.version_info >= (3, 11):
@@ -111,7 +111,7 @@ def test_binary_dataframe_lineage(session):
     df_binary = DataFrameGenerator1(session).dataframe_with_union()
     err_df = df_binary.select("does_not_exist")
     total_length = 7 if sys.version_info >= (3, 10) else 4
-    os.environ[LINAGE_ENV_VAR] = str(total_length)
+    os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH] = str(total_length)
 
     if sys.version_info >= (3, 11):
         expected_lineage = [
@@ -204,21 +204,21 @@ def test_with_loops_and_nested_calls(session):
 def test_env_variable(session):
     df = DataFrameGenerator1(session).dataframe_with_long_operation_chain()
     # unset the env variable
-    if LINAGE_ENV_VAR in os.environ:
-        del os.environ[LINAGE_ENV_VAR]
+    if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
+        del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
 
     with pytest.raises(SnowparkSQLException) as exc_info:
         df.select("does_not_exist").collect()
     assert str(exc_info.value).count("--- Additional Debug Information ---") == 1
     base_len = len(str(exc_info.value).split("\n"))
 
-    os.environ[LINAGE_ENV_VAR] = "0"
+    os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH] = "0"
     with pytest.raises(SnowparkSQLException) as exc_info:
         df.select("does_not_exist").collect()
     assert str(exc_info.value).count("--- Additional Debug Information ---") == 1
     assert len(str(exc_info.value).split("\n")) == base_len - 5
 
-    os.environ[LINAGE_ENV_VAR] = "10"
+    os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH] = "10"
     with pytest.raises(SnowparkSQLException) as exc_info:
         df.select("does_not_exist").collect()
     assert str(exc_info.value).count("--- Additional Debug Information ---") == 1
