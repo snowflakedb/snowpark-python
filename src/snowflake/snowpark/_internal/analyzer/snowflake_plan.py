@@ -157,7 +157,7 @@ class SnowflakePlan(LogicalPlan):
                 try:
                     return func(*args, **kwargs)
                 except SnowparkSQLException as e:
-                    tb = sys.exc_info()[2]
+                    error_type, _, tb = sys.exc_info()
                     # extract df_ast_id, stmt_cache from args
                     df_ast_id, stmt_cache = None, None
                     for arg in args:
@@ -165,18 +165,26 @@ class SnowflakePlan(LogicalPlan):
                             df_ast_id = arg._df_ast_id
                             stmt_cache = arg.session._ast_batch._bind_stmt_cache
                             break
+                    df_transform_debug_trace = None
                     try:
                         if df_ast_id is not None and stmt_cache is not None:
                             df_transform_debug_trace = get_df_transform_trace_message(
                                 df_ast_id, stmt_cache
                             )
                     except Exception:
+                        # If we encounter an error when getting the df_transform_debug_trace,
+                        # we will ignore the error and not add the debug trace to the error message.
                         pass
 
-                    conn_error = e.conn_error
-                    # re-raise the original exception with additional debug information
-                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                        conn_error, debug_context=df_transform_debug_trace
+                    ne = error_type(
+                        message=e.message,
+                        error_code=e.error_code,
+                        conn_error=e.conn_error,
+                        sfqid=e.sfqid,
+                        query=e.query,
+                        sql_error_code=e.sql_error_code,
+                        raw_message=e.raw_message,
+                        debug_context=df_transform_debug_trace,
                     )
                     raise ne.with_traceback(tb) from None
 

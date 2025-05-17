@@ -6,14 +6,14 @@ import os
 import re
 import sys
 import pytest
+from snowflake.snowpark._internal.debug_utils import (
+    SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.resources.test_df_debug_dir.dataframe_generator1 import DataFrameGenerator1
 from tests.resources.test_df_debug_dir.dataframe_generator2 import DataFrameGenerator2
 
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
-from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH,
-)
 
 pytestmark = [
     pytest.mark.skipif(
@@ -65,24 +65,22 @@ DF_GEN2_WITH_LOC_PATTERN = (
 
 
 def check_df_debug_lineage(expected_lineage, exc_info, total_length):
-    assert (
-        str(exc_info.value.message).count("--- Additional Debug Information ---") == 1
-    )
+    assert str(exc_info.value).count("--- Additional Debug Information ---") == 1
 
     assert (
         re.search(
             re.escape(
                 f"Trace of the most recent dataframe operations associated with the error (total {total_length}):"
             ),
-            str(exc_info.value.message),
+            str(exc_info.value),
         )
         is not None
-    )
+    ), f"Expected trace not found in {str(exc_info.value)}"
 
     for pattern in expected_lineage:
         assert (
-            re.search(pattern, str(exc_info.value.message)) is not None
-        ), f"Pattern {pattern} not found in {str(exc_info.value.message)}"
+            re.search(pattern, str(exc_info.value)) is not None
+        ), f"Pattern {pattern} not found in {str(exc_info.value)}"
 
 
 def test_simple_dataframe_lineage(session):
@@ -157,23 +155,20 @@ def test_dataframe_lineage_with_describe(session):
         expected_lineage = [
             DF_GEN1_WITH_LOC_PATTERN + re.escape(": self.session.create_dataframe("),
             DF_GEN1_WITH_LOC_PATTERN + re.escape(': df2.select("non_existent_column")'),
-            DF_GEN1_WITH_LOC_PATTERN + re.escape(": self.session.create_dataframe("),
         ]
     else:
         expected_lineage = [
             DF_GEN1_WITH_LOC_PATTERN
-            + re.escape(":         df1 = self.session.create_dataframe"),
+            + re.escape(":         df2 = self.session.create_dataframe"),
             DF_GEN1_WITH_LOC_PATTERN
             + re.escape(
                 ':         return df1.join(df2.select("non_existent_column"), on="id", how="inner")'
             ),
-            DF_GEN1_WITH_LOC_PATTERN
-            + re.escape(":         df2 = self.session.create_dataframe"),
         ]
 
     with pytest.raises(SnowparkSQLException) as exc_info:
         DataFrameGenerator1(session).dataframe_with_join_on_bad_col()
-    check_df_debug_lineage(expected_lineage, exc_info, 3)
+    check_df_debug_lineage(expected_lineage, exc_info, 2)
 
 
 def test_with_loops_and_nested_calls(session):

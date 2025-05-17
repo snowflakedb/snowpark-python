@@ -99,12 +99,12 @@ class DataFrameTraceNode:
         end_column = src.end_column
 
         # Build the code identifier to find the operations where the DataFrame was created
-        if end_column == 0:
-            code_identifier = f"{filename}|{start_line}"
-        else:
+        if sys.version_info >= (3, 11):
             code_identifier = (
                 f"{filename}|{start_line}:{start_column}-{end_line}:{end_column}"
             )
+        else:
+            code_identifier = f"{filename}|{start_line}"
 
         if filename != UNKNOWN_FILE and os.access(filename, os.R_OK):
             # If the file is readable, read the code snippet
