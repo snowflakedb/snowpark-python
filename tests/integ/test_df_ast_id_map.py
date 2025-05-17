@@ -8,14 +8,6 @@ from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.functions import col, explode, sum as sum_, split
 from tests.utils import Utils
 
-# pytestmark = [
-#     pytest.mark.skipif(
-#         "config.getoption('local_testing_mode', default=False)",
-#         reason="CTE is a SQL feature",
-#         run=False,
-#     ),
-# ]
-
 
 @pytest.fixture(autouse=True)
 def setup(request, session):
@@ -63,7 +55,7 @@ def verify_ast_id_consistency(df):
         lambda df, df2: df.except_(df2),
     ],
 )
-def test_df_ast_id(session, op, test_table):
+def test_df_ast_id(session, local_testing_mode, op, test_table):
     if not session.sql_simplifier_enabled:
         pytest.skip("sql simplifier is not enabled")
     df1 = session.table(test_table)
@@ -85,7 +77,8 @@ def test_df_ast_id(session, op, test_table):
     df = df.select(col("$1").as_("a1"), col("$2").as_("b1")).filter(col("a1") > 1)
     verify_ast_id_consistency(df)
 
-    df = df.select(col("a1"), split(col("b1"), col("a1")).alias("array_col")).select(
-        "a1", explode(col("array_col")).alias("exploded_col")
-    )
-    verify_ast_id_consistency(df)
+    if not local_testing_mode:
+        df = df.select(
+            col("a1"), split(col("b1"), col("a1")).alias("array_col")
+        ).select("a1", explode(col("array_col")).alias("exploded_col"))
+        verify_ast_id_consistency(df)
