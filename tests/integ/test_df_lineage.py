@@ -18,7 +18,7 @@ from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
-        reason="CTE is a SQL feature",
+        reason="SnowparkSQLException is not raised in localtesting mode",
         run=False,
     ),
 ]
