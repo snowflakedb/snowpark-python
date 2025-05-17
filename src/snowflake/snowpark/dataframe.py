@@ -668,7 +668,8 @@ class DataFrame:
     @_ast_id.setter
     def _ast_id(self, value: Optional[int]) -> None:
         self.__ast_id = value
-        self._plan._df_ast_id = value
+        if self._plan is not None:
+            self._plan._df_ast_id = value
         if self._select_statement is not None:
             self._select_statement.add_df_ast_id(value)
 
