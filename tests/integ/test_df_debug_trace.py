@@ -5,6 +5,7 @@
 import os
 import re
 import sys
+from unittest import mock
 import pytest
 from snowflake.snowpark._internal.debug_utils import (
     SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH,
@@ -250,3 +251,19 @@ def test_multiple_files(session):
     with pytest.raises(SnowparkSQLException) as exc_info:
         err_df.collect()
     check_df_debug_lineage(expected_lineage, exc_info, 4)
+
+
+def test_error_in_lineage_extraction_is_safe(session):
+    err_df = DataFrameGenerator1(session).simple_dataframe().select("does_not_exist")
+    with mock.patch(
+        "snowflake.snowpark._internal.analyzer.snowflake_plan.get_df_transform_trace_message",
+        side_effect=Exception("test"),
+    ):
+        with pytest.raises(SnowparkSQLException) as exc_info:
+            err_df.collect()
+        assert "--- Additional Debug Information ---" not in str(exc_info.value)
+
+        with pytest.raises(SnowparkSQLException) as exc_info:
+            DataFrameGenerator1(session).dataframe_with_join_on_bad_col()
+
+        assert "--- Additional Debug Information ---" not in str(exc_info.value)

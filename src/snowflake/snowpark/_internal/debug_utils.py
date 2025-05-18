@@ -72,7 +72,7 @@ class DataFrameTraceNode:
     def get_source_id(self) -> str:
         """Unique identifier of the location of the DataFrame creation in the source code."""
         src = self.get_src()
-        if src is None:
+        if src is None:  # pragma: no cover
             return ""
 
         fileno = src.file
@@ -85,7 +85,7 @@ class DataFrameTraceNode:
     def get_source_snippet(self) -> str:
         """Read the source file and extract the snippet where the dataframe is created."""
         src = self.get_src()
-        if src is None:
+        if src is None:  # pragma: no cover
             return "No source"
 
         # get the latest mapping of fileno to filename
@@ -112,7 +112,7 @@ class DataFrameTraceNode:
                 filename, start_line, end_line, start_column, end_column
             )
             return f"{code_identifier}: {code}"
-        return code_identifier
+        return code_identifier  # pragma: no cover
 
 
 def _get_df_transform_trace(
@@ -168,7 +168,7 @@ def _get_df_transform_trace(
 
 
 def get_df_transform_trace_message(
-    df_ast_id: Optional[int], stmt_cache: Optional[Dict[int, proto.Stmt]]
+    df_ast_id: int, stmt_cache: Dict[int, proto.Stmt]
 ) -> Optional[str]:
     """Get the transform trace message for the dataframe involved in the exception.
 
@@ -179,11 +179,8 @@ def get_df_transform_trace_message(
     Returns:
         A string representing the transform trace message.
     """
-    if df_ast_id is None or stmt_cache is None:
-        return None
-
     df_transform_trace_nodes = _get_df_transform_trace(df_ast_id, stmt_cache)
-    if len(df_transform_trace_nodes) == 0:
+    if len(df_transform_trace_nodes) == 0:  # pragma: no cover
         return None
 
     df_transform_trace_length = len(df_transform_trace_nodes)
