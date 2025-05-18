@@ -210,6 +210,7 @@ from snowflake.snowpark._internal.utils import (
     check_create_map_parameter,
     deprecated,
     private_preview,
+    warn_on_spark_semantic_gap,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -3744,6 +3745,7 @@ def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+@warn_on_spark_semantic_gap(migration_strategy="Use concat_ws_ignore_nulls instead.")
 def concat_ws(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Concatenates two or more strings, or concatenates two or more binary values. If any of the values is null, the result is also null.
     The CONCAT_WS operator requires at least two arguments, and uses the first argument to separate all following arguments.
@@ -9159,6 +9161,7 @@ Row(K=4, PERCENTILE=None)]
 
 
 @publicapi
+@warn_on_spark_semantic_gap(migration_strategy="Use greatest_ignore_nulls instead.")
 def greatest(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the largest value from a list of expressions.
@@ -9173,6 +9176,23 @@ def greatest(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = [_to_col_if_str(ex, "greatest") for ex in columns]
     return _call_function("greatest", *c, _emit_ast=_emit_ast)
+
+
+@publicapi
+def greatest_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the largest non-null value from a list of expressions.
+    If all of the argument values are NULL, the result is NULL.
+    GREATEST_IGNORE_NULLS supports all data types, including VARIANT.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[1, 2, 3], [2, 4, None], [3, 6, None]], schema=["a", "b", "c"])
+        >>> df.select(greatest_ignore_nulls(df["a"], df["b"], df["c"]).alias("greatest_ignore_nulls")).collect()
+        [Row(GREATEST_IGNORE_NULLS=3), Row(GREATEST_IGNORE_NULLS=4), Row(GREATEST_IGNORE_NULLS=6)]
+    """
+    c = [_to_col_if_str(ex, "greatest_ignore_nulls") for ex in columns]
+    return _call_function("greatest_ignore_nulls", *c, _emit_ast=_emit_ast)
 
 
 @publicapi
