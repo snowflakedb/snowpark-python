@@ -29,12 +29,30 @@ _use_structured_type_semantics_lock = threading.RLock()
 # This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
 _is_snowpark_connect_compatible_mode = False
 
+# This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with spark migration mode
+_spark_mode_enabled = False
+_spark_mode_enabled_lock = threading.RLock()
+
 
 def _should_use_structured_type_semantics():
     global _use_structured_type_semantics
     global _use_structured_type_semantics_lock
     with _use_structured_type_semantics_lock:
         return _use_structured_type_semantics
+
+
+def enable_spark_migration_mode():
+    global _spark_mode_enabled
+    global _spark_mode_enabled_lock
+    with _spark_mode_enabled_lock:
+        _spark_mode_enabled = True
+
+
+def disable_spark_migration_mode():
+    global _spark_mode_enabled
+    global _spark_mode_enabled_lock
+    with _spark_mode_enabled_lock:
+        _spark_mode_enabled = False
 
 
 def get_active_session() -> "snowflake.snowpark.Session":

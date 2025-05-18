@@ -1169,6 +1169,27 @@ def private_preview(
     )
 
 
+def warn_on_spark_semantic_gap(*, migration_strategy: str) -> Callable:
+    def wrapper(param_setter_function):
+        warning_text = (
+            f"{param_setter_function.__name__} is semantically different in behavior from PySpark. "
+            f"To safely migrate from PySpark to Snowpark, please follow the following strategy:\n"
+            f"{migration_strategy}"
+        )
+
+        @functools.wraps(param_setter_function)
+        def func_call_wrapper(*args, **kwargs):
+            from snowflake.snowpark.context import _spark_mode_enabled
+
+            if _spark_mode_enabled:
+                warning(param_setter_function.__name__, warning_text)
+            return param_setter_function(*args, **kwargs)
+
+        return func_call_wrapper
+
+    return wrapper
+
+
 def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) -> str:
     return (
         SCOPED_TEMPORARY_STRING
