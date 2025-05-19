@@ -5640,10 +5640,10 @@ class DataFrame:
                     # for string columns, we need to convert all stats to string
                     # such that they can be fitted into one column
                     if isinstance(t, StringType):
-                        if strings_include_math_stats and name in [
+                        if strings_include_math_stats or name not in (
                             "mean",
                             "stddev",
-                        ]:
+                        ):
                             agg_cols.append(to_char(func(c)))
                         else:
                             agg_cols.append(to_char(func(lit(None))).as_(c))
