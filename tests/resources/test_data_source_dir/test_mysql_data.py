@@ -59,7 +59,7 @@ mysql_real_data = [
             2025, 4, 29, 20, 49, 32, tzinfo=pytz.FixedOffset(-420)
         ),
         TIMECOL=datetime.time(13, 49, 32),
-        JSONCOL='{"id": "bdfbdd1a-017b-43fa-84ab-a1a5e6f40677", "flag": true}',
+        JSONCOL='{\n  "flag": true,\n  "id": "bdfbdd1a-017b-43fa-84ab-a1a5e6f40677"\n}',
     ),
     Row(
         ID=2,
@@ -99,7 +99,7 @@ mysql_real_data = [
             2025, 4, 29, 20, 49, 32, tzinfo=pytz.FixedOffset(-420)
         ),
         TIMECOL=datetime.time(13, 49, 32),
-        JSONCOL='{"id": "90ae0e17-696b-4e90-8514-9f02c66d3348", "flag": true}',
+        JSONCOL='{\n  "flag": true,\n  "id": "90ae0e17-696b-4e90-8514-9f02c66d3348"\n}',
     ),
     Row(
         ID=3,
@@ -139,7 +139,7 @@ mysql_real_data = [
             2025, 4, 29, 20, 49, 32, tzinfo=pytz.FixedOffset(-420)
         ),
         TIMECOL=datetime.time(13, 49, 32),
-        JSONCOL='{"id": "c0d649a2-1d40-474b-8ab8-c9360832bf2e", "flag": true}',
+        JSONCOL='{\n  "flag": true,\n  "id": "c0d649a2-1d40-474b-8ab8-c9360832bf2e"\n}',
     ),
     Row(
         ID=4,
@@ -179,7 +179,7 @@ mysql_real_data = [
             2025, 4, 29, 20, 49, 32, tzinfo=pytz.FixedOffset(-420)
         ),
         TIMECOL=datetime.time(13, 49, 32),
-        JSONCOL='{"id": "855b8e9d-0f62-48a0-a185-353a81545744", "flag": true}',
+        JSONCOL='{\n  "flag": true,\n  "id": "855b8e9d-0f62-48a0-a185-353a81545744"\n}',
     ),
     Row(
         ID=5,
@@ -219,6 +219,6 @@ mysql_real_data = [
             2025, 4, 29, 20, 49, 32, tzinfo=pytz.FixedOffset(-420)
         ),
         TIMECOL=datetime.time(13, 49, 32),
-        JSONCOL='{"id": "0e5c8dfb-945e-4a3f-b43f-22ba246d31b0", "flag": true}',
+        JSONCOL='{\n  "flag": true,\n  "id": "0e5c8dfb-945e-4a3f-b43f-22ba246d31b0"\n}',
     ),
 ]

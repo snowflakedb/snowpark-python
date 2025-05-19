@@ -5,13 +5,14 @@
 from enum import Enum
 from decimal import Decimal
 from datetime import date, datetime, timedelta
-from typing import List, Callable, Any, Type
+from typing import List, Callable, Any, Type, TYPE_CHECKING
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
+from snowflake.snowpark.functions import to_variant, parse_json, column
 from snowflake.snowpark.types import (
     StructType,
     StringType,
@@ -24,34 +25,81 @@ from snowflake.snowpark.types import (
     TimeType,
     IntegerType,
     TimestampTimeZone,
+    VariantType,
 )
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.session import Session  # pragma: no cover
+    from snowflake.snowpark.dataframe import DataFrame  # pragma: no cover
 
 
 logger = logging.getLogger(__name__)
 
+
+class PymysqlTypeCode(Enum):
+    DECIMAL = (0, Decimal)
+    NEWDECIMAL = (246, Decimal)
+    INT = (3, int)
+    TINYINT = (1, int)
+    SMALLINT = (2, int)
+    MEDIUMINT = (9, int)
+    BIGINT = (8, int)
+    YEAR = (13, int)
+    FLOAT = (4, float)
+    DOUBLE = (5, float)
+    CHAR = (254, str)
+    VARCHAR = (253, str)
+    TINYTEXT = (252, str)
+    TEXT = (252, str)
+    MEDIUMTEXT = (252, str)
+    LONGTEXT = (252, str)
+    ENUM = (254, str)
+    SET = (254, str)
+    BIT = (16, bytes)
+    BINARY = (254, bytes)
+    VARBINARY = (253, bytes)
+    TINYBLOB = (252, bytes)
+    BLOB = (252, bytes)
+    MEDIUMBLOB = (252, bytes)
+    LONGBLOB = (252, bytes)
+    DATE = (10, date)
+    DATETIME = (12, datetime)
+    TIMESTAMP = (7, datetime)
+    TIME = (11, timedelta)
+    JSON = (245, str)
+
+
 BASE_PYMYSQL_TYPE_TO_SNOW_TYPE = {
-    (0, Decimal): DecimalType,
-    (246, Decimal): DecimalType,
-    (1, int): IntegerType,
-    (2, int): IntegerType,
-    (3, int): IntegerType,
-    (4, float): FloatType,
-    (5, float): FloatType,
-    (8, int): IntegerType,
-    (9, int): IntegerType,
-    (13, int): IntegerType,
-    (254, str): StringType,
-    (253, str): StringType,
-    (252, str): StringType,
-    (16, bytes): StringType,
-    (254, bytes): BinaryType,
-    (253, bytes): BinaryType,
-    (252, bytes): BinaryType,
-    (10, date): DateType,
-    (12, datetime): TimestampType,
-    (7, datetime): TimestampType,
-    (11, timedelta): TimeType,
-    (245, str): StringType,
+    PymysqlTypeCode.DECIMAL: DecimalType,
+    PymysqlTypeCode.NEWDECIMAL: DecimalType,
+    PymysqlTypeCode.INT: IntegerType,
+    PymysqlTypeCode.TINYINT: IntegerType,
+    PymysqlTypeCode.SMALLINT: IntegerType,
+    PymysqlTypeCode.MEDIUMINT: IntegerType,
+    PymysqlTypeCode.BIGINT: IntegerType,
+    PymysqlTypeCode.YEAR: IntegerType,
+    PymysqlTypeCode.FLOAT: FloatType,
+    PymysqlTypeCode.DOUBLE: FloatType,
+    PymysqlTypeCode.CHAR: StringType,
+    PymysqlTypeCode.VARCHAR: StringType,
+    PymysqlTypeCode.TINYTEXT: StringType,
+    PymysqlTypeCode.TEXT: StringType,
+    PymysqlTypeCode.MEDIUMTEXT: StringType,
+    PymysqlTypeCode.LONGTEXT: StringType,
+    PymysqlTypeCode.ENUM: StringType,
+    PymysqlTypeCode.SET: StringType,
+    PymysqlTypeCode.BIT: StringType,
+    PymysqlTypeCode.BINARY: BinaryType,
+    PymysqlTypeCode.VARBINARY: BinaryType,
+    PymysqlTypeCode.TINYBLOB: BinaryType,
+    PymysqlTypeCode.BLOB: BinaryType,
+    PymysqlTypeCode.MEDIUMBLOB: BinaryType,
+    PymysqlTypeCode.LONGBLOB: BinaryType,
+    PymysqlTypeCode.DATE: DateType,
+    PymysqlTypeCode.DATETIME: TimestampType,
+    PymysqlTypeCode.TIMESTAMP: TimestampType,
+    PymysqlTypeCode.TIME: TimeType,
+    PymysqlTypeCode.JSON: VariantType,
 }
 
 
@@ -75,7 +123,7 @@ class PymysqlDriver(BaseDriver):
         processed_raw_schema = []
         for type, col in zip(raw_types, raw_schema):
             new_col = list(col)
-            new_col[1] = (new_col[1], type)
+            new_col[1] = PymysqlTypeCode((new_col[1], type))
             processed_raw_schema.append(new_col)
 
         self.raw_schema = processed_raw_schema
@@ -90,7 +138,7 @@ class PymysqlDriver(BaseDriver):
         https://other-docs.snowflake.com/en/connectors/mysql6/view-data#mysql-to-snowflake-data-type-mapping
         """
         fields = []
-        for column in schema:
+        for col in schema:
             (
                 name,
                 type_code,
@@ -99,11 +147,11 @@ class PymysqlDriver(BaseDriver):
                 precision,
                 scale,
                 null_ok,
-            ) = column
+            ) = col
             snow_type = BASE_PYMYSQL_TYPE_TO_SNOW_TYPE.get(type_code, None)
             if snow_type is None:
                 raise NotImplementedError(f"mysql type not supported: {type_code}")
-            if type_code in ((0, Decimal), (246, Decimal)):
+            if type_code in (PymysqlTypeCode.DECIMAL, PymysqlTypeCode.NEWDECIMAL):
                 precision -= 2
                 if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
@@ -116,9 +164,9 @@ class PymysqlDriver(BaseDriver):
                     precision if precision is not None else 38,
                     scale if scale is not None else 0,
                 )
-            elif type_code == (7, datetime):
+            elif type_code == PymysqlTypeCode.TIMESTAMP:
                 data_type = snow_type(TimestampTimeZone.TZ)
-            elif type_code == (12, datetime):
+            elif type_code == PymysqlTypeCode.DATETIME:
                 data_type = snow_type(TimestampTimeZone.NTZ)
             else:
                 data_type = snow_type()
@@ -168,3 +216,19 @@ class PymysqlDriver(BaseDriver):
             for type_set in raw_data_types_set
         ]
         return types
+
+    @staticmethod
+    def to_result_snowpark_df(
+        session: "Session", table_name, schema, _emit_ast: bool = True
+    ) -> "DataFrame":
+        project_columns = []
+        for field in schema.fields:
+            if isinstance(field.datatype, VariantType):
+                project_columns.append(
+                    to_variant(parse_json(column(field.name))).as_(field.name)
+                )
+            else:
+                project_columns.append(column(field.name))
+        return session.table(table_name, _emit_ast=_emit_ast).select(
+            project_columns, _emit_ast=_emit_ast
+        )
