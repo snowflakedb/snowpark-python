@@ -520,14 +520,17 @@ def test_parse_names_negative(session):
         catalog.procedure_exists("proc")
 
     with patch.object(session, "get_current_database", return_value=None):
-        with pytest.raises(
-            ValueError,
-            match="No database detected. Please provide database to proceed.",
-        ):
-            catalog._parse_database(database=None)
+        for db in (None, ""):
+            with pytest.raises(
+                ValueError,
+                match="No database detected. Please provide database to proceed.",
+            ):
+                catalog._parse_database(database=db)
 
     with patch.object(session, "get_current_schema", return_value=None):
-        with pytest.raises(
-            ValueError, match="No schema detected. Please provide schema to proceed."
-        ):
-            catalog._parse_schema(schema=None)
+        for schema in (None, ""):
+            with pytest.raises(
+                ValueError,
+                match="No schema detected. Please provide schema to proceed.",
+            ):
+                catalog._parse_schema(schema=schema)

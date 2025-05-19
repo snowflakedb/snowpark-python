@@ -2,7 +2,7 @@ name: Daily Snowpark pandas jupyter notebook test
 
 on:
     schedule:
-      - cron: "0 16 * * *" # Runs 16:00 UTC on every day
+      - cron: "0 11 * * *" # Runs 9:00 UTC on every day
     workflow_dispatch:
         inputs:
             logLevel:

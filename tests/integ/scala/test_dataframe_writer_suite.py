@@ -23,7 +23,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils, iceberg_supported
+from tests.utils import TestFiles, Utils, iceberg_supported, is_in_stored_procedure
 
 
 @pytest.fixture(scope="function")
@@ -97,6 +97,36 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
             Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
         finally:
             Utils.drop_table(session, special_table_name)
+
+
+def test_write_reserved_names(session):
+    table_name = Utils.random_table_name()
+    table2_name = Utils.random_table_name()
+
+    schema = StructType([StructField("AS", LongType(), nullable=False)])
+    df = session.create_dataframe(
+        [
+            (1,),
+        ],
+        schema=schema,
+    )
+
+    try:
+        df.write.mode("overwrite").save_as_table(table_name, column_order="name")
+        table = session.table(table_name)
+
+        assert table.schema == schema
+
+        df.write.mode("append").save_as_table(table_name, column_order="name")
+
+        assert table.count() == 2
+
+        table.write.mode("append").save_as_table(table2_name, column_order="name")
+        table2 = session.table(table2_name)
+        assert table2.schema == schema
+    finally:
+        Utils.drop_table(session, table_name)
+        Utils.drop_table(session, table2_name)
 
 
 def test_snow_1668862_repro_save_null_data(session):
@@ -175,8 +205,15 @@ def test_write_with_target_table_autoincrement(
 
 
 def test_iceberg(session, local_testing_mode):
-    if not iceberg_supported(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
         pytest.skip("Test requires iceberg support.")
+
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
+    ).collect()
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
+    ).collect()
 
     table_name = Utils.random_table_name()
     df = session.create_dataframe(
@@ -194,6 +231,7 @@ def test_iceberg(session, local_testing_mode):
             "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
             "catalog": "SNOWFLAKE",
             "base_location": "snowpark_python_tests",
+            "iceberg_version": 3,
         },
     )
     try:

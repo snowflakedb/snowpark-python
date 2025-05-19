@@ -29,6 +29,13 @@ SUPPRESS_AST_LISTENER_REENTRY = False
 VALIDATION_QUERY_RECORD = None
 
 
+class UnparserInvocationError(Exception):
+    def __init__(self, error_output: str) -> None:
+        super().__init__(
+            f"The unparser invocation failed. STDERR contents: \n{error_output}"
+        )
+
+
 def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> str:
     """Uses the unparser to render the AST."""
     assert (
@@ -38,22 +45,27 @@ def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> st
     if isinstance(ast_base64, str):
         ast_base64 = [ast_base64]
 
-    res = subprocess.run(
-        [
-            "java",
-            "-cp",
-            unparser_jar,
-            "com.snowflake.snowpark.unparser.UnparserCli",
-            ",".join(
-                ast_base64
-            ),  # base64 strings will not contain , so pass multiple batches comma-separated.
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    return res.stdout
+    try:
+        res = subprocess.run(
+            [
+                "java",
+                "-cp",
+                unparser_jar,
+                "com.snowflake.snowpark.unparser.UnparserCli",
+                ",".join(
+                    ast_base64
+                ),  # base64 strings will not contain , so pass multiple batches comma-separated.
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return res.stdout
+    except subprocess.CalledProcessError as e:
+        if e.stderr is not None:
+            raise UnparserInvocationError(e.stderr) from e
+        raise
+    return ""
 
 
 def generate_error_trace_info(python_text, exception=None):
@@ -72,17 +84,17 @@ def generate_error_trace_info(python_text, exception=None):
     return error_msg
 
 
-def get_dependent_var_ids(ast):
+def get_dependent_bind_ids(ast):
     """Retrieve the dependent AST IDs required for this AST object."""
     dependent_ids = set()
 
     if isinstance(ast, Iterable) and not isinstance(ast, str):
         for c in ast:
-            dependent_ids.update(get_dependent_var_ids(c))
+            dependent_ids.update(get_dependent_bind_ids(c))
     elif hasattr(ast, "DESCRIPTOR"):
         descriptor = ast.DESCRIPTOR
 
-        if descriptor.name == "VarId":
+        if descriptor.name == "BindId":
             dependent_ids.add(ast.bitfield1)
         else:
             for f in descriptor.fields:
@@ -90,7 +102,7 @@ def get_dependent_var_ids(ast):
                 if (
                     isinstance(c, Iterable) and not isinstance(c, str) and len(c) > 0
                 ) or (isinstance(c, Message) and c.ByteSize() > 0):
-                    dependent_ids.update(get_dependent_var_ids(c))
+                    dependent_ids.update(get_dependent_bind_ids(c))
 
     return dependent_ids
 
@@ -104,25 +116,25 @@ def create_full_ast_request(cur_request, prev_stmts, dependency_cache):
             eval_stmts.append(stmt)
             prev_stmts[stmt.eval.uid] = stmt
         else:
-            prev_stmts[stmt.assign.uid] = stmt
+            prev_stmts[stmt.bind.uid] = stmt
 
-    visited_var_ids = set()
-    queue_var_ids = {stmt.eval.uid for stmt in eval_stmts}
-    while queue_var_ids:
-        var_id = queue_var_ids.pop()
-        visited_var_ids.add(var_id)
+    visited_bind_ids = set()
+    queue_bind_ids = {stmt.eval.uid for stmt in eval_stmts}
+    while queue_bind_ids:
+        bind_id = queue_bind_ids.pop()
+        visited_bind_ids.add(bind_id)
 
-        if var_id in dependency_cache:
-            dependent_var_ids = dependency_cache[var_id]
+        if bind_id in dependency_cache:
+            dependent_bind_ids = dependency_cache[bind_id]
         else:
-            dependent_var_ids = get_dependent_var_ids(prev_stmts[var_id])
-            dependency_cache[var_id] = dependent_var_ids
+            dependent_bind_ids = get_dependent_bind_ids(prev_stmts[bind_id])
+            dependency_cache[bind_id] = dependent_bind_ids
 
-        new_dependent_var_ids = dependent_var_ids.difference(visited_var_ids)
-        queue_var_ids.update(new_dependent_var_ids)
+        new_dependent_bind_ids = dependent_bind_ids.difference(visited_bind_ids)
+        queue_bind_ids.update(new_dependent_bind_ids)
 
-    request_var_ids = list(visited_var_ids)
-    request_var_ids.sort()
+    request_bind_ids = list(visited_bind_ids)
+    request_bind_ids.sort()
 
     # Create new request including dependencies.
     request = proto.Request()
@@ -131,9 +143,9 @@ def create_full_ast_request(cur_request, prev_stmts, dependency_cache):
     request.client_language.python_language.version.patch = 1
     request.client_language.python_language.version.label = "final"
 
-    for var_id in request_var_ids:
+    for bind_id in request_bind_ids:
         stmt = request.body.add()
-        stmt.CopyFrom(prev_stmts[var_id])
+        stmt.CopyFrom(prev_stmts[bind_id])
 
     return request
 

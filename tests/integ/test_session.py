@@ -102,6 +102,56 @@ def test_update_query_tag(session):
     reason="SQL query not supported",
     run=False,
 )
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot alter session in SP")
+def test_collect_stacktrace_in_query_tag(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    original_collect_stacktrace_in_query_tag = session.conf.get(
+        "collect_stacktrace_in_query_tag"
+    )
+    try:
+        session.conf.set("collect_stacktrace_in_query_tag", False)
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = session.createDataFrame([[1, 2], [3, 4]], ["a", "b"])
+        with session.query_history() as history:
+            df.collect()
+        assert len(history.queries) == 4
+        assert history.queries[0].sql_text.startswith(
+            "CREATE  OR  REPLACE  SCOPED TEMPORARY"
+        )
+        assert history.queries[1].sql_text.startswith(
+            "INSERT  INTO SNOWPARK_TEMP_TABLE"
+        )
+        assert history.queries[2].sql_text.startswith('SELECT "A", "B" FROM')
+        assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+
+        session.conf.set("collect_stacktrace_in_query_tag", True)
+        with session.query_history() as history:
+            df.collect()
+        assert len(history.queries) == 6
+        assert history.queries[0].sql_text.startswith(
+            "CREATE  OR  REPLACE  SCOPED TEMPORARY"
+        )
+        assert history.queries[1].sql_text.startswith("alter session set query_tag")
+        assert history.queries[2].sql_text.startswith(
+            "INSERT  INTO SNOWPARK_TEMP_TABLE"
+        )
+        assert history.queries[3].sql_text.startswith("alter session unset query_tag")
+        assert history.queries[4].sql_text.startswith('SELECT "A", "B" FROM')
+        assert history.queries[5].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+        session.conf.set(
+            "collect_stacktrace_in_query_tag", original_collect_stacktrace_in_query_tag
+        )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]
@@ -234,9 +284,19 @@ def test_create_session_in_sp(session):
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
-        with pytest.raises(SnowparkSessionException) as exec_info:
-            Session(session._conn)
-        assert exec_info.value.error_code == "1410"
+        if not session._conn._get_client_side_session_parameter(
+            "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
+        ):
+            with pytest.raises(SnowparkSessionException) as exec_info:
+                Session(session._conn)
+            assert exec_info.value.error_code == "1410"
+        with patch.object(
+            session._conn, "_get_client_side_session_parameter", return_value=True
+        ):
+            try:
+                Session(session._conn)
+            except SnowparkSessionException as e:
+                pytest.fail(f"Unexpected exception {e} was raised")
     finally:
         internal_utils.PLATFORM = original_platform
 

@@ -6,6 +6,7 @@
 import functools
 import threading
 from enum import Enum, unique
+import time
 from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection
@@ -15,7 +16,11 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanState,
+    get_complexity_score,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
@@ -30,6 +35,13 @@ from snowflake.snowpark._internal.utils import (
     is_in_stored_procedure,
     is_interactive,
 )
+
+try:
+    import psutil
+
+    PS_UTIL_AVAILABLE = True
+except ImportError:
+    PS_UTIL_AVAILABLE = False
 
 
 @unique
@@ -59,6 +71,11 @@ class TelemetryField(Enum):
     KEY_DURATION = "duration"
     KEY_FUNC_NAME = "func_name"
     KEY_MSG = "msg"
+    KEY_WALL_TIME = "wall_time"
+    KEY_CPU_TIME = "cpu_time"
+    KEY_NETWORK_SENT_KIB = "network_bytes_sent_kib"
+    KEY_NETWORK_RECV_KIB = "network_bytes_recv_kib"
+    KEY_MEMORY_RSS_KIB = "memory_rss_kib"
     KEY_ERROR_MSG = "error_msg"
     KEY_VERSION = "version"
     KEY_PYTHON_VERSION = "python_version"
@@ -79,6 +96,7 @@ class TelemetryField(Enum):
     FUNC_CAT_CREATE = "create"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
+    PERF_CAT_DATA_SOURCE = "data_source"
     # optimizations
     SESSION_ID = "session_id"
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
@@ -105,14 +123,97 @@ class TelemetryField(Enum):
 API_CALLS_TO_ADJUST = {
     "to_df": 1,
     "select_expr": 1,
-    "drop": 1,
     "agg": 2,
-    "distinct": 2,
     "with_column": 1,
     "with_columns": 1,
     "with_column_renamed": 1,
 }
 APIS_WITH_MULTIPLE_CALLS = list(API_CALLS_TO_ADJUST.keys())
+
+
+class ResourceUsageCollector:
+    """
+    A context manager to collect resource usage metrics such as CPU time, wall time, and memory usage.
+    """
+
+    RESOURCE_USAGE_KEYS = frozenset(
+        [
+            TelemetryField.KEY_WALL_TIME.value,
+            TelemetryField.KEY_CPU_TIME.value,
+            TelemetryField.KEY_NETWORK_SENT_KIB.value,
+            TelemetryField.KEY_NETWORK_RECV_KIB.value,
+            TelemetryField.KEY_MEMORY_RSS_KIB.value,
+        ]
+    )
+
+    def __init__(self) -> None:
+        pass
+
+    def __enter__(self):
+        try:
+            self._start_time = time.time()
+            self._start_cpu_time = time.process_time()
+            if PS_UTIL_AVAILABLE:
+                self._start_net_io_counters = psutil.net_io_counters()
+                self._start_rss = psutil.Process().memory_info().rss
+        except Exception:
+            pass
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            self._end_time = time.time()
+            self._end_cpu_time = time.process_time()
+            if PS_UTIL_AVAILABLE:
+                self._end_net_io_counters = psutil.net_io_counters()
+                self._end_rss = psutil.Process().memory_info().rss
+        except Exception:
+            pass
+
+    def get_resource_usage(self) -> Dict[str, Any]:
+        """
+        Returns:
+            A dictionary containing the resource usage metrics.
+        """
+        try:
+            resource_usage = {}
+            wall_time = self._end_time - self._start_time
+            cpu_time = self._end_cpu_time - self._start_cpu_time
+            resource_usage = {
+                TelemetryField.KEY_WALL_TIME.value: wall_time,
+                TelemetryField.KEY_CPU_TIME.value: cpu_time,
+            }
+            if PS_UTIL_AVAILABLE:
+                network_sent = (
+                    self._end_net_io_counters.bytes_sent
+                    - self._start_net_io_counters.bytes_sent
+                ) / 1024.0
+                network_recv = (
+                    self._end_net_io_counters.bytes_recv
+                    - self._start_net_io_counters.bytes_recv
+                ) / 1024.0
+                memory_rss = (self._end_rss - self._start_rss) / 1024.0
+                resource_usage.update(
+                    {
+                        TelemetryField.KEY_NETWORK_SENT_KIB.value: network_sent,
+                        TelemetryField.KEY_NETWORK_RECV_KIB.value: network_recv,
+                        TelemetryField.KEY_MEMORY_RSS_KIB.value: memory_rss,
+                    }
+                )
+        except Exception:
+            pass
+
+        return resource_usage
+
+    @staticmethod
+    def aggregate_usage_from_subcalls(subcalls: List[Dict]) -> Dict:
+        resource_usage = {}
+        for subcall in subcalls:
+            for key, value in subcall.items():
+                if key in ResourceUsageCollector.RESOURCE_USAGE_KEYS:
+                    resource_usage[key] = resource_usage.get(key, 0) + value
+        return resource_usage
 
 
 # Adjust API calls into subcalls for certain APIs that call other APIs
@@ -122,6 +223,7 @@ def adjust_api_subcalls(
     len_subcalls: Optional[int] = None,
     precalls: Optional[List[Dict]] = None,
     subcalls: Optional[List[Dict]] = None,
+    resource_usage: Optional[Dict] = None,
 ) -> None:
     plan = df._select_statement or df._plan
     if len_subcalls:
@@ -140,11 +242,19 @@ def adjust_api_subcalls(
                 TelemetryField.KEY_SUBCALLS.value: [*subcalls],
             },
         ]
+    # Overwrite the resource usage metrics if the function is
+    # provided with its own resource usage metrics otherwise
+    # aggregate this info from the subcalls
+    if resource_usage is None:
+        subcalls = plan.api_calls[-1].get(TelemetryField.KEY_SUBCALLS.value, [])
+        resource_usage = ResourceUsageCollector.aggregate_usage_from_subcalls(subcalls)
+    plan.api_calls[-1].update(resource_usage)
 
 
-def add_api_call(df, func_name: str) -> None:
+def add_api_call(df, func_name: str, resource_usage: Optional[Dict] = None) -> None:
     plan = df._select_statement or df._plan
-    plan.api_calls.append({TelemetryField.NAME.value: func_name})
+    resource_usage = resource_usage or {}
+    plan.api_calls.append({TelemetryField.NAME.value: func_name, **resource_usage})
 
 
 def set_api_call_source(df, func_name: str) -> None:
@@ -170,48 +280,31 @@ def safe_telemetry(func):
 def df_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        with args[0]._session.query_history() as query_history:
-            result = func(*args, **kwargs)
+        session = args[0]._session
+        resource_usage = dict()
+        with session.query_history() as query_history:
+            try:
+                with ResourceUsageCollector() as resource_usage_collector:
+                    result = func(*args, **kwargs)
+                resource_usage = resource_usage_collector.get_resource_usage()
+            finally:
+                if not session._collect_snowflake_plan_telemetry_at_critical_path:
+                    session._conn._telemetry_client.send_plan_metrics_telemetry(
+                        session_id=session.session_id,
+                        data=get_plan_telemetry_metrics(args[0]._plan),
+                    )
         plan = args[0]._select_statement or args[0]._plan
         api_calls = [
             *plan.api_calls,
-            {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
+            {TelemetryField.NAME.value: f"DataFrame.{func.__name__}", **resource_usage},
         ]
         # The first api call will indicate following:
         # - sql simplifier is enabled.
-        # - height of the query plan
-        # - number of unique duplicate subtrees in the query plan
-        api_calls[0][TelemetryField.SQL_SIMPLIFIER_ENABLED.value] = args[
-            0
-        ]._session.sql_simplifier_enabled
-        try:
-            plan_state = plan.plan_state
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value
-            ] = plan_state[PlanState.PLAN_HEIGHT]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
-            ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
-            ] = plan_state[PlanState.NUM_CTE_NODES]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
-            ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
-
-            # The uuid for df._select_statement can be different from df._plan. Since plan
-            # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
-            # to track the queries.
-            uuid = args[0]._plan.uuid
-            api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
-            api_calls[0][CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
-                key.value: value
-                for key, value in plan.cumulative_node_complexity.items()
-            }
-            api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
-        except Exception:
-            pass
-        args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
+        api_calls[0][
+            TelemetryField.SQL_SIMPLIFIER_ENABLED.value
+        ] = session.sql_simplifier_enabled
+        api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
+        session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
             api_calls=api_calls,
@@ -225,16 +318,28 @@ def df_collect_api_telemetry(func):
 def dfw_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        with args[0]._dataframe._session.query_history() as query_history:
-            result = func(*args, **kwargs)
+        session = args[0]._dataframe._session
+        resource_usage = dict()
+        with session.query_history() as query_history:
+            try:
+                with ResourceUsageCollector() as resource_usage_collector:
+                    result = func(*args, **kwargs)
+                resource_usage = resource_usage_collector.get_resource_usage()
+            finally:
+                if not session._collect_snowflake_plan_telemetry_at_critical_path:
+                    session._conn._telemetry_client.send_plan_metrics_telemetry(
+                        session_id=session.session_id,
+                        data=get_plan_telemetry_metrics(args[0]._dataframe._plan),
+                    )
         plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
         api_calls = [
             *plan.api_calls,
-            {TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}"},
+            {
+                TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}",
+                **resource_usage,
+            },
         ]
-        args[
-            0
-        ]._dataframe._session._conn._telemetry_client.send_function_usage_telemetry(
+        session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
             api_calls=api_calls,
@@ -248,7 +353,8 @@ def dfw_collect_api_telemetry(func):
 def df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        r = func(*args, **kwargs)
+        with ResourceUsageCollector() as resource_usage_collector:
+            r = func(*args, **kwargs)
         plan = r._select_statement or r._plan
         # Some DataFrame APIs call other DataFrame APIs, so we need to remove the extra call
         if (
@@ -264,11 +370,15 @@ def df_api_usage(func):
                 {
                     TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
                     TelemetryField.KEY_SUBCALLS.value: subcalls,
+                    **resource_usage_collector.get_resource_usage(),
                 }
             )
         elif plan is not None:
             plan.api_calls.append(
-                {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
+                {
+                    TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
+                    **resource_usage_collector.get_resource_usage(),
+                }
             )
         return r
 
@@ -278,8 +388,12 @@ def df_api_usage(func):
 def df_to_relational_group_df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        r = func(*args, **kwargs)
-        r._df_api_call = {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"}
+        with ResourceUsageCollector() as resource_usage_collector:
+            r = func(*args, **kwargs)
+        r._df_api_call = {
+            TelemetryField.NAME.value: f"DataFrame.{func.__name__}",
+            **resource_usage_collector.get_resource_usage(),
+        }
         return r
 
     return wrap
@@ -289,16 +403,52 @@ def df_to_relational_group_df_api_usage(func):
 def relational_group_df_api_usage(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        r = func(*args, **kwargs)
+        with ResourceUsageCollector() as resource_usage_collector:
+            r = func(*args, **kwargs)
         plan = r._select_statement or r._plan
         if args[0]._df_api_call:
             plan.api_calls.append(args[0]._df_api_call)
         plan.api_calls.append(
-            {TelemetryField.NAME.value: f"RelationalGroupedDataFrame.{func.__name__}"}
+            {
+                TelemetryField.NAME.value: f"RelationalGroupedDataFrame.{func.__name__}",
+                **resource_usage_collector.get_resource_usage(),
+            }
         )
         return r
 
     return wrap
+
+
+def get_plan_telemetry_metrics(plan: SnowflakePlan) -> Dict[str, Any]:
+    data = {}
+    try:
+        data[CompilationStageTelemetryField.PLAN_UUID.value] = plan.uuid
+        # plan state
+        plan_state = plan.plan_state
+        data[CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value] = plan_state[
+            PlanState.PLAN_HEIGHT
+        ]
+        data[
+            CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
+        ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
+        data[
+            CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+        ] = plan_state[PlanState.NUM_CTE_NODES]
+        data[
+            CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
+        ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
+
+        # plan complexity score
+        data[CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
+            key.value: value for key, value in plan.cumulative_node_complexity.items()
+        }
+        data[
+            CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value
+        ] = get_complexity_score(plan)
+    except Exception as e:
+        data[CompilationStageTelemetryField.ERROR_MESSAGE.value] = str(e)
+
+    return data
 
 
 class TelemetryClient:
@@ -348,22 +498,50 @@ class TelemetryClient:
         self.send(message)
 
     @safe_telemetry
-    def send_upload_file_perf_telemetry(
-        self, func_name: str, duration: float, sfqid: str
+    def send_performance_telemetry(
+        self, category: str, func_name: str, duration: float, sfqid: str = None
     ):
+        """
+        Sends performance telemetry data.
+
+        Parameters:
+            category (str): The category of the telemetry (upload file or data source).
+            func_name (str): The name of the function.
+            duration (float): The duration of the operation.
+            sfqid (str, optional): The SFQID for upload file category. Defaults to None.
+        """
         message = {
             **self._create_basic_telemetry_data(
                 TelemetryField.TYPE_PERFORMANCE_DATA.value
             ),
             TelemetryField.KEY_DATA.value: {
-                PCTelemetryField.KEY_SFQID.value: sfqid,
-                TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_UPLOAD_FILE.value,
+                TelemetryField.KEY_CATEGORY.value: category,
                 TelemetryField.KEY_FUNC_NAME.value: func_name,
                 TelemetryField.KEY_DURATION.value: duration,
                 TelemetryField.THREAD_IDENTIFIER.value: threading.get_ident(),
+                **({PCTelemetryField.KEY_SFQID.value: sfqid} if sfqid else {}),
             },
         }
         self.send(message)
+
+    @safe_telemetry
+    def send_upload_file_perf_telemetry(
+        self, func_name: str, duration: float, sfqid: str
+    ):
+        self.send_performance_telemetry(
+            category=TelemetryField.PERF_CAT_UPLOAD_FILE.value,
+            func_name=func_name,
+            duration=duration,
+            sfqid=sfqid,
+        )
+
+    @safe_telemetry
+    def send_data_source_perf_telemetry(self, func_name: str, duration: float):
+        self.send_performance_telemetry(
+            category=TelemetryField.PERF_CAT_DATA_SOURCE.value,
+            func_name=func_name,
+            duration=duration,
+        )
 
     @safe_telemetry
     def send_function_usage_telemetry(
@@ -479,6 +657,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_COMPILATION_STAGE_STATS.value,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 **compilation_stage_summary,
             },
@@ -494,9 +673,25 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_COMPILATION_STAGE_ERROR.value,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 CompilationStageTelemetryField.ERROR_TYPE.value: error_type,
                 CompilationStageTelemetryField.ERROR_MESSAGE.value: error_message,
+            },
+        }
+        self.send(message)
+
+    def send_plan_metrics_telemetry(
+        self, session_id: int, data: Dict[str, Any]
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_SNOWFLAKE_PLAN_METRICS.value,
+                **data,
             },
         }
         self.send(message)

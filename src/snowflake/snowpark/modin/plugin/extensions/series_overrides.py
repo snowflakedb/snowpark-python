@@ -181,21 +181,70 @@ def factorize(
     pass  # pragma: no cover
 
 
-@register_series_not_implemented()
+@register_series_accessor("hist")
 def hist(
     self,
     by=None,
     ax=None,
-    grid=True,
-    xlabelsize=None,
-    xrot=None,
-    ylabelsize=None,
-    yrot=None,
-    figsize=None,
-    bins=10,
-    **kwds,
+    grid: bool = True,
+    xlabelsize: int | None = None,
+    xrot: float | None = None,
+    ylabelsize: int | None = None,
+    yrot: float | None = None,
+    figsize: tuple[int, int] | None = None,
+    bins: int | Sequence[int] = 10,
+    backend: str | None = None,
+    legend: bool = False,
+    **kwargs,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    if bins is None:
+        bins = 10
+
+    # Get the query compiler representing the histogram data to be plotted.
+    # Along with the query compiler, also get the minimum and maximum values in the input series, and the computed bin size.
+    (
+        new_query_compiler,
+        min_val,
+        max_val,
+        bin_size,
+    ) = self._query_compiler.hist_on_series(
+        by=by,
+        xlabelsize=xlabelsize,
+        xrot=xrot,
+        ylabelsize=ylabelsize,
+        yrot=yrot,
+        figsize=figsize,
+        bins=bins,
+        backend=backend,
+        legend=legend,
+        **kwargs,
+    )
+
+    # Convert the result to native pandas in preparation for plotting it using Matplotlib's bar chart.
+    # Note that before converting to native pandas, the data had already been reduced in the previous step.
+    native_ser = self.__constructor__(query_compiler=new_query_compiler)._to_pandas()
+
+    # Ensure that we have enough rows in the series corresponding to all bins, even if some of them are empty.
+    native_ser_reindexed = native_ser.reindex(
+        native_pd.Index(np.linspace(min_val, max_val, bins + 1)),
+        method="nearest",
+        tolerance=bin_size / 3,
+    ).fillna(0)
+
+    # Prepare the visualization parameters to be used for rendering the bar chart.
+    import matplotlib.pyplot as plt
+
+    fig = kwargs.pop(
+        "figure", plt.gcf() if plt.get_fignums() else plt.figure(figsize=figsize)
+    )
+    if ax is None:
+        ax = fig.gca()
+    ax.grid(grid)
+    counts = native_ser_reindexed.to_list()[0:-1]
+    vals = native_ser_reindexed.index.to_list()[0:-1]
+    bar_labels = vals
+    ax.bar(vals, counts, label=bar_labels, width=bin_size, align="edge")
+    return ax
 
 
 @register_series_not_implemented()
@@ -286,7 +335,6 @@ def to_period(self, freq=None, copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
-@register_series_not_implemented()
 def to_string(
     self,
     buf=None,
@@ -300,7 +348,21 @@ def to_string(
     max_rows=None,
     min_rows=None,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    WarningMessage.single_warning(
+        "Series.to_string materializes data to the local machine."
+    )
+    return self._to_pandas().to_string(
+        buf=buf,
+        na_rep=na_rep,
+        float_format=float_format,
+        header=header,
+        index=index,
+        length=length,
+        dtype=dtype,
+        name=name,
+        max_rows=max_rows,
+        min_rows=min_rows,
+    )
 
 
 @register_series_not_implemented()
@@ -952,7 +1014,6 @@ def __rtruediv__(self, left):
 
 
 register_series_accessor("__iadd__")(__add__)
-# In upstream modin, imul is typo'd to be __add__ instead of __mul__
 register_series_accessor("__imul__")(__mul__)
 register_series_accessor("__ipow__")(__pow__)
 register_series_accessor("__isub__")(__sub__)
@@ -1045,26 +1106,6 @@ def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, 
     if not is_integer(result):  # if result is None, return -1
         result = -1
     return result
-
-
-# Modin uses the same implementation as Snowpark pandas starting form 0.31.0.
-# Until then, upstream Modin does not convert arguments in the caselist into query compilers.
-@register_series_accessor("case_when")
-def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
-    """
-    Replace values where the conditions are True.
-    """
-    modin_type = type(self)
-    caselist = [
-        tuple(
-            data._query_compiler if isinstance(data, modin_type) else data
-            for data in case_tuple
-        )
-        for case_tuple in caselist
-    ]
-    return self.__constructor__(
-        query_compiler=self._query_compiler.case_when(caselist=caselist)
-    )
 
 
 # Upstream Modin has a bug:

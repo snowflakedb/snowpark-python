@@ -1,0 +1,268 @@
+## TEST CASE
+
+df1 = session.create_dataframe(
+    [
+        ["foo", "The quick brown fox jumps over the lazy dog"],
+        ["bar", "Lorem ipsum dolor sit amet, consectetur adipiscing elit"],
+    ],
+    schema=["name", "text"],
+)
+
+df2 = df1.join_table_function("STRTOK_SPLIT_TO_TABLE", df1["text"], lit(" "))
+
+# The following part of the tests is impossible to execute in the mock environment.
+
+# tokenize_text = (
+#     call_table_function("STRTOK_SPLIT_TO_TABLE", df1["text"], lit(" "))
+#     .over(partition_by="name")
+#     .over(order_by="text")
+#     .alias("ignored1", "ignored2", "ignored3")
+#     .alias("original_row_number", "token_number", "token")
+# )
+
+# df3 = df1.join_table_function(tokenize_text)
+
+# tokenize_text_ref = table_function("STRTOK_SPLIT_TO_TABLE")
+# df4 = df1.join_table_function(
+#     tokenize_text_ref(df1["text"], lit(" "))
+#     .over(partition_by="name", order_by="text")
+#     .alias("original_row_number", "token_number", "token")
+# )
+
+# df5 = df1.join_table_function(
+#     tokenize_text_ref(df1["text"], lit(" ,"))
+#     .over(partition_by="name", order_by="text")
+#     .alias("row_number", "token_number", "token")
+# )
+
+## EXPECTED UNPARSER OUTPUT
+
+df1 = session.create_dataframe([["foo", "The quick brown fox jumps over the lazy dog"], ["bar", "Lorem ipsum dolor sit amet, consectetur adipiscing elit"]], schema=["name", "text"])
+
+df2 = df1.join_table_function("STRTOK_SPLIT_TO_TABLE", df1["text"], lit(" "))
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 9
+                  end_line: 31
+                  file: 2
+                  start_column: 14
+                  start_line: 25
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 31
+                      file: 2
+                      start_column: 14
+                      start_line: 25
+                    }
+                    v: "foo"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 31
+                      file: 2
+                      start_column: 14
+                      start_line: 25
+                    }
+                    v: "The quick brown fox jumps over the lazy dog"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 9
+                  end_line: 31
+                  file: 2
+                  start_column: 14
+                  start_line: 25
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 31
+                      file: 2
+                      start_column: 14
+                      start_line: 25
+                    }
+                    v: "bar"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 31
+                      file: 2
+                      start_column: 14
+                      start_line: 25
+                    }
+                    v: "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "name"
+            vs: "text"
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 25
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_join_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_name_ref {
+                name {
+                  name {
+                    name_flat {
+                      name: "STRTOK_SPLIT_TO_TABLE"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              dataframe_col {
+                col_name: "text"
+                df {
+                  dataframe_ref {
+                    id: 1
+                  }
+                }
+                src {
+                  end_column: 74
+                  end_line: 33
+                  file: 2
+                  start_column: 63
+                  start_line: 33
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 84
+                      end_line: 33
+                      file: 2
+                      start_column: 76
+                      start_line: 33
+                    }
+                    v: " "
+                  }
+                }
+                src {
+                  end_column: 84
+                  end_line: 33
+                  file: 2
+                  start_column: 76
+                  start_line: 33
+                }
+              }
+            }
+            src {
+              end_column: 85
+              end_line: 33
+              file: 2
+              start_column: 14
+              start_line: 33
+            }
+          }
+        }
+        lhs {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 85
+          end_line: 33
+          file: 2
+          start_column: 14
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

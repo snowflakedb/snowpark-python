@@ -107,7 +107,9 @@ def test_groupby_with_callable_and_array(basic_snowpark_pandas_df, by) -> None:
 @sql_count_checker(query_count=0)
 def test_timeseries_groupby_with_callable(tsframe):
     snow_ts_df = pd.DataFrame(tsframe)
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(
+        AttributeError, match="'SeriesGroupBy' object has no attribute np.percentile"
+    ):
         snow_ts_df.groupby(lambda x: x.month).agg(np.percentile, 80, axis=0)
 
 
@@ -161,39 +163,37 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
         param(
             np.argmin,
             {},
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation np.argmin with the given arguments",
+            "'SeriesGroupBy' object has no attribute np.argmin",
             id="numpy_aggregation_function",
         ),
         param(
             sensitive_function_name,
             {},
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation Callable with the given arguments",
+            "'SeriesGroupBy' object has no attribute Callable",
             id="user_defined_function",
         ),
         param(
             [sensitive_function_name, "size"],
             {},
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            "'SeriesGroupBy' object has no attribute Callable",
             id="list_with_user_defined_function_and_string",
         ),
         param(
             (sensitive_function_name, "size"),
             {},
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            "'SeriesGroupBy' object has no attribute Callable",
             id="tuple_with_user_defined_function_and_string",
         ),
         param(
             {sensitive_function_name, "size"},
             {},
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation \\[Callable, 'size'\\]|\\['size', Callable\\] with the given arguments",
+            "'SeriesGroupBy' object has no attribute Callable",
             id="set_with_user_defined_function_and_string",
         ),
         param(
             (all, any, len, list, min, max, set, str, tuple, native_pd.Series.sum),
             {},
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation "
-            + "\\['all', 'any', <built-in function len>, list, 'min', 'max', set, str, tuple, Callable]"
-            + " with the given arguments",
+            "'SeriesGroupBy' object has no attribute list",
             id="tuple_with_builtins_and_native_pandas_function",
         ),
         param(
@@ -204,9 +204,7 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
                 "col5": [np.mean, "size"],
             },
             {},
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation "
-            + "{label: Callable, label: 'sum', label: 'size', label: \\[np.mean, 'size'\\]}"
-            + " with the given arguments",
+            "'SeriesGroupBy' object has no attribute Callable",
             id="dict",
         ),
         param(
@@ -215,9 +213,7 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
                 "new_col": ("col2", sensitive_function_name),
                 "new_col2": pd.NamedAgg("col3", sum),
             },
-            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation "
-            + "new_label=\\(label, Callable\\), new_label=\\(label, <built-in function sum>\\)"
-            + " with the given arguments",
+            "'SeriesGroupBy' object has no attribute Callable",
             id="named_agg",
         ),
     ],
@@ -226,7 +222,7 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
 def test_groupby_agg_unsupported_function_SNOW_1305464(
     basic_snowpark_pandas_df, func, kwargs, error_pattern
 ):
-    with pytest.raises(NotImplementedError, match=error_pattern):
+    with pytest.raises(AttributeError, match=error_pattern):
         basic_snowpark_pandas_df.groupby("col1").agg(func, **kwargs)
 
 
@@ -266,25 +262,10 @@ def test_groupby_level_mapper(mapper, level):
 @sql_count_checker(query_count=0)
 def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, agg_name, by):
     snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-    msg = f"Snowpark pandas GroupBy.aggregate does not yet support the aggregation '{agg_name}' with the given arguments"
-    with pytest.raises(NotImplementedError, match=msg):
-        grp_agg(snowpark_pandas_group)
-
-
-@pytest.mark.parametrize(
-    "by, query_count",
-    [
-        (native_pd.Grouper(key="col1"), 0),
-        (["col5", native_pd.Grouper(key="col1")], 1),
-    ],
-)
-def test_grouper_unsupported(basic_snowpark_pandas_df, by, query_count):
-    with SqlCounter(query_count=query_count):
-        snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-        with pytest.raises(
-            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
-        ):
-            snowpark_pandas_group.max()
+    with pytest.raises(
+        AttributeError, match=f"'SeriesGroupBy' object has no attribute '{agg_name}'"
+    ):
+        getattr(grp_agg(snowpark_pandas_group), agg_name)()
 
 
 @sql_count_checker(query_count=0)

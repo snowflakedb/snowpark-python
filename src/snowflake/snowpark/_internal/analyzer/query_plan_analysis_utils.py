@@ -28,6 +28,7 @@ class PlanNodeCategory(Enum):
     UNPIVOT = "unpivot"
     WINDOW = "window"
     GROUP_BY = "group_by"
+    DISTINCT = "distinct"
     PARTITION_BY = "partition_by"
     CASE_WHEN = "case_when"
     LITERAL = "literal"  # cover all literals like numbers, constant strings, etc

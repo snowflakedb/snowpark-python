@@ -282,7 +282,6 @@ def to_orc(self, path=None, *, engine="pyarrow", index=None, engine_kwargs=None)
     pass  # pragma: no cover
 
 
-@register_dataframe_not_implemented()
 def to_html(
     self,
     buf=None,
@@ -309,7 +308,10 @@ def to_html(
     render_links=False,
     encoding=None,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    WarningMessage.single_warning(
+        "DataFrame.to_html materializes data to the local machine."
+    )
+    return self._to_pandas().to_html
 
 
 @register_dataframe_not_implemented()
@@ -338,6 +340,54 @@ def to_records(
     self, index=True, column_dtypes=None, index_dtypes=None
 ):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
+
+
+def to_string(
+    self,
+    buf=None,
+    columns=None,
+    col_space=None,
+    header=True,
+    index=True,
+    na_rep="NaN",
+    formatters=None,
+    float_format=None,
+    sparsify=None,
+    index_names=True,
+    justify=None,
+    max_rows=None,
+    min_rows=None,
+    max_cols=None,
+    show_dimensions=False,
+    decimal=".",
+    line_width=None,
+    max_colwidth=None,
+    encoding=None,
+):  # noqa: PR01, RT01, D200
+    WarningMessage.single_warning(
+        "DataFrame.to_string materializes data to the local machine."
+    )
+    return self._to_pandas().to_string(
+        buf=buf,
+        columns=columns,
+        col_space=col_space,
+        header=header,
+        index=index,
+        na_rep=na_rep,
+        formatters=formatters,
+        float_format=float_format,
+        sparsify=sparsify,
+        index_names=index_names,
+        justify=justify,
+        max_rows=max_rows,
+        min_rows=min_rows,
+        max_cols=max_cols,
+        show_dimensions=show_dimensions,
+        decimal=decimal,
+        line_width=line_width,
+        max_colwidth=max_colwidth,
+        encoding=encoding,
+    )
 
 
 @register_dataframe_not_implemented()
@@ -1014,27 +1064,19 @@ def groupby(
             (
                 (hashable(o) and (o in self))
                 or isinstance(o, Series)
+                or (isinstance(o, native_pd.Grouper) and o.key in self)
                 or (is_list_like(o) and len(o) == len(self.shape[axis]))
             )
             for o in by
         ):
-            # plit 'by's into those that belongs to the self (internal_by)
-            # and those that doesn't (external_by). For SnowSeries that belongs
-            # to current DataFrame, we convert it to labels for easy process.
-            internal_by, external_by = [], []
-
-            for current_by in by:
-                if hashable(current_by):
-                    internal_by.append(current_by)
-                elif isinstance(current_by, Series):
-                    if current_by._parent is self:
-                        internal_by.append(current_by.name)
-                    else:
-                        external_by.append(current_by)  # pragma: no cover
-                else:
-                    external_by.append(current_by)
-
-            by = internal_by + external_by
+            # OSS modin needs to determine which `by` keys come from self and which do not,
+            # but we defer this decision to a lower layer to preserve lazy evaluation semantics.
+            by = [
+                current_by.name
+                if isinstance(current_by, Series) and current_by._parent is self
+                else current_by
+                for current_by in by
+            ]
 
     return DataFrameGroupBy(
         self,

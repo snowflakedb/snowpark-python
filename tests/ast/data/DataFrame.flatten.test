@@ -10,7 +10,7 @@ df2 = df.flatten(col("NUM"), recursive=True, mode="ARRAY")
 
 df = session.table("table1")
 
-df1 = df.flatten("STR", Some("path"), True, False, "BOTH")
+df1 = df.flatten("STR", "path", True, False, "BOTH")
 
 df2 = df.flatten(col("NUM"), None, False, True, "ARRAY")
 
@@ -26,12 +26,12 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -44,28 +44,24 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_flatten {
+      dataframe_flatten {
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         input {
@@ -81,7 +77,7 @@ body {
           }
         }
         mode {
-          sp_flatten_mode_both: true
+          flatten_mode_both: true
         }
         outer: true
         path {
@@ -96,24 +92,20 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df1"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_flatten {
+      dataframe_flatten {
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         input {
@@ -122,7 +114,7 @@ body {
               builtin_fn {
                 name {
                   name {
-                    sp_name_flat {
+                    name_flat {
                       name: "col"
                     }
                   }
@@ -151,7 +143,7 @@ body {
           }
         }
         mode {
-          sp_flatten_mode_array: true
+          flatten_mode_array: true
         }
         recursive: true
         src {
@@ -163,13 +155,11 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df2"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 client_ast_version: 1
@@ -185,5 +175,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 32
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

@@ -288,12 +288,13 @@ class TestApplyOrMapCallable:
                 ),
             },
         ]
-        with SqlCounter(query_count=2):
+        with SqlCounter(query_count=3):
             snow_df = create_snow_df_with_table_and_data(
                 session,
                 random_name_for_temp_object(TempObjectType.TABLE),
                 [ColumnSchema("col", VariantType())],
                 [[e] for e in data],
+                enforce_ordering=True,
             )
 
         expected_types = [

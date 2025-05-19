@@ -346,6 +346,21 @@ class AggFuncInfo(NamedTuple):
     post_agg_pandas_label: Optional[Hashable] = None
 
 
+class AggregationSupportResult(NamedTuple):
+    """
+    Information needed to return the first unsupported aggregate function if any.
+    """
+
+    # Whether the function is supported for aggregation in snowflake.
+    is_valid: bool
+
+    # The unsupported function used for aggregation.
+    unsupported_function: str
+
+    # The kwargs for the unsupported function.
+    unsupported_kwargs: dict[str, Any]
+
+
 def _columns_coalescing_min(*cols: SnowparkColumn) -> Callable:
     """
     Computes the minimum value in each row, skipping NaN values. If all values in a row are NaN,
@@ -840,7 +855,7 @@ def _is_supported_snowflake_agg_func(
     agg_kwargs: dict[str, Any],
     axis: Literal[0, 1],
     _is_df_agg: bool = False,
-) -> bool:
+) -> AggregationSupportResult:
     """
     check if the aggregation function is supported with snowflake. Current supported
     aggregation functions are the functions that can be mapped to snowflake builtin function.
@@ -850,13 +865,22 @@ def _is_supported_snowflake_agg_func(
         agg_kwargs: keyword argument passed for the aggregation function, such as ddof, min_count etc.
                     The value can be different for different aggregation functions.
     Returns:
-        is_valid: bool. Whether it is valid to implement with snowflake or not.
+        is_valid: bool. Whether the function is supported for aggregation in snowflake.
+        unsupported_function: str. The unsupported function used for aggregation.
+        unsupported_kwargs: dict. The kwargs for the unsupported function
     """
     if isinstance(agg_func, tuple) and len(agg_func) == 2:
         # For named aggregations, like `df.agg(new_col=("old_col", "sum"))`,
         # take the second part of the named aggregation.
         agg_func = agg_func[0]
-    return get_snowflake_agg_func(agg_func, agg_kwargs, axis, _is_df_agg) is not None
+
+    if get_snowflake_agg_func(agg_func, agg_kwargs, axis, _is_df_agg) is None:
+        return AggregationSupportResult(
+            is_valid=False, unsupported_function=agg_func, unsupported_kwargs=agg_kwargs
+        )
+    return AggregationSupportResult(
+        is_valid=True, unsupported_function="", unsupported_kwargs={}
+    )
 
 
 def _are_all_agg_funcs_supported_by_snowflake(
@@ -864,19 +888,36 @@ def _are_all_agg_funcs_supported_by_snowflake(
     agg_kwargs: dict[str, Any],
     axis: Literal[0, 1],
     _is_df_agg: bool = False,
-) -> bool:
+) -> AggregationSupportResult:
     """
     Check if all aggregation functions in the given list are snowflake supported
     aggregation functions.
 
     Returns:
-        True if all functions in the list are snowflake supported aggregation functions, otherwise,
-        return False.
+        is_valid: bool. Whether it is valid to implement with snowflake or not.
+        unsupported_function: str. The unsupported function used for aggregation.
+        unsupported_kwargs: dict. The kwargs for the unsupported function.
     """
-    return all(
-        _is_supported_snowflake_agg_func(func, agg_kwargs, axis, _is_df_agg)
-        for func in agg_funcs
+    is_supported_bools: list[bool] = []
+    unsupported_list: list[str] = []
+    unsupported_kwargs_list: list[dict[str, Any]] = []
+    for func in agg_funcs:
+        (
+            is_supported,
+            unsupported_func,
+            unsupported_kwargs,
+        ) = _is_supported_snowflake_agg_func(func, agg_kwargs, axis, _is_df_agg)
+        is_supported_bools.append(is_supported)
+        if not is_supported:
+            unsupported_list.append(unsupported_func)
+            unsupported_kwargs_list.append(unsupported_kwargs)
+
+    unsupported_func = unsupported_list[0] if len(unsupported_list) > 0 else ""
+    unsupported_kwargs = (
+        unsupported_kwargs_list[0] if len(unsupported_kwargs_list) > 0 else {}
     )
+    is_valid = all(is_supported_bools)
+    return AggregationSupportResult(is_valid, unsupported_func, unsupported_kwargs)
 
 
 def check_is_aggregation_supported_in_snowflake(
@@ -884,7 +925,7 @@ def check_is_aggregation_supported_in_snowflake(
     agg_kwargs: dict[str, Any],
     axis: Literal[0, 1],
     _is_df_agg: bool = False,
-) -> bool:
+) -> AggregationSupportResult:
     """
     check if distributed implementation with snowflake is available for the aggregation
     based on the input arguments.
@@ -896,29 +937,57 @@ def check_is_aggregation_supported_in_snowflake(
         _is_df_agg: whether or not this is being called by df.agg, since some functions are only supported
                     for groupby_agg.
     Returns:
-        bool
-            Whether the aggregation operation can be executed with snowflake sql engine.
+        is_supported_func: bool. Whether it is valid to implement with snowflake or not.
+        unsupported_func: str. The unsupported function used for aggregation.
+        unsupported_kwargs: dict. The kwargs for the unsupported function.
     """
     # validate agg_func, only snowflake builtin agg function or dict of snowflake builtin agg
     # function can be implemented in distributed way.
+    # If there are multiple unsupported functions, the first unsupported function will be returned.
+    unsupported_func = ""
+    unsupported_kwargs: dict[str, Any] = {}
+    is_supported_func = True
     if is_dict_like(agg_func):
-        return all(
-            (
-                _are_all_agg_funcs_supported_by_snowflake(
+        for value in agg_func.values():
+            if is_list_like(value) and not is_named_tuple(value):
+                (
+                    is_supported_func,
+                    unsupported_func,
+                    unsupported_kwargs,
+                ) = _are_all_agg_funcs_supported_by_snowflake(
                     value, agg_kwargs, axis, _is_df_agg
                 )
-                if is_list_like(value) and not is_named_tuple(value)
-                else _is_supported_snowflake_agg_func(
+
+            else:
+                (
+                    is_supported_func,
+                    unsupported_func,
+                    unsupported_kwargs,
+                ) = _is_supported_snowflake_agg_func(
                     value, agg_kwargs, axis, _is_df_agg
                 )
-            )
-            for value in agg_func.values()
-        )
+            if not is_supported_func:
+                return AggregationSupportResult(
+                    is_supported_func, unsupported_func, unsupported_kwargs
+                )
+
     elif is_list_like(agg_func):
-        return _are_all_agg_funcs_supported_by_snowflake(
+        (
+            is_supported_func,
+            unsupported_func,
+            unsupported_kwargs,
+        ) = _are_all_agg_funcs_supported_by_snowflake(
             agg_func, agg_kwargs, axis, _is_df_agg
         )
-    return _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, _is_df_agg)
+    else:
+        (
+            is_supported_func,
+            unsupported_func,
+            unsupported_kwargs,
+        ) = _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, _is_df_agg)
+    return AggregationSupportResult(
+        is_supported_func, unsupported_func, unsupported_kwargs
+    )
 
 
 def _is_snowflake_numeric_type_required(snowflake_agg_func: Callable) -> bool:

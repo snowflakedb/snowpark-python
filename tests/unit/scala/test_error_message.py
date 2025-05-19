@@ -55,17 +55,16 @@ def test_df_cannot_drop_all_columns():
 
 
 def test_df_cannot_resolve_column_name_among():
-    col_name = "C1"
-    all_columns = ", ".join(["A1", "B1", "D1"])
+    left_columns = {"C1"}
+    right_columns = {"A1"}
     ex = SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
-        col_name, all_columns
+        left_columns, right_columns
     )
     assert type(ex) == SnowparkColumnException
     assert ex.error_code == "1102"
-    assert (
-        ex.message
-        == f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
-        f"not a column in the other DataFrame ({all_columns})."
+    assert ex.message == (
+        "Cannot union the DataFrames by column names. (C1) is in the right hand side, "
+        "but not the left. (A1) is in the left hand side, but not the right."
     )
 
 

@@ -3,8 +3,8 @@
 name: Daily Snowpark pandas API test with Py3.11 and Py3.12
 on:
   schedule:
-    # 10 AM UTC
-    - cron: "0 10 * * *"
+    # 15 AM UTC
+    - cron: "0 15 * * *"
   workflow_dispatch:
       inputs:
         logLevel:
