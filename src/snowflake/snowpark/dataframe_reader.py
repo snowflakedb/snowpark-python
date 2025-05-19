@@ -879,6 +879,15 @@ class DataFrameReader:
 
               + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
                 The default value is '_corrupt_record'.
+
+              + ``stripNamespaces``: remove namespace prefixes from XML element names when constructing result column names.
+                The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
+                it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
+                For example, for the following XML data with a row tag ``abc:def``:
+                ```
+                <abc:def><abc:xyz>0</abc:xyz></abc:def>
+                ```
+                the result column name is ``abc:xyz`` where ``abc`` is not stripped.
         """
         df = self._read_semi_structured_file(path, "XML")
 
@@ -1144,7 +1153,7 @@ class DataFrameReader:
                 handler_name,
                 output_schema=output_schema,
                 input_types=input_types,
-                packages=["snowflake-snowpark-python"],
+                packages=["snowflake-snowpark-python", "lxml<6"],
                 replace=True,
             )
         else:
