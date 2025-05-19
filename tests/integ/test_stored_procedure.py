@@ -2013,7 +2013,7 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
         file_path,
         "artifact_repo_test",
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        packages=["urllib3", "requests"],
+        packages=["urllib3", "requests", "snowflake-snowpark-python"],
     )
     assert artifact_repo_sproc(session=session) == "test"
 
