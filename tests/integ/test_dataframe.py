@@ -2933,15 +2933,15 @@ def test_describe(session):
         TestData.test_data2(session).describe("c")
 
     Utils.check_answer(
-        session.create_dataframe(list(range(10))).describe(
+        session.create_dataframe([str(e) for e in range(10)]).describe(
             strings_include_math_stats=True,
         ),
         [
-            Row("stddev", 3.0276504091456795),
-            Row("count", 10.0),
-            Row("max", 9.0),
-            Row("mean", 4.5),
-            Row("min", 0.0),
+            Row("count", "10"),
+            Row("min", "0"),
+            Row("stddev", "3.027650354"),
+            Row("mean", "4.5"),
+            Row("max", "9"),
         ],
     )
 
