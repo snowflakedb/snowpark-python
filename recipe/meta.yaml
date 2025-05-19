@@ -47,7 +47,7 @@ requirements:
     - python >=3.11,<3.12.0a0
     {% elif noarch_build and py == 312 %}
     - python >=3.12,<3.13.0a0
-    { % elif noarch_build and py == 313 % }
+    {% elif noarch_build and py == 313 %}
     - python >=3.13,<3.14.0a0
     {% else %}
     - python
