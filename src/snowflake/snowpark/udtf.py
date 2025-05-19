@@ -590,7 +590,6 @@ class UDTFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         artifact_repository: Optional[str] = None,
-        artifact_repository_packages: Optional[List[str]] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
@@ -674,10 +673,8 @@ class UDTFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is created
                 using CREATE OR REPLACE FUNCTION.
-            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
-                parameter will search for packages in.
-            artifact_repository_packages: A list of packages to search for within the pypi repository
-                set in the above parameter.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
@@ -733,7 +730,6 @@ class UDTFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 artifact_repository=artifact_repository,
-                artifact_repository_packages=artifact_repository_packages,
                 resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
@@ -766,7 +762,6 @@ class UDTFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
         artifact_repository: Optional[str] = None,
-        artifact_repository_packages: Optional[List[str]] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
@@ -853,10 +848,8 @@ class UDTFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is created
                 using CREATE OR REPLACE FUNCTION.
-            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
-                parameter will search for packages in.
-            artifact_repository_packages: A list of packages to search for within the pypi repository
-                set in the above parameter.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
@@ -911,7 +904,6 @@ class UDTFRegistration:
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
                 artifact_repository=artifact_repository,
-                artifact_repository_packages=artifact_repository_packages,
                 resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
@@ -945,7 +937,6 @@ class UDTFRegistration:
         is_permanent: bool = False,
         copy_grants: bool = False,
         artifact_repository: Optional[str] = None,
-        artifact_repository_packages: Optional[List[str]] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
@@ -1064,6 +1055,7 @@ class UDTFRegistration:
             statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
+            artifact_repository=artifact_repository,
         )
 
         runtime_version_from_requirement = None
@@ -1106,7 +1098,6 @@ class UDTFRegistration:
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
                 artifact_repository=artifact_repository,
-                artifact_repository_packages=artifact_repository_packages,
                 resource_constraint=resource_constraint,
             )
         # an exception might happen during registering a udtf

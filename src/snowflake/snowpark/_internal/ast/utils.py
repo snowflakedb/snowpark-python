@@ -1144,7 +1144,6 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     immutable: bool = False,
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
@@ -1214,12 +1213,6 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         ast.comment.value = comment
     if artifact_repository is not None:
         ast.artifact_repository.value = artifact_repository
-    if (
-        artifact_repository_packages is not None
-        and len(artifact_repository_packages) != 0
-    ):
-        for package in artifact_repository_packages:
-            ast.artifact_repository_packages.append(package)
     if resource_constraint is not None and len(resource_constraint) != 0:
         for k, v in resource_constraint.items():
             t = ast.resource_constraint.add()
@@ -1250,7 +1243,6 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     immutable: bool = False,
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
@@ -1314,12 +1306,6 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         ast.comment.value = comment
     if artifact_repository is not None:
         ast.artifact_repository.value = artifact_repository
-    if (
-        artifact_repository_packages is not None
-        and len(artifact_repository_packages) != 0
-    ):
-        for package in artifact_repository_packages:
-            ast.artifact_repository_packages.append(package)
     if resource_constraint is not None and len(resource_constraint) != 0:
         for k, v in resource_constraint.items():
             t = ast.resource_constraint.add()
@@ -1355,7 +1341,6 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     immutable: bool = False,
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
@@ -1429,12 +1414,6 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         ast.comment.value = comment
     if artifact_repository is not None:
         ast.artifact_repository.value = artifact_repository
-    if (
-        artifact_repository_packages is not None
-        and len(artifact_repository_packages) != 0
-    ):
-        for package in artifact_repository_packages:
-            ast.artifact_repository_packages.append(package)
     if resource_constraint is not None and len(resource_constraint) != 0:
         for k, v in resource_constraint.items():
             t = ast.resource_constraint.add()
@@ -1494,7 +1473,6 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     source_code_display: bool = True,
     is_permanent: bool = False,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
     session: "snowflake.snowpark.session.Session" = None,
     _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
@@ -1560,12 +1538,6 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
         ast.comment.value = comment
     if artifact_repository is not None:
         ast.artifact_repository.value = artifact_repository
-    if (
-        artifact_repository_packages is not None
-        and len(artifact_repository_packages) != 0
-    ):
-        for package in artifact_repository_packages:
-            ast.artifact_repository_packages.append(package)
     if resource_constraint is not None and len(resource_constraint) != 0:
         for k, v in resource_constraint.items():
             t = ast.resource_constraint.add()
