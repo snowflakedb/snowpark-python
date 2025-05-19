@@ -201,6 +201,8 @@ ICEBERG = " ICEBERG "
 ICEBERG_VERSION = "ICEBERG_VERSION"
 RENAME_FIELDS = " RENAME FIELDS"
 ADD_FIELDS = " ADD FIELDS"
+NEW_LINE = "\n"
+TAB = "    "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -386,9 +388,13 @@ def lateral_statement(lateral_expression: str, child: str) -> str:
         + STAR
         + FROM
         + LEFT_PARENTHESIS
-        + child
+        + NEW_LINE
+        + TAB
+        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
         + RIGHT_PARENTHESIS
         + COMMA
+        + NEW_LINE
         + LATERAL
         + lateral_expression
     )
@@ -421,10 +427,14 @@ def join_table_function_statement(
         + select_cols
         + FROM
         + LEFT_PARENTHESIS
-        + child
+        + NEW_LINE
+        + TAB
+        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
         + RIGHT_PARENTHESIS
         + AS
         + LEFT_ALIAS
+        + NEW_LINE
         + JOIN
         + table(func)
         + AS
@@ -457,13 +467,16 @@ def project_statement(project: List[str], child: str, is_distinct: bool = False)
         + f"{STAR if not project else COMMA.join(project)}"
         + FROM
         + LEFT_PARENTHESIS
-        + child
+        + NEW_LINE
+        + TAB
+        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
         + RIGHT_PARENTHESIS
     )
 
 
 def filter_statement(condition: str, child: str) -> str:
-    return project_statement([], child) + WHERE + condition
+    return project_statement([], child) + NEW_LINE + WHERE + condition
 
 
 def sample_statement(
@@ -500,7 +513,19 @@ def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> st
     PERCENT_RANK_COL = random_name_for_temp_object(TempObjectType.COLUMN)
     LEFT_ALIAS = "SNOWPARK_LEFT"
     RIGHT_ALIAS = "SNOWPARK_RIGHT"
-    child_with_percentage_rank_stmt = f"SELECT *, PERCENT_RANK() OVER (PARTITION BY {col} ORDER BY RANDOM()) AS {PERCENT_RANK_COL} FROM ({child})"
+    child_with_percentage_rank_stmt = (
+        SELECT
+        + STAR
+        + COMMA
+        + f"PERCENT_RANK() OVER (PARTITION BY {col} ORDER BY RANDOM()) AS {PERCENT_RANK_COL}"
+        + FROM
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
+        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
+        + RIGHT_PARENTHESIS
+    )
 
     # PERCENT_RANK assigns values between 0.0 - 1.0 both inclusive. In our, query we only
     # select values where percent_rank <= value. If value = 0, then we will select one sample
@@ -510,10 +535,30 @@ def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> st
     fraction_flatten_stmt = f"SELECT KEY, VALUE FROM TABLE(FLATTEN(input => parse_json('{json.dumps(updated_fractions)}')))"
 
     return (
-        f"{SELECT} {LEFT_ALIAS}.* EXCLUDE {PERCENT_RANK_COL} {FROM} ({child_with_percentage_rank_stmt}) {LEFT_ALIAS}"
-        f"{JOIN} ({fraction_flatten_stmt}) {RIGHT_ALIAS}"
-        f"{ON} {LEFT_ALIAS}.{col} = {RIGHT_ALIAS}.KEY"
-        f"{WHERE} {LEFT_ALIAS}.{PERCENT_RANK_COL} <= {RIGHT_ALIAS}.VALUE"
+        SELECT
+        + f"{LEFT_ALIAS}.* EXCLUDE {PERCENT_RANK_COL}"
+        + FROM
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
+        + child_with_percentage_rank_stmt.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
+        + RIGHT_PARENTHESIS
+        + AS
+        + LEFT_ALIAS
+        + JOIN
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
+        + fraction_flatten_stmt.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
+        + RIGHT_PARENTHESIS
+        + AS
+        + RIGHT_ALIAS
+        + ON
+        + f"{LEFT_ALIAS}.{col} = {RIGHT_ALIAS}.KEY"
+        + WHERE
+        + f"{LEFT_ALIAS}.{PERCENT_RANK_COL} <= {RIGHT_ALIAS}.VALUE"
     )
 
 
@@ -525,12 +570,12 @@ def aggregate_statement(
     return project_statement(aggregate_exprs, child) + (
         limit_expression(1)
         if not grouping_exprs
-        else (GROUP_BY + COMMA.join(grouping_exprs))
+        else (NEW_LINE + GROUP_BY + COMMA.join(grouping_exprs))
     )
 
 
 def sort_statement(order: List[str], child: str) -> str:
-    return project_statement([], child) + ORDER_BY + COMMA.join(order)
+    return project_statement([], child) + NEW_LINE + ORDER_BY + COMMA.join(order)
 
 
 def range_statement(start: int, end: int, step: int, column_name: str) -> str:
@@ -1284,10 +1329,16 @@ def pivot_statement(
         + select_str
         + FROM
         + LEFT_PARENTHESIS
-        + child
+        + NEW_LINE
+        + TAB
+        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
         + RIGHT_PARENTHESIS
+        + NEW_LINE
         + PIVOT
         + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
         + aggregate
         + FOR
         + pivot_column
@@ -1298,6 +1349,7 @@ def pivot_statement(
             if default_on_null
             else EMPTY_STRING
         )
+        + NEW_LINE
         + RIGHT_PARENTHESIS
     )
 
@@ -1314,11 +1366,17 @@ def unpivot_statement(
         + STAR
         + FROM
         + LEFT_PARENTHESIS
-        + child
+        + NEW_LINE
+        + TAB
+        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
         + RIGHT_PARENTHESIS
+        + NEW_LINE
         + UNPIVOT
         + (INCLUDE_NULLS if include_nulls else EMPTY_STRING)
         + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
         + value_column
         + FOR
         + name_column
@@ -1326,6 +1384,7 @@ def unpivot_statement(
         + LEFT_PARENTHESIS
         + COMMA.join(column_list)
         + RIGHT_PARENTHESIS
+        + NEW_LINE
         + RIGHT_PARENTHESIS
     )
 
@@ -1336,11 +1395,17 @@ def rename_statement(column_map: Dict[str, str], child: str) -> str:
         + STAR
         + RENAME
         + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
         + COMMA.join([f"{before}{AS}{after}" for before, after in column_map.items()])
+        + NEW_LINE
         + RIGHT_PARENTHESIS
         + FROM
         + LEFT_PARENTHESIS
-        + child
+        + NEW_LINE
+        + TAB
+        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
         + RIGHT_PARENTHESIS
     )
 
@@ -1422,7 +1487,11 @@ def copy_into_table(
         + column_str
         + FROM
         + from_str
-        + (PATTERN + EQUALS + single_quote(pattern) if pattern else EMPTY_STRING)
+        + (
+            NEW_LINE + PATTERN + EQUALS + single_quote(pattern)
+            if pattern
+            else EMPTY_STRING
+        )
         + files_str
         + ftostr
         + costr
@@ -1590,10 +1659,15 @@ def merge_statement(
         + table_name
         + USING
         + LEFT_PARENTHESIS
-        + source
+        + NEW_LINE
+        + TAB
+        + source.replace(NEW_LINE, NEW_LINE + TAB)
+        + NEW_LINE
         + RIGHT_PARENTHESIS
+        + NEW_LINE
         + ON
         + join_expr
+        + NEW_LINE
         + EMPTY_STRING.join(clauses)
     )
 
@@ -1873,9 +1947,11 @@ def write_arrow(
         target_table_location = build_location_helper(
             database,
             schema,
-            random_name_for_temp_object(TempObjectType.TABLE)
-            if (overwrite and auto_create_table)
-            else table_name,
+            (
+                random_name_for_temp_object(TempObjectType.TABLE)
+                if (overwrite and auto_create_table)
+                else table_name
+            ),
             quote_identifiers,
         )
 
