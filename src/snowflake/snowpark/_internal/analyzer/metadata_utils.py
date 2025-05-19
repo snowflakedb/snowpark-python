@@ -200,7 +200,9 @@ def infer_metadata(
 
         # If attributes is available, we always set quoted_identifiers to None
         # as it can be retrieved later from attributes
-        if attributes is not None:
+        if attributes is not None and quoted_identifiers is not None:
+            if missing := set(quoted_identifiers) - {a.name for a in attributes}:
+                raise ValueError(missing)
             quoted_identifiers = None
 
     return PlanMetadata(attributes=attributes, quoted_identifiers=quoted_identifiers)

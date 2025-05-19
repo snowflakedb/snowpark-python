@@ -478,3 +478,7 @@ def test_update_schema_query_when_attributes_available(session):
     )
     if should_simplify:
         assert df._plan.schema_query == simplified_schema_query2
+
+
+def test_metadata_errors(session):
+    pass
