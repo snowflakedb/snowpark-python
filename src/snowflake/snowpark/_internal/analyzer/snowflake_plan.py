@@ -1332,7 +1332,9 @@ class SnowflakePlanBuilder:
                 return plan
         plan_2_resolve = None
         for node in plan.children_plan_nodes:
-            plan_2_resolve = self.find_table_function_in_sql_tree(node)
+            plan_2_resolve = (
+                self.find_table_function_in_sql_tree(node) or plan_2_resolve
+            )
         if plan_2_resolve:
             return self.session._analyzer.resolve(
                 plan.snowflake_plan.source_plan
@@ -1357,8 +1359,12 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
-        child = copy.deepcopy(child)
-        child = self.find_table_function_in_sql_tree(child)
+        child_find_table_function = copy.deepcopy(child)
+        child_find_table_function = self.find_table_function_in_sql_tree(
+            child_find_table_function
+        )
+        if child_find_table_function is not None:
+            child = child_find_table_function
 
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
