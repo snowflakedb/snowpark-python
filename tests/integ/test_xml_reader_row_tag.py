@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import json
 import pytest
 
 from snowflake.snowpark import Row
@@ -22,6 +23,8 @@ test_file_nested_xml = "nested.xml"
 test_file_malformed_no_closing_tag_xml = "malformed_no_closing_tag.xml"
 test_file_malformed_not_self_closing_xml = "malformed_not_self_closing.xml"
 test_file_malformed_record_xml = "malformed_record.xml"
+test_file_xml_declared_namespace = "declared_namespace.xml"
+test_file_xml_undeclared_namespace = "undeclared_namespace.xml"
 
 # Global stage name for uploading test files
 tmp_stage_name = Utils.random_stage_name()
@@ -68,6 +71,18 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name,
         test_files.test_malformed_record_xml,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_xml_declared_namespace,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_xml_undeclared_namespace,
         compress=False,
     )
 
@@ -208,3 +223,70 @@ def test_read_xml_row_tag_not_found(session):
         SnowparkDataframeReaderException, match="Cannot find the row tag"
     ):
         df.filter(lit(True)).collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+def test_read_xml_declared_namespace(session):
+    row_tag = "px:root"
+    expected_items = [
+        {"_id": "1", "name": "Item One", "value": "100"},
+        {"_id": "2", "name": "Item Two", "value": "200"},
+    ]
+    expected_data = json.dumps(expected_items, indent=2)
+
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("stripNamespaces", True)
+        .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
+    )
+    result = df.collect()
+    assert len(result) == 1
+    # Namespaces should be stripped
+    assert result[0]["'item'"] == expected_data
+
+    expected_items_with_ns = [
+        {
+            "_id": "1",
+            "{http://example.com/px}name": "Item One",
+            "{http://example.com/px}value": "100",
+        },
+        {
+            "_id": "2",
+            "{http://example.com/px}name": "Item Two",
+            "{http://example.com/px}value": "200",
+        },
+    ]
+    expected_data = json.dumps(expected_items_with_ns, indent=2)
+
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("stripNamespaces", False)
+        .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
+    )
+    result = df.collect()
+    assert len(result) == 1
+    # Namespaces should be replaced with URI
+    assert result[0]["'{http://example.com/px}item'"] == expected_data
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="xml not supported in local testing mode",
+)
+@pytest.mark.parametrize("strip_namespaces", [True, False])
+def test_read_xml_undeclared_namespace(session, strip_namespaces):
+    # Read with undeclared namespace, stripNamespaces=true and false should have the same result
+    # Prefixes without declarations should remain as they don't follow {namespace}tag format
+    row_tag = "px:item"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("stripNamespaces", strip_namespaces)
+        .xml(f"@{tmp_stage_name}/{test_file_xml_undeclared_namespace}")
+    )
+    result = df.collect()
+    assert len(result) == 2
+    assert result[0]["'px:name'"] in ['"Item One"', '"Item Two"']
+    assert result[1]["'px:value'"] in ['"100"', '"200"']
