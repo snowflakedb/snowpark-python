@@ -1,5 +1,9 @@
 {% set name = "snowflake-snowpark-python" %}
+<<<<<<< HEAD
 {% set version = "1.32.0" %}
+=======
+{% set version = "9.31.2" %}
+>>>>>>> 468387c0 (Update the version number in meta.yaml for conda build issue troubleshoot)
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 
 package:
