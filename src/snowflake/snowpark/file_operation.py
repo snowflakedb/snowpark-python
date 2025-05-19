@@ -19,20 +19,8 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     result_set_to_rows,
     split_path,
+    validate_stage_location,
 )
-
-
-def _validate_stage_location(stage_location: str) -> str:
-    stage_location = stage_location.strip()
-    if not stage_location:
-        raise ValueError(
-            "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
-        )
-    if stage_location[-1] == "/":
-        raise ValueError(
-            "stage_location should end with target filename like @mystage/prefix/stage/filename"
-        )
-    return stage_location
 
 
 class PutResult(NamedTuple):
@@ -255,7 +243,7 @@ class FileOperation:
         Returns:
             An object of :class:`PutResult` which represents the results of an uploaded file.
         """
-        stage_location = _validate_stage_location(stage_location)
+        stage_location = validate_stage_location(stage_location)
         cursor = self._session._conn._cursor
         if is_in_stored_procedure():  # pragma: no cover
             try:
@@ -324,7 +312,7 @@ class FileOperation:
             An ``BytesIO`` object which points to the downloaded file.
         """
         # check stage location has a file name
-        stage_location = _validate_stage_location(stage_location)
+        stage_location = validate_stage_location(stage_location)
         if is_in_stored_procedure():  # pragma: no cover
             try:
                 return self._session._conn._cursor._download_stream(

@@ -150,7 +150,7 @@ def test_quantile_datetime_negative():
         snow_ser.quantile()
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_quantile_large():
     q = np.linspace(0, 1, 16)
     eval_snowpark_pandas_result(

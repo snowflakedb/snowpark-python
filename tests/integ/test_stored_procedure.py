@@ -4,11 +4,14 @@
 #
 
 import datetime
+import pkg_resources
 import logging
 import os
 import re
+import sys
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
+from textwrap import dedent
 
 import pytest
 
@@ -248,17 +251,19 @@ def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(col("a"))
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(current_date())
     assert "Invalid argument types for function" in str(
-        ex_info
-    ) or "Unexpected type" in str(ex_info)
+        ex_info.value
+    ) or "Unexpected type" in str(ex_info.value)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(lit(""))
-    assert "not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
+    assert "not recognized" in str(ex_info.value) or "Unexpected type" in str(
+        ex_info.value
+    )
 
 
 def test_stored_procedure_with_column_datatype(session, local_testing_mode):
@@ -344,6 +349,17 @@ def test_call_named_stored_procedure(
         finally:
             new_session.close()
             # restore active session
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_infer_table_type_is_skipped_for_system_procedures(session):
+    with session.query_history() as history:
+        session.call("system$wait", 1)
+
+    assert len(history.queries) == 1
 
 
 @pytest.mark.skipif(
@@ -1048,7 +1064,7 @@ def test_sp_negative(session, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.call("f", 1).collect()
 
-    assert "Unknown function" in str(ex_info)
+    assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         sproc(
@@ -1057,7 +1073,7 @@ def test_sp_negative(session, local_testing_mode):
             input_types=[IntegerType()],
             name="invalid name",
         )
-    assert "The object name 'invalid name' is invalid" in str(ex_info)
+    assert "The object name 'invalid name' is invalid" in str(ex_info.value)
 
     # incorrect data type
     int_sp = sproc(
@@ -1065,11 +1081,13 @@ def test_sp_negative(session, local_testing_mode):
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp("x")
-    assert "is not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
+    assert "is not recognized" in str(ex_info.value) or "Unexpected type" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp(None)
-    assert "Python Interpreter Error" in str(ex_info)
+    assert "Python Interpreter Error" in str(ex_info.value)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1488,7 +1506,7 @@ def test_sp_replace(session):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
         )
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     # Expect second sp version to still be there.
     assert add_sp(1, 2) == 4
@@ -1696,7 +1714,7 @@ def test_register_sp_no_commit(session):
         session._run_query(f"drop procedure if exists {perm_sp_name}(int)")
 
 
-@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller", "restricted caller"])
 def test_execute_as_options(session, execute_as):
     """Make sure that a stored procedure can be run with any EXECUTE AS option."""
 
@@ -1713,7 +1731,7 @@ def test_execute_as_options(session, execute_as):
     assert return1_sp() == 1
 
 
-@pytest.mark.parametrize("execute_as", [None, "owner", "caller"])
+@pytest.mark.parametrize("execute_as", [None, "owner", "caller", "restricted caller"])
 def test_execute_as_options_while_registering_from_file(
     session, resources_path, tmpdir, execute_as
 ):
@@ -1927,3 +1945,178 @@ def test_register_sproc_after_switch_schema(session):
             Utils.drop_database(session, db)
         session.use_database(current_database)
         session.use_schema(current_schema)
+
+
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_sproc_artifact_repository(session):
+    def artifact_repo_test(_):
+        import urllib3
+
+        return str(urllib3.exceptions.HTTPError("test"))
+
+    artifact_repo_sproc = sproc(
+        artifact_repo_test,
+        session=session,
+        return_type=StringType(),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        packages=["urllib3", "requests"],
+    )
+    assert artifact_repo_sproc(session=session) == "test"
+
+    try:
+        artifact_repo_sproc = sproc(
+            artifact_repo_test,
+            session=session,
+            return_type=StringType(),
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex)
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_sproc_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import snowflake
+    import urllib3
+    from snowflake.snowpark import Session
+    def artifact_repo_test(session: snowflake.snowpark.Session) -> str:
+        return str(urllib3.exceptions.HTTPError("test"))
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_sproc.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    artifact_repo_sproc = session.sproc.register_from_file(
+        file_path,
+        "artifact_repo_test",
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        packages=["urllib3", "requests", "snowflake-snowpark-python"],
+    )
+    assert artifact_repo_sproc(session=session) == "test"
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="packages unavailable in stored proc",
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Packaging processing is a NOOP in Local Testing",
+    run=False,
+)
+@pytest.mark.parametrize(
+    "version_override, expect_warning",
+    [
+        ("1.27.1", False),  # Bugfix version - no warning
+        ("999.999.999", True),  # Major version change - expect warning
+    ],
+)
+def test_snowpark_python_bugfix_version_warning(
+    session, caplog, version_override, expect_warning
+):
+    def mock_get_distribution(version_override):
+        """Returns a function that mocks pkg_resources.get_distribution."""
+        original_get_distribution = (
+            pkg_resources.get_distribution
+        )  # Store original function
+
+        def _mock(package_name):
+            if package_name == "snowflake-snowpark-python":
+
+                class FakeDistribution:
+                    version = version_override  # Override only this package
+
+                return FakeDistribution()
+            return original_get_distribution(package_name)
+
+        return _mock
+
+    def run_test_case(caplog, version_override, expect_warning):
+        """Runs a test case with a given package version override and expected warning presence."""
+
+        def plus1(session_, x):
+            return x + 1
+
+        with patch(
+            "pkg_resources.get_distribution",
+            side_effect=mock_get_distribution(version_override),
+        ), caplog.at_level(logging.WARNING):
+            plus1_sp = sproc(
+                plus1,
+                return_type=IntegerType(),
+                input_types=[IntegerType()],
+                packages=["snowflake-snowpark-python==1.27.0"],
+            )
+            assert plus1_sp(lit(6)) == 7
+
+        assert (
+            "The version of package 'snowflake-snowpark-python' in the local"
+            in caplog.text
+        ) == expect_warning
+        caplog.clear()
+
+    run_test_case(caplog, version_override, expect_warning)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="data source is not supported in local testing",
+    run=False,
+)
+def test_datasource_put_file_and_copy_into_in_sproc(session):
+    # The tests session.file.put API as well as the COPY INTO sql executed inside stored proc
+    def upload_and_copy_into(session_):
+        from snowflake.snowpark._internal.utils import (
+            random_name_for_temp_object,
+            TempObjectType,
+        )
+
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+        session_.sql(f"CREATE TEMPORARY TABLE {table_name} (col INT)").collect()
+        session_.sql(f"CREATE TEMPORARY STAGE {stage_name}").collect()
+
+        file_name = "data.csv"
+        csv_filename = f"/tmp/{file_name}"
+        with open(csv_filename, "w") as file:
+            file.write("42\n")  # Sample data
+
+        session_.file.put(
+            csv_filename,
+            f"@{stage_name}",
+            overwrite=True,
+        )
+        session_.sql(
+            f"COPY INTO {table_name} FROM @{stage_name}/{file_name} FILE_FORMAT = (TYPE = CSV)"
+        ).collect()
+        if session_.table(table_name).collect() == [(42,)]:
+            return "success"
+        else:
+            return "failure"
+
+    # sproc execution
+    ingestion = sproc(upload_and_copy_into, return_type=StringType())
+    assert ingestion() == "success"

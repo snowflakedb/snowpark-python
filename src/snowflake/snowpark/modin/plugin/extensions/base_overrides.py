@@ -412,32 +412,6 @@ def to_pickle(
 
 
 @register_base_not_implemented()
-def to_string(
-    self,
-    buf=None,
-    columns=None,
-    col_space=None,
-    header=True,
-    index=True,
-    na_rep="NaN",
-    formatters=None,
-    float_format=None,
-    sparsify=None,
-    index_names=True,
-    justify=None,
-    max_rows=None,
-    min_rows=None,
-    max_cols=None,
-    show_dimensions=False,
-    decimal=".",
-    line_width=None,
-    max_colwidth=None,
-    encoding=None,
-):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def to_sql(
     self,
     name,
@@ -1042,7 +1016,7 @@ def _dropna(
             )
             check = indices == -1
             if check.any():
-                raise KeyError(list(np.compress(check, subset)))
+                raise KeyError([k.item() for k in np.compress(check, subset)])
 
     new_query_compiler = self._query_compiler.dropna(
         axis=axis,

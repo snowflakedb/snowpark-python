@@ -73,6 +73,8 @@ from snowflake.snowpark.types import (
     _FractionalType,
     _IntegralType,
     _NumericType,
+    FileType,
+    File,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -92,6 +94,8 @@ if installed_pandas:
     )
 
 if TYPE_CHECKING:
+    import snowflake.snowpark.column
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -162,9 +166,11 @@ def convert_metadata_to_sp_type(
             return StructType(
                 [
                     StructField(
-                        field.name
-                        if context._should_use_structured_type_semantics()
-                        else quote_name(field.name, keep_case=True),
+                        (
+                            field.name
+                            if context._should_use_structured_type_semantics()
+                            else quote_name(field.name, keep_case=True)
+                        ),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
                         _is_column=False,
@@ -198,12 +204,16 @@ def convert_sf_to_sp_type(
         return ArrayType(semi_structured_fill)
     if column_type_name == "VARIANT":
         return VariantType()
+    if context._should_use_structured_type_semantics() and column_type_name == "OBJECT":
+        return StructType()
     if column_type_name in {"OBJECT", "MAP"}:
         return MapType(semi_structured_fill, semi_structured_fill)
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
     if column_type_name == "GEOMETRY":
         return GeometryType()
+    if column_type_name == "FILE":
+        return FileType()
     if column_type_name == "BOOLEAN":
         return BooleanType()
     if column_type_name == "BINARY":
@@ -309,7 +319,7 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, StructType):
         if datatype.structured:
             fields = ", ".join(
-                f"{field.name} {convert_sp_to_sf_type(field.datatype)}"
+                f"{field.case_sensitive_name} {convert_sp_to_sf_type(field.datatype)}"
                 for field in datatype.fields
             )
             return f"OBJECT({fields})"
@@ -321,6 +331,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
         return "GEOGRAPHY"
     if isinstance(datatype, GeometryType):
         return "GEOMETRY"
+    if isinstance(datatype, FileType):
+        return "FILE"
     if isinstance(datatype, VectorType):
         return f"VECTOR({datatype.element_type},{datatype.dimension})"
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
@@ -352,6 +364,7 @@ if installed_pandas:
     )
 
 
+# TODO: these tuples of types can be used with isinstance, but not as a type-hints
 VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
     *PYTHON_TO_SNOW_TYPE_MAPPINGS.keys(),
     list,
@@ -364,6 +377,7 @@ VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
     ArrayType,
     MapType,
     VariantType,
+    FileType,
 )
 
 # Mapping Python array types to DataType
@@ -588,7 +602,7 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
             for k, v in curr_dict.items()
         }
 
-    if isinstance(tp, (GeometryType, GeographyType, VariantType)):
+    if isinstance(tp, (GeometryType, GeographyType, VariantType, FileType)):
         if value.strip() == "None":
             return None
         return value
@@ -678,6 +692,10 @@ def python_type_to_snow_type(
             if tp_args
             else None
         )
+        if (
+            key_type is None or value_type is None
+        ) and context._should_use_structured_type_semantics():
+            return StructType(), False
         return MapType(key_type, value_type), False
 
     if installed_pandas:
@@ -720,6 +738,9 @@ def python_type_to_snow_type(
     if tp == Geometry:
         return GeometryType(), False
 
+    if tp == File:
+        return FileType(), False
+
     if tp == Timestamp or tp_origin == Timestamp:
         if not tp_args:
             timezone = TimestampTimeZone.DEFAULT
@@ -752,6 +773,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             GeographyType,
             GeometryType,
             VariantType,
+            FileType,
         ),
     ):
         return snow_type.__class__.__name__[:-4].lower()

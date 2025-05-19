@@ -37,6 +37,7 @@ __all__ = [
     "QueryHistory",
     "QueryListener",
     "AsyncJob",
+    "StoredProcedureProfiler",
 ]
 
 
@@ -50,6 +51,7 @@ __version__ = ".".join(str(x) for x in VERSION if x is not None)
 
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions

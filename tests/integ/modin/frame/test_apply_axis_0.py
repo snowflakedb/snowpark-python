@@ -323,7 +323,7 @@ def test_axis_0_series_basic(apply_func, expected_join_count, expected_union_cou
         )
 
 
-@sql_count_checker(query_count=5, join_count=1, udtf_count=1)
+@sql_count_checker(query_count=4, join_count=1, udtf_count=1)
 def test_groupby_apply_constant_output():
     native_df = native_pd.DataFrame([1, 2])
     native_df["fg"] = 0

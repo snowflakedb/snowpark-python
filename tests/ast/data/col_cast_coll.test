@@ -41,7 +41,7 @@ df = df.select(col("A").cast(MapType(GeographyType(), VariantType(), structured=
 
 df = df.select(col("A").cast(VectorType(IntegerType(), 64)))
 
-df = df.select(col("A").cast(StructType([StructField("test1", StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField("test3", ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))
+df = df.select(col("A").cast(StructType(fields=[StructField(ColumnIdentifier("test1"), StringType(), nullable=False), StructField("test2", IntegerType(), nullable=True), StructField(ColumnIdentifier("test3"), ArrayType(LongType(), structured=False), nullable=True), StructField("test4", MapType(DecimalType(42, 23), VectorType(FloatType(), 64), structured=False), nullable=True)], structured=True)))
 
 ## EXPECTED ENCODED AST
 
@@ -55,12 +55,12 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -73,80 +73,79 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 27
-                      file: 2
-                      start_column: 23
-                      start_line: 27
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 27
+                        file: 2
+                        start_column: 23
+                        start_line: 27
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 27
+                    file: 2
+                    start_column: 23
+                    start_line: 27
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 27
-                  file: 2
-                  start_column: 23
-                  start_line: 27
-                }
               }
-            }
-            src {
-              end_column: 50
-              end_line: 27
-              file: 2
-              start_column: 23
-              start_line: 27
-            }
-            to {
-              sp_string_type {
-                length {
-                  value: 42
+              src {
+                end_column: 50
+                end_line: 27
+                file: 2
+                start_column: 23
+                start_line: 27
+              }
+              to {
+                string_type {
+                  length {
+                    value: 42
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -156,79 +155,77 @@ body {
           start_column: 13
           start_line: 27
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 29
-                      file: 2
-                      start_column: 23
-                      start_line: 29
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 29
+                        file: 2
+                        start_column: 23
+                        start_line: 29
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 29
+                    file: 2
+                    start_column: 23
+                    start_line: 29
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 29
-                  file: 2
-                  start_column: 23
-                  start_line: 29
-                }
               }
-            }
-            src {
-              end_column: 74
-              end_line: 29
-              file: 2
-              start_column: 23
-              start_line: 29
-            }
-            to {
-              sp_timestamp_type {
-                time_zone {
-                  sp_timestamp_time_zone_ntz: true
+              src {
+                end_column: 74
+                end_line: 29
+                file: 2
+                start_column: 23
+                start_line: 29
+              }
+              to {
+                timestamp_type {
+                  time_zone {
+                    timestamp_time_zone_ntz: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         src {
@@ -238,79 +235,77 @@ body {
           start_column: 13
           start_line: 29
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 31
-                      file: 2
-                      start_column: 23
-                      start_line: 31
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 31
+                        file: 2
+                        start_column: 23
+                        start_line: 31
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 31
+                    file: 2
+                    start_column: 23
+                    start_line: 31
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 31
-                  file: 2
-                  start_column: 23
-                  start_line: 31
-                }
               }
-            }
-            src {
-              end_column: 74
-              end_line: 31
-              file: 2
-              start_column: 23
-              start_line: 31
-            }
-            to {
-              sp_timestamp_type {
-                time_zone {
-                  sp_timestamp_time_zone_ltz: true
+              src {
+                end_column: 74
+                end_line: 31
+                file: 2
+                start_column: 23
+                start_line: 31
+              }
+              to {
+                timestamp_type {
+                  time_zone {
+                    timestamp_time_zone_ltz: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 3
-            }
+          dataframe_ref {
+            id: 3
           }
         }
         src {
@@ -320,79 +315,77 @@ body {
           start_column: 13
           start_line: 31
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 33
-                      file: 2
-                      start_column: 23
-                      start_line: 33
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 33
+                        file: 2
+                        start_column: 23
+                        start_line: 33
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 33
+                    file: 2
+                    start_column: 23
+                    start_line: 33
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 33
-                  file: 2
-                  start_column: 23
-                  start_line: 33
-                }
               }
-            }
-            src {
-              end_column: 73
-              end_line: 33
-              file: 2
-              start_column: 23
-              start_line: 33
-            }
-            to {
-              sp_timestamp_type {
-                time_zone {
-                  sp_timestamp_time_zone_tz: true
+              src {
+                end_column: 73
+                end_line: 33
+                file: 2
+                start_column: 23
+                start_line: 33
+              }
+              to {
+                timestamp_type {
+                  time_zone {
+                    timestamp_time_zone_tz: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 4
-            }
+          dataframe_ref {
+            id: 4
           }
         }
         src {
@@ -402,80 +395,78 @@ body {
           start_column: 13
           start_line: 33
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 35
-                      file: 2
-                      start_column: 23
-                      start_line: 35
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 35
+                        file: 2
+                        start_column: 23
+                        start_line: 35
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 35
+                    file: 2
+                    start_column: 23
+                    start_line: 35
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 35
-                  file: 2
-                  start_column: 23
-                  start_line: 35
-                }
               }
-            }
-            src {
-              end_column: 80
-              end_line: 35
-              file: 2
-              start_column: 23
-              start_line: 35
-            }
-            to {
-              sp_array_type {
-                structured: true
-                ty {
-                  sp_geometry_type: true
+              src {
+                end_column: 80
+                end_line: 35
+                file: 2
+                start_column: 23
+                start_line: 35
+              }
+              to {
+                array_type {
+                  structured: true
+                  ty {
+                    geometry_type: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 5
-            }
+          dataframe_ref {
+            id: 5
           }
         }
         src {
@@ -485,83 +476,81 @@ body {
           start_column: 13
           start_line: 35
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 37
-                      file: 2
-                      start_column: 23
-                      start_line: 37
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 37
+                        file: 2
+                        start_column: 23
+                        start_line: 37
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 37
+                    file: 2
+                    start_column: 23
+                    start_line: 37
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 37
-                  file: 2
-                  start_column: 23
-                  start_line: 37
-                }
               }
-            }
-            src {
-              end_column: 94
-              end_line: 37
-              file: 2
-              start_column: 23
-              start_line: 37
-            }
-            to {
-              sp_map_type {
-                key_ty {
-                  sp_geography_type: true
-                }
-                structured: true
-                value_ty {
-                  sp_variant_type: true
+              src {
+                end_column: 94
+                end_line: 37
+                file: 2
+                start_column: 23
+                start_line: 37
+              }
+              to {
+                map_type {
+                  key_ty {
+                    geography_type: true
+                  }
+                  structured: true
+                  value_ty {
+                    variant_type: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 6
-            }
+          dataframe_ref {
+            id: 6
           }
         }
         src {
@@ -571,80 +560,78 @@ body {
           start_column: 13
           start_line: 37
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 39
-                      file: 2
-                      start_column: 23
-                      start_line: 39
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 39
+                        file: 2
+                        start_column: 23
+                        start_line: 39
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 39
+                    file: 2
+                    start_column: 23
+                    start_line: 39
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 39
-                  file: 2
-                  start_column: 23
-                  start_line: 39
-                }
               }
-            }
-            src {
-              end_column: 57
-              end_line: 39
-              file: 2
-              start_column: 23
-              start_line: 39
-            }
-            to {
-              sp_vector_type {
-                dimension: 64
-                ty {
-                  sp_integer_type: true
+              src {
+                end_column: 57
+                end_line: 39
+                file: 2
+                start_column: 23
+                start_line: 39
+              }
+              to {
+                vector_type {
+                  dimension: 64
+                  ty {
+                    integer_type: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 7
-            }
+          dataframe_ref {
+            id: 7
           }
         }
         src {
@@ -654,118 +641,123 @@ body {
           start_column: 13
           start_line: 39
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_select__columns {
+      dataframe_select {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 41
-                      file: 2
-                      start_column: 23
-                      start_line: 41
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 41
+                        file: 2
+                        start_column: 23
+                        start_line: 41
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 41
+                    file: 2
+                    start_column: 23
+                    start_line: 41
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 41
-                  file: 2
-                  start_column: 23
-                  start_line: 41
-                }
               }
-            }
-            src {
-              end_column: 28
-              end_line: 46
-              file: 2
-              start_column: 23
-              start_line: 41
-            }
-            to {
-              sp_struct_type {
-                fields {
-                  list {
+              src {
+                end_column: 28
+                end_line: 46
+                file: 2
+                start_column: 23
+                start_line: 41
+              }
+              to {
+                struct_type {
+                  fields {
                     column_identifier {
-                      name: "test1"
+                      column_identifier {
+                        name: "test1"
+                      }
                     }
                     data_type {
-                      sp_string_type {
+                      string_type {
                         length {
                         }
                       }
                     }
                   }
-                  list {
+                  fields {
                     column_identifier {
-                      name: "test2"
+                      column_name {
+                        name: "test2"
+                      }
                     }
                     data_type {
-                      sp_integer_type: true
+                      integer_type: true
                     }
                     nullable: true
                   }
-                  list {
+                  fields {
                     column_identifier {
-                      name: "test3"
+                      column_identifier {
+                        name: "test3"
+                      }
                     }
                     data_type {
-                      sp_array_type {
+                      array_type {
                         ty {
-                          sp_long_type: true
+                          long_type: true
                         }
                       }
                     }
                     nullable: true
                   }
-                  list {
+                  fields {
                     column_identifier {
-                      name: "test4"
+                      column_name {
+                        name: "test4"
+                      }
                     }
                     data_type {
-                      sp_map_type {
+                      map_type {
                         key_ty {
-                          sp_decimal_type {
+                          decimal_type {
                             precision: 42
                             scale: 23
                           }
                         }
                         value_ty {
-                          sp_vector_type {
+                          vector_type {
                             dimension: 64
                             ty {
-                              sp_float_type: true
+                              float_type: true
                             }
                           }
                         }
@@ -773,17 +765,16 @@ body {
                     }
                     nullable: true
                   }
+                  structured: true
                 }
-                structured: true
               }
             }
           }
+          variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 8
-            }
+          dataframe_ref {
+            id: 8
           }
         }
         src {
@@ -793,16 +784,13 @@ body {
           start_column: 13
           start_line: 41
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 9
-    var_id {
-      bitfield1: 9
-    }
   }
 }
 client_ast_version: 1
@@ -818,5 +806,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 32
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

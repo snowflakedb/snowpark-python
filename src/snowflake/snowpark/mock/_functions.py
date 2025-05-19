@@ -236,11 +236,17 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(
         column.sf_type.datatype, _NumericType
     ):  # TODO: figure out where 5 is coming from
-        return ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
-    res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
+        res = ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
+    else:
+        res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
-            return ColumnEmulator(data=[None], sf_type=column.sf_type)
+            # If original column had na values then na is an expected output
+            column_has_na = (
+                column[column.apply(lambda x: x is not None)].isna().values.any()
+            )
+            if not column_has_na:
+                return ColumnEmulator(data=[None], sf_type=column.sf_type)
         return ColumnEmulator(data=res, sf_type=column.sf_type)
     except TypeError:  # math.isnan throws TypeError if res[0] is not a number
         return ColumnEmulator(data=res, sf_type=column.sf_type)
@@ -249,11 +255,17 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
 @patch("max")
 def mock_max(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(column.sf_type.datatype, _NumericType):
-        return ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
-    res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
+        res = ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
+    else:
+        res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
-            return ColumnEmulator(data=[None], sf_type=column.sf_type)
+            # If original column had na values then na is an expected output
+            column_has_na = (
+                column[column.apply(lambda x: x is not None)].isna().values.any()
+            )
+            if not column_has_na:
+                return ColumnEmulator(data=[None], sf_type=column.sf_type)
         return ColumnEmulator(data=res, sf_type=column.sf_type)
     except TypeError:
         return ColumnEmulator(data=res, sf_type=column.sf_type)
@@ -446,7 +458,7 @@ def mock_median(column: ColumnEmulator) -> ColumnEmulator:
     else:
         return_type = column.sf_type.datatype
     return ColumnEmulator(
-        data=round(column.median(), 5),
+        data=round(column.median(), 5) if column.size else [None],
         sf_type=ColumnType(return_type, column.sf_type.nullable),
     )
 
@@ -484,6 +496,15 @@ def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
         data=[list(columns_data.dropna())],
         sf_type=ColumnType(ArrayType(), False),
     )
+
+
+@patch("array_construct")
+def mock_array_construct(*columns):
+    if len(columns) == 0:
+        data = [[]]
+    else:
+        data = pandas.concat(columns, axis=1).apply(lambda x: list(x), axis=1)
+    return ColumnEmulator(data, sf_type=ColumnType(ArrayType(), False))
 
 
 @patch("listagg")
@@ -636,6 +657,22 @@ def mock_current_time(column_index):
     now = datetime.datetime.now()
     return ColumnEmulator(
         data=[now.time()] * len(column_index), sf_type=ColumnType(TimeType(), False)
+    )
+
+
+@patch("hour")
+def mock_hour(expr):
+    return ColumnEmulator(
+        data=[None if value is None else value.hour for value in expr],
+        sf_type=ColumnType(LongType(), False),
+    )
+
+
+@patch("minute")
+def mock_minute(expr):
+    return ColumnEmulator(
+        data=[None if value is None else value.minute for value in expr],
+        sf_type=ColumnType(LongType(), False),
     )
 
 
@@ -907,7 +944,11 @@ def _to_timestamp(
 
     import dateutil.parser
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    fmt = (
+        ColumnEmulator([fmt] * len(column), index=column.index)
+        if not isinstance(fmt, ColumnEmulator)
+        else fmt
+    )
 
     def convert_timestamp(row):
         _fmt = fmt[row.name]
@@ -1061,6 +1102,7 @@ def mock_to_timestamp_ntz(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 
@@ -1080,6 +1122,7 @@ def mock_to_timestamp_ltz(
             TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 
@@ -1097,6 +1140,7 @@ def mock_to_timestamp_tz(
             TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 
@@ -2031,7 +2075,7 @@ def mock_get(
 ) -> ColumnEmulator:
     def get(obj, key):
         try:
-            if isinstance(obj, list):
+            if isinstance(obj, list) and key < len(obj):
                 return obj[key]
             elif isinstance(obj, dict):
                 return obj.get(key, None)
@@ -2166,10 +2210,36 @@ def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator
 
 
 def _rank(raw_input, dense=False):
-    method = "dense" if dense else "min"
-    return (
-        raw_input[raw_input.sorted_by].apply(tuple, 1).rank(method=method).astype(int)
-    )
+    """
+    Returns a series containing the rank of a row within an ordered TableEmulator.
+    Args:
+        raw_input: The TableEmulator to apply the rank to.
+        dense: When dense is false ranks are skipped when there are repeated values. When set to true
+            ranks are not skipped. eg.
+            -----------------------------------
+            |"VALUE"  |"RANK"  |"DENSE_RANK"  |
+            -----------------------------------
+            |1        |1       |1             |
+            |1        |1       |1             |
+            |2        |3       |2             |
+            |3        |4       |3             |
+            -----------------------------------
+    """
+    final_values = []
+    rank = 0
+    index = 0
+    previous = None
+    for value in raw_input[raw_input.sorted_by].apply(tuple, 1):
+        index += 1
+        if value != previous:
+            if dense:
+                rank = rank + 1
+            else:
+                rank = index
+        previous = value
+        final_values.append(rank)
+
+    return pandas.Series(final_values, index=raw_input.index)
 
 
 @patch("rank", pass_input_data=True, pass_row_index=True)

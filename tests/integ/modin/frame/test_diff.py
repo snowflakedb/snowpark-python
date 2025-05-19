@@ -315,7 +315,7 @@ def test_df_diff_string_type_negative():
     )
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_df_diff_strided_column_access():
     import string
 
@@ -330,7 +330,7 @@ def test_df_diff_strided_column_access():
     )
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_df_diff_strided_row_access():
     import string
 

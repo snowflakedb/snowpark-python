@@ -217,7 +217,7 @@ def test_moving_agg_invalid_inputs(session, local_testing_mode):
                 order_by=["ORDERDATE"],
                 group_by=["PRODUCTKEY"],
             ).collect()
-        assert "Sliding window frame unsupported for function" in str(exc)
+        assert "Sliding window frame unsupported for function" in str(exc.value)
 
     def bad_formatter(input_col, agg):
         return f"{agg}_{input_col}"
@@ -423,7 +423,7 @@ def test_lead_lag_invalid_inputs(session):
 )
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_time_series_agg(session):
-    """Tests time_series_agg_fixed function with various window sizes."""
+    """Tests time_series_agg function with various window sizes."""
 
     df = get_sample_dataframe(session)
     df = df.withColumn("ORDERDATE", to_timestamp(df["ORDERDATE"]))
@@ -435,8 +435,7 @@ def test_time_series_agg(session):
         time_col="ORDERDATE",
         group_by=["PRODUCTKEY"],
         aggs={"SALESAMOUNT": ["SUM", "MAX"]},
-        windows=["1D", "-1D", "2D", "-2D"],
-        sliding_interval="12H",
+        windows=["1D", "-1D", "2D", "-2D", "-1W"],
         col_formatter=custom_formatter,
     )
 
@@ -445,7 +444,6 @@ def test_time_series_agg(session):
         "PRODUCTKEY": [101, 101, 101, 102],
         "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
         "SALESAMOUNT": [200, 100, 300, 250],
-        "SLIDING_POINT": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
         "SUM_SALESAMOUNT_1D": [300, 400, 300, 250],
         "MAX_SALESAMOUNT_1D": [200, 300, 300, 250],
         "SUM_SALESAMOUNT_-1D": [200, 300, 400, 250],
@@ -454,15 +452,66 @@ def test_time_series_agg(session):
         "MAX_SALESAMOUNT_2D": [300, 300, 300, 250],
         "SUM_SALESAMOUNT_-2D": [200, 300, 600, 250],
         "MAX_SALESAMOUNT_-2D": [200, 200, 300, 250],
+        "SUM_SALESAMOUNT_-1W": [200, 300, 600, 250],
+        "MAX_SALESAMOUNT_-1W": [200, 200, 300, 250],
     }
     expected_df = pd.DataFrame(expected_data)
 
     expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
-    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
 
     # Compare the result to the expected DataFrame
     assert_frame_equal(
-        res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+        res.order_by("ORDERDATE").to_pandas().sort_index(axis=1),
+        expected_df.sort_index(axis=1),
+        check_dtype=False,
+        atol=1e-1,
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_time_series_agg_sub_day_sliding_windows(session):
+    """Tests time_series_agg function with s, m and h window sizes."""
+
+    data = [
+        ["2025-01-01 00:00:00", "product_A", 400],
+        ["2025-01-01 00:00:01", "product_A", 300],
+        ["2025-01-01 00:01:01", "product_A", 200],
+        ["2025-01-01 01:01:01", "product_A", 100],
+    ]
+    df = session.create_dataframe(data).to_df("TS", "PRODUCT_ID", "SALESAMOUNT")
+    df = df.withColumn("TS", to_timestamp(df["TS"]))
+
+    res = df.analytics.time_series_agg(
+        time_col="TS",
+        group_by=["PRODUCT_ID"],
+        aggs={"SALESAMOUNT": ["MAX"]},
+        windows=["-1s", "-1m", "-1h"],
+    )
+
+    # Define the expected data
+    expected_data = {
+        "PRODUCT_ID": ["product_A", "product_A", "product_A", "product_A"],
+        "TS": pd.to_datetime(
+            [
+                "2025-01-01 00:00:00",
+                "2025-01-01 00:00:01",
+                "2025-01-01 00:01:01",
+                "2025-01-01 01:01:01",
+            ]
+        ),
+        "SALESAMOUNT": [400, 300, 200, 100],
+        "SALESAMOUNT_MAX_-1s": [400, 400, 200, 100],
+        "SALESAMOUNT_MAX_-1m": [400, 400, 300, 100],
+        "SALESAMOUNT_MAX_-1h": [400, 400, 400, 200],
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    # Compare the result to the expected DataFrame
+    assert_frame_equal(
+        res.to_pandas().sort_index(axis=1),
+        expected_df.sort_index(axis=1),
+        check_dtype=False,
+        atol=1e-1,
     )
 
 
@@ -477,23 +526,25 @@ def test_time_series_aggregation_grouping_bug_fix(session):
     df = session.create_dataframe(data).to_df(
         "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
     )
+    df = df.with_column("TS", to_timestamp(df["TS"]))
 
     res = df.analytics.time_series_agg(
         time_col="TS",
         group_by=["PRODUCT_ID"],
         aggs={"QUANTITY": ["SUM"]},
         windows=["-1D", "-7D"],
-        sliding_interval="1D",
     )
 
     expected_data = {
         "PRODUCT_ID": ["product_A", "product_A", "product_A", "product_A"],
-        "TS": [
-            "2024-02-01 00:00:00",
-            "2024-02-15 00:00:00",
-            "2024-02-15 08:00:00",
-            "2024-02-17 00:00:00",
-        ],
+        "TS": pd.to_datetime(
+            [
+                "2024-02-01 00:00:00",
+                "2024-02-15 00:00:00",
+                "2024-02-15 08:00:00",
+                "2024-02-17 00:00:00",
+            ]
+        ),
         "TRANSACTION_ID": [
             "transaction_1",
             "transaction_2",
@@ -501,33 +552,24 @@ def test_time_series_aggregation_grouping_bug_fix(session):
             "transaction_4",
         ],
         "QUANTITY": [10, 15, 7, 3],
-        "SLIDING_POINT": [
-            "2024-02-01 00:00:00",
-            "2024-02-15 00:00:00",
-            "2024-02-15 00:00:00",
-            "2024-02-17 00:00:00",
-        ],
-        "QUANTITY_SUM_-1D": [10, 22, 22, 3],
-        "QUANTITY_SUM_-7D": [10, 22, 22, 25],
+        "QUANTITY_SUM_-1D": [10, 15, 22, 3],
+        "QUANTITY_SUM_-7D": [10, 15, 22, 25],
     }
 
     expected_df = pd.DataFrame(expected_data)
 
-    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
-
     # Compare the result to the expected DataFrame
     assert_frame_equal(
-        res.order_by("TS").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+        res.order_by("TS").to_pandas().sort_index(axis=1),
+        expected_df.sort_index(axis=1),
+        check_dtype=False,
+        atol=1e-1,
     )
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: add_month not supported",
-)
 def test_time_series_agg_month_sliding_window(session):
-    """Tests time_series_agg_fixed function with month window sizes."""
+    """Tests time_series_agg function with month window sizes."""
 
     data = [
         ["2023-01-15", 101, 100],
@@ -551,7 +593,6 @@ def test_time_series_agg_month_sliding_window(session):
         group_by=["PRODUCTKEY"],
         aggs={"SALESAMOUNT": ["SUM", "MAX"]},
         windows=["-2mm"],
-        sliding_interval="1mm",
         col_formatter=custom_formatter,
     )
 
@@ -568,37 +609,27 @@ def test_time_series_agg_month_sliding_window(session):
             "2023-04-20",
         ],
         "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
-        "SLIDING_POINT": [
-            "2023-01-01",
-            "2023-02-01",
-            "2023-03-01",
-            "2023-04-01",
-            "2023-02-01",
-            "2023-03-01",
-            "2023-04-01",
-            "2023-05-01",
-        ],
         "SUM_SALESAMOUNT_-2mm": [100, 300, 600, 900, 150, 400, 750, 1050],
         "MAX_SALESAMOUNT_-2mm": [100, 200, 300, 400, 150, 250, 350, 450],
     }
     expected_df = pd.DataFrame(expected_data)
     expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
-    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
     expected_df = expected_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
 
     result_df = res.order_by("PRODUCTKEY", "ORDERDATE").to_pandas()
     result_df = result_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
 
-    assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
+    assert_frame_equal(
+        result_df.sort_index(axis=1),
+        expected_df.sort_index(axis=1),
+        check_dtype=False,
+        atol=1e-1,
+    )
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: add_month function not supported",
-)
 def test_time_series_agg_year_sliding_window(session):
-    """Tests time_series_agg_fixed function with year window sizes."""
+    """Tests time_series_agg function with year window sizes."""
 
     data = [
         ["2021-01-15", 101, 100],
@@ -621,11 +652,9 @@ def test_time_series_agg_year_sliding_window(session):
         group_by=["PRODUCTKEY"],
         aggs={"SALESAMOUNT": ["SUM", "MAX"]},
         windows=["-1Y"],
-        sliding_interval="1Y",
         col_formatter=custom_formatter,
     )
 
-    # Calculated expected data for 2Y window with 1Y sliding interval
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
         "ORDERDATE": [
@@ -639,28 +668,22 @@ def test_time_series_agg_year_sliding_window(session):
             "2024-01-20",
         ],
         "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
-        "SLIDING_POINT": [
-            "2021-01-01",
-            "2022-01-01",
-            "2023-01-01",
-            "2024-01-01",
-            "2021-01-01",
-            "2022-01-01",
-            "2023-01-01",
-            "2024-01-01",
-        ],
         "SUM_SALESAMOUNT_-1Y": [100, 300, 500, 700, 150, 400, 600, 800],
         "MAX_SALESAMOUNT_-1Y": [100, 200, 300, 400, 150, 250, 350, 450],
     }
     expected_df = pd.DataFrame(expected_data)
     expected_df["ORDERDATE"] = pd.to_datetime(expected_df["ORDERDATE"])
-    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
     expected_df = expected_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
 
     result_df = res.order_by("PRODUCTKEY", "ORDERDATE").to_pandas()
     result_df = result_df.sort_values(by=["PRODUCTKEY", "ORDERDATE"])
 
-    assert_frame_equal(result_df, expected_df, check_dtype=False, atol=1e-1)
+    assert_frame_equal(
+        result_df.sort_index(axis=1),
+        expected_df.sort_index(axis=1),
+        check_dtype=False,
+        atol=1e-1,
+    )
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
@@ -676,7 +699,6 @@ def test_time_series_agg_invalid_inputs(session):
             group_by=["PRODUCTKEY"],
             aggs={"SALESAMOUNT": ["SUM"]},
             windows=["7D"],
-            sliding_interval="1D",
         ).collect()
     assert "time_col must be a string" in str(exc)
 
@@ -687,7 +709,6 @@ def test_time_series_agg_invalid_inputs(session):
             group_by=["PRODUCTKEY"],
             aggs={"SALESAMOUNT": ["SUM"]},
             windows=[],  # Empty list
-            sliding_interval="1D",
         ).collect()
     assert "windows must not be empty" in str(exc)
 
@@ -698,7 +719,6 @@ def test_time_series_agg_invalid_inputs(session):
             group_by=["PRODUCTKEY"],
             aggs={"SALESAMOUNT": ["SUM"]},
             windows=["Invalid"],
-            sliding_interval="1D",
         ).collect()
     assert "invalid literal for int() with base 10" in str(exc)
 
@@ -709,20 +729,8 @@ def test_time_series_agg_invalid_inputs(session):
             group_by=["PRODUCTKEY"],
             aggs={"SALESAMOUNT": ["SUM"]},
             windows=["2k"],
-            sliding_interval="1D",
         ).collect()
     assert "Unsupported unit" in str(exc)
-
-    # Test with invalid sliding_interval format
-    with pytest.raises(ValueError) as exc:
-        df.analytics.time_series_agg(
-            time_col="ORDERDATE",
-            group_by=["PRODUCTKEY"],
-            aggs={"SALESAMOUNT": ["SUM"]},
-            windows=["7D"],
-            sliding_interval="invalid",  # Invalid format
-        ).collect()
-    assert "invalid literal for int() with base 10" in str(exc)
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")

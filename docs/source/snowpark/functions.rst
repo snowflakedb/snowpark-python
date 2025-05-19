@@ -22,6 +22,9 @@ Functions
     acos
     acosh
     add_months
+    ai_agg
+    ai_classify
+    ai_filter
     any_value
     approx_count_distinct
     approx_percentile
@@ -91,6 +94,7 @@ Functions
     bitnot
     bitshiftleft
     bitshiftright
+    build_stage_file_url
     builtin
     bround
     call_builtin
@@ -172,6 +176,20 @@ Functions
     first_value
     flatten
     floor
+    fl_get_content_type
+    fl_get_etag
+    fl_get_file_type
+    fl_get_last_modified
+    fl_get_relative_path
+    fl_get_scoped_file_url
+    fl_get_size
+    fl_get_stage
+    fl_get_stage_file_url
+    fl_is_audio
+    fl_is_compressed
+    fl_is_document
+    fl_is_image
+    fl_is_video
     from_unixtime
     from_utc_timestamp
     function
@@ -250,6 +268,7 @@ Functions
     months_between
     negate
     next_day
+    normal
     not_
     nth_value
     ntile
@@ -273,8 +292,10 @@ Functions
     position
     pow
     previous_day
+    prompt
     quarter
     radians
+    randn
     random
     rank
     regexp_count
@@ -326,6 +347,7 @@ Functions
     substr
     substring
     sum
+    summarize_agg
     sum_distinct
     sysdate
     system_reference
@@ -343,6 +365,7 @@ Functions
     to_date
     to_decimal
     to_double
+    to_file
     to_geography
     to_geometry
     to_json

@@ -185,7 +185,7 @@ def test_series_loc_get_basic(series, key):
     expect_high_count = len(series) > 100
     high_count_reason = None
     if expect_high_count:
-        query_count += 10
+        query_count += 6
         high_count_reason = "SNOW-998609: Snowpark pandas Series wrapping another series results in duplicate queries"
 
     # returns single element for series

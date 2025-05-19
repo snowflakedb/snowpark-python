@@ -1122,20 +1122,20 @@ class DataFrameGroupBy:
         each group together into a new DataFrame:
 
         >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum())
-                    B    C
-        0.0  0.333333  0.4
-        1.0  0.666667  0.6
-        2.0  1.000000  1.0
+                  B    C
+        0  0.333333  0.4
+        1  0.666667  0.6
+        2  1.000000  1.0
 
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
 
         >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
-                      B    C
+                    B    C
         A
-        a 0.0  0.333333  0.4
-          1.0  0.666667  0.6
-        b 2.0  1.000000  1.0
+        a 0  0.333333  0.4
+          1  0.666667  0.6
+        b 2  1.000000  1.0
         """
 
     @property
