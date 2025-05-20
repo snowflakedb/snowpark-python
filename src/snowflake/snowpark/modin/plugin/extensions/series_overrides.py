@@ -21,8 +21,10 @@ from modin.pandas import DataFrame, Series
 from modin.pandas.base import (
     BasePandasDataset,
     _ATTRS_NO_LOOKUP,
-    _EXTENSION_NO_LOOKUP,
     sentinel,
+)
+from modin.core.storage_formats.pandas.query_compiler_caster import (
+    EXTENSION_NO_LOOKUP,
 )
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
@@ -118,7 +120,7 @@ def _getattr_impl(self, key):
     """
     # NOTE that to get an attribute, python calls __getattribute__() first and
     # then falls back to __getattr__() if the former raises an AttributeError.
-    if key not in _EXTENSION_NO_LOOKUP:
+    if key not in EXTENSION_NO_LOOKUP:
         extension = self._getattr__from_extension_impl(key, Series._extensions)
         if extension is not sentinel:
             return extension
