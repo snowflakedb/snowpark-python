@@ -164,6 +164,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     global_counter,
     string_half_width,
+    warn_on_spark_semantic_gap,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -5552,6 +5553,9 @@ class DataFrame:
         """
         return self._session
 
+    @warn_on_spark_semantic_gap(
+        migration_strategy="DataFrame.describe() for STRING columns returns NULL for mean and stddev. Use strings_include_math_stats=True to align."
+    )
     @publicapi
     def describe(
         self,
