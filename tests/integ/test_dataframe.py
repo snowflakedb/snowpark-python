@@ -3355,6 +3355,7 @@ def test_dynamic_table_join_table_function(session):
             yield (1,)
 
     function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
     stage_name = Utils.random_stage_name()
     Utils.create_stage(session, stage_name, is_temporary=True)
 
@@ -3401,8 +3402,8 @@ def test_dynamic_table_join_table_function(session):
         session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
 
     df_t.create_or_replace_dynamic_table(
-        "TEST_UDTF",
-        warehouse="EXCEPTION_FIX_WH",
+        table_name,
+        warehouse=session.get_current_warehouse(),
         lag="1 minute",
         is_transient=True,
     )
@@ -3433,6 +3434,7 @@ def test_dynamic_table_join_table_function_nested(session):
             yield (1,)
 
     function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
     stage_name = Utils.random_stage_name()
     Utils.create_stage(session, stage_name, is_temporary=True)
 
@@ -3481,8 +3483,8 @@ def test_dynamic_table_join_table_function_nested(session):
         session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
 
     df_t.create_or_replace_dynamic_table(
-        "TEST_UDTF",
-        warehouse="EXCEPTION_FIX_WH",
+        table_name,
+        warehouse=session.get_current_warehouse(),
         lag="1 minute",
         is_transient=True,
     )
