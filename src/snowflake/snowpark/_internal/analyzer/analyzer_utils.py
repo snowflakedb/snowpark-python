@@ -268,7 +268,9 @@ def partition_spec(col_exprs: List[str]) -> str:
 
 
 def order_by_spec(col_exprs: List[str]) -> str:
-    return f" ORDER BY {COMMA.join(col_exprs)}" if col_exprs else EMPTY_STRING
+    if not col_exprs:
+        return EMPTY_STRING
+    return ORDER_BY + NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(col_exprs)
 
 
 def table_function_partition_spec(
@@ -299,7 +301,9 @@ def within_group_expression(column: str, order_by_cols: List[str]) -> str:
         + WITHIN_GROUP
         + LEFT_PARENTHESIS
         + ORDER_BY
-        + COMMA.join(order_by_cols)
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(order_by_cols)
         + RIGHT_PARENTHESIS
     )
 
@@ -386,6 +390,7 @@ def lateral_statement(lateral_expression: str, child: str) -> str:
     return (
         SELECT
         + STAR
+        + NEW_LINE
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
@@ -420,11 +425,14 @@ def join_table_function_statement(
 
     left_cols = [f"{LEFT_ALIAS}.{col}" for col in left_cols]
     right_cols = [f"{RIGHT_ALIAS}.{col}" for col in right_cols]
-    select_cols = COMMA.join(left_cols + right_cols)
+    select_cols = (COMMA + NEW_LINE + TAB).join(left_cols + right_cols)
 
     return (
         SELECT
+        + NEW_LINE
+        + TAB
         + select_cols
+        + NEW_LINE
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
@@ -436,6 +444,7 @@ def join_table_function_statement(
         + LEFT_ALIAS
         + NEW_LINE
         + JOIN
+        + NEW_LINE
         + table(func)
         + AS
         + RIGHT_ALIAS
@@ -461,10 +470,16 @@ def case_when_expression(branches: List[Tuple[str, str]], else_value: str) -> st
 
 
 def project_statement(project: List[str], child: str, is_distinct: bool = False) -> str:
+    if not project:
+        columns = STAR
+    else:
+        columns = NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(project)
+
     return (
         SELECT
         + f"{DISTINCT if is_distinct else EMPTY_STRING}"
-        + f"{STAR if not project else COMMA.join(project)}"
+        + columns
+        + NEW_LINE
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
@@ -570,12 +585,25 @@ def aggregate_statement(
     return project_statement(aggregate_exprs, child) + (
         limit_expression(1)
         if not grouping_exprs
-        else (NEW_LINE + GROUP_BY + COMMA.join(grouping_exprs))
+        else (
+            NEW_LINE
+            + GROUP_BY
+            + NEW_LINE
+            + TAB
+            + (COMMA + NEW_LINE + TAB).join(grouping_exprs)
+        )
     )
 
 
 def sort_statement(order: List[str], child: str) -> str:
-    return project_statement([], child) + NEW_LINE + ORDER_BY + COMMA.join(order)
+    return (
+        project_statement([], child)
+        + NEW_LINE
+        + ORDER_BY
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(order)
+    )
 
 
 def range_statement(start: int, end: int, step: int, column_name: str) -> str:
@@ -818,13 +846,16 @@ def snowflake_supported_join_statement(
         + AS
         + left_alias
         + SPACE
+        + NEW_LINE
         + join_sql
         + JOIN
+        + NEW_LINE
         + LEFT_PARENTHESIS
         + right
         + RIGHT_PARENTHESIS
         + AS
         + right_alias
+        + NEW_LINE
         + f"{match_condition if match_condition else EMPTY_STRING}"
         + f"{using_condition if using_condition else EMPTY_STRING}"
         + f"{join_condition if join_condition else EMPTY_STRING}"
