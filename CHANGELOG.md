@@ -4,10 +4,17 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for ingestion with Snowflake UDTF to databricks in `DataFrameReader.dbapi` (PrPr).
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
+
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
-- Added support for ingestion with Snowflake UDTF to databricks in `DataFrameWriter.dbapi` (PrPr).
 
 ### Snowpark Local Testing Updates
 
@@ -35,7 +42,6 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
-- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 
 ### Snowpark Local Testing Updates
 
