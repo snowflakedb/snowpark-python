@@ -82,7 +82,7 @@ UDTF_PACKAGE_MAP = {
         "msodbcsql",
         "snowflake-snowpark-python",
     ],
-    DBMS_TYPE.MYSQL_DB: ["pymysql", "snowflake-snowpark-python"],
+    DBMS_TYPE.MYSQL_DB: ["pymysql>=1.0.0,<=2.0.0", "snowflake-snowpark-python"],
 }
 
 

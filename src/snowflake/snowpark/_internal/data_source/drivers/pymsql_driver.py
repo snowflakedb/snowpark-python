@@ -5,12 +5,17 @@
 from enum import Enum
 from decimal import Decimal
 from datetime import date, datetime, timedelta
-from typing import List, Callable, Any, Type, TYPE_CHECKING
+from typing import List, Any, Type, TYPE_CHECKING
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
+)
+from snowflake.snowpark._internal.type_utils import NoneType
+from snowflake.snowpark._internal.utils import (
+    random_name_for_temp_object,
+    TempObjectType,
 )
 from snowflake.snowpark.functions import to_variant, parse_json, column
 from snowflake.snowpark.types import (
@@ -32,6 +37,7 @@ if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
     from snowflake.snowpark.dataframe import DataFrame  # pragma: no cover
 
+_MYSQL_INFER_TYPE_SAMPLE_LIMIT = 1000
 
 logger = logging.getLogger(__name__)
 
@@ -104,18 +110,18 @@ BASE_PYMYSQL_TYPE_TO_SNOW_TYPE = {
 
 
 class PymysqlDriver(BaseDriver):
-    def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
-    ) -> None:
-        super().__init__(create_connection, dbms_type)
-
     def infer_schema_from_description(
         self, table_or_query: str, cursor: "Cursor"
     ) -> StructType:
-        if table_or_query.lower().startswith("select"):
-            cursor.execute(f"select A.* from ({table_or_query}) A limit 1")
+        if self.is_query:
+            random_table_alias = random_name_for_temp_object(TempObjectType.TABLE)
+            cursor.execute(
+                f"select {random_table_alias}.* from ({table_or_query}) {random_table_alias} limit {_MYSQL_INFER_TYPE_SAMPLE_LIMIT}"
+            )
         else:
-            cursor.execute(f"select * from `{table_or_query}` limit 1")
+            cursor.execute(
+                f"select * from `{table_or_query}` limit {_MYSQL_INFER_TYPE_SAMPLE_LIMIT}"
+            )
         data = cursor.fetchall()
         raw_schema = cursor.description
         raw_types = self.infer_type_from_data(data, len(raw_schema))
@@ -207,8 +213,6 @@ class PymysqlDriver(BaseDriver):
         for row in data:
             for i, col in enumerate(row):
                 raw_data_types_set[i].add(type(col))
-        # NoneType is not exposed in python <3.10 have to define it ourselves
-        NoneType = type(None)
         types = [
             type_set.pop()
             if len(type_set) == 1 and next(iter(type_set)) != NoneType

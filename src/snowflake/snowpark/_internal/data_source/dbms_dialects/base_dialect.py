@@ -7,6 +7,9 @@ from snowflake.snowpark.types import StructType
 
 
 class BaseDialect:
+    def __int__(self, is_query: bool):
+        self.is_query = is_query
+
     @staticmethod
     def generate_select_query(
         table_or_query: str, schema: StructType, raw_schema: List[tuple]

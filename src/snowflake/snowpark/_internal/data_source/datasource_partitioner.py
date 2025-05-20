@@ -36,6 +36,7 @@ class DataSourcePartitioner:
         self,
         create_connection: Callable[[], "Connection"],
         table_or_query: str,
+        is_query: bool,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
@@ -49,6 +50,7 @@ class DataSourcePartitioner:
     ) -> None:
         self.create_connection = create_connection
         self.table_or_query = table_or_query
+        self.is_query = is_query
         self.column = column
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
@@ -64,8 +66,8 @@ class DataSourcePartitioner:
         self.dbms_type = dbms_type
         self.dialect_class = DBMS_MAP.get(dbms_type, BaseDialect)
         self.driver_class = DRIVER_MAP.get(driver_type, BaseDriver)
-        self.dialect = self.dialect_class()
-        self.driver = self.driver_class(create_connection, dbms_type)
+        self.dialect = self.dialect_class(is_query)
+        self.driver = self.driver_class(create_connection, dbms_type, is_query)
 
     def reader(self) -> DataSourceReader:
         return DataSourceReader(

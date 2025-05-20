@@ -30,11 +30,15 @@ if TYPE_CHECKING:
 
 class BaseDriver:
     def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
+        self,
+        create_connection: Callable[[], "Connection"],
+        dbms_type: Enum,
+        is_query: bool,
     ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
         self.raw_schema = None
+        self.is_query = is_query
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(

@@ -19,7 +19,7 @@ from tests.parameters import MYSQL_CONNECTION_PARAMETERS
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
-    import databricks  # noqa: F401
+    import pymysql  # noqa: F401
     import pandas  # noqa: F401
 
     DEPENDENCIES_PACKAGE_UNAVAILABLE = False
@@ -28,7 +28,7 @@ except ImportError:
 
 
 pytestmark = [
-    pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'"),
+    pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'pymysql'"),
     pytest.mark.skipif(
         RUNNING_ON_JENKINS, reason="cannot access external datasource from jenkins"
     ),
@@ -39,11 +39,11 @@ pytestmark = [
 ]
 
 TEST_TABLE_NAME = "ALL_TYPES_TABLE"
-MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION = "mysql_integration"
+MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_mysql_test_integration"
 
 
 def create_connection_mysql():
-    import pymysql
+    import pymysql  # noqa: F811
 
     conn = pymysql.connect(
         user=MYSQL_CONNECTION_PARAMETERS["username"],
@@ -93,7 +93,7 @@ def test_type_conversion():
         )
 
 
-def test_oracledb_driver_coverage(caplog):
+def test_pymysql_driver_coverage(caplog):
     mysql_driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
     mysql_driver.to_snow_type(
         [MysqlType("NUMBER_COL", (246, Decimal), None, None, 41, 2, True)]
@@ -101,12 +101,12 @@ def test_oracledb_driver_coverage(caplog):
     assert "Snowpark does not support column" in caplog.text
 
 
-def test_unicode_column_name_oracledb(session):
+def test_unicode_column_name_mysql(session):
     df = session.read.dbapi(create_connection_mysql, table="用户資料")
     assert df.collect() == [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")]
 
 
-def test_double_quoted_column_name_oracledb(session):
+def test_double_quoted_column_name_mysql(session):
     df = session.read.dbapi(create_connection_mysql, table='"UserProfile"')
     assert df.collect() == [
         Row(
@@ -148,13 +148,13 @@ def test_infer_type_from_data(data, number_of_columns, expected_result):
     assert result == expected_result
 
 
-def test_udtf_ingestion_oracledb(session):
+def test_udtf_ingestion_mysql(session):
     from tests.parameters import MYSQL_CONNECTION_PARAMETERS
 
     his = session.query_history()
 
     def create_connection_mysql():
-        import pymysql
+        import pymysql  # noqa: F811
 
         conn = pymysql.connect(
             user=MYSQL_CONNECTION_PARAMETERS["username"],
