@@ -87,6 +87,70 @@ class DatabricksDriver(BaseDriver):
         )
         return df
 
+    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+        create_connection = self.create_connection
+
+        class UDTFIngestion:
+            def process(self, query: str):
+                conn = create_connection()
+                cursor = conn.cursor()
+
+                # First get schema information
+                describe_query = f"DESCRIBE QUERY SELECT * FROM ({query})"
+                cursor.execute(describe_query)
+                schema_info = cursor.fetchall()
+
+                # Find which columns are map or array types based on column type description
+                map_column_indices = []
+                array_column_indices = []
+                binary_column_indices = []
+                for idx, (_, column_type, _) in enumerate(schema_info):
+                    if column_type.startswith("map<"):
+                        map_column_indices.append(idx)
+                    elif column_type.startswith("array<"):
+                        array_column_indices.append(idx)
+                    elif column_type == "binary":
+                        binary_column_indices.append(idx)
+
+                # Execute the actual query
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    processed_rows = []
+                    for row in rows:
+                        processed_row = list(row)
+
+                        # Handle array columns - convert ndarray to list
+                        for idx in array_column_indices:
+                            if (
+                                idx < len(processed_row)
+                                and processed_row[idx] is not None
+                            ):
+                                processed_row[idx] = processed_row[idx].tolist()
+
+                        # Handle binary columns - convert to hex
+                        for idx in binary_column_indices:
+                            if (
+                                idx < len(processed_row)
+                                and processed_row[idx] is not None
+                            ):
+                                processed_row[idx] = processed_row[idx].hex()
+
+                        # Convert map type columns to JSON strings
+                        for idx in map_column_indices:
+                            if (
+                                idx < len(processed_row)
+                                and processed_row[idx] is not None
+                            ):
+                                processed_row[idx] = dict(processed_row[idx])
+                                # processed_row[idx] = json.dumps(processed_row[idx], cls=PythonObjJSONEncoder)
+                        processed_rows.append(tuple(processed_row))
+                    yield from processed_rows
+
+        return UDTFIngestion
+
     @staticmethod
     def to_result_snowpark_df(
         session: "Session", table_name, schema, _emit_ast: bool = True
@@ -98,7 +162,25 @@ class DatabricksDriver(BaseDriver):
             ):
                 project_columns.append(to_variant(column(field.name)).as_(field.name))
             else:
-                project_columns.append(column(field.name))
+                project_columns.append(
+                    column(field.name).cast(field.datatype).alias(field.name)
+                )
         return session.table(table_name, _emit_ast=_emit_ast).select(
             project_columns, _emit_ast=_emit_ast
         )
+
+    @staticmethod
+    def to_result_snowpark_df_udtf(
+        res_df: "DataFrame",
+        schema: StructType,
+        _emit_ast: bool = True,
+    ):
+        cols = []
+        for field in schema.fields:
+            if isinstance(
+                field.datatype, (MapType, ArrayType, StructType, VariantType)
+            ):
+                cols.append(to_variant(column(field.name)).as_(field.name))
+            else:
+                cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
+        return res_df.select(cols)

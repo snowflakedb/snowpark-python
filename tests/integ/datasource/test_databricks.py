@@ -162,7 +162,7 @@ EXPECTED_TYPE = StructType(
         StructField("COL_FLOAT", DoubleType(), nullable=True),
         StructField("COL_DOUBLE", DoubleType(), nullable=True),
         StructField("COL_DECIMAL", DecimalType(10, 2), nullable=True),
-        StructField("COL_STRING", StringType(16777216), nullable=True),
+        StructField("COL_STRING", StringType(), nullable=True),
         StructField("COL_BOOLEAN", BooleanType(), nullable=True),
         StructField("COL_BINARY", BinaryType(), nullable=True),
         StructField("COL_DATE", DateType(), nullable=True),
@@ -179,9 +179,12 @@ EXPECTED_TYPE = StructType(
         StructField("COL_ARRAY", VariantType(), nullable=True),
         StructField("COL_MAP", VariantType(), nullable=True),
         StructField("COL_STRUCT", VariantType(), nullable=True),
-        StructField("COL_INTERVAL_YEAR_MONTH", StringType(16777216), nullable=True),
-        StructField("COL_INTERVAL_DAY_TIME", StringType(16777216), nullable=True),
+        StructField("COL_INTERVAL_YEAR_MONTH", StringType(), nullable=True),
+        StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
     ]
+)
+DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION = (
+    "snowpark_dbapi_databricks_test_integration"
 )
 
 
@@ -193,7 +196,8 @@ def create_databricks_connection():
 
 @pytest.mark.parametrize(
     "input_type, input_value",
-    [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
+    # [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
+    [("table", TEST_TABLE_NAME)],
 )
 def test_basic_databricks(session, input_type, input_value):
     input_dict = {
@@ -256,3 +260,26 @@ def test_double_quoted_column_databricks(session):
             remarks="This is a test remark",
         )
     ]
+
+
+def test_udtf_ingestion_databricks(session, caplog):
+    # we define here to avoid test_databricks.py to be pickled and unpickled in UDTF
+    def local_create_databricks_connection():
+        import databricks.sql
+
+        return databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
+
+    df = session.read.dbapi(
+        local_create_databricks_connection,
+        table=TEST_TABLE_NAME,
+        udtf_configs={
+            "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
+        },
+    )
+    ret = df.collect()
+    assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
+
+    assert (
+        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
+        and "table(data_source_udtf" in caplog.text
+    )

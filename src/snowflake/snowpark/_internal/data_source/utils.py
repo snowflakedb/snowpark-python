@@ -74,6 +74,10 @@ UDTF_PACKAGE_MAP = {
         "msodbcsql",
         "snowflake-snowpark-python",
     ],
+    DBMS_TYPE.DATABRICKS_DB: [
+        "snowflake-snowpark-python",
+        "databricks-sql-connector>=4.0.0,<5.0.0",
+    ],
 }
 
 

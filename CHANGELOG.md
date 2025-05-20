@@ -7,6 +7,7 @@
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+- Added support for ingestion with Snowflake UDTF to databricks in `DataFrameWriter.dbapi` (PrPr).
 
 ### Snowpark Local Testing Updates
 
