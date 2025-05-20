@@ -1333,12 +1333,12 @@ class SnowflakePlanBuilder:
                 return plan
         plan_2_resolve = None
         for node in plan.children_plan_nodes:
-            plan_2_resolve = (  # type: ignore
-                self.find_table_function_in_sql_tree(node) or plan_2_resolve
+            plan_2_resolve = (
+                self.find_table_function_in_sql_tree(node) or plan_2_resolve  # type: ignore
             )
         if plan_2_resolve:
-            return self.session._analyzer.resolve(  # type: ignore
-                plan.snowflake_plan.source_plan
+            return self.session._analyzer.resolve(
+                plan.snowflake_plan.source_plan  # type: ignore
                 if isinstance(plan, Selectable)
                 else plan.source_plan
             )
