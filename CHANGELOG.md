@@ -17,7 +17,7 @@
 
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
-- Reduced query count for many operations, including `insert`, `repr`, and `groupby` that previously issued a query to retrieve the input data's size.
+- Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
 
 ## 1.32.0 (2025-05-15)
 
