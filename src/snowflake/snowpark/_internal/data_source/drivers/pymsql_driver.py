@@ -5,7 +5,7 @@
 from enum import Enum
 from decimal import Decimal
 from datetime import date, datetime, timedelta
-from typing import List, Any, Type, TYPE_CHECKING
+from typing import List, Any, Type, TYPE_CHECKING, Callable
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import (
@@ -110,6 +110,14 @@ BASE_PYMYSQL_TYPE_TO_SNOW_TYPE = {
 
 
 class PymysqlDriver(BaseDriver):
+    def __init__(
+        self,
+        create_connection: Callable[[], "Connection"],
+        dbms_type: Enum,
+        is_query: bool,
+    ) -> None:
+        super().__init__(create_connection, dbms_type, is_query)
+
     def infer_schema_from_description(
         self, table_or_query: str, cursor: "Cursor"
     ) -> StructType:
@@ -158,12 +166,15 @@ class PymysqlDriver(BaseDriver):
             if snow_type is None:
                 raise NotImplementedError(f"mysql type not supported: {type_code}")
             if type_code in (PymysqlTypeCode.DECIMAL, PymysqlTypeCode.NEWDECIMAL):
+                # we did -2 here because what driver returned is precision + 2, mysql store + 2 precision internally
                 precision -= 2
                 if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"
                         f" {name} of type {type_code} with precision {precision} and scale {scale}. "
-                        "The default Numeric precision and scale will be used."
+                        "The maximum number of digits in DECIMAL format for MySQL is 65. "
+                        "For Snowflake, the maximum is 38."
+                        "Supported up to the maximum allowed digits in Snowflake. When exceeded, precision is lost."
                     )
                     precision, scale = None, None
                 data_type = snow_type(
@@ -208,7 +219,8 @@ class PymysqlDriver(BaseDriver):
 
     @staticmethod
     def infer_type_from_data(data: List[tuple], number_of_columns: int) -> List[Type]:
-
+        # TODO: SNOW-2112938 investigate whether different types can be fit into one column
+        #  (eg. if int and float both fit into decimal column)
         raw_data_types_set = [set() for _ in range(number_of_columns)]
         for row in data:
             for i, col in enumerate(row):

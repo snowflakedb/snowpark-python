@@ -1,7 +1,8 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-from typing import List, Any
+from enum import Enum
+from typing import List, Any, Callable
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
@@ -25,6 +26,14 @@ logger = logging.getLogger(__name__)
 
 
 class OracledbDriver(BaseDriver):
+    def __init__(
+        self,
+        create_connection: Callable[[], "Connection"],
+        dbms_type: Enum,
+        is_query: bool,
+    ) -> None:
+        super().__init__(create_connection, dbms_type, is_query)
+
     def to_snow_type(self, schema: List[Any]) -> StructType:
         """
         This is used to convert oracledb raw schema to snowpark structtype.

@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
     MysqlType,
+    mysql_schema,
 )
 from tests.utils import RUNNING_ON_JENKINS, Utils
 from tests.parameters import MYSQL_CONNECTION_PARAMETERS
@@ -38,13 +39,16 @@ pytestmark = [
     ),
 ]
 
+
 TEST_TABLE_NAME = "ALL_TYPES_TABLE"
+TEST_QUERY = "select * from ALL_TYPES_TABLE"
 MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_mysql_test_integration"
 
 
 def create_connection_mysql():
     import pymysql  # noqa: F811
 
+    # TODO: SNOW-2112895 make key in connection parameters align with driver
     conn = pymysql.connect(
         user=MYSQL_CONNECTION_PARAMETERS["username"],
         password=MYSQL_CONNECTION_PARAMETERS["password"],
@@ -54,28 +58,55 @@ def create_connection_mysql():
     return conn
 
 
-def test_dbapi_mysql(session):
-    df = session.read.dbapi(create_connection_mysql, table=TEST_TABLE_NAME)
-    Utils.check_answer(df, mysql_real_data)
-
-
 @pytest.mark.parametrize(
-    "create_connection, table_name, expected_result",
+    "create_connection, table_name, query",
     [
         (
             create_connection_mysql,
             TEST_TABLE_NAME,
+            None,
+        ),
+        (
+            create_connection_mysql,
+            None,
+            TEST_QUERY,
+        ),
+    ],
+)
+def test_dbapi_mysql(session, create_connection, table_name, query):
+    df = session.read.dbapi(create_connection, table=table_name, query=query)
+    Utils.check_answer(df, mysql_real_data)
+    assert df.schema == mysql_schema
+
+
+@pytest.mark.parametrize(
+    "create_connection, table_name, query, expected_result",
+    [
+        (
+            create_connection_mysql,
+            TEST_TABLE_NAME,
+            None,
+            mysql_real_data,
+        ),
+        (
+            create_connection_mysql,
+            None,
+            TEST_QUERY,
             mysql_real_data,
         ),
     ],
 )
 @pytest.mark.parametrize("fetch_size", [1, 3])
 def test_dbapi_batch_fetch(
-    session, create_connection, table_name, expected_result, fetch_size, caplog
+    session, create_connection, table_name, query, expected_result, fetch_size, caplog
 ):
     with caplog.at_level(logging.DEBUG):
         df = session.read.dbapi(
-            create_connection, table=table_name, max_workers=4, fetch_size=fetch_size
+            create_connection,
+            table=table_name,
+            query=query,
+            max_workers=4,
+            fetch_size=fetch_size,
         )
         # we only expect math.ceil(len(expected_result) / fetch_size) parquet files to be generated
         # for example, 5 rows, fetch size 2, we expect 3 parquet files

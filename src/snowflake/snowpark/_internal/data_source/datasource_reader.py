@@ -24,6 +24,7 @@ class DataSourceReader:
         create_connection: Callable[[], "Connection"],
         schema: StructType,
         dbms_type: Enum,
+        is_query: bool,
         fetch_size: Optional[int] = 0,
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
@@ -37,6 +38,7 @@ class DataSourceReader:
         self.driver = None
         self.driver_class = driver_class
         self.dbms_type = dbms_type
+        self.is_query = is_query
         self.schema = schema
         self.fetch_size = fetch_size
         self.query_timeout = query_timeout
@@ -47,6 +49,7 @@ class DataSourceReader:
         self.driver = self.driver_class(
             cloudpickle.loads(self.pickled_create_connection_callback),
             self.dbms_type,
+            self.is_query,
         )
 
         conn = self.driver.prepare_connection(

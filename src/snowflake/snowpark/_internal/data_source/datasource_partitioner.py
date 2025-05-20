@@ -75,6 +75,7 @@ class DataSourcePartitioner:
             self.create_connection,
             self.schema,
             self.dbms_type,
+            self.is_query,
             self.fetch_size,
             self.query_timeout,
             self.session_init_statement,

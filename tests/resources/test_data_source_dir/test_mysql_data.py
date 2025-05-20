@@ -5,7 +5,20 @@ from decimal import Decimal
 import pytz
 
 from snowflake.snowpark import Row
-
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    LongType,
+    DecimalType,
+    DoubleType,
+    StringType,
+    BinaryType,
+    DateType,
+    TimestampType,
+    TimeType,
+    VariantType,
+    TimestampTimeZone,
+)
 
 MysqlType = namedtuple(
     "MysqlType",
@@ -222,3 +235,42 @@ mysql_real_data = [
         JSONCOL='{\n  "flag": true,\n  "id": "0e5c8dfb-945e-4a3f-b43f-22ba246d31b0"\n}',
     ),
 ]
+
+mysql_schema = StructType(
+    [
+        StructField("ID", LongType(), nullable=False),
+        StructField("DECIMALCOL", DecimalType(38, 10), nullable=True),
+        StructField("INTCOL", LongType(), nullable=True),
+        StructField("TINYINTCOL", LongType(), nullable=True),
+        StructField("SMALLINTCOL", LongType(), nullable=True),
+        StructField("MEDIUMINTCOL", LongType(), nullable=True),
+        StructField("BIGINTCOL", LongType(), nullable=True),
+        StructField("YEARCOL", LongType(), nullable=True),
+        StructField("FLOATCOL", DoubleType(), nullable=True),
+        StructField("DOUBLECOL", DoubleType(), nullable=True),
+        StructField("CHARCOL", StringType(16777216), nullable=True),
+        StructField("VARCHARCOL", StringType(16777216), nullable=True),
+        StructField("TINYTEXTCOL", StringType(16777216), nullable=True),
+        StructField("TEXTCOL", StringType(16777216), nullable=True),
+        StructField("MEDIUMTEXTCOL", StringType(16777216), nullable=True),
+        StructField("LONGTEXTCOL", StringType(16777216), nullable=True),
+        StructField("ENUMCOL", StringType(16777216), nullable=True),
+        StructField("SETCOL", StringType(16777216), nullable=True),
+        StructField("BITCOL", StringType(16777216), nullable=True),
+        StructField("BINARYCOL", BinaryType(), nullable=True),
+        StructField("VARBINARYCOL", BinaryType(), nullable=True),
+        StructField("TINYBLOBCOL", BinaryType(), nullable=True),
+        StructField("BLOBCOL", BinaryType(), nullable=True),
+        StructField("MEDIUMBLOBCOL", BinaryType(), nullable=True),
+        StructField("LONGBLOBCOL", BinaryType(), nullable=True),
+        StructField("DATECOL", DateType(), nullable=True),
+        StructField(
+            "DATETIMECOL", TimestampType(timezone=TimestampTimeZone.NTZ), nullable=True
+        ),
+        StructField(
+            "TIMESTAMPCOL", TimestampType(timezone=TimestampTimeZone.TZ), nullable=True
+        ),
+        StructField("TIMECOL", TimeType(), nullable=True),
+        StructField("JSONCOL", VariantType(), nullable=True),
+    ]
+)

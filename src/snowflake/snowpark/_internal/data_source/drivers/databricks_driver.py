@@ -3,12 +3,16 @@
 #
 import json
 import logging
-from typing import List, Any, TYPE_CHECKING
+from enum import Enum
+from typing import List, Any, TYPE_CHECKING, Callable
 
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
-from snowflake.snowpark._internal.data_source.datasource_typing import Cursor
+from snowflake.snowpark._internal.data_source.datasource_typing import (
+    Cursor,
+    Connection,
+)
 from snowflake.snowpark.types import (
     StructType,
     MapType,
@@ -28,6 +32,14 @@ logger = logging.getLogger(__name__)
 
 
 class DatabricksDriver(BaseDriver):
+    def __init__(
+        self,
+        create_connection: Callable[[], "Connection"],
+        dbms_type: Enum,
+        is_query: bool,
+    ) -> None:
+        super().__init__(create_connection, dbms_type, is_query)
+
     def infer_schema_from_description(
         self, table_or_query: str, cursor: "Cursor"
     ) -> StructType:

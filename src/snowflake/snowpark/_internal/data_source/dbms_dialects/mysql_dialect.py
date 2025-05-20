@@ -12,6 +12,9 @@ from snowflake.snowpark.types import StructType, TimeType
 
 
 class MysqlDialect(BaseDialect):
+    def __init__(self, is_query: bool) -> None:
+        super().__init__(is_query)
+
     def generate_select_query(
         self,
         table_or_query: str,

@@ -7,7 +7,7 @@ from snowflake.snowpark.types import StructType
 
 
 class BaseDialect:
-    def __int__(self, is_query: bool):
+    def __init__(self, is_query: bool) -> None:
         self.is_query = is_query
 
     @staticmethod
