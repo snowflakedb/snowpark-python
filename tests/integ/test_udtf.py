@@ -1377,7 +1377,7 @@ def test_udtf_artifact_repository(session, resources_path):
         ArtifactRepositoryUDTF,
         output_schema=StructType([StructField("a", StringType())]),
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
 
     Utils.check_answer(
@@ -1394,13 +1394,13 @@ def test_udtf_artifact_repository(session, resources_path):
             ArtifactRepositoryUDTF,
             output_schema=StructType([StructField("a", StringType())]),
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"architecture": "x86"},
         )
     except SnowparkSQLException as ex:
         assert (
             "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-            in str(ex)
+            in str(ex.value)
         )
 
 
@@ -1431,7 +1431,7 @@ def test_udtf_artifact_repository_from_file(session, tmpdir):
         "ArtifactRepositoryUDTF",
         output_schema=StructType([StructField("a", StringType())]),
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
 
     Utils.check_answer(

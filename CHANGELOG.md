@@ -1,6 +1,24 @@
 # Release History
 
-## 1.32.0 (YYYY-MM-DD)
+## 1.33.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+
+### Snowpark Local Testing Updates
+
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
+- Added `iceberg_version` option to table creation functions.
+- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+
+## 1.32.0 (2025-05-15)
 
 ### Snowpark Python API Updates
 
@@ -21,6 +39,7 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 
 ### Snowpark Local Testing Updates
 
@@ -36,6 +55,7 @@
 - Added support for dict values in `Series.str.get`, `Series.str.slice`, and `Series.str.__getitem__` (`Series.str[...]`).
 - Added support for `DataFrame.to_html`.
 - Added support for `DataFrame.to_string` and `Series.to_string`.
+- Added support for reading files from S3 buckets using `pd.read_csv`.
 
 #### Improvements
 

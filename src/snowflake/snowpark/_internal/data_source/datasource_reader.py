@@ -1,7 +1,8 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import pickle
+import cloudpickle
 from enum import Enum
 
 from typing import List, Any, Iterator, Type, Callable, Optional
@@ -28,7 +29,14 @@ class DataSourceReader:
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
     ) -> None:
-        self.driver = driver_class(create_connection, dbms_type)
+        # we use cloudpickle to pickle the callback function so that local function and function defined in
+        # __main__ can be pickled and unpickled in subprocess
+        self.pickled_create_connection_callback = cloudpickle.dumps(
+            create_connection, protocol=pickle.HIGHEST_PROTOCOL
+        )
+        self.driver = None
+        self.driver_class = driver_class
+        self.dbms_type = dbms_type
         self.schema = schema
         self.fetch_size = fetch_size
         self.query_timeout = query_timeout
@@ -36,6 +44,11 @@ class DataSourceReader:
         self.fetch_merge_count = fetch_merge_count
 
     def read(self, partition: str) -> Iterator[List[Any]]:
+        self.driver = self.driver_class(
+            cloudpickle.loads(self.pickled_create_connection_callback),
+            self.dbms_type,
+        )
+
         conn = self.driver.prepare_connection(
             self.driver.create_connection(), self.query_timeout
         )
@@ -74,4 +87,6 @@ class DataSourceReader:
             conn.close()
 
     def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
+        # self.driver is guaranteed to be initialized in self.read() which is called prior to this method
+        assert self.driver is not None
         return self.driver.data_source_data_to_pandas_df(data, self.schema)

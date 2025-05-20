@@ -837,3 +837,14 @@ def test_read_csv_dateparse_multiple_columns():
     assert_frame_equal(expected_df, got_df, check_dtype=False, check_index_type=False)
 
     os.remove(temp_file_name)
+
+
+def test_read_csv_s3():
+    host = pd.session.connection.host
+    if any(platform in host.split(".") for platform in ["gcp", "azure"]):
+        pytest.skip(reason="Skipping test for Azure and GCP deployment")
+    with SqlCounter(query_count=9):
+        df = pd.read_csv(
+            "s3://sfquickstarts/frostbyte_tastybytes/analytics/menu_item_aggregate_v.csv"
+        )
+    assert len(df.columns) == 12

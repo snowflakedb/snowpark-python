@@ -63,15 +63,6 @@ test_file_with_special_characters_parquet = "test_file_with_special_characters.p
 test_file_orc = "test.orc"
 test_file_xml = "test.xml"
 test_broken_csv = "broken.csv"
-test_file_books_xml = "books.xml"
-test_file_books2_xml = "books2.xml"
-test_file_house_xml = "fias_house.xml"
-test_file_house_large_xml = "fias_house.large.xml"
-test_file_xxe_xml = "xxe.xml"
-test_file_nested_xml = "nested.xml"
-test_file_malformed_no_closing_tag_xml = "malformed_no_closing_tag.xml"
-test_file_malformed_not_self_closing_xml = "malformed_not_self_closing.xml"
-test_file_malformed_record_xml = "malformed_record.xml"
 
 
 # In the tests below, we test both scenarios: SELECT & COPY
@@ -136,9 +127,6 @@ tmp_stage_only_json_file = Utils.random_stage_name()
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(session, resources_path, local_testing_mode):
-    # TODO SNOW-2098847: remove this workaround after fixing the issue
-    session._use_scoped_temp_objects = False
-
     test_files = TestFiles(resources_path)
     if not local_testing_mode:
         Utils.create_stage(session, tmp_stage_name1, is_temporary=True)
@@ -247,42 +235,6 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name1,
         test_files.test_broken_csv,
-        compress=False,
-    )
-    Utils.upload_to_stage(
-        session, "@" + tmp_stage_name1, test_files.test_books_xml, compress=False
-    )
-    Utils.upload_to_stage(
-        session, "@" + tmp_stage_name1, test_files.test_books2_xml, compress=False
-    )
-    Utils.upload_to_stage(
-        session, "@" + tmp_stage_name1, test_files.test_house_xml, compress=False
-    )
-    Utils.upload_to_stage(
-        session, "@" + tmp_stage_name1, test_files.test_house_large_xml, compress=False
-    )
-    Utils.upload_to_stage(
-        session, "@" + tmp_stage_name1, test_files.test_xxe_xml, compress=False
-    )
-    Utils.upload_to_stage(
-        session, "@" + tmp_stage_name1, test_files.test_nested_xml, compress=False
-    )
-    Utils.upload_to_stage(
-        session,
-        "@" + tmp_stage_name1,
-        test_files.test_malformed_no_closing_tag_xml,
-        compress=False,
-    )
-    Utils.upload_to_stage(
-        session,
-        "@" + tmp_stage_name1,
-        test_files.test_malformed_not_self_closing_xml,
-        compress=False,
-    )
-    Utils.upload_to_stage(
-        session,
-        "@" + tmp_stage_name1,
-        test_files.test_malformed_record_xml,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -402,7 +354,7 @@ def test_read_csv(session, mode):
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         df3.collect()
-    assert "is out of range" in str(ex_info)
+    assert "is out of range" in str(ex_info.value)
 
 
 @pytest.mark.xfail(
@@ -593,7 +545,7 @@ def test_read_csv_incorrect_schema(session, mode):
     df = reader.option("purge", False).schema(incorrect_schema).csv(test_file_on_stage)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.collect()
-    assert "Number of columns in file (3) does not match" in str(ex_info)
+    assert "Number of columns in file (3) does not match" in str(ex_info.value)
 
 
 @pytest.mark.skipif(
@@ -1968,136 +1920,3 @@ def test_read_multiple_csvs(session):
         )
     finally:
         Utils.drop_table(session, table_name)
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
-@pytest.mark.parametrize(
-    "file,row_tag,expected_row_count,expected_column_count",
-    [
-        [test_file_books_xml, "book", 12, 7],
-        [test_file_books2_xml, "book", 2, 6],
-        [test_file_house_xml, "House", 37, 22],
-        [test_file_house_large_xml, "House", 740, 22],
-    ],
-)
-def test_read_xml_row_tag(
-    session, file, row_tag, expected_row_count, expected_column_count
-):
-    df = session.read.option("rowTag", row_tag).xml(f"@{tmp_stage_name1}/{file}")
-    result = df.collect()
-    assert len(result) == expected_row_count
-    assert len(result[0]) == expected_column_count
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
-def test_read_xml_no_xxe(session):
-    row_tag = "bar"
-    stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
-    df = session.read.option("rowTag", row_tag).xml(stage_file_path)
-    Utils.check_answer(df, [Row("null")])
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
-def test_read_xml_query_nested_data(session):
-    row_tag = "tag"
-    df = session.read.option("rowTag", row_tag).xml(
-        f"@{tmp_stage_name1}/{test_file_nested_xml}"
-    )
-    assert df._all_variant_cols is True
-    Utils.check_answer(
-        df.select(
-            "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
-        ),
-        [Row('"1"', '"str1"', '{\n  "bool": "true",\n  "str": "str2"\n}', '"true"')],
-    )
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
-def test_read_xml_non_existing_file(session):
-    row_tag = "tag"
-    with pytest.raises(ValueError, match="does not exist"):
-        session.read.option("rowTag", row_tag).xml(
-            f"@{tmp_stage_name1}/non_existing_file.xml"
-        )
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
-@pytest.mark.parametrize(
-    "file",
-    (
-        test_file_malformed_no_closing_tag_xml,
-        test_file_malformed_not_self_closing_xml,
-        test_file_malformed_record_xml,
-    ),
-)
-def test_read_malformed_xml(session, file):
-    row_tag = "record"
-    file_path = f"@{tmp_stage_name1}/{file}"
-
-    # permissive mode
-    df = (
-        session.read.option("rowTag", row_tag)
-        .option("mode", "permissive")
-        .xml(file_path)
-    )
-    result = df.collect()
-    assert len(result) == 2
-    assert len(result[0]) == 4  # has another column '_corrupt_record'
-    assert (
-        result[0]["'_corrupt_record'"] is not None
-        or result[1]["'_corrupt_record'"] is not None
-    )
-
-    # dropmalformed mode
-    df = (
-        session.read.option("rowTag", row_tag)
-        .option("mode", "dropmalformed")
-        .xml(file_path)
-    )
-    result = df.collect()
-    assert len(result) == 1
-    assert len(result[0]) == 3
-
-    # failfast mode
-    df = (
-        session.read.option("rowTag", row_tag).option("mode", "failfast").xml(file_path)
-    )
-    with pytest.raises(SnowparkSQLException, match="Malformed XML record at bytes"):
-        df.collect()
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
-def test_read_xml_row_tag_not_found(session):
-    row_tag = "non-existing-tag"
-    df = session.read.option("rowTag", row_tag).xml(
-        f"@{tmp_stage_name1}/{test_file_books_xml}"
-    )
-
-    with pytest.raises(
-        SnowparkDataframeReaderException, match="Cannot find the row tag"
-    ):
-        df.collect()
-
-    # also works for nested query plan
-    with pytest.raises(
-        SnowparkDataframeReaderException, match="Cannot find the row tag"
-    ):
-        df.filter(lit(True)).collect()

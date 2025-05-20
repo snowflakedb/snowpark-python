@@ -4371,6 +4371,8 @@ class DataFrame:
 
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
+                * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
+
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
 
@@ -4409,7 +4411,7 @@ class DataFrame:
                 for k, v in iceberg_config.items():
                     t = expr.iceberg_config.add()
                     t._1 = k
-                    t._2 = v
+                    build_expr_from_python_val(t._2, v)
             self._set_ast_ref(expr.df)
 
             self._session._ast_batch.eval(stmt)
@@ -5552,7 +5554,10 @@ class DataFrame:
 
     @publicapi
     def describe(
-        self, *cols: Union[str, List[str]], _emit_ast: bool = True
+        self,
+        *cols: Union[str, List[str]],
+        strings_include_math_stats=False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
@@ -5577,6 +5582,7 @@ class DataFrame:
 
         Args:
             cols: The names of columns whose basic statistics are computed.
+            strings_include_math_stats: Whether StringType columns should have mean and stddev stats included.
         """
         stmt = None
         if _emit_ast:
@@ -5586,6 +5592,7 @@ class DataFrame:
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+            expr.strings_include_math_stats = strings_include_math_stats
 
         cols = parse_positional_args_to_list(*cols)
         df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
@@ -5633,10 +5640,13 @@ class DataFrame:
                     # for string columns, we need to convert all stats to string
                     # such that they can be fitted into one column
                     if isinstance(t, StringType):
-                        if name in ["mean", "stddev"]:
-                            agg_cols.append(to_char(func(lit(None))).as_(c))
-                        else:
+                        if strings_include_math_stats or name not in (
+                            "mean",
+                            "stddev",
+                        ):
                             agg_cols.append(to_char(func(c)))
+                        else:
+                            agg_cols.append(to_char(func(lit(None))).as_(c))
                     else:
                         agg_cols.append(func(c))
                 agg_stat_df = (

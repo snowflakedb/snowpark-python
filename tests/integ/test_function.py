@@ -792,7 +792,7 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sqrt(lit(-1))).collect()
     if not local_testing_mode:
-        assert "Invalid floating point operation: sqrt(-1)" in str(ex_info)
+        assert "Invalid floating point operation: sqrt(-1)" in str(ex_info.value)
 
     # abs
     with pytest.raises(TypeError) as ex_info:
@@ -838,7 +838,9 @@ def test_basic_string_operations(session, local_testing_mode):
     df = session.create_dataframe(["a not that long string"], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", "b", 1)).collect()
-    assert local_testing_mode or "Numeric value 'b' is not recognized" in str(ex_info)
+    assert local_testing_mode or "Numeric value 'b' is not recognized" in str(
+        ex_info.value
+    )
 
     # substring - negative length yields empty string
     res = df.select(substring("a", 6, -1)).collect()
@@ -848,7 +850,9 @@ def test_basic_string_operations(session, local_testing_mode):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(substring("a", 1, "c")).collect()
-    assert local_testing_mode or "Numeric value 'c' is not recognized" in str(ex_info)
+    assert local_testing_mode or "Numeric value 'c' is not recognized" in str(
+        ex_info.value
+    )
 
     # Split is not yet supported by local testing mode
     if not local_testing_mode:
@@ -1167,63 +1171,67 @@ def test_is_negative(session):
     # Test that we can only use these with variants
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_array("a")).collect()
-    assert "Invalid argument types for function 'IS_ARRAY'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_ARRAY'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_binary("a")).collect()
-    assert "Invalid argument types for function 'IS_BINARY'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_BINARY'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_char("a")).collect()
-    assert "Invalid argument types for function 'IS_CHAR'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_CHAR'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_varchar("a")).collect()
-    assert "Invalid argument types for function 'IS_CHAR'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_CHAR'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_date("a")).collect()
-    assert "Invalid argument types for function 'IS_DATE'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_DATE'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_decimal("a")).collect()
-    assert "Invalid argument types for function 'IS_DECIMAL'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_DECIMAL'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_double("a")).collect()
-    assert "Invalid argument types for function 'IS_DOUBLE'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_DOUBLE'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_real("a")).collect()
-    assert "Invalid argument types for function 'IS_REAL'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_REAL'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_integer("a")).collect()
-    assert "Invalid argument types for function 'IS_INTEGER'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_INTEGER'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_null_value("a")).collect()
-    assert "Invalid argument types for function 'IS_NULL_VALUE'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_NULL_VALUE'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_object("a")).collect()
-    assert "Invalid argument types for function 'IS_OBJECT'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_OBJECT'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_time("a")).collect()
-    assert "Invalid argument types for function 'IS_TIME'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_TIME'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_timestamp_ltz("a")).collect()
-    assert "Invalid argument types for function 'IS_TIMESTAMP_LTZ'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_TIMESTAMP_LTZ'" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_timestamp_ntz("a")).collect()
-    assert "Invalid argument types for function 'IS_TIMESTAMP_NTZ'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_TIMESTAMP_NTZ'" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(is_timestamp_tz("a")).collect()
-    assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info)
+    assert "Invalid argument types for function 'IS_TIMESTAMP_TZ'" in str(ex_info.value)
 
 
 def test_parse_json(session):
@@ -1319,29 +1327,29 @@ def test_as_negative(session):
     # Test that we can only use these with variants
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_array("a")).collect()
-    assert "Invalid argument types for function 'AS_ARRAY'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_ARRAY'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_binary("a")).collect()
-    assert "Invalid argument types for function 'AS_BINARY'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_BINARY'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_char("a")).collect()
-    assert "Invalid argument types for function 'AS_CHAR'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_CHAR'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_varchar("a")).collect()
-    assert "Invalid argument types for function 'AS_VARCHAR'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_VARCHAR'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_date("a")).collect()
-    assert "Invalid argument types for function 'AS_DATE'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_DATE'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_decimal("a")).collect()
     assert (
         "invalid type [VARCHAR(5)] for parameter 'AS_DECIMAL(variantValue...)'"
-        in str(ex_info)
+        in str(ex_info.value)
     )
 
     with pytest.raises(ValueError) as ex_info:
@@ -1351,18 +1359,20 @@ def test_as_negative(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_decimal(col("decimal1"), -1)).collect()
     assert "invalid value [-1] for parameter 'AS_DECIMAL(?, precision...)'" in str(
-        ex_info
+        ex_info.value
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_decimal(col("decimal1"), 6, -1)).collect()
-    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(ex_info)
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_number("a")).collect()
     assert (
         "invalid type [VARCHAR(5)] for parameter 'AS_DECIMAL(variantValue...)'"
-        in str(ex_info)
+        in str(ex_info.value)
     )
 
     with pytest.raises(ValueError) as ex_info:
@@ -1372,55 +1382,57 @@ def test_as_negative(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_number(col("decimal1"), -1)).collect()
     assert "invalid value [-1] for parameter 'AS_DECIMAL(?, precision...)'" in str(
-        ex_info
+        ex_info.value
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_number(col("decimal1"), 6, -1)).collect()
-    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(ex_info)
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_double("a")).collect()
-    assert "Invalid argument types for function 'AS_DOUBLE'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_DOUBLE'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_real("a")).collect()
-    assert "Invalid argument types for function 'AS_REAL'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_REAL'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_integer("a")).collect()
     assert (
         "invalid type [VARCHAR(5)] for parameter 'AS_INTEGER(variantValue...)'"
-        in str(ex_info)
+        in str(ex_info.value)
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_object("a")).collect()
-    assert "Invalid argument types for function 'AS_OBJECT'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_OBJECT'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_time("a")).collect()
-    assert "Invalid argument types for function 'AS_TIME'" in str(ex_info)
+    assert "Invalid argument types for function 'AS_TIME'" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_timestamp_ltz("a")).collect()
     assert (
         "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_LTZ(variantValue...)'"
-        in str(ex_info)
+        in str(ex_info.value)
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_timestamp_ntz("a")).collect()
     assert (
         "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_NTZ(variantValue...)'"
-        in str(ex_info)
+        in str(ex_info.value)
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_timestamp_tz("a")).collect()
     assert (
         "invalid type [VARCHAR(5)] for parameter 'AS_TIMESTAMP_TZ(variantValue...)'"
-        in str(ex_info)
+        in str(ex_info.value)
     )
 
 
@@ -1686,7 +1698,7 @@ def test_coalesce(session):
     # single input column
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.null_data2(session).select(coalesce(col("A"))).collect()
-    assert "not enough arguments for function [COALESCE" in str(ex_info)
+    assert "not enough arguments for function [COALESCE" in str(ex_info.value)
 
     with pytest.raises(TypeError) as ex_info:
         TestData.null_data2(session).select(coalesce(["A", "B", "C"]))
@@ -1739,7 +1751,7 @@ def test_uniform_negative(session):
     df = session.create_dataframe([1], schema=["a"])
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(uniform(lit("z"), 11, random())).collect()
-    assert "Numeric value 'z' is not recognized" in str(ex_info)
+    assert "Numeric value 'z' is not recognized" in str(ex_info.value)
 
 
 def test_negate_and_not_negative(session):
@@ -1762,7 +1774,7 @@ def test_random_negative(session, local_testing_mode):
         if local_testing_mode
         else "Numeric value 'abc' is not recognized"
     )
-    assert err_str in str(ex_info)
+    assert err_str in str(ex_info.value)
 
 
 def test_check_functions_negative(session):
@@ -2417,7 +2429,7 @@ def test_negative_function_call(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sum_(col("a"))).collect()
-        assert "is not recognized" in str(ex_info)
+    assert "is not recognized" in str(ex_info.value)
 
 
 def test_ln(session):
