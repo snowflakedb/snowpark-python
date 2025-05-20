@@ -1,23 +1,22 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import json
 import logging
 from typing import List, Any, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
-from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.functions import column, to_variant, parse_json
 from snowflake.snowpark.types import (
     StructType,
     MapType,
     StructField,
     ArrayType,
     VariantType,
+    TimestampType,
+    TimestampTimeZone,
 )
-from snowflake.snowpark.functions import column, to_variant
-from snowflake.connector.options import pandas as pd
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
@@ -37,6 +36,7 @@ class DatabricksDriver(BaseDriver):
             query = f"DESCRIBE QUERY SELECT * FROM ({table_or_query})"
             logger.debug(f"trying to get schema using query: {query}")
             raw_schema = cursor.execute(query).fetchall()
+            self.raw_schema = raw_schema
             return self.to_snow_type(raw_schema)
         except Exception as exc:
             raise SnowparkDataframeReaderException(
@@ -63,29 +63,11 @@ class DatabricksDriver(BaseDriver):
         for column_name, column_type, _ in schema:
             column_type = convert_map_to_use.get(column_type, column_type)
             data_type = type_string_to_type_object(column_type)
+            if column_type.lower() == "timestamp":
+                # by default https://docs.databricks.com/aws/en/sql/language-manual/data-types/timestamp-type
+                data_type = TimestampType(TimestampTimeZone.LTZ)
             all_columns.append(StructField(column_name, data_type, True))
         return StructType(all_columns)
-
-    @staticmethod
-    def data_source_data_to_pandas_df(
-        data: List[Any], schema: StructType
-    ) -> "pd.DataFrame":
-        df = BaseDriver.data_source_data_to_pandas_df(data, schema)
-        # 1. Regular snowflake table (compared to Iceberg Table) does not support structured data
-        # type (array, map, struct), thus we store structured data as variant in regular table
-        # 2. map type needs special handling because:
-        #   i. databricks sql returned it as a list of tuples, which needs to be converted to a dict
-        #   ii. pandas parquet conversion does not support dict having int as key, we convert it to json string
-        map_type_indexes = [
-            i
-            for i, field in enumerate(schema.fields)
-            if isinstance(field.datatype, MapType)
-        ]
-        col_names = df.columns[map_type_indexes]
-        df[col_names] = BaseDriver.df_map_method(df[col_names])(
-            lambda x: json.dumps(dict(x), cls=PythonObjJSONEncoder)
-        )
-        return df
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
@@ -100,17 +82,14 @@ class DatabricksDriver(BaseDriver):
                 cursor.execute(describe_query)
                 schema_info = cursor.fetchall()
 
-                # Find which columns are map or array types based on column type description
-                map_column_indices = []
+                # Find which columns are array types based on column type description
+                # databricks-sql-connector does not provide built-in output handler nor databricks provide simple
+                # built-in function to do the transformation meeting our snowflake table requirement
+                # from nd.array to list
                 array_column_indices = []
-                binary_column_indices = []
                 for idx, (_, column_type, _) in enumerate(schema_info):
-                    if column_type.startswith("map<"):
-                        map_column_indices.append(idx)
-                    elif column_type.startswith("array<"):
+                    if column_type.startswith("array<"):
                         array_column_indices.append(idx)
-                    elif column_type == "binary":
-                        binary_column_indices.append(idx)
 
                 # Execute the actual query
                 cursor.execute(query)
@@ -121,7 +100,6 @@ class DatabricksDriver(BaseDriver):
                     processed_rows = []
                     for row in rows:
                         processed_row = list(row)
-
                         # Handle array columns - convert ndarray to list
                         for idx in array_column_indices:
                             if (
@@ -130,22 +108,6 @@ class DatabricksDriver(BaseDriver):
                             ):
                                 processed_row[idx] = processed_row[idx].tolist()
 
-                        # Handle binary columns - convert to hex
-                        for idx in binary_column_indices:
-                            if (
-                                idx < len(processed_row)
-                                and processed_row[idx] is not None
-                            ):
-                                processed_row[idx] = processed_row[idx].hex()
-
-                        # Convert map type columns to JSON strings
-                        for idx in map_column_indices:
-                            if (
-                                idx < len(processed_row)
-                                and processed_row[idx] is not None
-                            ):
-                                processed_row[idx] = dict(processed_row[idx])
-                                # processed_row[idx] = json.dumps(processed_row[idx], cls=PythonObjJSONEncoder)
                         processed_rows.append(tuple(processed_row))
                     yield from processed_rows
 
@@ -180,7 +142,7 @@ class DatabricksDriver(BaseDriver):
             if isinstance(
                 field.datatype, (MapType, ArrayType, StructType, VariantType)
             ):
-                cols.append(to_variant(column(field.name)).as_(field.name))
+                cols.append(to_variant(parse_json(column(field.name))).as_(field.name))
             else:
                 cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
-        return res_df.select(cols)
+        return res_df.select(cols, _emit_ast=_emit_ast)
