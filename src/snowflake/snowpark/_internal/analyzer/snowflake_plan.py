@@ -236,43 +236,44 @@ class SnowflakePlan(LogicalPlan):
                                         quoted_identifiers.extend(
                                             node.quoted_identifiers
                                         )
+                            if quoted_identifiers:
 
-                            def add_single_quote(string: str) -> str:
-                                return f"'{string}'"
+                                def add_single_quote(string: str) -> str:
+                                    return f"'{string}'"
 
-                            # We can't display all column identifiers in the error message
-                            if len(quoted_identifiers) > 10:
-                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers[:10])}, ...]"
-                            else:
-                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers)}]"
+                                # We can't display all column identifiers in the error message
+                                if len(quoted_identifiers) > 10:
+                                    quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers[:10])}, ...]"
+                                else:
+                                    quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers)}]"
 
-                            msg = (
-                                f"There are existing quoted column identifiers: {quoted_identifiers_str}. "
-                                f"Please use one of them to reference the column. See more details on Snowflake identifier requirements "
-                                f"https://docs.snowflake.com/en/sql-reference/identifiers-syntax"
-                            )
-
-                            # Currently, when Snowpark user a Python string as identifier to access a column:
-                            # 1) if a column name is unquoted and
-                            #   a) contains no special characters, it is automatically uppercased and quoted in SQL, or
-                            #   b) if it includes special characters, it is simply quoted without uppercasing.
-                            # 2) If the name is explicitly quoted by the user, Snowpark preserves it as-is.
-                            # Therefore, if `col` is an invalid identifier, it is most likely due to 1a) above.
-                            # We attempt to provide a more helpful error message by suggesting the closest valid identifier.
-                            if UNQUOTED_CASE_INSENSITIVE.match(col):
-                                identifier = quote_name_without_upper_casing(
-                                    col.lower()
+                                msg = (
+                                    f"There are existing quoted column identifiers: {quoted_identifiers_str}. "
+                                    f"Please use one of them to reference the column. See more details on Snowflake identifier requirements "
+                                    f"https://docs.snowflake.com/en/sql-reference/identifiers-syntax"
                                 )
-                                match = difflib.get_close_matches(
-                                    identifier, quoted_identifiers
-                                )
-                                if match:
-                                    # if there is an exact match, just remind users this one
-                                    if identifier in match:
-                                        match = [identifier]
-                                    msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
 
-                            e.msg = f"{e.msg}\n{msg}"
+                                # Currently, when Snowpark user a Python string as identifier to access a column:
+                                # 1) if a column name is unquoted and
+                                #   a) contains no special characters, it is automatically uppercased and quoted in SQL, or
+                                #   b) if it includes special characters, it is simply quoted without uppercasing.
+                                # 2) If the name is explicitly quoted by the user, Snowpark preserves it as-is.
+                                # Therefore, if `col` is an invalid identifier, it is most likely due to 1a) above.
+                                # We attempt to provide a more helpful error message by suggesting the closest valid identifier.
+                                if UNQUOTED_CASE_INSENSITIVE.match(col):
+                                    identifier = quote_name_without_upper_casing(
+                                        col.lower()
+                                    )
+                                    match = difflib.get_close_matches(
+                                        identifier, quoted_identifiers
+                                    )
+                                    if match:
+                                        # if there is an exact match, just remind users this one
+                                        if identifier in match:
+                                            match = [identifier]
+                                        msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
+
+                                e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                                 e
                             )

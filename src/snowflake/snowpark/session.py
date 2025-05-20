@@ -740,6 +740,7 @@ class Session:
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._catalog = None
+        self._debug_mode = False
 
         self._ast_batch = AstBatch(self)
 
@@ -1126,6 +1127,15 @@ class Session:
             self._custom_package_usage_config = {
                 k.lower(): v for k, v in config.items()
             }
+
+    @experimental(version="1.32.0")
+    def enable_debug_mode(self, enabled=True):
+        """
+        Enables debug mode for this session.
+
+        When debug mode is enabled dataframe schemas are eagerly validated. This results in additional queries being executed.
+        """
+        self._debug_mode = enabled
 
     def cancel_all(self) -> None:
         """
