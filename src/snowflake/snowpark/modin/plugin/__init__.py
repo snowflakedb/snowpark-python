@@ -57,6 +57,8 @@ import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort:
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.series_groupby_overrides  # isort: skip  # noqa: E402,F401
 
 # === INITIALIZE DOCSTRINGS ===
 # These imports also all need to occur after modin + pandas dependencies are validated.
@@ -72,8 +74,9 @@ import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
 import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
 
 # Hybrid Mode Imports
-from modin.core.storage_formats.pandas.query_compiler_caster import (
+from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402
     _GENERAL_EXTENSIONS,
+    _NON_EXTENDABLE_ATTRIBUTES,
     register_function_for_post_op_switch,
     register_function_for_pre_op_switch,
 )
@@ -182,18 +185,25 @@ aggregations = [
     "cumsum",
 ]
 
-post_op_switch_points = [
-    {"class_name": None, "method": "read_snowflake"},
-    {"class_name": "Series", "method": "value_counts"},
-    {"class_name": "DataFrame", "method": "value_counts"},
-    # Series.agg can return a Series if a list of aggregations is provided
-    {"class_name": "Series", "method": "agg"},
-    {"class_name": "Series", "method": "aggregate"},
-] + [{"class_name": "DataFrame", "method": agg_method} for agg_method in aggregations] + [
-    {"class_name": "DataFrameGroupBy", "method": agg_method} for agg_method in aggregations
-] + [
-    {"class_name": "SeriesGroupBy", "method": agg_method} for agg_method in aggregations
-]
+post_op_switch_points = (
+    [
+        {"class_name": None, "method": "read_snowflake"},
+        {"class_name": "Series", "method": "value_counts"},
+        {"class_name": "DataFrame", "method": "value_counts"},
+        # Series.agg can return a Series if a list of aggregations is provided
+        {"class_name": "Series", "method": "agg"},
+        {"class_name": "Series", "method": "aggregate"},
+    ]
+    + [{"class_name": "DataFrame", "method": agg_method} for agg_method in aggregations]
+    + [
+        {"class_name": "DataFrameGroupBy", "method": agg_method}
+        for agg_method in aggregations
+    ]
+    + [
+        {"class_name": "SeriesGroupBy", "method": agg_method}
+        for agg_method in aggregations
+    ]
+)
 
 pre_op_points = []
 for point in pre_op_switch_points:
@@ -214,15 +224,14 @@ for point in post_op_switch_points:
     )
 
 
-
 # Remove print statements for the customer validation release
-#print("#################### HYBRID MODE #################")
-#print(f"######## Registered Pre-Operation Methods ########\n{', '.join(pre_op_points)}")
-#print("##################################################")
-#print(
+# print("#################### HYBRID MODE #################")
+# print(f"######## Registered Pre-Operation Methods ########\n{', '.join(pre_op_points)}")
+# print("##################################################")
+# print(
 #    f"######## Registered_Post-Operation_Methods #######\n{', '.join(post_op_points)}"
-#)
-#print("##################################################\n")
+# )
+# print("##################################################\n")
 
 Backend.set_active_backends(["Snowflake", "Pandas"])
 
@@ -255,10 +264,6 @@ from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
     register_base_accessor,
 )
 from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
-from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402,F401
-    _NON_EXTENDABLE_ATTRIBUTES,
-    _GENERAL_EXTENSIONS,
-)
 
 from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
     TELEMETRY_PRIVATE_METHODS,

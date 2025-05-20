@@ -12,7 +12,7 @@ from pandas.core.groupby.generic import (
 )
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+from modin.pandas.groupby import (
     DataFrameGroupBy as snow_df_groupby,
     SeriesGroupBy as snow_ser_groupby,
 )

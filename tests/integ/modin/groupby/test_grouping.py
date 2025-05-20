@@ -9,7 +9,7 @@ import pytest
 from pandas.core.groupby.generic import DataFrameGroupBy as PandasDFGroupBy
 
 import snowflake.snowpark.modin.plugin  # noqa : F401
-from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+from modin.pandas.groupby import (
     DataFrameGroupBy as SnowparkPandasDFGroupBy,
     SeriesGroupBy as SnowparkPandasSerGroupBy,
 )
