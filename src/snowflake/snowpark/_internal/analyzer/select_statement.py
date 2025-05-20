@@ -309,7 +309,13 @@ class Selectable(LogicalPlan, ABC):
     @property
     def sql_in_subquery(self) -> str:
         """Return the sql when this Selectable is used in a subquery."""
-        return f"{analyzer_utils.LEFT_PARENTHESIS}{self.sql_query}{analyzer_utils.RIGHT_PARENTHESIS}"
+        return (
+            f"{analyzer_utils.LEFT_PARENTHESIS}"
+            f"{analyzer_utils.NEW_LINE + analyzer_utils.TAB}"
+            f"{self.sql_query.replace(analyzer_utils.NEW_LINE, analyzer_utils.NEW_LINE + analyzer_utils.TAB)}"
+            f"{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.RIGHT_PARENTHESIS}"
+        )
 
     @property
     @abstractmethod
@@ -454,7 +460,8 @@ class Selectable(LogicalPlan, ABC):
 
     def merge_into_post_action(self, post_action: "Query") -> None:
         """Method to merge a post-action into the current Selectable's post-actions if it
-        is not already present. If post_actions is None, new list will be initialized."""
+        is not already present. If post_actions is None, new list will be initialized.
+        """
         if self.post_actions is None:
             self.post_actions = [copy(post_action)]
         elif post_action not in self.post_actions:
@@ -525,7 +532,7 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_query(self) -> str:
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.NEW_LINE}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
     def sql_in_subquery(self) -> str:
@@ -736,7 +743,8 @@ class SelectSnowflakePlan(Selectable):
 
 class SelectStatement(Selectable):
     """The main logic plan to be used by a DataFrame.
-    It structurally has the parts of a query and uses the ColumnState to decide whether a query can be flattened."""
+    It structurally has the parts of a query and uses the ColumnState to decide whether a query can be flattened.
+    """
 
     def __init__(
         self,
@@ -933,22 +941,24 @@ class SelectStatement(Selectable):
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
         where_clause = (
-            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.WHERE}{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.TAB}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         order_by_clause = (
-            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.ORDER_BY}{analyzer_utils.NEW_LINE}{analyzer_utils.TAB}"
+            f"{(analyzer_utils.COMMA + analyzer_utils.NEW_LINE + analyzer_utils.TAB).join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
             if self.order_by
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         limit_clause = (
-            f"{analyzer_utils.LIMIT}{self.limit_}"
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.LIMIT}{self.limit_}"
             if self.limit_ is not None
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         offset_clause = (
-            f"{analyzer_utils.OFFSET}{self.offset}"
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.OFFSET}{self.offset}"
             if self.offset
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
@@ -958,8 +968,13 @@ class SelectStatement(Selectable):
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         self._sql_query = (
-            f"{analyzer_utils.SELECT}{distinct_clause}{self.projection_in_str}{analyzer_utils.FROM}"
-            f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+            f"{analyzer_utils.SELECT}{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.TAB}{distinct_clause}{self.projection_in_str}{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.FROM}{from_clause}"
+            f"{where_clause}"
+            f"{order_by_clause}"
+            f"{limit_clause}"
+            f"{offset_clause}"
         )
         return self._sql_query
 
@@ -1655,7 +1670,8 @@ class SetStatement(Selectable):
     @property
     def schema_query(self) -> str:
         """The first operand decide the column attributes of a query with set operations.
-        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
+        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes
+        """
         attributes = self.set_operands[0].selectable.snowflake_plan.attributes
         sql = f"({schema_value_statement(attributes)})"
         for i in range(1, len(self.set_operands)):
