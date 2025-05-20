@@ -2122,6 +2122,11 @@ def test_datasource_put_file_and_copy_into_in_sproc(session):
     assert ingestion() == "success"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="data source is not supported in local testing",
+    run=False,
+)
 def test_procedure_with_default_value(session):
     temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
     sql = f"""
@@ -2138,5 +2143,5 @@ def my_handler(session, col1, col2):
 $$;
     """
     session.sql(sql).collect()
-    df = session.call(temp_sp_name, 1, is_return_table=True)
+    df = session.call(temp_sp_name, 1, return_dataframe=True)
     Utils.check_answer(df, [Row(COL1=1, COL2="snowflake")])
