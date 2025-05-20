@@ -59,7 +59,6 @@ def create_databricks_connection():
 @pytest.mark.parametrize(
     "input_type, input_value",
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
-    # [("table", TEST_TABLE_NAME)],
 )
 def test_basic_databricks(session, input_type, input_value):
     input_dict = {
@@ -125,16 +124,23 @@ def test_double_quoted_column_databricks(session):
     ]
 
 
-def test_udtf_ingestion_databricks(session, caplog):
+@pytest.mark.parametrize(
+    "input_type, input_value",
+    [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
+)
+def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     # we define here to avoid test_databricks.py to be pickled and unpickled in UDTF
     def local_create_databricks_connection():
         import databricks.sql
 
         return databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
 
+    input_dict = {
+        input_type: input_value,
+    }
     df = session.read.dbapi(
         local_create_databricks_connection,
-        table=TEST_TABLE_NAME,
+        **input_dict,
         udtf_configs={
             "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
         },
