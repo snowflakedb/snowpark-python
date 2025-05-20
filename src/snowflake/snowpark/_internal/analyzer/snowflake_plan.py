@@ -1328,20 +1328,20 @@ class SnowflakePlanBuilder:
                 )
                 new_plan = self.session._analyzer.resolve(
                     plan.snowflake_plan.source_plan
-                )
+                )  # type: ignore
                 plan._snowflake_plan = new_plan
                 return plan
         plan_2_resolve = None
         for node in plan.children_plan_nodes:
             plan_2_resolve = (
                 self.find_table_function_in_sql_tree(node) or plan_2_resolve
-            )
+            )  # type: ignore
         if plan_2_resolve:
             return self.session._analyzer.resolve(
                 plan.snowflake_plan.source_plan
                 if isinstance(plan, Selectable)
                 else plan.source_plan
-            )
+            )  # type: ignore
 
     def create_or_replace_dynamic_table(
         self,
