@@ -12,12 +12,12 @@ import modin.pandas as pdi
 from modin.pandas import DataFrame as DataFrameClazz, Series as SeriesClazz
 from modin.pandas.plotting import Plotting as PlottingClazz
 from modin.pandas.series_utils import DatetimeProperties as DatetimePropertiesClazz
-
-import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+from modin.pandas.groupby import (
     DataFrameGroupBy as DataFrameGroupByClazz,
     SeriesGroupBy as SeriesGroupByClazz,
 )
+
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.extensions.resample_overrides import (
     Resampler as ResamplerClazz,
 )

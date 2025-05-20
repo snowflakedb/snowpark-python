@@ -28,7 +28,6 @@ from typing import (
     Sequence,
 )
 
-from modin.config import context as config_context
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -36,6 +35,7 @@ from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
+from modin.pandas.groupby import DataFrameGroupBy
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -85,8 +85,7 @@ from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-    DataFrameGroupBy,
+from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
     validate_groupby_args,
 )
 from snowflake.snowpark.modin.plugin.extensions.index import Index
@@ -99,7 +98,6 @@ from snowflake.snowpark.modin.plugin.extensions.utils import (
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
     try_convert_index_to_native,
-    is_autoswitch_enabled,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -1129,6 +1127,7 @@ def groupby(
         idx_name,
         observed=observed,
         dropna=dropna,
+        drop=False,  # TODO reconcile with OSS modin's drop flag
         return_tuple_when_iterating=return_tuple_when_iterating,
     )
 
