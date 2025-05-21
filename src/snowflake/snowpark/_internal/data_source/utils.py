@@ -13,8 +13,6 @@ from snowflake.snowpark._internal.data_source.dbms_dialects import (
     OracledbDialect,
     SqlServerDialect,
     DatabricksDialect,
-)
-from snowflake.snowpark._internal.data_source.dbms_dialects.mysql_dialect import (
     MysqlDialect,
 )
 from snowflake.snowpark._internal.data_source.drivers import (
@@ -22,10 +20,10 @@ from snowflake.snowpark._internal.data_source.drivers import (
     OracledbDriver,
     PyodbcDriver,
     DatabricksDriver,
+    PymysqlDriver,
 )
 import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
-from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import PymysqlDriver
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 
