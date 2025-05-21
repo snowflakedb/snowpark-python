@@ -224,7 +224,8 @@ class PymysqlDriver(BaseDriver):
                 if type(col) != NoneType:
                     raw_data_types_set[i].add(type(col))
         types = [
-            type_set.pop() if len(type_set) else str for type_set in raw_data_types_set
+            type_set.pop() if len(type_set) == 1 else str
+            for type_set in raw_data_types_set
         ]
         return types
 
