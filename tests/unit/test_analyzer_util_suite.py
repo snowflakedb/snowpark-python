@@ -273,7 +273,7 @@ def test_create_or_replace_dynamic_table_statement():
         child="select * from foo",
     ) == (
         f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
-        "AS  SELECT  * \n FROM (\n    select * from foo\n)"
+        "AS  SELECT  * \n FROM (\nselect * from foo\n)"
     )
 
     assert create_or_replace_dynamic_table_statement(
@@ -292,7 +292,7 @@ def test_create_or_replace_dynamic_table_statement():
         child="select * from foo",
     ) == (
         f" CREATE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
-        "AS  SELECT  * \n FROM (\n    select * from foo\n)"
+        "AS  SELECT  * \n FROM (\nselect * from foo\n)"
     )
     assert create_or_replace_dynamic_table_statement(
         name=dt_name,
@@ -310,7 +310,7 @@ def test_create_or_replace_dynamic_table_statement():
         child="select * from foo",
     ) == (
         f" CREATE  DYNAMIC  TABLE  If  NOT  EXISTS {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
-        "AS  SELECT  * \n FROM (\n    select * from foo\n)"
+        "AS  SELECT  * \n FROM (\nselect * from foo\n)"
     )
     assert create_or_replace_dynamic_table_statement(
         name=dt_name,
@@ -331,7 +331,7 @@ def test_create_or_replace_dynamic_table_statement():
         f"REFRESH_MODE  = '{refresh_mode}'  INITIALIZE  = '{initialize}'  CLUSTER BY ({cluster_by[0]})  "
         f"DATA_RETENTION_TIME_IN_DAYS  = '{data_retention_time}'  MAX_DATA_EXTENSION_TIME_IN_DAYS  = "
         f"'{max_data_extension_time}'  COMMENT  = '{comment}' AS  SELECT  * \n"
-        " FROM (\n    select * from foo\n)"
+        " FROM (\nselect * from foo\n)"
     )
 
 
@@ -408,7 +408,7 @@ def test_create_iceberg_table_as_select_statement():
         " CREATE    ICEBERG  TABLE  test_table  EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
         "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
         "STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED'   AS  SELECT  * \n"
-        " FROM (\n    select * from foo\n)"
+        " FROM (\nselect * from foo\n)"
     )
 
 
@@ -442,23 +442,18 @@ def test_create_dynamic_iceberg_table():
         "my_warehouse    EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
         "BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
         " = 'OPTIMIZED' AS  SELECT  * \n"
-        " FROM (\n    select * from foo\n)"
+        " FROM (\nselect * from foo\n)"
     )
 
 
 def test_project_statement_formatting():
     print(project_statement(["col1", "col2"], "table1"))
     assert project_statement(["col1", "col2"], "table1") == (
-        " SELECT \n" "    col1, \n" "    col2\n" " FROM (\n" "    table1\n" ")"
+        " SELECT \n" "    col1, \n" "    col2\n" " FROM (\n" "table1\n" ")"
     )
 
     assert project_statement(["col1 as a", "col2 as b"], "table1") == (
-        " SELECT \n"
-        "    col1 as a, \n"
-        "    col2 as b\n"
-        " FROM (\n"
-        "    table1\n"
-        ")"
+        " SELECT \n" "    col1 as a, \n" "    col2 as b\n" " FROM (\n" "table1\n" ")"
     )
 
     assert project_statement(
@@ -468,7 +463,7 @@ def test_project_statement_formatting():
         "    CASE WHEN col1 > 0 THEN 1 ELSE 0 END as flag, \n"
         "    COUNT(*) as cnt\n"
         " FROM (\n"
-        "    table1\n"
+        "table1\n"
         ")"
     )
 
@@ -478,24 +473,19 @@ def test_project_statement_formatting():
         "    col1, \n"
         "    col2\n"
         " FROM (\n"
-        "    SELECT a, b\n"
-        "    FROM table1\n"
-        "    WHERE x > 0\n"
+        "SELECT a, b\n"
+        "FROM table1\n"
+        "WHERE x > 0\n"
         ")"
     )
 
     print(project_statement([], "table1"))
     assert project_statement([], "table1") == (
-        " SELECT  * \n" " FROM (\n" "    table1\n" ")"
+        " SELECT  * \n" " FROM (\n" "table1\n" ")"
     )
 
     assert project_statement(["col1", "col2"], "table1", is_distinct=True) == (
-        " SELECT  DISTINCT \n"
-        "    col1, \n"
-        "    col2\n"
-        " FROM (\n"
-        "    table1\n"
-        ")"
+        " SELECT  DISTINCT \n" "    col1, \n" "    col2\n" " FROM (\n" "table1\n" ")"
     )
 
 
@@ -509,19 +499,19 @@ def test_nested_query_formatting():
         "    t.col1, \n"
         "    t.col2\n"
         " FROM (\n"
-        "     SELECT \n"
-        "        inner.a as col1, \n"
-        "        inner.b as col2\n"
-        "     FROM (\n"
-        "        base_table inner\n"
-        "    )\n"
+        " SELECT \n"
+        "    inner.a as col1, \n"
+        "    inner.b as col2\n"
+        " FROM (\n"
+        "base_table inner\n"
+        ")\n"
         ")"
     )
 
 
 def test_table_function_statement_formatting():
     assert table_function_statement("my_table_func()") == (
-        " SELECT  * \n" " FROM (\n" "     TABLE (my_table_func())\n" ")"
+        " SELECT  * \n" " FROM (\n" " TABLE (my_table_func())\n" ")"
     )
 
     assert table_function_statement("my_table_func()", ["col1", "col2"]) == (
@@ -529,14 +519,14 @@ def test_table_function_statement_formatting():
         "    col1, \n"
         "    col2\n"
         " FROM (\n"
-        "     TABLE (my_table_func())\n"
+        " TABLE (my_table_func())\n"
         ")"
     )
 
 
 def test_filter_statement_formatting():
     assert filter_statement("x > 0 AND y < 10", "my_table") == (
-        " SELECT  * \n" " FROM (\n" "    my_table\n" ")\n" " WHERE x > 0 AND y < 10"
+        " SELECT  * \n" " FROM (\n" "my_table\n" ")\n" " WHERE x > 0 AND y < 10"
     )
 
 
@@ -545,13 +535,14 @@ def test_sample_by_statement_formatting():
     sample = sample_by_statement(
         child="my_table", col="category", fractions={"A": 0.1, "B": 0.5, "C": 1.0}
     )
+    print(sample)
     expected_pattern = re.compile(
         r" SELECT SNOWPARK_LEFT\.\* EXCLUDE (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
-        r"     SELECT  \* , PERCENT_RANK\(\) OVER \(PARTITION BY category ORDER BY RANDOM\(\)\) AS (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
-        r"        my_table\n"
-        r"    \)\n"
+        r" SELECT  \* , PERCENT_RANK\(\) OVER \(PARTITION BY category ORDER BY RANDOM\(\)\) AS (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
+        r"my_table\n"
+        r"\)\n"
         r"\) AS SNOWPARK_LEFT JOIN \(\n"
-        r"    SELECT KEY, VALUE FROM TABLE\(FLATTEN\(input => parse_json\('\{\"A\": 0\.1, \"B\": 0\.5, \"C\": 1\.0\}'\)\)\)\n"
+        r"SELECT KEY, VALUE FROM TABLE\(FLATTEN\(input => parse_json\('\{\"A\": 0\.1, \"B\": 0\.5, \"C\": 1\.0\}'\)\)\)\n"
         r"\) AS SNOWPARK_RIGHT ON SNOWPARK_LEFT\.category = SNOWPARK_RIGHT\.KEY WHERE SNOWPARK_LEFT\.(?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) <= SNOWPARK_RIGHT\.VALUE"
     )
     assert expected_pattern.match(sample) is not None
@@ -559,11 +550,11 @@ def test_sample_by_statement_formatting():
     sample = sample_by_statement(child="my_table", col="category", fractions={})
     expected_pattern = re.compile(
         r" SELECT SNOWPARK_LEFT\.\* EXCLUDE (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
-        r"     SELECT  \* , PERCENT_RANK\(\) OVER \(PARTITION BY category ORDER BY RANDOM\(\)\) AS (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
-        r"        my_table\n"
-        r"    \)\n"
+        r" SELECT  \* , PERCENT_RANK\(\) OVER \(PARTITION BY category ORDER BY RANDOM\(\)\) AS (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
+        r"my_table\n"
+        r"\)\n"
         r"\) AS SNOWPARK_LEFT JOIN \(\n"
-        r"    SELECT KEY, VALUE FROM TABLE\(FLATTEN\(input => parse_json\('\{\}'\)\)\)\n"
+        r"SELECT KEY, VALUE FROM TABLE\(FLATTEN\(input => parse_json\('\{\}'\)\)\)\n"
         r"\) AS SNOWPARK_RIGHT ON SNOWPARK_LEFT\.category = SNOWPARK_RIGHT\.KEY WHERE SNOWPARK_LEFT\.(?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) <= SNOWPARK_RIGHT\.VALUE"
     )
     assert expected_pattern.match(sample) is not None
@@ -571,14 +562,14 @@ def test_sample_by_statement_formatting():
 
 def test_aggregate_statement_formatting():
     assert aggregate_statement([], ["COUNT(*) as cnt"], "my_table") == (
-        " SELECT \n" "    COUNT(*) as cnt\n" " FROM (\n" "    my_table\n" ") LIMIT 1"
+        " SELECT \n" "    COUNT(*) as cnt\n" " FROM (\n" "my_table\n" ") LIMIT 1"
     )
 
     assert aggregate_statement(["dept", "title"], ["COUNT(*) as cnt"], "my_table") == (
         " SELECT \n"
         "    COUNT(*) as cnt\n"
         " FROM (\n"
-        "    my_table\n"
+        "my_table\n"
         ")\n"
         " GROUP BY \n"
         "    dept, \n"
@@ -588,13 +579,13 @@ def test_aggregate_statement_formatting():
 
 def test_sort_statement_formatting():
     assert sort_statement(["col1 ASC"], "my_table") == (
-        " SELECT  * \n" " FROM (\n" "    my_table\n" ")\n" " ORDER BY \n" "    col1 ASC"
+        " SELECT  * \n" " FROM (\n" "my_table\n" ")\n" " ORDER BY \n" "    col1 ASC"
     )
 
     assert sort_statement(["col1 ASC", "col2 DESC"], "my_table") == (
         " SELECT  * \n"
         " FROM (\n"
-        "    my_table\n"
+        "my_table\n"
         ")\n"
         " ORDER BY \n"
         "    col1 ASC, \n"
@@ -617,7 +608,7 @@ def test_join_table_function_statement_formatting():
         "    T_RIGHT.index, \n"
         "    T_RIGHT.value\n"
         " FROM (\n"
-        "    my_table\n"
+        "my_table\n"
         ") AS T_LEFT\n"
         " JOIN \n"
         " TABLE (split_to_table(col1, ' ')) AS T_RIGHT"
@@ -628,7 +619,7 @@ def test_lateral_statement_formatting():
     assert lateral_statement("TABLE(split_to_table(col1, ' '))", "my_table") == (
         " SELECT  * \n"
         " FROM (\n"
-        "    my_table\n"
+        "my_table\n"
         "), \n"
         " LATERAL TABLE(split_to_table(col1, ' '))"
     )
@@ -639,7 +630,7 @@ def test_pivot_statement_formatting():
         "month", ["JAN", "FEB", "MAR"], "sum(amount)", None, "sales_data", True
     ) == (
         ' SELECT  *  EXCLUDE ("JAN", "FEB", "MAR"), "JAN" AS "JAN_sum(amount)", "FEB" AS "FEB_sum(amount)", "MAR" AS "MAR_sum(amount)" FROM (\n'
-        "    sales_data\n"
+        "sales_data\n"
         ")\n"
         " PIVOT (\n"
         "    sum(amount) FOR month IN (JAN, FEB, MAR)\n"
@@ -648,7 +639,7 @@ def test_pivot_statement_formatting():
 
     assert pivot_statement("month", None, "sum(amount)", "0", "sales_data", False) == (
         " SELECT  *  FROM (\n"
-        "    sales_data\n"
+        "sales_data\n"
         ")\n"
         " PIVOT (\n"
         "    sum(amount) FOR month IN ( ANY ) DEFAULT ON NULL (0)\n"
@@ -661,7 +652,7 @@ def test_unpivot_statement_formatting():
         "sales_amount", "month", ["JAN", "FEB", "MAR"], False, "sales_data"
     ) == (
         " SELECT  *  FROM (\n"
-        "    sales_data\n"
+        "sales_data\n"
         ")\n"
         " UNPIVOT (\n"
         "    sales_amount FOR month IN (JAN, FEB, MAR)\n)"
@@ -671,7 +662,7 @@ def test_unpivot_statement_formatting():
         "sales_amount", "month", ["JAN", "FEB", "MAR"], True, "sales_data"
     ) == (
         " SELECT  *  FROM (\n"
-        "    sales_data\n"
+        "sales_data\n"
         ")\n"
         " UNPIVOT  INCLUDE NULLS (\n"
         "    sales_amount FOR month IN (JAN, FEB, MAR)\n)"
