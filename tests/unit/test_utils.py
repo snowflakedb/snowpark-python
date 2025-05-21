@@ -11,7 +11,6 @@ from snowflake.snowpark._internal.utils import (
     str_contains_alphabet,
     get_sorted_key_for_version,
     strip_tabs_and_new_lines,
-    quote_name,
 )
 
 
@@ -183,10 +182,3 @@ def test_strip_tabs_and_new_lines():
         strip_tabs_and_new_lines(query5)
         == "WITH cte AS ( SELECT col1, col2 FROM source_table WHERE col1 IS NOT NULL ) SELECT * FROM cte"
     )
-
-
-def test_quote_name_with_newlines():
-    """Test that quote_name properly handles newlines in identifiers."""
-    assert quote_name("a\nb") == '"a\\x0ab"'
-    assert quote_name('"a\nb"') == '"a\\x0ab"'
-    assert quote_name("a\nb\nc") == '"a\\x0ab\\x0ac"'

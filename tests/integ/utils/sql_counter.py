@@ -33,7 +33,7 @@ SELECT = "SELECT "
 INSERT = "INSERT "
 WITH = "WITH "
 CREATE_TEMP_TABLE = "CREATE  TEMPORARY  TABLE"
-UNION = " UNION "
+UNION = "UNION"
 WINDOW = " OVER "
 WITH_SNOWPARK_TEMP_CTE = "WITH SNOWPARK_TEMP_CTE_"
 
@@ -297,7 +297,6 @@ class SqlCounter(QueryListener):
         tabs and new lines.
         """
         sql = sql.upper()
-
         sql = sql.replace("\n", "").replace("    ", "")
         return sql
 
@@ -350,7 +349,6 @@ class SqlCounter(QueryListener):
         starts_with = starts_with or []
         contains = contains or []
 
-        # Normalize the search patterns
         starts_with = [self._normalize_sql(sw) for sw in starts_with]
         contains = [self._normalize_sql(c) for c in contains]
 
