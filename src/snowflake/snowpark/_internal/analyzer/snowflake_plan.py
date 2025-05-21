@@ -489,6 +489,9 @@ class SnowflakePlan(LogicalPlan):
 
     @Decorator.wrap_exception
     def _analyze_attributes(self) -> List[Attribute]:
+        assert (
+            self.schema_query is not None
+        ), "No schema query is available for the SnowflakePlan"
         return analyze_attributes(self.schema_query, self.session)
 
     @property
