@@ -7,6 +7,7 @@
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+- Added a new debug mode. Enable it using `Session.enable_debug_mode()`. In this mode `Dataframe.schema` is eagerly populated which results in describe queries being run.
 
 ### Snowpark Local Testing Updates
 
