@@ -19,20 +19,21 @@ class PostgresDialect(BaseDialect):
         for _field, raw_field in zip(schema.fields, raw_schema):
             # databricks-sql-connector returns list of tuples for MapType
             # here we push down to-dict conversion to Databricks
-            if raw_field.type_code in (
+            type_code = raw_field[1]
+            if type_code in (
                 Psycopg2TypeCode.JSONB.value,
                 Psycopg2TypeCode.JSON.value,
             ):
                 cols.append(f"""TO_JSON("{raw_field[0]}")::TEXT AS {raw_field[0]}""")
-            elif raw_field.type_code == Psycopg2TypeCode.CASHOID.value:
+            elif type_code == Psycopg2TypeCode.CASHOID.value:
                 cols.append(
                     f"""CASE WHEN "{raw_field[0]}" IS NULL THEN NULL ELSE FORMAT('"%s"', "{raw_field[0]}"::TEXT) END AS {raw_field[0]}"""
                 )
-            elif raw_field.type_code == Psycopg2TypeCode.BYTEAOID.value:
+            elif type_code == Psycopg2TypeCode.BYTEAOID.value:
                 cols.append(f"""ENCODE("{raw_field[0]}", 'HEX') AS {raw_field[0]}""")
-            elif raw_field.type_code == Psycopg2TypeCode.TIMETZOID.value:
+            elif type_code == Psycopg2TypeCode.TIMETZOID.value:
                 cols.append(f""""{raw_field[0]}"::TIME AS {raw_field[0]}""")
-            elif raw_field.type_code == Psycopg2TypeCode.INTERVALOID.value:
+            elif type_code == Psycopg2TypeCode.INTERVALOID.value:
                 cols.append(f""""{raw_field[0]}"::TEXT AS {raw_field[0]}""")
             else:
                 cols.append(f'"{raw_field[0]}"')
