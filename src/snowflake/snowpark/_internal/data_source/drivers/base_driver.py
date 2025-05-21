@@ -171,6 +171,10 @@ class BaseDriver:
         for field in schema.fields:
             name = unquote_if_quoted(field.name)
             if isinstance(field.datatype, IntegerType):
+                # 'Int64' is a pandas dtype while 'int64' is a numpy dtype, as stated here:
+                # https://github.com/pandas-dev/pandas/issues/27731
+                # https://pandas.pydata.org/docs/reference/api/pandas.Int64Dtype.html
+                # https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.int64
                 df[name] = df[name].astype("Int64")
             elif isinstance(field.datatype, (TimestampType, DateType)):
                 df[name] = df[name].map(
