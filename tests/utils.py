@@ -484,6 +484,10 @@ class Utils:
             len(query_details.collect()) > 0
         ), f"query tag '{query_tag}' not present in query history for given session"
 
+    @staticmethod
+    def strip_tabs_and_new_lines(sql_query: str) -> str:
+        return sql_query.replace("\n", "").replace("    ", "")
+
 
 class TestData:
     __test__ = (
