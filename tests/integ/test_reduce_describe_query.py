@@ -313,15 +313,16 @@ def test_select_quoted_identifiers(
 
 def test_snowflake_values(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    expected_quoted_identifiers = ['"A"', '"B"']
+    expected_identifiers = ['"A"', '"B"']
     if session.reduce_describe_query_enabled:
         with SqlCounter(query_count=0, describe_count=0):
-            assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
-            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+            identifiers = df._plan._metadata.quoted_identifiers or [attr.name for attr in df._plan._metadata.attributes or []]
+            assert identifiers == expected_identifiers
+            assert df._plan.quoted_identifiers == identifiers
     else:
         with SqlCounter(query_count=0, describe_count=1):
             assert df._plan._metadata.quoted_identifiers is None
-            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+            assert df._plan.quoted_identifiers == expected_identifiers
 
 
 @pytest.mark.parametrize(

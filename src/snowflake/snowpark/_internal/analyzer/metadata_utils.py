@@ -5,7 +5,13 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
-from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression, Star
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Expression, 
+    Literal,
+    Star,
+)
+from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
@@ -72,6 +78,37 @@ def infer_quoted_identifiers_from_expressions(
         if column_name is not None:
             result.append(quote_name(column_name))
         else:
+            return None
+    return result
+
+
+def _extract_inferable_attribute_names(
+    attributes: Optional[List[Expression]]
+) -> List[str]:
+    """
+    Returns a list of attribute names that can be infered from a list of Expressions.
+    Returns None if one or more attributes cannot be infered.
+    """
+    if attributes is None:
+        return None
+
+    result = []
+    for attr in attributes:
+        # Skip regular attributes. They were already resolved.
+        if isinstance(attr, Attribute):
+            continue
+        elif (attr, Alias):
+            cur = attr
+            while True:
+                cur = cur.child
+                if not isinstance(cur, Alias):
+                    break
+            if isinstance(cur, Literal):
+                result.append(attr)
+            else:
+                return None
+        else:
+            raise ValueError(attr)
             return None
     return result
 
@@ -166,37 +203,37 @@ def infer_metadata(
         elif isinstance(source_plan, SelectStatement):
 
             current_plan = source_plan
-            __import__("pdb").set_trace()
-            while current_plan:
+            def extract_attributes(current_plan):
                 # When attributes is cached on source_plan, just use it
-                if current_plan.attributes is not None:
-                    attributes = current_plan.attributes
+                attributes = None
+                if isinstance(current_plan, SelectStatement):
+                    if current_plan.attributes is not None:
+                        attributes = current_plan.attributes
+                    else:
+                        from_attributes = extract_attributes(current_plan.from_)
+                        new_attributes = _extract_inferable_attribute_names(current_plan.projection)
+                        if from_attributes is not None and new_attributes is not None:
+                            attributes = from_attributes + new_attributes
+                elif isinstance(current_plan, SelectSnowflakePlan):
+                    attributes = current_plan._snowflake_plan._metadata.attributes
+                elif isinstance(current_plan, SelectableEntity):
+                    if current_plan.attributes:
+                        attributes = current_plan.attributes
+                    elif current_plan._snowflake_plan is not None:
+                        attributes = current_plan._snowflake_plan._metadata.attributes
+                elif isinstance(current_plan, SelectSQL):
+                    if current_plan._snowflake_plan is not None:
+                        attributes = current_plan._snowflake_plan._metadata.attributes
                 elif (
-                    isinstance(current_plan.from_, SelectSnowflakePlan)
-                    and source_plan.from_._snowflake_plan.attributes is not None
+                    isinstance(current_plan, SetStatement)
+                    and current_plan._nodes
                 ):
-                    attributes = current_plan.from_._snowflake_plan._metadata.attributes
-                    # TODO extract new things from projection
-                elif (
-                    isinstance(current_plan.from_, SelectableEntity)
-                    and current_plan.from_.attributes
-                ):
-                    attributes = current_plan.from_.attributes
-                elif isinstance(current_plan.from_, SelectStatement):
-                    current_plan = current_plan.from_
-                    continue
-                elif (
-                    isinstance(current_plan.from_, SetStatement)
-                    and current_plan.from_._nodes
-                ):
-                    current_plan = current_plan.from_._nodes[0]
-                    continue
-                # elif isinstance(current_plan.from_, SelectSQL):
-                #     pass
-                # else:
-                #     __import__('pdb').set_trace()
-                #     # raise ValueError(current_plan.from_)
-                current_plan = None
+                    attributes = extract_attributes(current_plan._nodes[0])
+                else:
+                    raise ValueError(current_plan)
+                return attributes
+
+            attributes = extract_attributes(source_plan)
 
             # When _column_states.projection is available, we can just use it,
             # which is either (only one happen):
