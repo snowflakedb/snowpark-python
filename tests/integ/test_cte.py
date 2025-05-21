@@ -705,8 +705,8 @@ def test_sql_simplifier(session):
             == 1
         )
         assert (
-            Utils.strip_tabs_and_new_lines(
-                df5.queries["queries"][-1].count(filter_clause)
+            Utils.strip_tabs_and_new_lines(df5.queries["queries"][-1]).count(
+                filter_clause
             )
             == 3
         )
@@ -732,8 +732,8 @@ def test_sql_simplifier(session):
             == 2
         )
         assert (
-            Utils.strip_tabs_and_new_lines(
-                df6.queries["queries"][-1].count(filter_clause)
+            Utils.strip_tabs_and_new_lines(df6.queries["queries"][-1]).count(
+                filter_clause
             )
             == 2
         )
@@ -761,8 +761,8 @@ def test_sql_simplifier(session):
             == 1
         )
         assert (
-            Utils.strip_tabs_and_new_lines(
-                df9.queries["queries"][-1].count(filter_clause)
+            Utils.strip_tabs_and_new_lines(df9.queries["queries"][-1]).count(
+                filter_clause
             )
             == 3
         )

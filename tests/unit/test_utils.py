@@ -10,6 +10,8 @@ from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     str_contains_alphabet,
     get_sorted_key_for_version,
+    strip_tabs_and_new_lines,
+    quote_name,
 )
 
 
@@ -122,3 +124,69 @@ def test_get_sorted_key_for_version():
     assert get_sorted_key_for_version("10.20.30") == (10, 20, 30)
     assert get_sorted_key_for_version("4.5.6b7") == (4, 5, -1)
     assert get_sorted_key_for_version("7.8.9c") == (7, 8, -1)
+
+
+def test_strip_tabs_and_new_lines():
+    query1 = """
+    SELECT *
+    FROM table1
+    """
+    assert strip_tabs_and_new_lines(query1) == "SELECT * FROM table1"
+
+    query2 = """
+    SELECT t1.col1, t2.col2
+        FROM table1 t1
+        JOIN table2 t2
+            ON t1.id = t2.id
+    """
+    assert (
+        strip_tabs_and_new_lines(query2)
+        == "SELECT t1.col1, t2.col2 FROM table1 t1 JOIN table2 t2 ON t1.id = t2.id"
+    )
+
+    query3 = """
+    SELECT department,
+        COUNT(*) as count
+    FROM employees
+    WHERE salary > 50000
+        AND department IS NOT NULL
+    GROUP BY department
+    """
+    assert (
+        strip_tabs_and_new_lines(query3)
+        == "SELECT department, COUNT(*) as count FROM employees WHERE salary > 50000 AND department IS NOT NULL GROUP BY department"
+    )
+
+    query4 = """
+    SELECT *
+    FROM (
+        SELECT col1, col2
+        FROM inner_table
+        WHERE col1 > 0
+    ) subquery
+    """
+    assert (
+        strip_tabs_and_new_lines(query4)
+        == "SELECT * FROM ( SELECT col1, col2 FROM inner_table WHERE col1 > 0 ) subquery"
+    )
+
+    query5 = """
+    WITH cte AS (
+        SELECT col1, col2
+        FROM source_table
+        WHERE col1 IS NOT NULL
+    )
+    SELECT *
+    FROM cte
+    """
+    assert (
+        strip_tabs_and_new_lines(query5)
+        == "WITH cte AS ( SELECT col1, col2 FROM source_table WHERE col1 IS NOT NULL ) SELECT * FROM cte"
+    )
+
+
+def test_quote_name_with_newlines():
+    """Test that quote_name properly handles newlines in identifiers."""
+    assert quote_name("a\nb") == '"a\\x0ab"'
+    assert quote_name('"a\nb"') == '"a\\x0ab"'
+    assert quote_name("a\nb\nc") == '"a\\x0ab\\x0ac"'

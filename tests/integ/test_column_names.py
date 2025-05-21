@@ -78,15 +78,6 @@ def verify_column_result(
     metadata_column_dtypes = [col.datatype for col in df.schema]
     output_names = [output.name for output in df._output]
     assert output_names == df.columns == metadata_column_names == expected_column_names
-    print("-----")
-    print(output_names)
-    print("-----")
-    print(df.columns)
-    print("-----")
-    print(metadata_column_names)
-    print("-----")
-    print(expected_column_names)
-    print("------")
     for (datatype, expected_type) in zip(metadata_column_dtypes, expected_dtypes):
         if isinstance(expected_type, StringType):
             assert isinstance(datatype, StringType)
