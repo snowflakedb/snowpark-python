@@ -2452,7 +2452,7 @@ def calculate_expression(
         return result
     if isinstance(exp, InExpression):
         lhs = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
-        res = ColumnEmulator([False] * len(lhs), dtype=object)
+        res = ColumnEmulator([False] * len(lhs), dtype=object, index=input_data.index)
         res.sf_type = ColumnType(BooleanType(), True)
         for val in exp.values:
             rhs = calculate_expression(val, input_data, analyzer, expr_to_alias)
