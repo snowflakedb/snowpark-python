@@ -16,6 +16,10 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added support for `pd.read_feather`.
+
 #### Improvements
 
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
