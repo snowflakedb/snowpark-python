@@ -394,8 +394,7 @@ def lateral_statement(lateral_expression: str, child: str) -> str:
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + child
         + NEW_LINE
         + RIGHT_PARENTHESIS
         + COMMA
@@ -436,8 +435,7 @@ def join_table_function_statement(
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + child
         + NEW_LINE
         + RIGHT_PARENTHESIS
         + AS
@@ -483,8 +481,7 @@ def project_statement(project: List[str], child: str, is_distinct: bool = False)
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + child
         + NEW_LINE
         + RIGHT_PARENTHESIS
     )
@@ -536,8 +533,7 @@ def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> st
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + child
         + NEW_LINE
         + RIGHT_PARENTHESIS
     )
@@ -555,8 +551,7 @@ def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> st
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + child_with_percentage_rank_stmt.replace(NEW_LINE, NEW_LINE + TAB)
+        + child_with_percentage_rank_stmt
         + NEW_LINE
         + RIGHT_PARENTHESIS
         + AS
@@ -564,8 +559,7 @@ def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> st
         + JOIN
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + fraction_flatten_stmt.replace(NEW_LINE, NEW_LINE + TAB)
+        + fraction_flatten_stmt
         + NEW_LINE
         + RIGHT_PARENTHESIS
         + AS
@@ -1361,8 +1355,7 @@ def pivot_statement(
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + child
         + NEW_LINE
         + RIGHT_PARENTHESIS
         + NEW_LINE
@@ -1398,8 +1391,7 @@ def unpivot_statement(
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + child
         + NEW_LINE
         + RIGHT_PARENTHESIS
         + NEW_LINE
@@ -1434,8 +1426,7 @@ def rename_statement(column_map: Dict[str, str], child: str) -> str:
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
-        + TAB
-        + child.replace(NEW_LINE, NEW_LINE + TAB)
+        + child
         + NEW_LINE
         + RIGHT_PARENTHESIS
     )

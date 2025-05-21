@@ -311,8 +311,8 @@ class Selectable(LogicalPlan, ABC):
         """Return the sql when this Selectable is used in a subquery."""
         return (
             f"{analyzer_utils.LEFT_PARENTHESIS}"
-            f"{analyzer_utils.NEW_LINE + analyzer_utils.TAB}"
-            f"{self.sql_query.replace(analyzer_utils.NEW_LINE, analyzer_utils.NEW_LINE + analyzer_utils.TAB)}"
+            f"{analyzer_utils.NEW_LINE}"
+            f"{self.sql_query}"
             f"{analyzer_utils.NEW_LINE}"
             f"{analyzer_utils.RIGHT_PARENTHESIS}"
         )
