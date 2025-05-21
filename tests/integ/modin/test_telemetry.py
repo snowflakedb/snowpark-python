@@ -331,7 +331,7 @@ def test_property_methods_telemetry():
     assert api_call["name"] == "Series.<property fget:date>"
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_telemetry_with_update_inplace():
     # verify api_calls have been collected correctly for APIs using _update_inplace() in base.py
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})

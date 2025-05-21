@@ -8,16 +8,16 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import eval_snowpark_pandas_result
-from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 @pytest.mark.parametrize(
-    "args, kwargs",
+    "args, kwargs, expected_query_count",
     [
-        ([{"A": [1, 2, 3]}], {}),
-        ([{"A": []}], {}),
-        ([[]], {}),
-        ([None], {}),
+        ([{"A": [1, 2, 3]}], {}, 0),
+        ([{"A": []}], {}, 0),
+        ([[]], {}, 0),
+        ([None], {}, 0),
         (
             [[1, 2, 3, 4]],
             {
@@ -25,6 +25,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
                     [["A", "B"], ["C", "D"]], names=["Index1", "Index2"]
                 )
             },
+            1,
         ),
     ],
     ids=[
@@ -35,11 +36,11 @@ from tests.integ.utils.sql_counter import sql_count_checker
         "multi index",
     ],
 )
-@sql_count_checker(query_count=1)
-def test_series_size(args, kwargs):
-    eval_snowpark_pandas_result(
-        pd.Series(*args, **kwargs),
-        native_pd.Series(*args, **kwargs),
-        lambda df: df.size,
-        comparator=lambda x, y: x == y,
-    )
+def test_series_size(args, kwargs, expected_query_count):
+    with SqlCounter(query_count=expected_query_count):
+        eval_snowpark_pandas_result(
+            pd.Series(*args, **kwargs),
+            native_pd.Series(*args, **kwargs),
+            lambda df: df.size,
+            comparator=lambda x, y: x == y,
+        )
