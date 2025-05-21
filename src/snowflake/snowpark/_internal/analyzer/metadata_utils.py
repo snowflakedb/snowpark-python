@@ -166,20 +166,29 @@ def infer_metadata(
         elif isinstance(source_plan, SelectStatement):
 
             current_plan = source_plan
-            __import__('pdb').set_trace()
+            __import__("pdb").set_trace()
             while current_plan:
                 # When attributes is cached on source_plan, just use it
                 if current_plan.attributes is not None:
                     attributes = current_plan.attributes
-                elif isinstance(current_plan.from_, SelectSnowflakePlan) and source_plan.from_._snowflake_plan.attributes is not None:
+                elif (
+                    isinstance(current_plan.from_, SelectSnowflakePlan)
+                    and source_plan.from_._snowflake_plan.attributes is not None
+                ):
                     attributes = current_plan.from_._snowflake_plan._metadata.attributes
                     # TODO extract new things from projection
-                elif isinstance(current_plan.from_, SelectableEntity) and current_plan.from_.attributes:
+                elif (
+                    isinstance(current_plan.from_, SelectableEntity)
+                    and current_plan.from_.attributes
+                ):
                     attributes = current_plan.from_.attributes
                 elif isinstance(current_plan.from_, SelectStatement):
                     current_plan = current_plan.from_
                     continue
-                elif isinstance(current_plan.from_, SetStatement) and current_plan.from_._nodes:
+                elif (
+                    isinstance(current_plan.from_, SetStatement)
+                    and current_plan.from_._nodes
+                ):
                     current_plan = current_plan.from_._nodes[0]
                     continue
                 # elif isinstance(current_plan.from_, SelectSQL):
