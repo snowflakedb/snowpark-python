@@ -93,8 +93,11 @@ def infer_metadata(
         LeftSemi,
     )
     from snowflake.snowpark._internal.analyzer.select_statement import (
+        SelectSQL,
+        SelectSnowflakePlan,
         SelectStatement,
         SelectableEntity,
+        SetStatement,
     )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
     from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -106,8 +109,11 @@ def infer_metadata(
         Distinct,
     )
 
+    from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
+
     attributes = None
     quoted_identifiers = None
+    referenced_identifiers = []
     if analyzer.session.reduce_describe_query_enabled and source_plan is not None:
         # If source_plan is a LogicalPlan, SQL simplifier is not enabled
         # so we can try to infer the metadata from its child (SnowflakePlan)
@@ -154,13 +160,35 @@ def infer_metadata(
                 if len(quoted_identifiers) != len(set(quoted_identifiers)):
                     quoted_identifiers = None
         # If source_plan is a SelectableEntity or SelectStatement, SQL simplifier is enabled
-        if isinstance(source_plan, SelectableEntity):
+        elif isinstance(source_plan, SelectableEntity):
             if source_plan.attributes is not None:
                 attributes = source_plan.attributes
         elif isinstance(source_plan, SelectStatement):
-            # When attributes is cached on source_plan, just use it
-            if source_plan.attributes is not None:
-                attributes = source_plan.attributes
+
+            current_plan = source_plan
+            __import__('pdb').set_trace()
+            while current_plan:
+                # When attributes is cached on source_plan, just use it
+                if current_plan.attributes is not None:
+                    attributes = current_plan.attributes
+                elif isinstance(current_plan.from_, SelectSnowflakePlan) and source_plan.from_._snowflake_plan.attributes is not None:
+                    attributes = current_plan.from_._snowflake_plan._metadata.attributes
+                    # TODO extract new things from projection
+                elif isinstance(current_plan.from_, SelectableEntity) and current_plan.from_.attributes:
+                    attributes = current_plan.from_.attributes
+                elif isinstance(current_plan.from_, SelectStatement):
+                    current_plan = current_plan.from_
+                    continue
+                elif isinstance(current_plan.from_, SetStatement) and current_plan.from_._nodes:
+                    current_plan = current_plan.from_._nodes[0]
+                    continue
+                # elif isinstance(current_plan.from_, SelectSQL):
+                #     pass
+                # else:
+                #     __import__('pdb').set_trace()
+                #     # raise ValueError(current_plan.from_)
+                current_plan = None
+
             # When _column_states.projection is available, we can just use it,
             # which is either (only one happen):
             # 1) cached on self._snowflake_plan._quoted_identifiers
@@ -169,6 +197,8 @@ def infer_metadata(
                 quoted_identifiers = [
                     c.name for c in source_plan._column_states.projection
                 ]
+                referenced_identifiers = quoted_identifiers
+
             # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
             # which means source_plan has the same metadata as its child plan, we can use it directly
             if not source_plan.has_projection:
@@ -198,11 +228,13 @@ def infer_metadata(
                 ):
                     attributes = source_plan.from_.attributes
 
+        # available_identifiers = {a.name for a in attributes or []}
+        # if available_identifiers and (missing := set(referenced_identifiers) - available_identifiers):
+        #     raise ValueError(missing)
+
         # If attributes is available, we always set quoted_identifiers to None
         # as it can be retrieved later from attributes
         if attributes is not None and quoted_identifiers is not None:
-            if missing := set(quoted_identifiers) - {a.name for a in attributes}:
-                raise ValueError(missing)
             quoted_identifiers = None
 
     return PlanMetadata(attributes=attributes, quoted_identifiers=quoted_identifiers)
