@@ -1800,3 +1800,7 @@ def get_sorted_key_for_version(version_str):
     return tuple(
         -1 if str_contains_alphabet(num) else int(num) for num in version_str.split(".")
     )
+
+
+def strip_tabs_and_new_lines(sql_query):
+    return sql_query.replace("\n", "").replace("    ", "")

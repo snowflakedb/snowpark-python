@@ -917,7 +917,9 @@ class SelectStatement(Selectable):
                 assert (
                     self.exclude_cols is None
                 ), "We should not have reached this state. There is likely a bug in flattening logic."
-                self._projection_in_str = analyzer_utils.COMMA.join(
+                self._projection_in_str = (
+                    analyzer_utils.COMMA + analyzer_utils.NEW_LINE + analyzer_utils.TAB
+                ).join(
                     self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
                     for x in self.projection
                 )

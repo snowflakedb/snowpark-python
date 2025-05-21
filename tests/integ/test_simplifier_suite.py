@@ -161,37 +161,37 @@ def test_distinct_set_operator(session, distinct_table, action, operator):
         df = action(df1, df2.distinct())
         assert (
             df.queries["queries"][0]
-            == f"""( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table})"""
+            == f"""( SELECT  * \n FROM {distinct_table}){operator}( SELECT \n     DISTINCT  * \n FROM {distinct_table})"""
         )
 
         df = action(df1.distinct(), df2)
         assert (
             df.queries["queries"][0]
-            == f"""( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table})"""
+            == f"""( SELECT \n     DISTINCT  * \n FROM {distinct_table}){operator}( SELECT  * \n FROM {distinct_table})"""
         )
 
         df = action(df1, df2).distinct()
         assert (
             df.queries["queries"][0]
-            == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+            == f"""SELECT \n     DISTINCT  * \n FROM (\n    ( SELECT  * \n     FROM {distinct_table}){operator}( SELECT  * \n     FROM {distinct_table})\n)"""
         )
 
         df = action(df1, df2.distinct()).distinct()
         assert (
             df.queries["queries"][0]
-            == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+            == f"""SELECT \n     DISTINCT  * \n FROM (\n    ( SELECT  * \n     FROM {distinct_table}){operator}( SELECT \n         DISTINCT  * \n     FROM {distinct_table})\n)"""
         )
 
         df = action(df1.distinct(), df2).distinct()
         assert (
             df.queries["queries"][0]
-            == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+            == f"""SELECT \n     DISTINCT  * \n FROM (\n    ( SELECT \n         DISTINCT  * \n     FROM {distinct_table}){operator}( SELECT  * \n     FROM {distinct_table})\n)"""
         )
 
         df = action(df1.distinct(), df2.distinct()).distinct()
         assert (
             df.queries["queries"][0]
-            == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+            == f"""SELECT \n     DISTINCT  * \n FROM (\n    ( SELECT \n         DISTINCT  * \n     FROM {distinct_table}){operator}( SELECT \n         DISTINCT  * \n     FROM {distinct_table})\n)"""
         )
     finally:
         session.conf.set("use_simplified_query_generation", original)
@@ -748,35 +748,35 @@ def test_order_by(setup_reduce_cast, session, simplifier_table):
     )
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT  *  FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, ("B" + 1{integer_literal_postfix}) ASC NULLS FIRST'
+        == f'SELECT \n     * \n FROM {simplifier_table}\n ORDER BY \n    "A" ASC NULLS FIRST, \n    ("B" + 1{integer_literal_postfix}) ASC NULLS FIRST'
     )
 
     # flatten
     df2 = df.select("a", "b").sort("a", "b")
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+        == f'SELECT \n    "A", \n    "B"\n FROM {simplifier_table}\n ORDER BY \n    "A" ASC NULLS FIRST, \n    "B" ASC NULLS FIRST'
     )
 
     # no flatten because c is a new column
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).sort("a", "b", "c")
     assert (
         df3.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table}) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
+        == f'SELECT \n     * \n FROM (\n     SELECT \n        "A", \n        "B", \n        ("A" - "B") AS "C"\n     FROM {simplifier_table}\n)\n ORDER BY \n    "A" ASC NULLS FIRST, \n    "B" ASC NULLS FIRST, \n    "C" ASC NULLS FIRST'
     )
 
     # no flatten because a and be are changed
     df4 = df.select((col("a") + 1).as_("a"), ((col("b") + 1).as_("b"))).sort("a", "b")
     assert (
         df4.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table}) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+        == f'SELECT \n     * \n FROM (\n     SELECT \n        ("A" + 1{integer_literal_postfix}) AS "A", \n        ("B" + 1{integer_literal_postfix}) AS "B"\n     FROM {simplifier_table}\n)\n ORDER BY \n    "A" ASC NULLS FIRST, \n    "B" ASC NULLS FIRST'
     )
 
     # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
     df5 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).sort("a", "b")
     assert (
         df5.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT  *  FROM {simplifier_table})) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+        == f'SELECT \n     * \n FROM (\n     SELECT \n        "A", \n        "B", \n        3 :: INT AS "C", \n        1 + 1 as d\n     FROM (\n         SELECT  * \n         FROM {simplifier_table}\n    )\n)\n ORDER BY \n    "A" ASC NULLS FIRST, \n    "B" ASC NULLS FIRST'
     )
 
 
@@ -790,14 +790,14 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
     df1 = df.filter((col("a") > 1) & (col("b") > 2))
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT  *  FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+        == f'SELECT \n     * \n FROM {simplifier_table}\n WHERE \n    (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # flatten
     df2 = df.select("a", "b").filter((col("a") > 1) & (col("b") > 2))
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+        == f'SELECT \n    "A", \n    "B"\n FROM {simplifier_table}\n WHERE \n    (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # no flatten because c is a new column
@@ -806,7 +806,7 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
     )
     assert (
         df3.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table}) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
+        == f'SELECT \n     * \n FROM (\n     SELECT \n        "A", \n        "B", \n        ("A" - "B") AS "C"\n     FROM {simplifier_table}\n)\n WHERE \n    ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
     )
 
     # no flatten because a and be are changed
@@ -815,13 +815,13 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
     )
     assert (
         df4.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table}) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+        == f'SELECT \n     * \n FROM (\n     SELECT \n        ("A" + 1{integer_literal_postfix}) AS "A", \n        ("B" + 1{integer_literal_postfix}) AS "B"\n     FROM {simplifier_table}\n)\n WHERE \n    (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     df5 = df4.select("a")
     assert (
         df5.queries["queries"][-1]
-        == f'SELECT "A" FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table}) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+        == f'SELECT \n    "A"\n FROM (\n     SELECT \n        ("A" + 1{integer_literal_postfix}) AS "A", \n        ("B" + 1{integer_literal_postfix}) AS "B"\n     FROM {simplifier_table}\n)\n WHERE \n    (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
@@ -830,7 +830,7 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
     )
     assert (
         df6.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT  *  FROM {simplifier_table})) WHERE ("A" > 1{integer_literal_postfix})'
+        == f'SELECT \n     * \n FROM (\n     SELECT \n        "A", \n        "B", \n        3 :: INT AS "C", \n        1 + 1 as d\n     FROM (\n         SELECT  * \n         FROM {simplifier_table}\n    )\n)\n WHERE \n    ("A" > 1{integer_literal_postfix})'
     )
 
 
@@ -839,7 +839,7 @@ def test_limit(setup_reduce_cast, session, simplifier_table):
     df = df.limit(10)
     assert (
         df.queries["queries"][-1].lower()
-        == f"select  *  from {simplifier_table.lower()} limit 10"
+        == f"select \n     * \n from {simplifier_table.lower()}\n limit 10"
     )
 
     df = session.sql(f"select * from {simplifier_table}")
@@ -848,14 +848,14 @@ def test_limit(setup_reduce_cast, session, simplifier_table):
     #  or else there will be SQL compile error.
     assert (
         df.queries["queries"][-1].lower()
-        == f"select  *  from (select * from {simplifier_table.lower()}) limit 10"
+        == f"select \n     * \n from (\n    select * from {simplifier_table.lower()}\n)\n limit 10"
     )
 
     df = session.sql(f"select * from {simplifier_table}")
     df = df.limit(0)
     assert (
         df.queries["queries"][-1].lower()
-        == f"select  *  from (select * from {simplifier_table.lower()}) limit 0"
+        == f"select \n     * \n from (\n    select * from {simplifier_table.lower()}\n)\n limit 0"
     )
 
     # test for non-select sql statement
@@ -875,13 +875,13 @@ def test_filter_order_limit_together(setup_reduce_cast, session, simplifier_tabl
 
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1{integer_literal_postfix}) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
+        == f'SELECT \n    "A", \n    "B"\n FROM {simplifier_table}\n WHERE \n    ("B" > 1{integer_literal_postfix})\n ORDER BY \n    "A" ASC NULLS FIRST\n LIMIT 5'
     )
 
     df2 = df1.select("a")
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A" FROM {simplifier_table} WHERE ("B" > 1{integer_literal_postfix}) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
+        == f'SELECT \n    "A"\n FROM {simplifier_table}\n WHERE \n    ("B" > 1{integer_literal_postfix})\n ORDER BY \n    "A" ASC NULLS FIRST\n LIMIT 5'
     )
 
 
@@ -894,13 +894,13 @@ def test_order_limit_filter(setup_reduce_cast, session, simplifier_table):
 
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT  *  FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1{integer_literal_postfix})'
+        == f'SELECT \n     * \n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM {simplifier_table}\n     ORDER BY \n        "A" ASC NULLS FIRST\n     LIMIT 1\n)\n WHERE \n    ("B" > 1{integer_literal_postfix})'
     )
 
     df2 = df1.select("a")
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1) WHERE ("B" > 1{integer_literal_postfix})'
+        == f'SELECT \n    "A"\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM {simplifier_table}\n     ORDER BY \n        "A" ASC NULLS FIRST\n     LIMIT 1\n)\n WHERE \n    ("B" > 1{integer_literal_postfix})'
     )
 
 
@@ -909,13 +909,13 @@ def test_limit_window(session, simplifier_table):
     df1 = df.select("a", "b").limit(1).select("a", "b", row_number().over())
     assert (
         df1.queries["queries"][-1]
-        == f'SELECT "A", "B", row_number() OVER (  ) FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1)'
+        == f'SELECT \n    "A", \n    "B", \n    row_number() OVER (  )\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM {simplifier_table}\n     LIMIT 1\n)'
     )
 
     df2 = df1.select("a")
     assert (
         df2.queries["queries"][-1]
-        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1)'
+        == f'SELECT \n    "A"\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM {simplifier_table}\n     LIMIT 1\n)'
     )
 
 
@@ -924,21 +924,21 @@ def test_limit_offset(session, simplifier_table):
     df = df.limit(10, offset=1)
     assert (
         df.queries["queries"][-1]
-        == f"SELECT  *  FROM {simplifier_table} LIMIT 10 OFFSET 1"
+        == f"SELECT \n     * \n FROM {simplifier_table}\n LIMIT 10\n OFFSET 1"
     )
 
     df2 = df.limit(6)
     assert (
         df2.queries["queries"][-1]
-        == f"SELECT  *  FROM {simplifier_table} LIMIT 6 OFFSET 1"
+        == f"SELECT \n     * \n FROM {simplifier_table}\n LIMIT 6\n OFFSET 1"
     )
 
     df3 = df.limit(5, offset=2)
     print(df3.queries)
     assert (
         df3.queries["queries"][-1]
-        == f"SELECT  *  FROM ( SELECT  *  FROM {simplifier_table} LIMIT 10 OFFSET 1) "
-        f"LIMIT 5 OFFSET 2"
+        == f"SELECT \n     * \n FROM (\n     SELECT \n         * \n     FROM {simplifier_table}\n     LIMIT 10\n     OFFSET 1\n)\n "
+        f"LIMIT 5\n OFFSET 2"
     )
 
     df4 = session.sql(f"select * from {simplifier_table}")
@@ -947,14 +947,14 @@ def test_limit_offset(session, simplifier_table):
     #  or else there will be SQL compile error.
     assert (
         df4.queries["queries"][-1]
-        == f"SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10"
+        == f"SELECT \n     * \n FROM (\n    select * from {simplifier_table}\n)\n LIMIT 10"
     )
 
     df5 = df4.limit(5, offset=20)
     assert (
         df5.queries["queries"][-1]
-        == f"SELECT  *  FROM ( SELECT  *  FROM (select * from {simplifier_table}) LIMIT 10) "
-        f"LIMIT 5 OFFSET 20"
+        == f"SELECT \n     * \n FROM (\n     SELECT \n         * \n     FROM (\n        select * from {simplifier_table}\n    )\n     LIMIT 10\n)\n "
+        f"LIMIT 5\n OFFSET 20"
     )
 
 
@@ -1131,7 +1131,9 @@ def test_join_dataframes(session, simplifier_table):
     assert df2.queries["queries"][0].count("SELECT") == 10
 
     df3 = df.with_column("x", df_left.a).with_column("y", df_right.d)
-    assert '"A" AS "X", "D" AS "Y"' in df3.queries["queries"][0]
+    assert '"A" AS "X", "D" AS "Y"' in Utils.strip_tabs_and_new_lines(
+        df3.queries["queries"][0]
+    )
     Utils.check_answer(df3, [Row(1, 2, 3, 4, 1, 4)])
 
     # the following can't be flattened
@@ -1187,33 +1189,36 @@ def test_unpivot(session, simplifier_table):
 def test_select_star(session, simplifier_table):
     df = session.table(simplifier_table)
     df1 = df.select("*")
-    assert df1.queries["queries"][0] == f"SELECT  *  FROM {simplifier_table}"
+    assert df1.queries["queries"][0] == f"SELECT  * \n FROM {simplifier_table}"
 
     df2 = df.select(df["*"])
-    assert df2.queries["queries"][0] == f'SELECT "A", "B" FROM {simplifier_table}'
+    assert (
+        df2.queries["queries"][0]
+        == f'SELECT \n    "A", \n    "B"\n FROM {simplifier_table}'
+    )
 
     df3 = df.select("*", "a")
     assert (
         df3.queries["queries"][0]
-        == f'SELECT *, "A" FROM ( SELECT  *  FROM {simplifier_table})'
+        == f'SELECT \n    *, \n    "A"\n FROM (\n     SELECT  * \n     FROM {simplifier_table}\n)'
     )
 
     df4 = df.select(df["*"], "a")
     assert (
         df4.queries["queries"][0]
-        == f'SELECT "A","B", "A" FROM ( SELECT  *  FROM {simplifier_table})'
+        == f'SELECT \n    "A","B", \n    "A"\n FROM (\n     SELECT  * \n     FROM {simplifier_table}\n)'
     )
 
     df5 = df3.select("b")
     assert (
         df5.queries["queries"][0]
-        == f'SELECT "B" FROM ( SELECT *, "A" FROM ( SELECT  *  FROM {simplifier_table}))'
+        == f'SELECT \n    "B"\n FROM (\n     SELECT \n        *, \n        "A"\n     FROM (\n         SELECT  * \n         FROM {simplifier_table}\n    )\n)'
     )
 
     df6 = df4.select("b")
     assert (
         df6.queries["queries"][0]
-        == f'SELECT "B" FROM ( SELECT "A","B", "A" FROM ( SELECT  *  FROM {simplifier_table}))'
+        == f'SELECT \n    "B"\n FROM (\n     SELECT \n        "A","B", \n        "A"\n     FROM (\n         SELECT  * \n         FROM {simplifier_table}\n    )\n)'
     )
 
     with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
@@ -1242,7 +1247,10 @@ def test_natural_join(session, simplifier_table):
     df = df1.natural_join(df2)
     df = df.select("a").select("a").select("a")
     df.collect()
-    assert df.queries["queries"][0].count('SELECT "A"') == 1
+    assert (
+        Utils.strip_tabs_and_new_lines(df.queries["queries"][0]).count('SELECT "A"')
+        == 1
+    )
 
 
 def test_rename_to_dropped_column_name(session):
@@ -1269,18 +1277,18 @@ def test_rename_to_existing_column_column(session):
 def test_drop_using_exclude(session, large_simplifier_table, df_from):
     if df_from == "values":
         df = session.create_dataframe([[1, 2, 3, 4]], schema=["a", "b", "c", "d"])
-        drop_a_query = 'SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT)))'
-        drop_ab_query = 'SELECT  *  EXCLUDE ("A", "B") FROM ( SELECT "A", "B", "C", "D" FROM ( SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT)))'
+        drop_a_query = 'SELECT \n     *  EXCLUDE ("A")\n FROM (\n     SELECT \n        "A", \n        "B", \n        "C", \n        "D"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT)\n    )\n)'
+        drop_ab_query = 'SELECT \n     *  EXCLUDE ("A", "B")\n FROM (\n     SELECT \n        "A", \n        "B", \n        "C", \n        "D"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B", $3 AS "C", $4 AS "D" FROM  VALUES (1 :: INT, 2 :: INT, 3 :: INT, 4 :: INT)\n    )\n)'
     elif df_from == "table":
         df = session.table(large_simplifier_table)
-        drop_a_query = f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table}'
-        drop_ab_query = f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table}'
+        drop_a_query = f'SELECT \n     *  EXCLUDE ("A")\n FROM {large_simplifier_table}'
+        drop_ab_query = (
+            f'SELECT \n     *  EXCLUDE ("A", "B")\n FROM {large_simplifier_table}'
+        )
     elif df_from == "sql":
         df = session.sql(f"select * from {large_simplifier_table}")
-        drop_a_query = (
-            f'SELECT  *  EXCLUDE ("A") FROM (select * from {large_simplifier_table})'
-        )
-        drop_ab_query = f'SELECT  *  EXCLUDE ("A", "B") FROM (select * from {large_simplifier_table})'
+        drop_a_query = f'SELECT \n     *  EXCLUDE ("A")\n FROM (\n    select * from {large_simplifier_table}\n)'
+        drop_ab_query = f'SELECT \n     *  EXCLUDE ("A", "B")\n FROM (\n    select * from {large_simplifier_table}\n)'
     else:
         raise ValueError("Invalid df_from value")
 
@@ -1319,60 +1327,60 @@ def test_flattening_for_exclude(session, large_simplifier_table):
         df1 = df.select("a", "b", "c").drop("a")
         assert (
             df1.queries["queries"][0]
-            == f'SELECT  *  EXCLUDE ("A") FROM ( SELECT "A", "B", "C" FROM {large_simplifier_table})'
+            == f'SELECT \n     *  EXCLUDE ("A")\n FROM (\n     SELECT \n        "A", \n        "B", \n        "C"\n     FROM {large_simplifier_table}\n)'
         )
         df2 = df.drop("a").select("b", "c").drop("b")
         assert (
             df2.queries["queries"][0]
-            == f'SELECT  *  EXCLUDE ("B") FROM ( SELECT "B", "C" FROM ( SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table}))'
+            == f'SELECT \n     *  EXCLUDE ("B")\n FROM (\n     SELECT \n        "B", \n        "C"\n     FROM (\n         SELECT \n             *  EXCLUDE ("A")\n         FROM {large_simplifier_table}\n    )\n)'
         )
 
         # filter
         df3 = df.filter(col("a") > 1).drop("a")
         assert (
             df3.queries["queries"][0]
-            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} WHERE ("A" > 1)'
+            == f'SELECT \n     *  EXCLUDE ("A")\n FROM {large_simplifier_table}\n WHERE \n    ("A" > 1)'
         )
         df4 = df.drop("a").filter(col("a") > 1).drop("b")
         assert (
             df4.queries["queries"][0]
-            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} WHERE ("A" > 1)'
+            == f'SELECT \n     *  EXCLUDE ("A", "B")\n FROM {large_simplifier_table}\n WHERE \n    ("A" > 1)'
         )
 
         # sort
         df5 = df.sort("a").drop("a")
         assert (
             df5.queries["queries"][0]
-            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
+            == f'SELECT \n     *  EXCLUDE ("A")\n FROM {large_simplifier_table}\n ORDER BY \n    "A" ASC NULLS FIRST'
         )
         df6 = df.drop("b").sort("a").drop("a")
         assert (
             df6.queries["queries"][0]
-            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
+            == f'SELECT \n     *  EXCLUDE ("A", "B")\n FROM {large_simplifier_table}\n ORDER BY \n    "A" ASC NULLS FIRST'
         )
 
         # limit
         df7 = df.limit(10).drop("a")
         assert (
             df7.queries["queries"][0]
-            == f'SELECT  *  EXCLUDE ("A") FROM {large_simplifier_table} LIMIT 10'
+            == f'SELECT \n     *  EXCLUDE ("A")\n FROM {large_simplifier_table}\n LIMIT 10'
         )
         df8 = df.drop("a").limit(10).drop("b")
         assert (
             df8.queries["queries"][0]
-            == f'SELECT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table} LIMIT 10'
+            == f'SELECT \n     *  EXCLUDE ("A", "B")\n FROM {large_simplifier_table}\n LIMIT 10'
         )
 
         # distinct
         df9 = df.distinct().drop("a")
         assert (
             df9.queries["queries"][0]
-            == f'SELECT  DISTINCT  *  EXCLUDE ("A") FROM {large_simplifier_table}'
+            == f'SELECT \n     DISTINCT  *  EXCLUDE ("A")\n FROM {large_simplifier_table}'
         )
         df10 = df.drop("a").distinct().drop("b")
         assert (
             df10.queries["queries"][0]
-            == f'SELECT  DISTINCT  *  EXCLUDE ("A", "B") FROM {large_simplifier_table}'
+            == f'SELECT \n     DISTINCT  *  EXCLUDE ("A", "B")\n FROM {large_simplifier_table}'
         )
 
     finally:
@@ -1453,41 +1461,41 @@ def test_chained_sort(session):
         # Flattened
         (
             lambda df: df.filter(col("A") > 1).select(col("B") + 1),
-            'SELECT ("B" + 1{POSTFIX}) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1{POSTFIX})',
+            'SELECT \n    ("B" + 1{POSTFIX})\n FROM (\n     SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n)\n WHERE \n    ("A" > 1{POSTFIX})',
         ),
         # Flattened, if there are duplicate column names across the parent/child, WHERE is evaluated on subquery first, so we could flatten in this case
         (
             lambda df: df.filter(col("A") > 1).select((col("B") + 1).alias("A")),
-            'SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1{POSTFIX})',
+            'SELECT \n    ("B" + 1{POSTFIX}) AS "A"\n FROM (\n     SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n)\n WHERE \n    ("A" > 1{POSTFIX})',
         ),
         # Flattened
         (
             lambda df: df.filter(col("A") > 1)
             .select(col("A"), col("B"), lit(12).alias("TWELVE"))
             .filter(col("A") > 2),
-            'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1{POSTFIX}) AND ("A" > 2{POSTFIX}))',
+            'SELECT \n    "A", \n    "B", \n    12 :: INT AS "TWELVE"\n FROM (\n     SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n)\n WHERE \n    (("A" > 1{POSTFIX}) AND ("A" > 2{POSTFIX}))',
         ),
         # Not fully flattened, since col("A") > 1 and col("A") > 2 are referring to different columns
         (
             lambda df: df.filter(col("A") > 1)
             .select((col("B") + 1).alias("A"))
             .filter(col("A") > 2),
-            'SELECT  *  FROM ( SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1{POSTFIX})) WHERE ("A" > 2{POSTFIX})',
+            'SELECT \n     * \n FROM (\n     SELECT \n        ("B" + 1{POSTFIX}) AS "A"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n    )\n     WHERE \n        ("A" > 1{POSTFIX})\n)\n WHERE \n    ("A" > 2{POSTFIX})',
         ),
         # Not flattened, since A is updated in the select after filter.
         (
             lambda df: df.filter(col("A") > 1).select("A", seq1(0)),
-            'SELECT "A", seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" > 1{POSTFIX}))',
+            'SELECT \n    "A", \n    seq1(0)\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n    )\n     WHERE \n        ("A" > 1{POSTFIX})\n)',
         ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
         (
             lambda df: df.filter(sql_expr("A > 1")).select(col("B"), col("A")),
-            'SELECT "B", "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE A > 1)',
+            'SELECT \n    "B", \n    "A"\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n    )\n     WHERE \n        A > 1\n)',
         ),
         # Not flattened, since we cannot flatten when the subquery uses positional parameter ($1)
         (
             lambda df: df.filter(col("$1") > 1).select(col("B"), col("A")),
-            'SELECT "B", "A" FROM ( SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE ("$1" > 1{POSTFIX}))',
+            'SELECT \n    "B", \n    "A"\n FROM (\n     SELECT \n         * \n     FROM (\n         SELECT \n            "A", \n            "B"\n         FROM (\n             SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n        )\n    )\n     WHERE \n        ("$1" > 1{POSTFIX})\n)',
         ),
     ],
 )
@@ -1514,37 +1522,37 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
         # Flattened
         (
             lambda df: df.order_by(col("A")).select(col("B") + 1),
-            'SELECT ("B" + 1{POSTFIX}) FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST',
+            'SELECT \n    ("B" + 1{POSTFIX})\n FROM (\n     SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n)\n ORDER BY \n    "A" ASC NULLS FIRST',
             True,
         ),
         # Not flattened because SEQ1() is a data generator.
         (
             lambda df: df.order_by(col("A")).select(seq1(0)),
-            'SELECT seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST)',
+            'SELECT \n    seq1(0)\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n    )\n     ORDER BY \n        "A" ASC NULLS FIRST\n)',
             True,
         ),
         # Not flattened, unlike filter, current query takes precendence when there are duplicate column names from a ORDERBY clause
         (
             lambda df: df.order_by(col("A")).select((col("B") + 1).alias("A")),
-            'SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "A" ASC NULLS FIRST)',
+            'SELECT \n    ("B" + 1{POSTFIX}) AS "A"\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n    )\n     ORDER BY \n        "A" ASC NULLS FIRST\n)',
             True,
         ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
         (
             lambda df: df.order_by(sql_expr("A")).select(col("B")),
-            'SELECT "B" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY A ASC NULLS FIRST)',
+            'SELECT \n    "B"\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n    )\n     ORDER BY \n        A ASC NULLS FIRST\n)',
             True,
         ),
         # Not flattened, since we cannot flatten when the subquery uses positional parameter ($1)
         (
             lambda df: df.order_by(col("$1")).select(col("B")),
-            'SELECT "B" FROM ( SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY "$1" ASC NULLS FIRST)',
+            'SELECT \n    "B"\n FROM (\n     SELECT \n         * \n     FROM (\n         SELECT \n            "A", \n            "B"\n         FROM (\n             SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n        )\n    )\n     ORDER BY \n        "$1" ASC NULLS FIRST\n)',
             True,
         ),
         # Not flattened, skip execution since this would result in SnowparkSQLException
         (
             lambda df: df.order_by(col("C")).select((col("A") + col("B")).alias("C")),
-            'SELECT ("A" + "B") AS "C" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "C" ASC NULLS FIRST)',
+            'SELECT \n    ("A" + "B") AS "C"\n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n    )\n     ORDER BY \n        "C" ASC NULLS FIRST\n)',
             False,
         ),
         # Flattened
@@ -1553,7 +1561,7 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
             .select(col("B"), col("A"))
             .order_by(col("B"))
             .select(col("A")),
-            'SELECT "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "B" ASC NULLS FIRST, "A" ASC NULLS FIRST',
+            'SELECT \n    "A"\n FROM (\n     SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)\n)\n ORDER BY \n    "B" ASC NULLS FIRST, \n    "A" ASC NULLS FIRST',
             True,
         ),
     ],
@@ -1618,17 +1626,17 @@ def test_select_limit_orderby(session):
     df1 = df.select("a", "b").limit(2).sort(col("a"))
     Utils.check_answer(df1, [Row(3, "b"), Row(5, "a")])
     # sql simplification is not applied, and order by clause is attached at end
-    expected_query = """SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) LIMIT 2) ORDER BY "A" ASC NULLS FIRST"""
+    expected_query = """SELECT \n     * \n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)\n    )\n     LIMIT 2\n)\n ORDER BY \n    "A" ASC NULLS FIRST"""
     assert df1.queries["queries"][0] == expected_query
 
     df2 = df.select("a", "b").sort(col("a")).limit(2)
     Utils.check_answer(df2, [Row(3, "b"), Row(5, "a")])
     # sql simplification is applied, order by is in front of the limit
-    expected_query = """SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) ORDER BY "A" ASC NULLS FIRST LIMIT 2"""
+    expected_query = """SELECT \n    "A", \n    "B"\n FROM (\n     SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)\n)\n ORDER BY \n    "A" ASC NULLS FIRST\n LIMIT 2"""
     assert df2.queries["queries"][0] == expected_query
 
     df3 = df.select("a", "b").limit(2, offset=1).sort(col("a"))
-    expected_query = """SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) LIMIT 2 OFFSET 1) ORDER BY "A" ASC NULLS FIRST"""
+    expected_query = """SELECT \n     * \n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM (\n         SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)\n    )\n     LIMIT 2\n     OFFSET 1\n)\n ORDER BY \n    "A" ASC NULLS FIRST"""
     assert df3.queries["queries"][0] == expected_query
 
 
@@ -1638,86 +1646,86 @@ def test_select_limit_orderby(session):
         # df.select().distinct() != df.distinct().select()
         (
             lambda df: df.select("a", "b").distinct().select("a"),
-            lambda table: f"""SELECT "A" FROM ( SELECT  DISTINCT "A", "B" FROM {table})""",
+            lambda table: f"""SELECT \n    "A"\n FROM (\n     SELECT \n         DISTINCT "A", \n        "B"\n     FROM {table}\n)""",
             [Row(5), Row(3), Row(1), Row(3)],
             True,
         ),
         (
             lambda df: df.select("a", "b").select("a").distinct(),
-            lambda table: f"""SELECT  DISTINCT "A" FROM {table}""",
+            lambda table: f"""SELECT \n     DISTINCT "A"\n FROM {table}""",
             [Row(5), Row(3), Row(1)],
             True,
         ),
         # df.select().distinct().limit() != df.distinct().select().limit() for optimization
         (
             lambda df: df.select("a", "b").distinct().limit(4),
-            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} LIMIT 4""",
+            lambda table: f"""SELECT \n     DISTINCT "A", \n    "B"\n FROM {table}\n LIMIT 4""",
             [Row(5, "a"), Row(3, "b"), Row(1, "c"), Row(3, "c")],
             True,
         ),
         (
             lambda df: df.select("a", "b").limit(4).distinct(),
-            lambda table: f"""SELECT  DISTINCT  *  FROM ( SELECT "A", "B" FROM {table} LIMIT 4)""",
+            lambda table: f"""SELECT \n     DISTINCT  * \n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM {table}\n     LIMIT 4\n)""",
             None,
             True,
         ),
         # df.distinct().filter() = df.filter().distinct()
         (
             lambda df: df.select("a", "b").distinct().filter(col("a") > 1),
-            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} WHERE ("A" > 1)""",
+            lambda table: f"""SELECT \n     DISTINCT "A", \n    "B"\n FROM {table}\n WHERE \n    ("A" > 1)""",
             [Row(5, "a"), Row(3, "b"), Row(3, "c")],
             True,
         ),
         (
             lambda df: df.select("a", "b").filter(col("a") > 1).distinct(),
-            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} WHERE ("A" > 1)""",
+            lambda table: f"""SELECT \n     DISTINCT "A", \n    "B"\n FROM {table}\n WHERE \n    ("A" > 1)""",
             [Row(5, "a"), Row(3, "b"), Row(3, "c")],
             True,
         ),
         # df.distinct().sort() = df.sort().distinct()
         (
             lambda df: df.select("a", "b").distinct().sort(col("a"), col("b")),
-            lambda table: f"""SELECT  DISTINCT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
+            lambda table: f"""SELECT \n     DISTINCT "A", \n    "B"\n FROM {table}\n ORDER BY \n    "A" ASC NULLS FIRST, \n    "B" ASC NULLS FIRST""",
             [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
             False,
         ),
         (
             lambda df: df.sort(col("a"), col("b")).distinct(),
-            lambda table: f"""SELECT  DISTINCT  *  FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST""",
+            lambda table: f"""SELECT \n     DISTINCT  * \n FROM {table}\n ORDER BY \n    "A" ASC NULLS FIRST, \n    "B" ASC NULLS FIRST""",
             [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
             True,
         ),
         (
             lambda df: df.select("a", "b").sort(col("a"), col("b")).distinct(),
-            lambda table: f"""SELECT  DISTINCT  *  FROM ( SELECT "A", "B" FROM {table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST)""",
+            lambda table: f"""SELECT \n     DISTINCT  * \n FROM (\n     SELECT \n        "A", \n        "B"\n     FROM {table}\n     ORDER BY \n        "A" ASC NULLS FIRST, \n        "B" ASC NULLS FIRST\n)""",
             [Row(1, "c"), Row(3, "b"), Row(3, "c"), Row(5, "a")],
             True,
         ),
         # df.sort(A).select(B).distinct()
         (
             lambda df: df.sort(col("a")).select("b").distinct(),
-            lambda table: f"""SELECT  DISTINCT  *  FROM ( SELECT "B" FROM {table} ORDER BY "A" ASC NULLS FIRST)""",
+            lambda table: f"""SELECT \n     DISTINCT  * \n FROM (\n     SELECT \n        "B"\n     FROM {table}\n     ORDER BY \n        "A" ASC NULLS FIRST\n)""",
             [Row("a"), Row("b"), Row("c")],
             True,
         ),
         # df.sort(A).distinct().select(B)
         (
             lambda df: df.sort(col("a")).distinct().select("b"),
-            lambda table: f"""SELECT "B" FROM ( SELECT  DISTINCT  *  FROM {table} ORDER BY "A" ASC NULLS FIRST)""",
+            lambda table: f"""SELECT \n    "B"\n FROM (\n     SELECT \n         DISTINCT  * \n     FROM {table}\n     ORDER BY \n        "A" ASC NULLS FIRST\n)""",
             [Row("a"), Row("b"), Row("c"), Row("c")],
             True,
         ),
         # df.filter(A).select(B).distinct()
         (
             lambda df: df.filter(col("a") > 1).select("b").distinct(),
-            lambda table: f"""SELECT  DISTINCT "B" FROM {table} WHERE ("A" > 1)""",
+            lambda table: f"""SELECT \n     DISTINCT "B"\n FROM {table}\n WHERE \n    ("A" > 1)""",
             [Row("a"), Row("b"), Row("c")],
             True,
         ),
         # df.filter(A).distinct().select(B)
         (
             lambda df: df.filter(col("a") > 1).distinct().select("b"),
-            lambda table: f"""SELECT "B" FROM ( SELECT  DISTINCT  *  FROM {table} WHERE ("A" > 1))""",
+            lambda table: f"""SELECT \n    "B"\n FROM (\n     SELECT \n         DISTINCT  * \n     FROM {table}\n     WHERE \n        ("A" > 1)\n)""",
             [Row("a"), Row("b"), Row("c")],
             True,
         ),
