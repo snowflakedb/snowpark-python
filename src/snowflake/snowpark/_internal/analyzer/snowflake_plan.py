@@ -238,7 +238,7 @@ class SnowflakePlan(LogicalPlan):
                                         )
 
                             # No context available to enhance error message
-                            if not children:
+                            if not quoted_identifiers:
                                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                                     e
                                 )

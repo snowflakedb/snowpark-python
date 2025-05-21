@@ -2789,7 +2789,6 @@ class Session:
                 external_feature_name="Session.sql",
                 raise_error=NotImplementedError,
             )
-
         if self.sql_simplifier_enabled:
             d = DataFrame(
                 self,
