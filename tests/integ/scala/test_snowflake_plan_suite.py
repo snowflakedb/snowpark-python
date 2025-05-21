@@ -470,3 +470,10 @@ def test_invalid_identifier_error_message(session):
         SnowparkSQLException, match="There are existing quoted column identifiers:*..."
     ) as ex:
         df.select("20").collect()
+
+    df = session.create_dataframe([1, 2, 3], schema=["A"])
+    with pytest.raises(
+        SnowparkSQLException, match="There are existing quoted column identifiers:*..."
+    ) as ex:
+        df.select("B").schema
+    assert "There are existing quoted column identifiers: ['\"A\"']" in str(ex.value)
