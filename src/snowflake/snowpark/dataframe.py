@@ -27,7 +27,7 @@ from typing import (
 )
 
 import snowflake.snowpark
-import snowflake.snowpark.context
+import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
@@ -644,7 +644,7 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
-        if session._debug_mode:
+        if context._debug_eager_schema_validation:
             self._plan.attributes
 
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:

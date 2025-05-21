@@ -177,6 +177,11 @@ class SnowflakePlan(LogicalPlan):
                         children = [
                             arg for arg in args if isinstance(arg, SnowflakePlan)
                         ]
+
+                        if not children:
+                            # No context available to enhance error message
+                            raise e
+
                         remapped = [
                             SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
                                 "", val
@@ -236,44 +241,43 @@ class SnowflakePlan(LogicalPlan):
                                         quoted_identifiers.extend(
                                             node.quoted_identifiers
                                         )
-                            if quoted_identifiers:
 
-                                def add_single_quote(string: str) -> str:
-                                    return f"'{string}'"
+                            def add_single_quote(string: str) -> str:
+                                return f"'{string}'"
 
-                                # We can't display all column identifiers in the error message
-                                if len(quoted_identifiers) > 10:
-                                    quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers[:10])}, ...]"
-                                else:
-                                    quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers)}]"
+                            # We can't display all column identifiers in the error message
+                            if len(quoted_identifiers) > 10:
+                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers[:10])}, ...]"
+                            else:
+                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers)}]"
 
-                                msg = (
-                                    f"There are existing quoted column identifiers: {quoted_identifiers_str}. "
-                                    f"Please use one of them to reference the column. See more details on Snowflake identifier requirements "
-                                    f"https://docs.snowflake.com/en/sql-reference/identifiers-syntax"
+                            msg = (
+                                f"There are existing quoted column identifiers: {quoted_identifiers_str}. "
+                                f"Please use one of them to reference the column. See more details on Snowflake identifier requirements "
+                                f"https://docs.snowflake.com/en/sql-reference/identifiers-syntax"
+                            )
+
+                            # Currently, when Snowpark user a Python string as identifier to access a column:
+                            # 1) if a column name is unquoted and
+                            #   a) contains no special characters, it is automatically uppercased and quoted in SQL, or
+                            #   b) if it includes special characters, it is simply quoted without uppercasing.
+                            # 2) If the name is explicitly quoted by the user, Snowpark preserves it as-is.
+                            # Therefore, if `col` is an invalid identifier, it is most likely due to 1a) above.
+                            # We attempt to provide a more helpful error message by suggesting the closest valid identifier.
+                            if UNQUOTED_CASE_INSENSITIVE.match(col):
+                                identifier = quote_name_without_upper_casing(
+                                    col.lower()
                                 )
+                                match = difflib.get_close_matches(
+                                    identifier, quoted_identifiers
+                                )
+                                if match:
+                                    # if there is an exact match, just remind users this one
+                                    if identifier in match:
+                                        match = [identifier]
+                                    msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
 
-                                # Currently, when Snowpark user a Python string as identifier to access a column:
-                                # 1) if a column name is unquoted and
-                                #   a) contains no special characters, it is automatically uppercased and quoted in SQL, or
-                                #   b) if it includes special characters, it is simply quoted without uppercasing.
-                                # 2) If the name is explicitly quoted by the user, Snowpark preserves it as-is.
-                                # Therefore, if `col` is an invalid identifier, it is most likely due to 1a) above.
-                                # We attempt to provide a more helpful error message by suggesting the closest valid identifier.
-                                if UNQUOTED_CASE_INSENSITIVE.match(col):
-                                    identifier = quote_name_without_upper_casing(
-                                        col.lower()
-                                    )
-                                    match = difflib.get_close_matches(
-                                        identifier, quoted_identifiers
-                                    )
-                                    if match:
-                                        # if there is an exact match, just remind users this one
-                                        if identifier in match:
-                                            match = [identifier]
-                                        msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
-
-                                e.msg = f"{e.msg}\n{msg}"
+                            e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
                                 e
                             )
@@ -478,6 +482,10 @@ class SnowflakePlan(LogicalPlan):
         else:
             return [attr.name for attr in self.attributes]
 
+    @Decorator.wrap_exception
+    def _analyze_attributes(self) -> List[Attribute]:
+        return analyze_attributes(self.schema_query, self.session)
+
     @property
     def attributes(self) -> List[Attribute]:
         if self._metadata.attributes is not None:
@@ -485,7 +493,7 @@ class SnowflakePlan(LogicalPlan):
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        attributes = analyze_attributes(self.schema_query, self.session)
+        attributes = self._analyze_attributes()
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).

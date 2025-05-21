@@ -4,6 +4,7 @@
 #
 
 import pytest
+import snowflake.snowpark.context as context
 from copy import copy
 from unittest.mock import patch, Mock
 
@@ -45,7 +46,7 @@ from snowflake.snowpark.functions import col, lit, max
     ],
 )
 def test_early_attributes(session, transform, debug_mode):
-    with patch.object(session, "_debug_mode", debug_mode):
+    with patch.object(context, "_debug_eager_schema_validation", debug_mode):
         df = session.create_dataframe([(1, "A"), (2, "B"), (3, "C")], ["A", "B"])
 
         transformed = transform(df)
@@ -78,7 +79,7 @@ def test_early_attributes(session, transform, debug_mode):
     ],
 )
 def test_early_error(session, transform, debug_mode):
-    with patch.object(session, "_debug_mode", debug_mode):
+    with patch.object(context, "_debug_eager_schema_validation", debug_mode):
         df = session.create_dataframe([1, 2, 3], ["A"])
 
         show_mock = Mock()

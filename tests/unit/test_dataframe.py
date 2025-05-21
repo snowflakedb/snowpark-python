@@ -128,7 +128,6 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session._analyzer = Analyzer(fake_session)
     fake_session._use_scoped_temp_objects = True
     fake_session._ast_batch = mock.create_autospec(AstBatch)
-    fake_session._debug_mode = False
     fake_session.get_fully_qualified_name_if_possible = nop
     with mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format",
@@ -151,7 +150,6 @@ def test_select_negative():
     fake_session.ast_enabled = AST_ENABLED
     fake_session._analyzer = mock.MagicMock()
     fake_session._ast_batch = mock.create_autospec(AstBatch)
-    fake_session._debug_mode = False
     df = DataFrame(fake_session)
     with pytest.raises(TypeError) as exc_info:
         df.select(123)
@@ -323,7 +321,6 @@ def test_dataFrame_printSchema(capfd, mock_server_connection):
 def test_session():
     fake_session = mock.create_autospec(Session, _session_id=123456)
     fake_session._analyzer = mock.Mock()
-    fake_session._debug_mode = False
     df = DataFrame(fake_session)
 
     assert df.session == fake_session

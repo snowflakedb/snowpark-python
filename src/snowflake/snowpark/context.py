@@ -9,6 +9,8 @@ from typing import Callable, Optional
 import snowflake.snowpark
 import threading
 
+from snowflake.snowpark._internal.utils import experimental
+
 _use_scoped_temp_objects = True
 
 # This is an internal-only global flag, used to determine whether to execute code in a client's local sandbox or connect to a Snowflake account.
@@ -29,12 +31,27 @@ _use_structured_type_semantics_lock = threading.RLock()
 # This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
 _is_snowpark_connect_compatible_mode = False
 
+# Flags related to debug features
+_debug_eager_schema_validation = False
+
 
 def _should_use_structured_type_semantics():
     global _use_structured_type_semantics
     global _use_structured_type_semantics_lock
     with _use_structured_type_semantics_lock:
         return _use_structured_type_semantics
+
+
+@experimental(version="1.32.0")
+def enable_debug_mode(enable_eager_schema_validation=True):
+    """
+    Enables debug mode for this session.
+
+    Args:
+        enable_eager_schema_validation: When enabled dataframe schemas are eagerly validated. This results in additional queries being executed.
+    """
+    global _debug_eager_schema_validation
+    _debug_eager_schema_validation = enable_eager_schema_validation
 
 
 def get_active_session() -> "snowflake.snowpark.Session":
