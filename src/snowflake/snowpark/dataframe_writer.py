@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_python_val,
+    build_expr_from_python_val,
     debug_check_missing_ast,
     fill_save_mode,
     fill_write_file,
@@ -333,6 +334,9 @@ class DataFrameWriter:
 
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
+                * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
+
+
         Example 1::
 
             Basic table saves
@@ -429,7 +433,7 @@ class DataFrameWriter:
                 for k, v in iceberg_config.items():
                     t = expr.iceberg_config.add()
                     t._1 = k
-                    t._2 = v
+                    build_expr_from_python_val(t._2, v)
 
             self._dataframe._session._ast_batch.eval(stmt)
 

@@ -150,6 +150,10 @@ class SnowflakePlan(LogicalPlan):
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
+                    from snowflake.snowpark._internal.analyzer.select_statement import (
+                        Selectable,
+                    )
+
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
@@ -209,10 +213,6 @@ class SnowflakePlan(LogicalPlan):
                             )
                             raise ne.with_traceback(tb) from None
                         else:
-                            from snowflake.snowpark._internal.analyzer.select_statement import (
-                                Selectable,
-                            )
-
                             # We need the potential double quotes for invalid identifier
                             match = SnowflakePlan.Decorator.__wrap_exception_regex_match_with_double_quotes.match(
                                 e.msg
@@ -277,11 +277,53 @@ class SnowflakePlan(LogicalPlan):
                                 e
                             )
                             raise ne.with_traceback(tb) from None
-                    else:
-                        ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                            e
-                        )
-                        raise ne.with_traceback(tb) from None
+                    elif e.sqlstate == "42601" and "SELECT with no columns" in e.msg:
+                        # This is a special case when the select statement has no columns,
+                        # and it's a reading XML query.
+
+                        def search_read_file_node(
+                            node: Union[SnowflakePlan, Selectable]
+                        ) -> Optional[ReadFileNode]:
+                            source_plan = (
+                                node.source_plan
+                                if isinstance(node, SnowflakePlan)
+                                else node.snowflake_plan.source_plan
+                            )
+                            if isinstance(source_plan, ReadFileNode):
+                                return source_plan
+                            for child in node.children_plan_nodes:
+                                result = search_read_file_node(child)
+                                if result:
+                                    return result
+                            return None
+
+                        for arg in args:
+                            if isinstance(arg, SnowflakePlan):
+                                read_file_node = search_read_file_node(arg)
+                                if (
+                                    read_file_node
+                                    and read_file_node.xml_reader_udtf is not None
+                                ):
+                                    row_tag = read_file_node.options.get(
+                                        XML_ROW_TAG_STRING
+                                    )
+                                    file_path = read_file_node.path
+                                    ne = SnowparkClientExceptionMessages.DF_XML_ROW_TAG_NOT_FOUND(
+                                        row_tag, file_path
+                                    )
+                                    raise ne.with_traceback(tb) from None
+                            # when the describe query fails, the arg is a query string
+                            elif isinstance(arg, str):
+                                if f'"{XML_ROW_DATA_COLUMN_NAME}"' in arg:
+                                    ne = (
+                                        SnowparkClientExceptionMessages.DF_XML_ROW_TAG_NOT_FOUND()
+                                    )
+                                    raise ne.with_traceback(tb) from None
+
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        e
+                    )
+                    raise ne.with_traceback(tb) from None
 
             return wrap
 
@@ -355,6 +397,9 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name,
         )
         self._plan_state: Optional[Dict[PlanState, Any]] = None
+        # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
+        # we will store the ast_id here.
+        self.df_ast_id: Optional[int] = None
 
     @property
     def uuid(self) -> str:
@@ -543,7 +588,7 @@ class SnowflakePlan(LogicalPlan):
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
-            return SnowflakePlan(
+            plan = SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
                 copy.deepcopy(self.post_actions) if self.post_actions else None,
@@ -556,7 +601,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         else:
-            return SnowflakePlan(
+            plan = SnowflakePlan(
                 self.queries.copy() if self.queries else [],
                 self.schema_query,
                 self.post_actions.copy() if self.post_actions else None,
@@ -568,6 +613,8 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
+        plan.df_ast_id = self.df_ast_id
+        return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if self.source_plan:
@@ -600,6 +647,7 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
+        copied_plan.df_ast_id = self.df_ast_id
 
         return copied_plan
 
@@ -1000,6 +1048,7 @@ class SnowflakePlanBuilder:
                 base_location: the base directory that snowflake can write iceberg metadata and files to
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
+                iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
             table_exists: whether the table already exists in the database.
                 Only used for APPEND and TRUNCATE mode.
         """
@@ -1373,6 +1422,16 @@ class SnowflakePlanBuilder:
         worker_column_name = "WORKER"
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]
+        mode = options.get("MODE", "PERMISSIVE").upper()
+        column_name_of_corrupt_record = options.get(
+            "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
+        )
+        strip_namespaces = options.get("STRIPNAMESPACES", True)
+
+        if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
+            raise ValueError(
+                f"Invalid mode: {mode}. Must be one of PERMISSIVE, DROPMALFORMED, FAILFAST."
+            )
 
         # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
         # Currently it's capped at 16.
@@ -1395,6 +1454,9 @@ class SnowflakePlanBuilder:
                 lit(num_workers),
                 lit(row_tag),
                 col(worker_column_name),
+                lit(mode),
+                lit(column_name_of_corrupt_record),
+                lit(strip_namespaces),
             ),
         )
 
@@ -1406,11 +1468,7 @@ class SnowflakePlanBuilder:
         ).select(worker_column_name, xml_row_number_column_name, "key", "value")
 
         # Apply dynamic pivot to get the flat table with dynamic schema
-        df = (
-            df.pivot("key")
-            .max("value")
-            .sort(worker_column_name, xml_row_number_column_name)
-        )
+        df = df.pivot("key").max("value")
 
         # Exclude the worker and row number columns
         return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"

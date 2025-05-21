@@ -198,6 +198,7 @@ WITH = "WITH "
 DEFAULT_ON_NULL = " DEFAULT ON NULL "
 ANY = " ANY "
 ICEBERG = " ICEBERG "
+ICEBERG_VERSION = "ICEBERG_VERSION"
 RENAME_FIELDS = " RENAME FIELDS"
 ADD_FIELDS = " ADD FIELDS"
 
@@ -220,6 +221,7 @@ def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
         STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
             "storage_serialization_policy", None
         ),
+        ICEBERG_VERSION: iceberg_config.get("iceberg_version", None),
     }
 
 

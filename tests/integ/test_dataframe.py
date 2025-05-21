@@ -65,6 +65,7 @@ from snowflake.snowpark.functions import (
     when,
 )
 from snowflake.snowpark.types import (
+    FileType,
     ArrayType,
     BinaryType,
     BooleanType,
@@ -1325,14 +1326,13 @@ def test_join_on_order(session, local_testing_mode):
     """
     Test that an 'on' clause in a different order from the data frame re-orders the columns correctly.
     """
-    length = 134217728 if not local_testing_mode else None
     df1 = session.create_dataframe([(1, "A", 3)], schema=["A", "B", "C"])
     df2 = session.create_dataframe([(1, "A", 4)], schema=["A", "B", "D"])
 
     df3 = df1.join(df2, on=["B", "A"])
     assert df3.schema == StructType(
         [
-            StructField("B", StringType(length), nullable=False),
+            StructField("B", StringType(), nullable=False),
             StructField("A", LongType(), nullable=False),
             StructField("C", LongType(), nullable=False),
             StructField("D", LongType(), nullable=False),
@@ -1996,7 +1996,7 @@ def test_show_dataframe_spark(session):
                     ),
                 ),
                 StructField("col_17", ArrayType()),
-                StructField("col_18", MapType()),
+                StructField("col_18", StructType()),
             ]
         )
         df = session.create_dataframe([data], schema=schema)
@@ -2230,8 +2230,8 @@ def test_create_dataframe_large_without_batch_insert(session):
         analyzer.ARRAY_BIND_THRESHOLD = 400_000
         with pytest.raises(SnowparkSQLException) as ex_info:
             session.create_dataframe([1] * 200_001).collect()
-        assert "SQL compilation error" in str(ex_info)
-        assert "maximum number of expressions in a list exceeded" in str(ex_info)
+        assert "SQL compilation error" in str(ex_info.value)
+        assert "maximum number of expressions in a list exceeded" in str(ex_info.value)
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
@@ -2365,7 +2365,7 @@ def test_dataframe_duplicated_column_names(session, local_testing_mode):
             df.create_or_replace_view(
                 Utils.random_name_for_temp_object(TempObjectType.VIEW)
             )
-        assert "duplicate column name 'A'" in str(ex_info)
+        assert "duplicate column name 'A'" in str(ex_info.value)
 
 
 @pytest.mark.skipif(
@@ -2929,9 +2929,21 @@ def test_describe(session):
         ],
     )
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         TestData.test_data2(session).describe("c")
-    assert "invalid identifier" in str(ex_info)
+
+    Utils.check_answer(
+        session.create_dataframe([str(e) for e in range(10)]).describe(
+            strings_include_math_stats=True,
+        ),
+        [
+            Row("count", "10"),
+            Row("min", "0"),
+            Row("stddev", "3.027650354"),
+            Row("mean", "4.5"),
+            Row("max", "9"),
+        ],
+    )
 
 
 def test_truncate_preserves_schema(session, local_testing_mode):
@@ -3784,7 +3796,7 @@ def test_call_with_statement_params(session):
     # collect
     with pytest.raises(SnowparkSQLException) as exc:
         df.collect(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         df.collect(statement_params=statement_params_correct_date_format)
         == expected_rows
@@ -3797,7 +3809,7 @@ def test_call_with_statement_params(session):
                 statement_params=statement_params_wrong_date_format.copy()
             )
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         list(
             df.to_local_iterator(
@@ -3810,7 +3822,7 @@ def test_call_with_statement_params(session):
     # to_pandas
     with pytest.raises(SnowparkSQLException) as exc:
         df.to_pandas(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert_frame_equal(
         df.to_pandas(statement_params=statement_params_correct_date_format.copy()),
         pandas_df,
@@ -3827,7 +3839,7 @@ def test_call_with_statement_params(session):
             ),
             ignore_index=True,
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert_frame_equal(
         pd.concat(
             list(
@@ -3849,7 +3861,7 @@ def test_call_with_statement_params(session):
     # show
     with pytest.raises(SnowparkSQLException) as exc:
         df.show(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     df.show(statement_params=statement_params_correct_date_format.copy())
 
     # create_or_replace_view
@@ -3875,7 +3887,7 @@ def test_call_with_statement_params(session):
     # first
     with pytest.raises(SnowparkSQLException) as exc:
         df.first(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
 
     assert (
         df.first(statement_params=statement_params_correct_date_format.copy())
@@ -3887,7 +3899,7 @@ def test_call_with_statement_params(session):
         df.cache_result(
             statement_params=statement_params_wrong_date_format.copy()
         ).collect()
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
 
     assert (
         df.cache_result(
@@ -3902,7 +3914,7 @@ def test_call_with_statement_params(session):
             weights=[0.5, 0.5],
             statement_params=statement_params_wrong_date_format.copy(),
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         len(
             df.random_split(
@@ -5180,3 +5192,33 @@ def test_create_dataframe_x_string_y_integer(session):
         Row(X="b", Y=2),
     ]
     assert result == expected_rows
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="File data type is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
+)
+def test_create_dataframe_file_type(session, resources_path):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    session.sql(f"create or replace temp stage {stage_name}").collect()
+    test_files = TestFiles(resources_path)
+    session.file.put(
+        test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    session.file.put(
+        test_files.test_dog_image, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    csv_url = f"@{stage_name}/testCSV.csv"
+    image_url = f"@{stage_name}/dog.jpg"
+    df = session.create_dataframe(
+        [csv_url, image_url],
+        schema=StructType([StructField("col", FileType(), nullable=True)]),
+    )
+    result = df.collect()
+    csv_row = json.loads(result[0][0])
+    assert csv_row["CONTENT_TYPE"] == "text/csv"
+    image_row = json.loads(result[1][0])
+    assert image_row["CONTENT_TYPE"] == "image/jpeg"

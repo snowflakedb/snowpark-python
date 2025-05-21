@@ -1297,11 +1297,11 @@ def test_udf_negative(session, local_testing_mode):
     if not local_testing_mode:
         with pytest.raises(SnowparkSQLException) as ex_info:
             session.sql("select f(1)").collect()
-        assert "Unknown function" in str(ex_info)
+        assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(call_udf("f", "x")).collect()
-    assert "Unknown function" in str(ex_info)
+    assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         udf(
@@ -1310,7 +1310,7 @@ def test_udf_negative(session, local_testing_mode):
             input_types=[IntegerType()],
             name="invalid name",
         )
-    assert "The object name 'invalid name' is invalid" in str(ex_info)
+    assert "The object name 'invalid name' is invalid" in str(ex_info.value)
 
     # incorrect data type
     udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
@@ -1318,13 +1318,13 @@ def test_udf_negative(session, local_testing_mode):
         df1.select(udf2("x")).collect()
     assert (
         local_testing_mode
-        or "Numeric value" in str(ex_info)
-        and "is not recognized" in str(ex_info)
+        or "Numeric value" in str(ex_info.value)
+        and "is not recognized" in str(ex_info.value)
     )
     df2 = session.create_dataframe([1, None]).to_df("x")
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.select(udf2("x")).collect()
-    assert "Python Interpreter Error" in str(ex_info)
+    assert "Python Interpreter Error" in str(ex_info.value)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1644,7 +1644,7 @@ def test_udf_replace(session):
             input_types=[IntegerType(), IntegerType()],
             replace=False,
         )
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     # Expect second UDF version to still be there.
     Utils.check_answer(
@@ -2832,7 +2832,7 @@ def test_register_artifact_repository(session):
             func=test_urllib,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
         )
 
         # Test UDF call
@@ -2857,24 +2857,12 @@ def test_register_artifact_repository_negative(session):
     temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     with pytest.raises(
         ValueError,
-        match="artifact_repository must be specified when artifact_repository_packages has been specified",
+        match="artifact_repository must be specified when packages has been specified",
     ):
         udf(
             func=test_nop,
             name=temp_func_name,
-            artifact_repository_packages=["urllib3", "requests"],
-        )
-
-    with pytest.raises(
-        ValueError,
-        match="Cannot create a function with duplicates between packages and artifact repository packages.",
-    ):
-        udf(
-            func=test_nop,
-            name=temp_func_name,
-            packages=["urllib3==2.3.0"],
-            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3==2.1.0", "requests"],
+            packages=["urllib3", "requests"],
         )
 
     with pytest.raises(Exception, match="Unknown resource constraint key"):
@@ -2882,7 +2870,7 @@ def test_register_artifact_repository_negative(session):
             func=test_nop,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"cpu": "x86"},
         )
 
@@ -2893,7 +2881,7 @@ def test_register_artifact_repository_negative(session):
             func=test_nop,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"architecture": "risc-v"},
         )
 
@@ -2902,13 +2890,13 @@ def test_register_artifact_repository_negative(session):
             func=test_nop,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"architecture": "x86"},
         )
     except SnowparkSQLException as ex:
         assert (
             "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-            in str(ex)
+            in str(ex.value)
         )
 
 
@@ -2938,7 +2926,7 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
         file_path,
         "test_urllib",
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
     df = session.create_dataframe([1]).to_df(["a"])
     Utils.check_answer(df.select(ar_udf()), [Row("test")])

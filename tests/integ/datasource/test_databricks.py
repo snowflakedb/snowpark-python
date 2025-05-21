@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import pytest
 
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
@@ -34,7 +35,6 @@ from snowflake.snowpark.types import (
 from tests.parameters import DATABRICKS_CONNECTION_PARAMETERS
 from tests.utils import IS_IN_STORED_PROC
 
-
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
     import databricks  # noqa: F401
@@ -43,6 +43,11 @@ try:
     DEPENDENCIES_PACKAGE_UNAVAILABLE = False
 except ImportError:
     pass
+
+pytestmark = [
+    pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'"),
+    pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration"),
+]
 
 
 TEST_TABLE_NAME = "ALL_TYPE_TABLE"
@@ -186,8 +191,6 @@ def create_databricks_connection():
     return databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
 
 
-@pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration")
 @pytest.mark.parametrize(
     "input_type, input_value",
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
@@ -206,8 +209,6 @@ def test_basic_databricks(session, input_type, input_value):
     assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
 
 
-@pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'")
-@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration")
 @pytest.mark.parametrize(
     "input_type, input_value, error_message",
     [
@@ -237,4 +238,21 @@ def test_unit_data_source_data_to_pandas_df():
     df = DatabricksDriver.data_source_data_to_pandas_df(data, schema)
     assert df.to_dict(orient="records") == [
         {"COL1": 1, "COL2": '{"key1": "value1", "key2": "value2"}'}
+    ]
+
+
+def test_unicode_column_databricks(session):
+    df = session.read.dbapi(create_databricks_connection, table="User_profile_unicode")
+    assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
+
+
+def test_double_quoted_column_databricks(session):
+    df = session.read.dbapi(create_databricks_connection, table="User_profile")
+    assert df.collect() == [
+        Row(
+            id=1,
+            name="Yamada Taro",
+            country="Japan",
+            remarks="This is a test remark",
+        )
     ]

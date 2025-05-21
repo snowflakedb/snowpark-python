@@ -353,7 +353,6 @@ def to_period(self, freq=None, copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
-@register_series_not_implemented()
 def to_string(
     self,
     buf=None,
@@ -367,7 +366,21 @@ def to_string(
     max_rows=None,
     min_rows=None,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    WarningMessage.single_warning(
+        "Series.to_string materializes data to the local machine."
+    )
+    return self._to_pandas().to_string(
+        buf=buf,
+        na_rep=na_rep,
+        float_format=float_format,
+        header=header,
+        index=index,
+        length=length,
+        dtype=dtype,
+        name=name,
+        max_rows=max_rows,
+        min_rows=min_rows,
+    )
 
 
 @register_series_not_implemented()

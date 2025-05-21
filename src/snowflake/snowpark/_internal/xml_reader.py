@@ -5,14 +5,23 @@
 import os
 import re
 import html.entities
-import logging
 import struct
-import xml.etree.ElementTree as ET
 from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
 from snowflake.snowpark.files import SnowflakeFile
 
+# lxml is only a dev dependency so use try/except to import it if available
+try:
+    import lxml.etree as ET
+
+    lxml_installed = True
+except ImportError:
+    import xml.etree.ElementTree as ET
+
+    lxml_installed = False
+
 
 DEFAULT_CHUNK_SIZE: int = 1024
+VARIANT_COLUMN_SIZE_LIMIT: int = 16 * 1024 * 1024
 
 
 def replace_entity(match: re.Match) -> str:
@@ -76,7 +85,7 @@ def tag_is_self_closing(
         chunk_start_pos = file_obj.tell()
         chunk = file_obj.read(chunk_size)
         if not chunk:
-            raise EOFError("EOF reached before end of opening tag")
+            raise EOFError("Reached end of file but the tag is not closed")
 
         for idx, b in enumerate(struct.unpack(f"{len(chunk)}c", chunk)):
             # '>' inside quote should not be considered as the end of the tag
@@ -216,7 +225,7 @@ def find_next_opening_tag_pos(
             # Calculate the absolute position. Note that `data` starts at (current_pos - len(overlap)).
             absolute_pos = current_pos + pos - len(overlap)
             if absolute_pos >= end_limit:
-                raise EOFError("Found tag beyond end limit")
+                raise EOFError("Exceeded end limit before finding opening tag")
             file_obj.seek(absolute_pos)
             return absolute_pos
 
@@ -224,7 +233,7 @@ def find_next_opening_tag_pos(
         # Update the overlap from the end of the combined data.
         overlap = data[-overlap_size:] if len(data) >= overlap_size else data
 
-        # Otherwise, rewind by the length of the overlap so that a tag spanning the boundary isn’t missed.
+        # Otherwise, rewind by the length of the overlap so that a tag spanning the boundary isn't missed.
         file_obj.seek(-len(overlap), 1)
 
         # Check that progress is being made to avoid infinite loops.
@@ -232,7 +241,7 @@ def find_next_opening_tag_pos(
             raise EOFError("No progress made while searching for opening tag")
 
 
-def strip_namespaces(elem):
+def strip_xml_namespaces(elem: ET.Element) -> ET.Element:
     """
     Recursively strip XML namespace information from an ElementTree element and its children.
 
@@ -244,18 +253,20 @@ def strip_namespaces(elem):
         elem.tag = elem.tag.split("}", 1)[1]
 
     # Process element attributes: remove namespace from keys, if any
-    new_attrib = {}
-    for key, value in elem.attrib.items():
-        if "}" in key:
-            new_key = key.split("}", 1)[1]
-        else:
-            new_key = key
-        new_attrib[new_key] = value
-    elem.attrib = new_attrib
+    # Create a list of namespace-prefixed keys to avoid modifying during iteration
+    prefixed_keys = [key for key in elem.attrib.keys() if "}" in key]
+
+    # Update attributes in place (compatible with lxml.etree)
+    for key in prefixed_keys:
+        value = elem.attrib[key]
+        new_key = key.split("}", 1)[1]
+        # Remove old key and add with new key
+        del elem.attrib[key]
+        elem.attrib[new_key] = value
 
     # Recursively strip namespaces in child elements
     for child in elem:
-        strip_namespaces(child)
+        strip_xml_namespaces(child)
     return elem
 
 
@@ -298,6 +309,9 @@ def process_xml_range(
     tag_name: str,
     approx_start: int,
     approx_end: int,
+    mode: str,
+    column_name_of_corrupt_record: str,
+    strip_namespaces: bool,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -316,6 +330,10 @@ def process_xml_range(
         tag_name (str): The tag that delimits records (e.g., "row").
         approx_start (int): Approximate start byte position.
         approx_end (int): Approximate end byte position.
+        mode (str): The mode for dealing with corrupt records.
+            "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
+        column_name_of_corrupt_record (str): The name of the column for corrupt records.
+        strip_namespaces (bool): Whether to strip namespaces from the XML element.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -351,8 +369,19 @@ def process_xml_range(
             # decide whether the row element is self‑closing
             try:
                 is_self_close, tag_end = tag_is_self_closing(f)
-            except EOFError:
-                # malformed XML record
+            # encountering an EOFError means the XML record isn't self-closing or
+            # doesn't have a closing tag after reaching the end of the file
+            except EOFError as e:
+                if mode == "PERMISSIVE":
+                    # read util the end of file or util variant column size limit
+                    record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
+                    record_str = record_bytes.decode("utf-8", errors="replace")
+                    record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+                    yield {column_name_of_corrupt_record: record_str}
+                elif mode == "FAILFAST":
+                    raise EOFError(
+                        f"Malformed XML record at bytes {record_start}-EOF: {e}"
+                    ) from e
                 break
 
             if is_self_close:
@@ -361,31 +390,45 @@ def process_xml_range(
                 f.seek(tag_end)
                 try:
                     record_end = find_next_closing_tag_pos(f, closing_tag, chunk_size)
-                except EOFError:
-                    # incomplete XML record
+                # encountering an EOFError means the XML record isn't self-closing or
+                # doesn't have a closing tag after reaching the end of the file
+                except EOFError as e:
+                    if mode == "PERMISSIVE":
+                        # read util the end of file or util variant column size limit
+                        record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
+                        record_str = record_bytes.decode("utf-8", errors="replace")
+                        record_str = re.sub(r"&(\w+);", replace_entity, record_str)
+                        yield {column_name_of_corrupt_record: record_str}
+                    elif mode == "FAILFAST":
+                        raise EOFError(
+                            f"Malformed XML record at bytes {record_start}-EOF: {e}"
+                        ) from e
                     break
 
             # Read the complete XML record.
             f.seek(record_start)
             record_bytes = f.read(record_end - record_start)
-            try:
-                record_str = record_bytes.decode("utf-8")
-                record_str = re.sub(r"&(\w+);", replace_entity, record_str)
-            except UnicodeDecodeError as e:
-                logging.warning(
-                    f"Unicode decode error at bytes {record_start}-{record_end}: {e}"
-                )
-                f.seek(record_end)
-                continue
+            record_str = record_bytes.decode("utf-8", errors="replace")
+            record_str = re.sub(r"&(\w+);", replace_entity, record_str)
 
             try:
-                element = ET.fromstring(record_str)
-                yield element_to_dict(strip_namespaces(element))
+                if lxml_installed:
+                    # to parse undeclared namespaces, we have to use recover mode
+                    recover = bool(":" in tag_name)
+                    parser = ET.XMLParser(recover=recover, ns_clean=True)
+                    element = ET.fromstring(record_str, parser)
+                else:
+                    element = ET.fromstring(record_str)
+                if strip_namespaces:
+                    element = strip_xml_namespaces(element)
+                yield element_to_dict(element)
             except ET.ParseError as e:
-                logging.warning(
-                    f"XML parse error at bytes {record_start}-{record_end}: {e}"
-                )
-                logging.warning(f"Record content: {record_str}")
+                if mode == "PERMISSIVE":
+                    yield {column_name_of_corrupt_record: record_str}
+                elif mode == "FAILFAST":
+                    raise RuntimeError(
+                        f"Malformed XML record at bytes {record_start}-{record_end}: {e}"
+                    )
 
             if record_end > approx_end:
                 break
@@ -395,7 +438,16 @@ def process_xml_range(
 
 
 class XMLReader:
-    def process(self, filename: str, num_workers: int, row_tag: str, i: int):
+    def process(
+        self,
+        filename: str,
+        num_workers: int,
+        row_tag: str,
+        i: int,
+        mode: str,
+        column_name_of_corrupt_record: str,
+        strip_namespaces: bool,
+    ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
         file size division and then moving each boundary to the end of a record,
@@ -406,10 +458,22 @@ class XMLReader:
             num_workers (int): Number of workers/chunks.
             row_tag (str): The tag name that delimits records (e.g., "row").
             i (int): The worker id.
+            mode (str): The mode for dealing with corrupt records.
+                "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
+            column_name_of_corrupt_record (str): The name of the column for corrupt records.
+            strip_namespaces (bool): Whether to strip namespaces from the XML element.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
         approx_start = approx_chunk_size * i
         approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
-        for element in process_xml_range(filename, row_tag, approx_start, approx_end):
+        for element in process_xml_range(
+            filename,
+            row_tag,
+            approx_start,
+            approx_end,
+            mode,
+            column_name_of_corrupt_record,
+            strip_namespaces,
+        ):
             yield (element,)

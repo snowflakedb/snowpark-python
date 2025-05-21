@@ -262,7 +262,7 @@ def create_or_replace_view(
     name: Union[str, Iterable[str]],
     *,
     comment: Optional[str] = None,
-    index: bool = True,
+    index: bool = False,
     index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
@@ -279,7 +279,7 @@ def create_or_replace_view(
             that specifies the database name, schema name, and view name.
         comment: Adds a comment for the created view. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
-        index: default True
+        index: default False
             If true, save DataFrame index columns in view columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
@@ -309,7 +309,7 @@ def create_or_replace_dynamic_table(
     data_retention_time: Optional[int] = None,
     max_data_extension_time: Optional[int] = None,
     iceberg_config: Optional[dict] = None,
-    index: bool = True,
+    index: bool = False,
     index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
@@ -353,7 +353,7 @@ def create_or_replace_dynamic_table(
             - base_location: the base directory that snowflake can write iceberg metadata and files to.
             - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
             - storage_serialization_policy: specifies the storage serialization policy for the table.
-        index: default True
+        index: default False
             If true, save DataFrame index columns as table columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
@@ -388,7 +388,7 @@ def to_view(
     name: Union[str, Iterable[str]],
     *,
     comment: Optional[str] = None,
-    index: bool = True,
+    index: bool = False,
     index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
@@ -405,7 +405,7 @@ def to_view(
             that specifies the database name, schema name, and view name.
         comment: Adds a comment for the created view. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
-        index: default True
+        index: default False
             If true, save DataFrame index columns in view columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
@@ -435,7 +435,7 @@ def to_dynamic_table(
     data_retention_time: Optional[int] = None,
     max_data_extension_time: Optional[int] = None,
     iceberg_config: Optional[dict] = None,
-    index: bool = True,
+    index: bool = False,
     index_label: Optional[IndexLabel] = None,
 ) -> List[Row]:
     """
@@ -479,7 +479,7 @@ def to_dynamic_table(
             - base_location: the base directory that snowflake can write iceberg metadata and files to.
             - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
             - storage_serialization_policy: specifies the storage serialization policy for the table.
-        index: default True
+        index: default False
             If true, save DataFrame index columns as table columns.
         index_label:
             Column label for index column(s). If None is given (default) and index is True,
@@ -513,6 +513,7 @@ def to_iceberg(
     self,
     table_name: Union[str, Iterable[str]],
     *,
+    iceberg_config: dict,
     mode: Optional[str] = None,
     column_order: str = "index",
     clustering_keys: Optional[Iterable[ColumnOrName]] = None,
@@ -523,7 +524,6 @@ def to_iceberg(
     max_data_extension_time: Optional[int] = None,
     change_tracking: Optional[bool] = None,
     copy_grants: bool = False,
-    iceberg_config: Optional[dict] = None,
     index: bool = True,
     index_label: Optional[IndexLabel] = None,
 ) -> Optional[AsyncJob]:
@@ -534,6 +534,18 @@ def to_iceberg(
         table_name: A string or list of strings representing table name.
             If input is a string, it represents the table name; if input is of type iterable of strings,
             it represents the fully-qualified object identifier (database name, schema name, and table name).
+        iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+            * external_volume: specifies the identifier for the external volume where
+                the Iceberg table stores its metadata files and data in Parquet format
+
+            * catalog: specifies either Snowflake or a catalog integration to use for this table
+
+            * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+            * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+
+            * storage_serialization_policy: specifies the storage serialization policy for the table
         mode: One of the following values. When it's ``None`` or not provided,
             the save mode set by :meth:`mode` is used.
 
@@ -569,18 +581,6 @@ def to_iceberg(
             streams on the table from becoming stale.
         change_tracking: Specifies whether to enable change tracking for the table. If not set, the default behavior is used.
         copy_grants: When true, retain the access privileges from the original table when a new table is created with "overwrite" mode.
-        iceberg_config: A dictionary that can contain the following iceberg configuration values:
-
-            * external_volume: specifies the identifier for the external volume where
-                the Iceberg table stores its metadata files and data in Parquet format
-
-            * catalog: specifies either Snowflake or a catalog integration to use for this table
-
-            * base_location: the base directory that snowflake can write iceberg metadata and files to
-
-            * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
-
-            * storage_serialization_policy: specifies the storage serialization policy for the table
         index: default True
             If true, save Series index columns as table columns.
         index_label:
@@ -600,10 +600,11 @@ def to_iceberg(
         ...     "base_location": "/iceberg_root",
         ...     "storage_serialization_policy": "OPTIMIZED",
         ... }
-        >>> df.to_snowpark_pandas()["a"].to_iceberg("my_table", mode="overwrite", iceberg_config=iceberg_config) # doctest: +SKIP
+        >>> df.to_snowpark_pandas()["a"].to_iceberg("my_table", iceberg_config=iceberg_config, mode="overwrite") # doctest: +SKIP
     """
     return self._query_compiler.to_iceberg(
         table_name=table_name,
+        iceberg_config=iceberg_config,
         mode=mode,
         column_order=column_order,
         clustering_keys=clustering_keys,
@@ -614,7 +615,6 @@ def to_iceberg(
         max_data_extension_time=max_data_extension_time,
         change_tracking=change_tracking,
         copy_grants=copy_grants,
-        iceberg_config=iceberg_config,
         index=index,
         index_label=index_label,
     )

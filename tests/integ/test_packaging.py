@@ -371,14 +371,15 @@ def test_add_packages_artifact_repository(session):
 
     try:
         assert len(session.get_packages(artifact_repository)) == 0
-        session.add_packages(["numpy"], artifact_repository=artifact_repository)
-        assert len(session.get_packages(artifact_repository)) == 1
+        session.add_packages(
+            ["numpy", "urllib3"], artifact_repository=artifact_repository
+        )
+        assert len(session.get_packages(artifact_repository)) == 2
         # Test function registration
         udf(
             func=test_urllib,
             name=temp_func_name,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=["urllib3"],
         )
 
         # Test UDF call
@@ -387,6 +388,7 @@ def test_add_packages_artifact_repository(session):
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session.remove_package("numpy", artifact_repository=artifact_repository)
+        session.remove_package("urllib3", artifact_repository=artifact_repository)
         assert len(session.get_packages(artifact_repository)) == 0
 
 
@@ -472,6 +474,8 @@ def test_add_requirements_artifact_repository(
         test_files.test_requirements_file, artifact_repository=artifact_repository
     )
     assert len(session.get_packages(artifact_repository)) == 2
+    session.add_packages(["urllib3"], artifact_repository=artifact_repository)
+    assert len(session.get_packages(artifact_repository)) == 3
     temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     try:
@@ -479,7 +483,6 @@ def test_add_requirements_artifact_repository(
             func=test_urllib,
             name=temp_func_name,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=["urllib3"],
         )
         # Test UDF call
         df = session.create_dataframe([1]).to_df(["a"])

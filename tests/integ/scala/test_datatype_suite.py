@@ -60,6 +60,7 @@ from tests.utils import (
     iceberg_supported,
     structured_types_enabled_session,
     structured_types_supported,
+    IS_IN_STORED_PROC_LOCALFS,
 )
 
 # Map of structured type enabled state to test params
@@ -587,11 +588,10 @@ def test_structured_dtypes_negative(structured_type_session, structured_type_sup
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
 
-    # Maptype requires both key and value type be set if either is set
-    with pytest.raises(
-        ValueError,
-        match="Must either set both key_type and value_type or leave both unset.",
-    ):
+    with pytest.raises(ValueError, match="MapType requires key and value type be set."):
+        MapType()
+
+    with pytest.raises(ValueError, match="MapType requires key and value type be set."):
         MapType(StringType())
 
 
@@ -633,7 +633,7 @@ def test_udaf_structured_map_downcast(
             "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object."
             in caplog.text
         )
-        assert MapCollector._return_type == MapType()
+        assert MapCollector._return_type == StructType()
 
 
 @pytest.mark.skipif(
@@ -1054,8 +1054,8 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     expected_semi_schema = StructType(
         [
             StructField("ARR", ArrayType(), nullable=True),
-            StructField("MAP", MapType(), nullable=True),
-            StructField("OBJ", MapType(), nullable=True),
+            StructField("MAP", StructType(), nullable=True),
+            StructField("OBJ", StructType(), nullable=True),
         ]
     )
     expected_structured_schema = StructType(
@@ -1084,8 +1084,8 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
         schema=StructType(
             [
                 StructField("arr", ArrayType()),
-                StructField("map", MapType()),
-                StructField("obj", MapType()),
+                StructField("map", StructType()),
+                StructField("obj", StructType()),
             ]
         ),
     )
@@ -1436,16 +1436,17 @@ def test_structured_type_schema_expression(
         assert table.union(table).schema == expected_schema
         # Functions used in schema generation don't respect nested nullability so compare query string instead
         non_null_union = non_null_table.union(non_null_table)
-        assert non_null_union._plan.schema_query == (
-            f"( SELECT object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: "
-            f'MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
-            f" object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', 0 :: "
-            f'DOUBLE) :: OBJECT(FIELD1 STRING({max_string}), FIELD2 DOUBLE) AS "OBJ") UNION ( SELECT '
-            f"object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: "
-            f'MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
-            f"object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', 0 :: "
-            f'DOUBLE) :: OBJECT(FIELD1 STRING({max_string}), FIELD2 DOUBLE) AS "OBJ")'
+        expected_schema = (
+            f"""( SELECT object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: """
+            f"""MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", """
+            f"""object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', 0 :: DOUBLE) :: """
+            f"""OBJECT("FIELD1" STRING({max_string}), "FIELD2" DOUBLE) AS "OBJ") UNION ( """
+            f"""SELECT object_construct_keep_null('a' ::  STRING ({max_string}), NULL :: DOUBLE) :: """
+            f"""MAP(STRING({max_string}), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) """
+            f"""AS "ARR", object_construct_keep_null('FIELD1', 'a' ::  STRING ({max_string}), 'FIELD2', """
+            f"""0 :: DOUBLE) :: OBJECT("FIELD1" STRING({max_string}), "FIELD2" DOUBLE) AS "OBJ")"""
         )
+        assert non_null_union._plan.schema_query == expected_schema
 
         assert nested_table.union(nested_table).schema == expected_nested_schema
     finally:
@@ -1685,6 +1686,9 @@ def test_non_nullable_schema(structured_type_session, structured_type_support):
     "config.getoption('local_testing_mode', default=False)",
     reason="File type is not supported in Local Testing",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
+)
 def test_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     _ = session.sql(f"create or replace temp stage {stage_name}").collect()
@@ -1700,3 +1704,23 @@ def test_file_type(session, resources_path):
     assert df.schema == StructType([StructField("file", FileType(), False)])
     df = session.range(1).select(lit(None, datatype=FileType()).alias("file"))
     assert df.schema == StructType([StructField("file", FileType(), True)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_nest_struct_field_names(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+    schema = StructType(
+        [
+            StructField(
+                "A", StructType([StructField("field with space", StringType(), True)])
+            )
+        ]
+    )
+    df = structured_type_session.create_dataframe(
+        [{"A": {"field with space": "value"}}], schema
+    )
+    Utils.check_answer(df, [Row(A=Row(**{"field with space": "value"}))])

@@ -12,6 +12,7 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Set,
     Union,
 )
 
@@ -26,7 +27,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     derive_column_states_from_subquery,
     initiate_column_states,
 )
-from snowflake.snowpark.types import LongType
+from snowflake.snowpark.types import DataType, LongType
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import (
@@ -75,6 +76,7 @@ class MockSelectable(LogicalPlan, ABC):
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
+        self.df_ast_ids = None
 
     @property
     def analyzer(self) -> "Analyzer":
@@ -120,6 +122,12 @@ class MockSelectable(LogicalPlan, ABC):
                 {},
             )
         return self._column_states
+
+    def add_df_ast_id(self, df_ast_id: int):
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [df_ast_id]
+        elif self.df_ast_ids[-1] != df_ast_id:
+            self.df_ast_ids.append(df_ast_id)
 
     def to_subqueryable(self) -> "Selectable":
         """Some queries can be used in a subquery. Some can't. For details, refer to class SelectSQL."""
@@ -203,6 +211,7 @@ class MockSelectStatement(MockSelectable):
         limit_: Optional[int] = None,
         offset: Optional[int] = None,
         distinct: bool = False,
+        exclude_cols: Optional[Set[str]] = None,
         analyzer: "Analyzer",
     ) -> None:
         super().__init__(analyzer)
@@ -213,6 +222,7 @@ class MockSelectStatement(MockSelectable):
         self.limit_: Optional[int] = limit_
         self.offset = offset
         self.distinct_: bool = distinct
+        self.exclude_cols = exclude_cols
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
@@ -235,6 +245,7 @@ class MockSelectStatement(MockSelectable):
             limit_=self.limit_,
             offset=self.offset,
             distinct=self.distinct_,
+            exclude_cols=self.exclude_cols,
             analyzer=self.analyzer,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
@@ -249,7 +260,7 @@ class MockSelectStatement(MockSelectable):
     @property
     def column_states(self) -> ColumnStateDict:
         if self._column_states is None:
-            if not self.projection and not self.has_clause:
+            if not self.has_projection and not self.has_clause:
                 self._column_states = self.from_.column_states
             elif isinstance(self.from_, MockSelectExecutionPlan):
                 self._column_states = initiate_column_states(
@@ -268,6 +279,10 @@ class MockSelectStatement(MockSelectable):
         """
         self._column_states = copy(value)
         self._column_states.projection = [copy(attr) for attr in value.projection]
+
+    @property
+    def has_projection(self) -> bool:
+        return self.projection is not None or self.exclude_cols is not None
 
     @property
     def has_clause_using_columns(self) -> bool:
@@ -435,7 +450,10 @@ class MockSelectStatement(MockSelectable):
 
     def distinct(self) -> "MockSelectStatement":
         can_be_flattened = (
-            not self.flatten_disabled and not self.limit_ and not self.offset
+            not self.flatten_disabled
+            and not self.limit_
+            and not self.offset
+            and (not (self.order_by and self.has_projection))
         )
         if can_be_flattened:
             new = copy(self)
@@ -448,6 +466,36 @@ class MockSelectStatement(MockSelectable):
             new = MockSelectStatement(
                 from_=self.to_subqueryable(), distinct=True, analyzer=self.analyzer
             )
+        return new
+
+    def exclude(
+        self, exclude_cols: List[str], keep_cols: List[str]
+    ) -> "MockSelectStatement":
+        """List of quoted column names to be dropped from the current select
+        statement.
+        """
+        can_be_flattened = not self.flatten_disabled and not self.projection
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            new._merge_projection_complexity_with_subquery = False
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                analyzer=self.analyzer,
+            )
+
+        new.exclude_cols = new.exclude_cols or set()
+        new.exclude_cols.update(exclude_cols)
+
+        # Use keep_cols and select logic to derive updated column_states for new
+        new_column_states = derive_column_states_from_subquery(
+            [Attribute(col, DataType()) for col in keep_cols], self
+        )
+        assert new_column_states is not None
+        new.column_states = new_column_states
         return new
 
     def set_operator(

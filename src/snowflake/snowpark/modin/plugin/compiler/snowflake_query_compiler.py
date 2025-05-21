@@ -13438,37 +13438,40 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # 2. retrieve all columns
         # 3. filter on rows with recursive count
 
-        # Previously, 2 queries were issued, and a first version replaced them with a single query and a join
-        # the solution here uses a window function. This may lead to perf regressions, track these here SNOW-984177.
-        # Ensure that our reference to self._modin_frame is updated with cached row count and position.
-        self._modin_frame = (
-            self._modin_frame.ensure_row_position_column().ensure_row_count_column()
-        )
-        row_count_pandas_label = (
-            ROW_COUNT_COLUMN_LABEL
-            if len(self._modin_frame.data_column_pandas_index_names) == 1
-            else (ROW_COUNT_COLUMN_LABEL,)
-            * len(self._modin_frame.data_column_pandas_index_names)
-        )
-        frame_with_row_count_and_position = InternalFrame.create(
-            ordered_dataframe=self._modin_frame.ordered_dataframe,
-            data_column_pandas_labels=self._modin_frame.data_column_pandas_labels
-            + [row_count_pandas_label],
-            data_column_snowflake_quoted_identifiers=self._modin_frame.data_column_snowflake_quoted_identifiers
-            + [self._modin_frame.row_count_snowflake_quoted_identifier],
-            data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
-            index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
-            data_column_types=self._modin_frame.cached_data_column_snowpark_pandas_types
-            + [None],
-            index_column_types=self._modin_frame.cached_index_column_snowpark_pandas_types,
-        )
+        frame = self._modin_frame.ensure_row_position_column()
+        use_cached_row_count = frame.ordered_dataframe.row_count is not None
 
-        row_count_identifier = (
-            frame_with_row_count_and_position.row_count_snowflake_quoted_identifier
-        )
+        # If the row count is already cached, there's no need to include it in the query.
+        if use_cached_row_count:
+            row_count_expr = pandas_lit(frame.ordered_dataframe.row_count)
+        else:
+            # Previously, 2 queries were issued, and a first version replaced them with a single query and a join
+            # the solution here uses a window function. This may lead to perf regressions, track these here SNOW-984177.
+            # Ensure that our reference to self._modin_frame is updated with cached row count and position.
+            frame = frame.ensure_row_count_column()
+            row_count_pandas_label = (
+                ROW_COUNT_COLUMN_LABEL
+                if len(frame.data_column_pandas_index_names) == 1
+                else (ROW_COUNT_COLUMN_LABEL,)
+                * len(frame.data_column_pandas_index_names)
+            )
+            frame = InternalFrame.create(
+                ordered_dataframe=frame.ordered_dataframe,
+                data_column_pandas_labels=frame.data_column_pandas_labels
+                + [row_count_pandas_label],
+                data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers
+                + [frame.row_count_snowflake_quoted_identifier],
+                data_column_pandas_index_names=frame.data_column_pandas_index_names,
+                index_column_pandas_labels=frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types
+                + [None],
+                index_column_types=frame.cached_index_column_snowpark_pandas_types,
+            )
+
+            row_count_expr = col(frame.row_count_snowflake_quoted_identifier)
         row_position_snowflake_quoted_identifier = (
-            frame_with_row_count_and_position.row_position_snowflake_quoted_identifier
+            frame.row_position_snowflake_quoted_identifier
         )
 
         # filter frame based on num_rows.
@@ -13476,14 +13479,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # in the future could analyze plan to see whether retrieving column count would trigger a query, if not
         # simply filter out based on static schema
         num_rows_for_head_and_tail = num_rows_to_display // 2 + 1
-        new_frame = frame_with_row_count_and_position.filter(
+        new_frame = frame.filter(
             (
                 col(row_position_snowflake_quoted_identifier)
                 <= num_rows_for_head_and_tail
             )
             | (
                 col(row_position_snowflake_quoted_identifier)
-                >= col(row_count_identifier) - num_rows_for_head_and_tail
+                >= row_count_expr - num_rows_for_head_and_tail
             )
         )
 
@@ -13491,9 +13494,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_qc = SnowflakeQueryCompiler(new_frame)
         pandas_frame = new_qc.to_pandas()
 
-        # remove last column after first retrieving row count
-        row_count = 0 if 0 == len(pandas_frame) else pandas_frame.iat[0, -1]
-        pandas_frame = pandas_frame.iloc[:, :-1]
+        if use_cached_row_count:
+            row_count = frame.ordered_dataframe.row_count
+        else:
+            # remove last column after first retrieving row count
+            row_count = 0 if len(pandas_frame) == 0 else pandas_frame.iat[0, -1]
+            pandas_frame = pandas_frame.iloc[:, :-1]
         col_count = len(pandas_frame.columns)
 
         return row_count, col_count, pandas_frame
@@ -16762,11 +16768,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Follow pandas behavior; all values will be None.
             key = None
         if is_scalar(key):
-            if key is not None and not isinstance(key, int):
+            col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+            if key is not None and not isinstance(key, (int, str)):
                 ErrorMessage.not_implemented(
-                    "Snowpark pandas string indexing doesn't yet support non-numeric keys"
+                    "Snowpark pandas string indexing doesn't yet support keys of types other than int or str"
                 )
-            return self.str_get(typing.cast(int, key))
+            elif isinstance(
+                self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+                MapType,
+            ):
+                if key is not None and not isinstance(key, str):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than str when the data column contains dicts"
+                    )
+            elif isinstance(
+                self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+                ArrayType,
+            ):
+                if key is not None and not isinstance(key, int):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than int when the data column contains lists"
+                    )
+            else:
+                if key is not None and not isinstance(key, int):
+                    ErrorMessage.not_implemented(
+                        "Snowpark pandas string indexing doesn't yet support keys "
+                        "of types other than int when the data column contains strings"
+                    )
+            assert key is None or isinstance(key, (int, str))
+            return self.str_get(key)
         else:
             assert isinstance(key, slice), "key is expected to be slice here"
             if key.step == 0:
@@ -16902,7 +16934,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_get(self, i: Union[int, str]) -> "SnowflakeQueryCompiler":
+    def str_get(self, i: Union[None, int, str]) -> "SnowflakeQueryCompiler":
         """
         Extract element from each component at specified position or with specified key.
 
@@ -16922,7 +16954,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas method 'Series.str.get' doesn't yet support 'i' argument of types other than int or str"
             )
 
-        def output_col_string(column: SnowparkColumn, i: int) -> SnowparkColumn:
+        def output_col_string(
+            column: SnowparkColumn, i: Union[None, int]
+        ) -> SnowparkColumn:
             col_len_exp = length(column)
             if i is None:
                 new_col = pandas_lit(None)
@@ -16950,7 +16984,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     )
             return self._replace_non_str(column, new_col)
 
-        def output_col_list(column: SnowparkColumn, i: int) -> SnowparkColumn:
+        def output_col_list(
+            column: SnowparkColumn, i: Union[None, int]
+        ) -> SnowparkColumn:
             col_len_exp = array_size(column)
             if i is None:
                 new_col = pandas_lit(None)
@@ -19462,7 +19498,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self._raise_not_implemented_error_for_timedelta()
 
         level = [level]
-
         index_names = self.get_index_names()
 
         # Check to see if we have a MultiIndex, if we do, make sure we remove
@@ -20565,6 +20600,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         table_name: Union[str, Iterable[str]],
         *,
+        iceberg_config: dict,
         mode: Optional[str] = None,
         column_order: str = "index",
         clustering_keys: Optional[Iterable[ColumnOrName]] = None,
@@ -20575,7 +20611,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
-        iceberg_config: Optional[dict] = None,
         index: bool = True,
         index_label: Optional[IndexLabel] = None,
     ) -> List[Row]:
