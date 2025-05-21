@@ -167,6 +167,7 @@ def test_select_statement_individual_node_complexity(
     from_.post_actions = None
     from_.expr_to_alias = {}
     from_.df_aliased_col_name_to_real_col_name = {}
+    from_.df_ast_ids = None
 
     plan_node = SelectStatement(from_=from_, analyzer=mock_analyzer)
     setattr(plan_node, attribute, value)
@@ -399,6 +400,7 @@ def test_select_statement_get_complexity_map_no_column_state(
     mock_from.post_actions = None
     mock_from.expr_to_alias = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
+    mock_from.df_ast_ids = None
     select_statement = SelectStatement(analyzer=mock_analyzer, from_=mock_from)
 
     assert select_statement.get_projection_name_complexity_map() is None
@@ -419,6 +421,7 @@ def test_select_statement_get_complexity_map_mismatch_projection_length(
     mock_from.post_actions = None
     mock_from.expr_to_alias = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
+    mock_from.df_ast_ids = None
 
     # create a select_statement with 2 projections
     select_statement = SelectStatement(
