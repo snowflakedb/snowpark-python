@@ -169,8 +169,9 @@ def test_distinct_set_operator(session, distinct_table, action, operator):
         )
 
         df = action(df1, df2).distinct()
-        assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
-            f"""SELECT DISTINCT * FROM ( ( SELECT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table}) )"""
+        assert (
+            Utils.normalize_sql(df.queries["queries"][0])
+            == f"""SELECT DISTINCT * FROM (( SELECT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table}))"""
         )
 
         df = action(df1, df2.distinct()).distinct()
