@@ -4,6 +4,9 @@
 
 import pytest
 
+import psycopg2  # noqa: F401
+import pandas  # noqa: F401
+
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.data_source.drivers import Psycopg2Driver
 from snowflake.snowpark._internal.data_source.drivers.psycopg2_driver import (
@@ -39,14 +42,8 @@ from tests.resources.test_data_source_dir.test_postgres_data import (
 )
 from tests.utils import IS_IN_STORED_PROC
 
-DEPENDENCIES_PACKAGE_UNAVAILABLE = True
-try:
-    import psycopg2  # noqa: F401
-    import pandas  # noqa: F401
+DEPENDENCIES_PACKAGE_UNAVAILABLE = False
 
-    DEPENDENCIES_PACKAGE_UNAVAILABLE = False
-except ImportError:
-    pass
 
 pytestmark = [
     pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'psycopg2'"),
