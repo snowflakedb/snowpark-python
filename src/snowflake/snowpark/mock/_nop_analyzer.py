@@ -59,6 +59,9 @@ class NopSelectStatement(MockSelectStatement):
     def distinct(self) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().distinct())
 
+    def exclude(self, exclude_cols, keep_cols) -> "MockSelectStatement":
+        return super().exclude(exclude_cols, keep_cols)
+
     def set_operator(
         self,
         *selectables: Union[

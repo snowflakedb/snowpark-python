@@ -10,6 +10,7 @@ import sys
 import typing
 import zipfile
 from copy import deepcopy
+from enum import Enum
 from logging import getLogger
 from types import ModuleType
 from typing import (
@@ -110,6 +111,13 @@ ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}
 class UDFColumn(NamedTuple):
     datatype: DataType
     name: str
+
+
+class RegistrationType(Enum):
+    UDF = "UDF"
+    UDAF = "UDAF"
+    UDTF = "UDTF"
+    SPROC = "SPROC"
 
 
 class ExtensionFunctionProperties:
@@ -1082,6 +1090,7 @@ def resolve_imports_and_packages(
     is_dataframe_input: bool = False,
     max_batch_size: Optional[int] = None,
     *,
+    artifact_repository: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
@@ -1095,26 +1104,41 @@ def resolve_imports_and_packages(
     Optional[str],
     bool,
 ]:
-
-    # resolve packages
-    if session is None:  # In case of sandbox
-        resolved_packages = resolve_packages_in_client_side_sandbox(packages=packages)
-    else:  # In any other scenario
-        resolved_packages = (
-            session._resolve_packages(
-                packages,
-                include_pandas=is_pandas_udf,
-                statement_params=statement_params,
+    if artifact_repository and artifact_repository != "conda":
+        # Artifact Repository packages are not resolved
+        resolved_packages = []
+        if not packages and session:
+            resolved_packages = list(
+                session._resolve_packages([], artifact_repository=artifact_repository)
             )
-            if packages is not None
-            else session._resolve_packages(
-                [],
-                session._packages,
-                validate_package=False,
-                include_pandas=is_pandas_udf,
-                statement_params=statement_params,
+        elif packages:
+            if not all(isinstance(package, str) for package in packages):
+                raise TypeError(
+                    "Artifact repository requires that all packages be passed as str."
+                )
+            resolved_packages = packages
+    else:
+        # resolve packages
+        if session is None:  # In case of sandbox
+            resolved_packages = resolve_packages_in_client_side_sandbox(
+                packages=packages
             )
-        )
+        else:  # In any other scenario
+            resolved_packages = (
+                session._resolve_packages(
+                    packages,
+                    include_pandas=is_pandas_udf,
+                    statement_params=statement_params,
+                )
+                if packages is not None
+                else session._resolve_packages(
+                    [],
+                    session._packages,
+                    validate_package=False,
+                    include_pandas=is_pandas_udf,
+                    statement_params=statement_params,
+                )
+            )
 
     all_urls = []
     if session is not None:
@@ -1266,6 +1290,7 @@ def create_python_udf_or_sp(
     replace: bool,
     if_not_exists: bool,
     raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
+    registration_type: RegistrationType,
     inline_python_code: Optional[str] = None,
     execute_as: Optional[typing.Literal["caller", "owner", "restricted caller"]] = None,
     api_call_source: Optional[str] = None,
@@ -1280,7 +1305,6 @@ def create_python_udf_or_sp(
     copy_grants: bool = False,
     runtime_version: Optional[str] = None,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
 ) -> None:
     runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1288,7 +1312,12 @@ def create_python_udf_or_sp(
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
-    if isinstance(return_type, StructType) and not return_type.structured:
+
+    if (
+        isinstance(return_type, StructType)
+        and not return_type.structured
+        and registration_type in {RegistrationType.UDTF, RegistrationType.SPROC}
+    ):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     elif installed_pandas and isinstance(return_type, PandasDataFrameType):
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
@@ -1304,39 +1333,8 @@ def create_python_udf_or_sp(
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
 
-    if artifact_repository_packages and not artifact_repository:
-        raise ValueError(
-            "artifact_repository must be specified when artifact_repository_packages has been specified"
-        )
-    if all_packages and artifact_repository_packages:
-        package_names = [
-            pack.strip("\"'").split("==")[0] for pack in all_packages.split(",")
-        ]
-        artifact_repository_package_names = [
-            pack.strip("\"'").split("==")[0] for pack in artifact_repository_packages
-        ]
-
-        for package in package_names:
-            if package in artifact_repository_package_names:
-                raise ValueError(
-                    f"Cannot create a function with duplicates between packages and artifact repository packages. packages: {all_packages}, artifact_repository_packages: {','.join(artifact_repository_packages)}"
-                )
-
     artifact_repository_in_sql = (
         f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
-    )
-    if artifact_repository:
-        artifact_repository_packages = {
-            *list(session._artifact_repository_packages[artifact_repository].values()),
-            *(artifact_repository_packages or []),
-        }
-    artifact_repository_packages_str = (
-        "','".join(artifact_repository_packages) if artifact_repository_packages else ""
-    )
-    artifact_repository_packages_in_sql = (
-        f"ARTIFACT_REPOSITORY_PACKAGES=('{artifact_repository_packages_str}')"
-        if artifact_repository_packages
-        else ""
     )
 
     resource_constraint_fmt = (
@@ -1349,7 +1347,7 @@ def create_python_udf_or_sp(
         if resource_constraint_fmt
         else ""
     )
-    if artifact_repository_in_sql or artifact_repository_packages_in_sql:
+    if artifact_repository_in_sql:
         warning(
             "artifact_repository_support",
             "Support for artifact_repository udxf options is experimental since v1.29.0. Do not use it in production.",
@@ -1430,9 +1428,8 @@ LANGUAGE PYTHON {strict_as_sql}
 {mutability}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
-{packages_in_sql}
 {artifact_repository_in_sql}
-{artifact_repository_packages_in_sql}
+{packages_in_sql}
 {external_access_integrations_in_sql}
 {resource_constraint_sql}
 {secrets_in_sql}

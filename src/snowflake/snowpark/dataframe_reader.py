@@ -54,10 +54,14 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
 )
+from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.utils import (
+    STAGE_PREFIX,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
     XML_READER_FILE_PATH,
+    XML_READER_API_SIGNATURE,
+    XML_READER_SQL_COMMENT,
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
@@ -69,6 +73,7 @@ from snowflake.snowpark._internal.utils import (
     private_preview,
     random_name_for_temp_object,
     warning,
+    is_in_stored_procedure,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -846,6 +851,43 @@ class DataFrameReader:
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
+
+        Notes about reading XML files using a row tag:
+
+            - We support reading XML by specifying the element tag that represents a single record using the ``rowTag``
+              option. See Example 13 in :class:`DataFrameReader`.
+
+            - Each XML record is flattened into a single row, with each XML element or attribute mapped to a column.
+              All columns are represented with the variant type to accommodate heterogeneous or nested data. Therefore,
+              every column value has a size limit due to the variant type.
+
+            - The column names are derived from the XML element names. It will always be wrapped by single quotes.
+
+            - To parse the nested XML under a row tag, you can use dot notation ``.`` to query the nested fields in
+              a DataFrame. See Example 13 in :class:`DataFrameReader`.
+
+            - When ``rowTag`` is specified, the following options are supported for reading XML files
+              via :meth:`option()` or :meth:`options()`:
+
+              + ``mode``: Specifies the mode for dealing with corrupt XML records. The default value is ``PERMISSIVE``. The supported values are:
+
+                  - ``PERMISSIVE``: When it encounters a corrupt record, it sets all fields to null and includes a `columnNameOfCorruptRecord` column.
+
+                  - ``DROPMALFORMED``: Ignores the whole record that cannot be parsed correctly.
+
+                  - ``FAILFAST``: When it encounters a corrupt record, it raises an exception immediately.
+
+              + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
+                The default value is '_corrupt_record'.
+
+              + ``stripNamespaces``: remove namespace prefixes from XML element names when constructing result column names.
+                The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
+                it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
+                For example, for the following XML data with a row tag ``abc:def``:
+                ```
+                <abc:def><abc:xyz>0</abc:xyz></abc:def>
+                ```
+                the result column name is ``abc:xyz`` where ``abc`` is not stripped.
         """
         df = self._read_semi_structured_file(path, "XML")
 
@@ -1075,16 +1117,43 @@ class DataFrameReader:
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
             warning(
                 "rowTag",
-                "rowTag for reading XML file is experimental. Do not use it in production",
+                "rowTag for reading XML file is in private preview since 1.31.0. Do not use it in production.",
+            )
+
+            if is_in_stored_procedure():  # pragma: no cover
+                # create a temp stage for udtf import files
+                # we have to use "temp" object instead of "scoped temp" object in stored procedure
+                # so we need to upload the file to the temp stage first to use register_from_file
+                temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
+                sql_create_temp_stage = f"create temp stage if not exists {temp_stage} {XML_READER_SQL_COMMENT}"
+                self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                    _emit_ast=False
+                )
+                self._session._conn.upload_file(
+                    XML_READER_FILE_PATH,
+                    temp_stage,
+                    compress_data=False,
+                    overwrite=True,
+                    skip_upload_on_content_match=True,
+                )
+                python_file_path = f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(XML_READER_FILE_PATH)}"
+            else:
+                python_file_path = XML_READER_FILE_PATH
+
+            # create udtf
+            handler_name = "XMLReader"
+            _, input_types = get_types_from_type_hints(
+                (XML_READER_FILE_PATH, handler_name), TempObjectType.TABLE_FUNCTION
             )
             output_schema = StructType(
                 [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
             )
             xml_reader_udtf = self._session.udtf.register_from_file(
-                XML_READER_FILE_PATH,
-                "XMLReader",
+                python_file_path,
+                handler_name,
                 output_schema=output_schema,
-                packages=["snowflake-snowpark-python"],
+                input_types=input_types,
+                packages=["snowflake-snowpark-python", "lxml<6"],
                 replace=True,
             )
         else:
@@ -1131,7 +1200,10 @@ class DataFrameReader:
                 _emit_ast=False,
             )
         df._reader = self
-        set_api_call_source(df, f"DataFrameReader.{format.lower()}")
+        if xml_reader_udtf:
+            set_api_call_source(df, XML_READER_API_SIGNATURE)
+        else:
+            set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
 
     @private_preview(version="1.29.0")
@@ -1294,7 +1366,7 @@ class DataFrameReader:
                 f"{snowflake_table_type} "
                 "TABLE "
                 f"identifier(?) "
-                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
                 f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
             params = (snowflake_table_name,)

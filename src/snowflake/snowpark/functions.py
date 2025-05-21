@@ -9309,7 +9309,6 @@ def udf(
     immutable: bool = False,
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
     _emit_ast: bool = True,
     **kwargs,
@@ -9399,10 +9398,8 @@ def udf(
         immutable: Whether the UDF result is deterministic or not for the same input.
         comment: Adds a comment for the created object. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
-        artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
-            parameter will search for packages in.
-        artifact_repository_packages: A list of packages to search for within the pypi repository
-            set in the above parameter.
+        artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+            pulled from Anaconda.
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
@@ -9509,7 +9506,6 @@ def udf(
             immutable=immutable,
             comment=comment,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=artifact_repository_packages,
             resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
@@ -9537,7 +9533,6 @@ def udf(
             immutable=immutable,
             comment=comment,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=artifact_repository_packages,
             resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
@@ -9567,7 +9562,6 @@ def udtf(
     immutable: bool = False,
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
     _emit_ast: bool = True,
     **kwargs,
@@ -9643,10 +9637,8 @@ def udtf(
         immutable: Whether the UDTF result is deterministic or not for the same input.
         comment: Adds a comment for the created object. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
-        artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
-            parameter will search for packages in.
-        artifact_repository_packages: A list of packages to search for within the pypi repository
-            set in the above parameter.
+        artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+            pulled from Anaconda.
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
@@ -9762,7 +9754,6 @@ def udtf(
             immutable=immutable,
             comment=comment,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=artifact_repository_packages,
             resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
@@ -9788,7 +9779,6 @@ def udtf(
             immutable=immutable,
             comment=comment,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=artifact_repository_packages,
             resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
@@ -9816,7 +9806,6 @@ def udaf(
     secrets: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
     _emit_ast: bool = True,
     **kwargs,
@@ -9892,10 +9881,8 @@ def udaf(
             retrieve the secrets using secret API.
         comment: Adds a comment for the created object. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
-        artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
-            parameter will search for packages in.
-        artifact_repository_packages: A list of packages to search for within the pypi repository
-            set in the above parameter.
+        artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+            pulled from Anaconda.
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
@@ -10017,7 +10004,6 @@ def udaf(
             secrets=secrets,
             comment=comment,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=artifact_repository_packages,
             resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
@@ -10041,7 +10027,6 @@ def udaf(
             secrets=secrets,
             comment=comment,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=artifact_repository_packages,
             resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
@@ -10507,7 +10492,6 @@ def sproc(
     comment: Optional[str] = None,
     _emit_ast: bool = True,
     artifact_repository: Optional[str] = None,
-    artifact_repository_packages: Optional[List[str]] = None,
     resource_constraint: Optional[Dict[str, str]] = None,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
@@ -10589,10 +10573,8 @@ def sproc(
             retrieve the secrets using secret API.
         comment: Adds a comment for the created object. See
             `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
-        artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
-            parameter will search for packages in.
-        artifact_repository_packages: A list of packages to search for within the pypi repository
-            set in the above parameter.
+        artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+            pulled from Anaconda.
         resource_constraint: A dictionary containing a resource properties of a warehouse and then
             constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
             warehouse be used for execution.
@@ -10686,7 +10668,6 @@ def sproc(
             secrets=secrets,
             comment=comment,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=artifact_repository_packages,
             resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
@@ -10712,7 +10693,6 @@ def sproc(
             secrets=secrets,
             comment=comment,
             artifact_repository=artifact_repository,
-            artifact_repository_packages=artifact_repository_packages,
             resource_constraint=resource_constraint,
             _emit_ast=_emit_ast,
             **kwargs,
@@ -12244,15 +12224,15 @@ def ai_classify(
         ...     ['one day I will see the world', ['travel', 'cooking', 'dancing']],
         ...     ['my lobster bisque is second to none', ['travel', 'cooking', 'dancing']]
         ... ], schema=["data", "category"])
-        >>> df.select(ai_classify(col("data"), col("category"))["label"].alias("class")).show()
-        -------------
-        |"CLASS"    |
-        -------------
-        |"Europe"   |
-        |"Asia"     |
-        |"travel"   |
-        |"cooking"  |
-        -------------
+        >>> df.select("data", ai_classify(col("data"), col("category"))["label"].alias("class")).sort("data").show()
+        ---------------------------------------------------
+        |"DATA"                               |"CLASS"    |
+        ---------------------------------------------------
+        |France                               |"Europe"   |
+        |Singapore                            |"Asia"     |
+        |my lobster bisque is second to none  |"cooking"  |
+        |one day I will see the world         |"travel"   |
+        ---------------------------------------------------
         <BLANKLINE>
         >>> # for image
         >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()

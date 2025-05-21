@@ -155,7 +155,7 @@ def test_index_summary(native_index):
     assert snow_index._summary() == native_index._summary()
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_size(native_index):
     snow_index = pd.Index(native_index)
@@ -163,14 +163,14 @@ def test_index_size(native_index):
 
 
 @pytest.mark.parametrize("native_df", TEST_DFS)
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_size(native_df):
     snow_df = pd.DataFrame(native_df)
     assert snow_df.index.size == native_df.index.size
     assert snow_df.columns.size == native_df.columns.size
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_empty(native_index):
     snow_index = pd.Index(native_index)
@@ -178,14 +178,14 @@ def test_index_empty(native_index):
 
 
 @pytest.mark.parametrize("native_df", TEST_DFS)
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_empty(native_df):
     snow_df = pd.DataFrame(native_df)
     assert snow_df.index.empty == native_df.index.empty
     assert snow_df.columns.empty == native_df.columns.empty
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
 def test_index_shape(native_index):
     snow_index = pd.Index(native_index)
@@ -193,7 +193,7 @@ def test_index_shape(native_index):
 
 
 @pytest.mark.parametrize("native_df", TEST_DFS)
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_index_shape(native_df):
     snow_df = pd.DataFrame(native_df)
     assert snow_df.index.shape == native_df.index.shape

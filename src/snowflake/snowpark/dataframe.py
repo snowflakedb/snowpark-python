@@ -591,10 +591,6 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_id = None
-        if _emit_ast:
-            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
-
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
         else:
@@ -608,6 +604,12 @@ class DataFrame:
             )
         else:
             self._select_statement = None
+
+        # Setup the ast id for the dataframe.
+        self.__ast_id = None
+        if _emit_ast:
+            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
+
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
@@ -658,6 +660,18 @@ class DataFrame:
     @property
     def analytics(self) -> DataFrameAnalyticsFunctions:
         return self._analytics
+
+    @property
+    def _ast_id(self) -> Optional[int]:
+        return self.__ast_id
+
+    @_ast_id.setter
+    def _ast_id(self, value: Optional[int]) -> None:
+        self.__ast_id = value
+        if self._plan is not None:
+            self._plan.df_ast_id = value
+        if self._select_statement is not None:
+            self._select_statement.add_df_ast_id(value)
 
     @publicapi
     @overload
@@ -1736,7 +1750,6 @@ class DataFrame:
 
     selectExpr = select_expr
 
-    @df_api_usage
     @publicapi
     def drop(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
@@ -1782,48 +1795,83 @@ class DataFrame:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.args.add(), c)
             ast.cols.variadic = is_variadic
 
-        names = []
-        for c in exprs:
-            if isinstance(c, str):
-                names.append(c)
-            elif isinstance(c, Column) and isinstance(c._expression, Attribute):
-                from snowflake.snowpark.mock._connection import MockServerConnection
+        with ResourceUsageCollector() as resource_usage_collector:
+            names = []
+            for c in exprs:
+                if isinstance(c, str):
+                    names.append(c)
+                elif isinstance(c, Column) and isinstance(c._expression, Attribute):
+                    from snowflake.snowpark.mock._connection import MockServerConnection
 
-                if isinstance(self._session._conn, MockServerConnection):
-                    self.schema  # to execute the plan and populate expr_to_alias
+                    if isinstance(self._session._conn, MockServerConnection):
+                        self.schema  # to execute the plan and populate expr_to_alias
 
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
+                    names.append(
+                        self._plan.expr_to_alias.get(
+                            c._expression.expr_id, c._expression.name
+                        )
                     )
-                )
-            elif (
-                isinstance(c, Column)
-                and isinstance(c._expression, UnresolvedAttribute)
-                and c._expression.df_alias
+                elif (
+                    isinstance(c, Column)
+                    and isinstance(c._expression, UnresolvedAttribute)
+                    and c._expression.df_alias
+                ):
+                    names.append(
+                        self._plan.df_aliased_col_name_to_real_col_name.get(
+                            c._expression.name, c._expression.name
+                        )
+                    )
+                elif isinstance(c, Column) and isinstance(
+                    c._expression, NamedExpression
+                ):
+                    names.append(c._expression.name)
+                else:
+                    raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(
+                        str(c)
+                    )
+
+            normalized_names = {quote_name(n) for n in names}
+            existing_names = [attr.name for attr in self._output]
+            keep_col_names = [c for c in existing_names if c not in normalized_names]
+            if not keep_col_names:
+                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+
+            if self._select_statement and self._session.conf.get(
+                "use_simplified_query_generation"
             ):
-                names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
-                        c._expression.name, c._expression.name
+                # Only drop the columns that exist in the DataFrame.
+                drop_normalized_names = [
+                    name for name in normalized_names if name in existing_names
+                ]
+                if not drop_normalized_names:
+                    df = self._with_plan(self._select_statement)
+                else:
+                    df = self._with_plan(
+                        self._select_statement.exclude(
+                            drop_normalized_names, keep_col_names
+                        )
                     )
-                )
-            elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
-                names.append(c._expression.name)
             else:
-                raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_COLUMN_NAME(str(c))
+                df = self.select(list(keep_col_names), _emit_ast=False)
 
-        normalized_names = {quote_name(n) for n in names}
-        existing_names = [attr.name for attr in self._output]
-        keep_col_names = [c for c in existing_names if c not in normalized_names]
-        if not keep_col_names:
-            raise SnowparkClientExceptionMessages.DF_CANNOT_DROP_ALL_COLUMNS()
+        if self._session.conf.get("use_simplified_query_generation"):
+            add_api_call(
+                df,
+                "DataFrame.drop[exclude]",
+                resource_usage_collector.get_resource_usage(),
+            )
         else:
-            df = self.select(list(keep_col_names), _emit_ast=False)
+            adjust_api_subcalls(
+                df,
+                "DataFrame.drop[select]",
+                len_subcalls=1,
+                resource_usage=resource_usage_collector.get_resource_usage(),
+            )
 
-            if _emit_ast:
-                df._ast_id = stmt.uid
+        if _emit_ast:
+            df._ast_id = stmt.uid
 
-            return df
+        return df
 
     @df_api_usage
     @publicapi
@@ -2397,14 +2445,20 @@ class DataFrame:
                 resource_usage=resource_usage_collector.get_resource_usage(),
             )
         else:
-            df = self.group_by(
-                [
-                    self.col(quote_name(f.name), _emit_ast=False)
-                    for f in self.schema.fields
-                ],
-                _emit_ast=False,
-            ).agg(_emit_ast=False)
-            adjust_api_subcalls(df, "DataFrame.distinct[group_by]", len_subcalls=2)
+            with ResourceUsageCollector() as resource_usage_collector:
+                df = self.group_by(
+                    [
+                        self.col(quote_name(f.name), _emit_ast=False)
+                        for f in self.schema.fields
+                    ],
+                    _emit_ast=False,
+                ).agg(_emit_ast=False)
+            adjust_api_subcalls(
+                df,
+                "DataFrame.distinct[group_by]",
+                len_subcalls=2,
+                resource_usage=resource_usage_collector.get_resource_usage(),
+            )
 
         if _emit_ast:
             df._ast_id = stmt.uid
@@ -4331,6 +4385,8 @@ class DataFrame:
 
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
+                * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
+
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
 
@@ -4369,7 +4425,7 @@ class DataFrame:
                 for k, v in iceberg_config.items():
                     t = expr.iceberg_config.add()
                     t._1 = k
-                    t._2 = v
+                    build_expr_from_python_val(t._2, v)
             self._set_ast_ref(expr.df)
 
             self._session._ast_batch.eval(stmt)
@@ -5512,7 +5568,10 @@ class DataFrame:
 
     @publicapi
     def describe(
-        self, *cols: Union[str, List[str]], _emit_ast: bool = True
+        self,
+        *cols: Union[str, List[str]],
+        strings_include_math_stats=False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
@@ -5537,6 +5596,7 @@ class DataFrame:
 
         Args:
             cols: The names of columns whose basic statistics are computed.
+            strings_include_math_stats: Whether StringType columns should have mean and stddev stats included.
         """
         stmt = None
         if _emit_ast:
@@ -5546,6 +5606,7 @@ class DataFrame:
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+            expr.strings_include_math_stats = strings_include_math_stats
 
         cols = parse_positional_args_to_list(*cols)
         df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
@@ -5593,10 +5654,13 @@ class DataFrame:
                     # for string columns, we need to convert all stats to string
                     # such that they can be fitted into one column
                     if isinstance(t, StringType):
-                        if name in ["mean", "stddev"]:
-                            agg_cols.append(to_char(func(lit(None))).as_(c))
-                        else:
+                        if strings_include_math_stats or name not in (
+                            "mean",
+                            "stddev",
+                        ):
                             agg_cols.append(to_char(func(c)))
+                        else:
+                            agg_cols.append(to_char(func(lit(None))).as_(c))
                     else:
                         agg_cols.append(func(c))
                 agg_stat_df = (

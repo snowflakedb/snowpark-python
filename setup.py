@@ -65,8 +65,8 @@ DEVELOPMENT_REQUIREMENTS = [
     "lxml",  # used in read_xml tests
     "tox",  # used for setting up testing environments
     "snowflake.core>=1.0.0, <2",  # Catalog
-    "oracledb",  # used in data source
     "psutil",  # testing for telemetry
+    "lxml",  # used in XML reader unit tests
 ]
 
 # read the version
@@ -214,7 +214,7 @@ setup(
             "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
             # TODO(SNOW-1938831): Test snowflake-ml-python on python 3.12 once
             # snowflake-ml-python is available on python 3.12.
-            "snowflake-ml-python; python_version<'3.12'",
+            "snowflake-ml-python>=1.8.0; python_version<'3.12'",
         ],
         "localtest": [
             "pandas",

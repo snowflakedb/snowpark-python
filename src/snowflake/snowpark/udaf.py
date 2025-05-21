@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.open_telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    RegistrationType,
     check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -40,7 +41,7 @@ from snowflake.snowpark._internal.utils import (
     warning,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.types import DataType, MapType
+from snowflake.snowpark.types import DataType, MapType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -363,7 +364,6 @@ class UDAFRegistration:
         source_code_display: bool = True,
         immutable: bool = False,
         artifact_repository: Optional[str] = None,
-        artifact_repository_packages: Optional[List[str]] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
@@ -443,10 +443,8 @@ class UDAFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE FUNCTION.
-            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
-                parameter will search for packages in.
-            artifact_repository_packages: A list of packages to search for within the pypi repository
-                set in the above parameter.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
@@ -499,7 +497,6 @@ class UDAFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 artifact_repository=artifact_repository,
-                artifact_repository_packages=artifact_repository_packages,
                 resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
@@ -530,7 +527,6 @@ class UDAFRegistration:
         skip_upload_on_content_match: bool = False,
         immutable: bool = False,
         artifact_repository: Optional[str] = None,
-        artifact_repository_packages: Optional[List[str]] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
@@ -619,10 +615,8 @@ class UDAFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE FUNCTION.
-            artifact_repository: The name of an artifact_repository that the ``artifact_repository_packages``
-                parameter will search for packages in.
-            artifact_repository_packages: A list of packages to search for within the pypi repository
-                set in the above parameter.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
@@ -675,7 +669,6 @@ class UDAFRegistration:
                 comment=comment,
                 copy_grants=copy_grants,
                 artifact_repository=artifact_repository,
-                artifact_repository_packages=artifact_repository_packages,
                 resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
@@ -706,7 +699,6 @@ class UDAFRegistration:
         immutable: bool = False,
         copy_grants: bool = False,
         artifact_repository: Optional[str] = None,
-        artifact_repository_packages: Optional[List[str]] = None,
         resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
@@ -750,7 +742,7 @@ class UDAFRegistration:
                     "_do_register_udaf",
                     "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object.",
                 )
-                return_type = MapType()
+                return_type = StructType()
 
         # Capture original parameters.
         if _emit_ast:
@@ -806,6 +798,7 @@ class UDAFRegistration:
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
+            artifact_repository=artifact_repository,
         )
 
         runtime_version_from_requirement = None
@@ -831,6 +824,7 @@ class UDAFRegistration:
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
+                registration_type=RegistrationType.UDAF,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -845,7 +839,6 @@ class UDAFRegistration:
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
                 artifact_repository=artifact_repository,
-                artifact_repository_packages=artifact_repository_packages,
                 resource_constraint=resource_constraint,
             )
         # an exception might happen during registering a udaf

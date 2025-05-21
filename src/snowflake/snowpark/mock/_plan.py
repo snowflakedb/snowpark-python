@@ -208,6 +208,7 @@ class MockExecutionPlan(LogicalPlan):
         )
         self.api_calls = []
         self._attributes = None
+        self.df_ast_id = None
 
     @property
     def attributes(self) -> List[Attribute]:
@@ -1052,6 +1053,7 @@ def execute_mock_plan(
         limit_: Optional[int] = source_plan.limit_
         offset: Optional[int] = source_plan.offset
         distinct_: bool = source_plan.distinct_
+        exclude_cols: List[str] = source_plan.exclude_cols
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
@@ -1136,6 +1138,9 @@ def execute_mock_plan(
 
         if distinct_:
             result_df = result_df.drop_duplicates()
+
+        if exclude_cols:
+            result_df = result_df.drop(columns=exclude_cols)
 
         return result_df
     if isinstance(source_plan, MockSetStatement):
@@ -2448,7 +2453,7 @@ def calculate_expression(
         return result
     if isinstance(exp, InExpression):
         lhs = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
-        res = ColumnEmulator([False] * len(lhs), dtype=object)
+        res = ColumnEmulator([False] * len(lhs), dtype=object, index=input_data.index)
         res.sf_type = ColumnType(BooleanType(), True)
         for val in exp.values:
             rhs = calculate_expression(val, input_data, analyzer, expr_to_alias)

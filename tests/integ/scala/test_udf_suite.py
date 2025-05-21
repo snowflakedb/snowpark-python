@@ -43,13 +43,14 @@ from snowflake.snowpark.types import (
     NullType,
     ShortType,
     StringType,
+    StructType,
     TimestampType,
     TimeType,
     VariantType,
     VectorType,
     File,
 )
-from tests.utils import TestData, TestFiles, Utils
+from tests.utils import TestData, TestFiles, Utils, IS_IN_STORED_PROC_LOCALFS
 
 pytestmark = [
     pytest.mark.udf,
@@ -595,6 +596,9 @@ def test_geometry_type(session):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="to_file is not yet supported in local testing mode.",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
 )
 def test_file_type(session, resources_path):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
@@ -1179,3 +1183,13 @@ def test_repro_snow_415682(session, is_sample_data_available):
             Row(1.0),
         ],
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing.",
+)
+def test_object_return(session):
+    udf1 = udf(lambda: {"foo": "bar"}, return_type=StructType())
+    desc_df = session.sql(f"SELECT GET_DDL('function', '{udf1.name}()')")
+    assert "\nRETURNS OBJECT\n" in desc_df.collect()[0][0]

@@ -4,14 +4,14 @@
 
 import io
 import re
-import xml.etree.ElementTree as ET
+import lxml.etree as ET
 import html.entities
 import pytest
 
 from snowflake.snowpark._internal.xml_reader import (
     replace_entity,
     element_to_dict,
-    strip_namespaces,
+    strip_xml_namespaces,
     find_next_closing_tag_pos,
     find_next_opening_tag_pos,
     tag_is_self_closing,
@@ -76,7 +76,7 @@ def test_default_namespace():
                       <Name>John Doe</Name>
                   </Return>"""
     root = ET.fromstring(xml_data)
-    root = strip_namespaces(root)
+    root = strip_xml_namespaces(root)
     assert root.tag == "Return"
     assert root.attrib.get("returnVersion") == "2020v4.1"
     name_elem = root.find("Name")
@@ -96,7 +96,7 @@ def test_multiple_namespaces():
         </Return>
     """
     root = ET.fromstring(xml_data)
-    root = strip_namespaces(root)
+    root = strip_xml_namespaces(root)
     assert root.tag == "Return"
     name_elem = root.find("Name")
     assert name_elem is not None
@@ -122,7 +122,7 @@ def test_attributes_with_namespaces():
         </Return>
     """
     root = ET.fromstring(xml_data)
-    root = strip_namespaces(root)
+    root = strip_xml_namespaces(root)
     assert root.tag == "Return"
     # The namespaced attribute should be available with its local name.
     assert root.attrib.get("schemaLocation") == "http://www.irs.gov/efile"
@@ -141,7 +141,7 @@ def test_nested_elements():
         </Return>
     """
     root = ET.fromstring(xml_data)
-    root = strip_namespaces(root)
+    root = strip_xml_namespaces(root)
     assert root.tag == "Return"
     info_elem = root.find("Info")
     assert info_elem is not None
@@ -151,6 +151,32 @@ def test_nested_elements():
     assert detail_elem.tag == "Detail"
     assert detail_elem.attrib.get("returnVersion") == "v1"
     assert detail_elem.text.strip() == "Data"
+
+
+def test_undeclared_namespace():
+    xml_data = """
+<px:intermediaryCommission>
+  <px:intermediaryPremiumClass>GLASS</px:intermediaryPremiumClass>
+  <px:newBusinessCommission>0.2</px:newBusinessCommission>
+  <px:otherCommission>0.2</px:otherCommission>
+</px:intermediaryCommission>
+"""
+    parser = ET.XMLParser(recover=True, ns_clean=True)
+    root = ET.fromstring(xml_data, parser)
+    root = strip_xml_namespaces(root)
+
+    # Verify prefixes remain since they don't follow {namespace}tag format
+    assert root.tag == "px:intermediaryCommission"
+
+    # Check that child elements also retain their prefixes
+    children = list(root)
+    assert len(children) == 3
+    assert children[0].tag == "px:intermediaryPremiumClass"
+    assert children[0].text.strip() == "GLASS"
+    assert children[1].tag == "px:newBusinessCommission"
+    assert children[1].text.strip() == "0.2"
+    assert children[2].tag == "px:otherCommission"
+    assert children[2].text.strip() == "0.2"
 
 
 @pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])

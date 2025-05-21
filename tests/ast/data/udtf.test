@@ -170,7 +170,7 @@ ar_udtf = session.udtf.register(
     ArtifactRepositoryUDTF,
     output_schema=StructType([StructField("a", StringType())]),
     artifact_repository="EXAMPLE_REPO",
-    artifact_repository_packages=["urllib3", "requests"],
+    packages=["urllib3", "requests"],
     resource_constraint={"architecture": "x86"},
 )
 
@@ -222,7 +222,7 @@ my_udtf = udtf("MyUDTFWithTypeHints", output_schema=StructType(fields=[StructFie
 
 df = session.table_function(my_udtf(lit(1), lit(2.2), lit(True), lit(Decimal("3.33")), lit("python"), lit(bytes("bytes", "utf-8")), lit(bytes("bytearray", "utf-8"))))
 
-ar_udtf = udtf("ArtifactRepositoryUDTF", output_schema=StructType(fields=[StructField("a", StringType(), nullable=True)], structured=False), artifact_repository="EXAMPLE_REPO", artifact_repository_packages=["urllib3", "requests"], resource_constraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+ar_udtf = udtf("ArtifactRepositoryUDTF", output_schema=StructType(fields=[StructField("a", StringType(), nullable=True)], structured=False), packages=["urllib3", "requests"], artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 ## EXPECTED ENCODED AST
 
@@ -3350,8 +3350,6 @@ body {
         artifact_repository {
           value: "EXAMPLE_REPO"
         }
-        artifact_repository_packages: "urllib3"
-        artifact_repository_packages: "requests"
         handler {
           id: 8
           name: "ArtifactRepositoryUDTF"
@@ -3399,6 +3397,8 @@ body {
             }
           }
         }
+        packages: "urllib3"
+        packages: "requests"
         parallel: 4
         resource_constraint {
           _1: "architecture"
@@ -3433,6 +3433,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 31
+  minor: 32
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

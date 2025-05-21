@@ -1949,6 +1949,11 @@ class Session:
         Returns:
             List[str]: List of package specifiers
         """
+        # Always include cloudpickle
+        extra_modules = [cloudpickle]
+        if include_pandas:
+            extra_modules.append("pandas")
+
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
         if (
@@ -1983,7 +1988,9 @@ class Session:
                 elif len(errors) > 0:
                     raise RuntimeError(errors)
 
-            return list(result_dict.values())
+            return list(result_dict.values()) + self._get_req_identifiers_list(
+                extra_modules, result_dict
+            )
 
         package_table = "information_schema.packages"
         if not self.get_current_database():
@@ -2029,11 +2036,6 @@ class Session:
                         result_dict[name] = str(package)
                 else:
                     result_dict[name] = str(package)
-
-            # Always include cloudpickle
-            extra_modules = [cloudpickle]
-            if include_pandas:
-                extra_modules.append("pandas")
 
             return list(result_dict.values()) + self._get_req_identifiers_list(
                 extra_modules, result_dict
@@ -3549,6 +3551,7 @@ class Session:
                         TimestampType,
                         VariantType,
                         VectorType,
+                        FileType,
                     ),
                 )
                 else field.datatype
@@ -3675,7 +3678,6 @@ class Session:
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
                 )
-            # TODO SNOW-1952256: Test file type in create_dataframe once it accepts full path
             elif isinstance(field.datatype, FileType):
                 project_columns.append(to_file(column(name)).as_(name))
             else:
@@ -4072,6 +4074,10 @@ class Session:
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
+        if sproc_name.strip().upper().startswith("SYSTEM$"):
+            # Built-in stored procedures do not have schema and cannot be described
+            # Currently all SYSTEM$ stored procedures are scalar so return false.
+            return False
         func_signature = ""
         try:
             arg_types = []

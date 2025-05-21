@@ -403,15 +403,9 @@ class MapType(DataType):
         value_contains_null: bool = True,
     ) -> None:
         if context._should_use_structured_type_semantics():
-            if (key_type is None and value_type is not None) or (
-                key_type is not None and value_type is None
-            ):
-                raise ValueError(
-                    "Must either set both key_type and value_type or leave both unset."
-                )
-            self.structured = (
-                structured if structured is not None else key_type is not None
-            )
+            if key_type is None or value_type is None:
+                raise ValueError("MapType requires key and value type be set.")
+            self.structured = True
             self.key_type = key_type
             self.value_type = value_type
         else:
@@ -537,6 +531,7 @@ class ColumnIdentifier:
 
     def __init__(self, normalized_name: str) -> None:
         self.normalized_name = quote_name(normalized_name)
+        self.case_sensitive_name = quote_name(normalized_name, keep_case=True)
         self._original_name = normalized_name
 
     @property
@@ -629,6 +624,10 @@ class StructField:
         else:
             self._name = n
             self.column_identifier = ColumnIdentifier(n)
+
+    @property
+    def case_sensitive_name(self):
+        return self.column_identifier.case_sensitive_name
 
     def _as_nested(self) -> "StructField":
         if not context._should_use_structured_type_semantics():
@@ -993,6 +992,8 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
             return TimestampType(timezone=_all_timestamp_types[json_value].tz)
         elif json_value == "decimal":
             return DecimalType()
+        elif json_value == "variant":
+            return VariantType()
         elif _FIXED_DECIMAL_PATTERN.match(json_value):
             m = _FIXED_DECIMAL_PATTERN.match(json_value)
             return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]

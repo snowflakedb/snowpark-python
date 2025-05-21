@@ -6,25 +6,24 @@ import functools
 import logging
 import math
 import os
+import subprocess
 import tempfile
 import datetime
+from textwrap import dedent
 from unittest import mock
 from unittest.mock import patch, MagicMock, PropertyMock
 
-import oracledb
 import pytest
 from decimal import Decimal
+
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.data_source.drivers.oracledb_driver import (
-    output_type_handler,
-)
 from snowflake.snowpark._internal.data_source.drivers import (
     PyodbcDriver,
     SqliteDriver,
-    OracledbDriver,
 )
 from snowflake.snowpark._internal.data_source.utils import (
     _task_fetch_data_from_source_with_retry,
@@ -60,20 +59,17 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_create_connection_with_exception,
     sqlite3_db,
     create_connection_to_sqlite3_db,
-    oracledb_all_type_data_result,
-    oracledb_create_connection,
-    oracledb_all_type_small_data_result,
-    oracledb_create_connection_small_data,
     OracleDBType,
     sql_server_create_connection_empty_data,
     unknown_dbms_create_connection,
     sql_server_all_type_schema,
     SQLITE3_DB_CUSTOM_SCHEMA_STRING,
     SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
-    oracledb_real_data,
     sql_server_udtf_ingestion_data,
+    sql_server_create_connection_unicode_data,
+    sql_server_create_connection_double_quoted_data,
 )
-from tests.utils import RUNNING_ON_JENKINS, Utils, IS_WINDOWS
+from tests.utils import Utils, IS_WINDOWS
 
 try:
     import pandas  # noqa: F401
@@ -95,7 +91,8 @@ pytestmark = [
 ]
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
-ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
+ORACLEDB_TABLE_NAME = "ALL_TYPE_TABLE"
+ORACLEDB_TABLE_NAME_SMALL = "ALL_TYPE_TABLE_SMALL"
 ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integration"
 
 
@@ -109,29 +106,9 @@ def test_dbapi_with_temp_table(session, caplog):
         assert df.collect() == sql_server_all_type_data
 
 
-def test_dbapi_oracledb(session):
-    df = session.read.dbapi(
-        oracledb_create_connection,
-        table=ORACLEDB_TABLE_NAME,
-        max_workers=4,
-        query_timeout=5,
-    )
-    assert df.collect() == oracledb_all_type_data_result
-
-
 @pytest.mark.parametrize(
     "create_connection, table_name, expected_result",
     [
-        (
-            oracledb_create_connection,
-            ORACLEDB_TABLE_NAME,
-            oracledb_all_type_data_result,
-        ),
-        (
-            oracledb_create_connection_small_data,
-            ORACLEDB_TABLE_NAME,
-            oracledb_all_type_small_data_result,
-        ),
         (sql_server_create_connection, SQL_SERVER_TABLE_NAME, sql_server_all_type_data),
         (
             sql_server_create_connection_small_data,
@@ -596,11 +573,6 @@ def test_type_conversion():
             sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
         ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
 
-    with pytest.raises(NotImplementedError, match="oracledb type not supported"):
-        OracledbDriver(oracledb_create_connection, DBMS_TYPE.ORACLE_DB).to_snow_type(
-            [invalid_type]
-        )
-
 
 def test_custom_schema_false(session):
     with pytest.raises(ValueError, match="Invalid schema string: timestamp_tz."):
@@ -782,47 +754,6 @@ def test_empty_table(session):
     assert df.collect() == []
 
 
-def test_oracledb_driver_coverage(caplog):
-    oracledb_driver = OracledbDriver(
-        oracledb_create_connection_small_data, DBMS_TYPE.ORACLE_DB
-    )
-    conn = oracledb_driver.prepare_connection(oracledb_driver.create_connection(), 0)
-    assert conn.outputtypehandler == output_type_handler
-
-    oracledb_driver.to_snow_type(
-        [OracleDBType("NUMBER_COL", oracledb.DB_TYPE_NUMBER, 40, 2, True)]
-    )
-    assert "Snowpark does not support column" in caplog.text
-
-
-@pytest.mark.skipif(
-    RUNNING_ON_JENKINS, reason="Cannot connect to oracledb from jenkins"
-)
-def test_udtf_ingestion_oracledb(session):
-    from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
-
-    def create_connection_oracledb():
-        import oracledb
-
-        host = ORACLEDB_CONNECTION_PARAMETERS["host"]
-        port = ORACLEDB_CONNECTION_PARAMETERS["port"]
-        service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
-        username = ORACLEDB_CONNECTION_PARAMETERS["username"]
-        password = ORACLEDB_CONNECTION_PARAMETERS["password"]
-        dsn = f"{host}:{port}/{service_name}"
-        connection = oracledb.connect(user=username, password=password, dsn=dsn)
-        return connection
-
-    df = session.read.dbapi(
-        create_connection_oracledb,
-        table="ALL_TYPE_TABLE",
-        udtf_configs={
-            "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION
-        },
-    ).order_by("ID")
-    Utils.check_answer(df, oracledb_real_data)
-
-
 def test_sql_server_udtf_ingestion(session):
     raw_schema = [
         ("Id", int, None, None, 10, 0, False),
@@ -926,14 +857,6 @@ def test_sql_server_udtf_ingestion(session):
     Utils.check_answer(df, sql_server_udtf_ingestion_data)
 
 
-def test_external_access_integration_not_set(session):
-    with pytest.raises(
-        ValueError,
-        match="external_access_integration cannot be None when udtf ingestion is used.",
-    ):
-        session.read.dbapi(oracledb_create_connection, table="fake", udtf_configs={})
-
-
 def test_unknown_driver_with_custom_schema(session):
     with pytest.raises(
         SnowparkDataframeReaderException,
@@ -994,3 +917,63 @@ def test_fetch_merge_count_integ(session, caplog):
             assert df.order_by("ID").collect() == assert_data
             # 2 batch + 2 fetch size = 2 parquet file
             assert caplog.text.count("Retrieved file from parquet queue") == 2
+
+
+def test_unicode_column_name_sql_server(session):
+    df = session.read.dbapi(sql_server_create_connection_unicode_data, table='"用户资料"')
+    assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
+
+
+def test_double_quoted_column_name_sql_server(session):
+    df = session.read.dbapi(
+        sql_server_create_connection_double_quoted_data, table='"UserProfile"'
+    )
+    assert df.collect() == [
+        Row(Id=1, FullName="John Doe", Country="USA", Notes="Fake note")
+    ]
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_local_create_connection_function(session, db_parameters):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
+
+        # test local function definition
+        def local_create_connection():
+            import sqlite3
+
+            return sqlite3.connect(dbpath)
+
+        df = session.read.dbapi(
+            local_create_connection,
+            table=table_name,
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+        )
+        assert df.order_by("ID").collect() == assert_data
+
+        # test function is defined in the main
+        code = dedent(
+            f"""
+        if __name__ == "__main__":
+            import sqlite3
+            from snowflake.snowpark import Session
+
+            def local_create_connection():
+                return sqlite3.connect("{str(dbpath)}")
+
+            session = Session.builder.configs({str(db_parameters)}).create()
+            df = session.read.dbapi(
+                local_create_connection,
+                table='{table_name}',
+                custom_schema='{SQLITE3_DB_CUSTOM_SCHEMA_STRING}',
+            )
+            assert df.collect()
+            print("successful ingestion")
+        """
+        )
+        result = subprocess.run(["python", "-c", code], capture_output=True, text=True)
+        assert "successful ingestion" in result.stdout

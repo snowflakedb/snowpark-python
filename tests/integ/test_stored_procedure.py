@@ -251,17 +251,19 @@ def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(col("a"))
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(current_date())
     assert "Invalid argument types for function" in str(
-        ex_info
-    ) or "Unexpected type" in str(ex_info)
+        ex_info.value
+    ) or "Unexpected type" in str(ex_info.value)
 
     with pytest.raises(expected_err) as ex_info:
         plus1_sp(lit(""))
-    assert "not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
+    assert "not recognized" in str(ex_info.value) or "Unexpected type" in str(
+        ex_info.value
+    )
 
 
 def test_stored_procedure_with_column_datatype(session, local_testing_mode):
@@ -347,6 +349,17 @@ def test_call_named_stored_procedure(
         finally:
             new_session.close()
             # restore active session
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_infer_table_type_is_skipped_for_system_procedures(session):
+    with session.query_history() as history:
+        session.call("system$wait", 1)
+
+    assert len(history.queries) == 1
 
 
 @pytest.mark.skipif(
@@ -1051,7 +1064,7 @@ def test_sp_negative(session, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.call("f", 1).collect()
 
-    assert "Unknown function" in str(ex_info)
+    assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         sproc(
@@ -1060,7 +1073,7 @@ def test_sp_negative(session, local_testing_mode):
             input_types=[IntegerType()],
             name="invalid name",
         )
-    assert "The object name 'invalid name' is invalid" in str(ex_info)
+    assert "The object name 'invalid name' is invalid" in str(ex_info.value)
 
     # incorrect data type
     int_sp = sproc(
@@ -1068,11 +1081,13 @@ def test_sp_negative(session, local_testing_mode):
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp("x")
-    assert "is not recognized" in str(ex_info) or "Unexpected type" in str(ex_info)
+    assert "is not recognized" in str(ex_info.value) or "Unexpected type" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         int_sp(None)
-    assert "Python Interpreter Error" in str(ex_info)
+    assert "Python Interpreter Error" in str(ex_info.value)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1491,7 +1506,7 @@ def test_sp_replace(session):
             return_type=IntegerType(),
             input_types=[IntegerType(), IntegerType()],
         )
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     # Expect second sp version to still be there.
     assert add_sp(1, 2) == 4
@@ -1952,7 +1967,7 @@ def test_sproc_artifact_repository(session):
         session=session,
         return_type=StringType(),
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
     assert artifact_repo_sproc(session=session) == "test"
 
@@ -1962,7 +1977,7 @@ def test_sproc_artifact_repository(session):
             session=session,
             return_type=StringType(),
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"architecture": "x86"},
         )
     except SnowparkSQLException as ex:
@@ -1998,7 +2013,7 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
         file_path,
         "artifact_repo_test",
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests", "snowflake-snowpark-python"],
     )
     assert artifact_repo_sproc(session=session) == "test"
 
