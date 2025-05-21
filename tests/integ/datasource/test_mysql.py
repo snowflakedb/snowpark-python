@@ -8,7 +8,10 @@ from decimal import Decimal
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import PymysqlDriver
+from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
+    PymysqlDriver,
+    PymysqlTypeCode,
+)
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
@@ -127,7 +130,11 @@ def test_type_conversion():
 def test_pymysql_driver_coverage(caplog):
     mysql_driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
     mysql_driver.to_snow_type(
-        [MysqlType("NUMBER_COL", (246, Decimal), None, None, 41, 2, True)]
+        [
+            MysqlType(
+                "NUMBER_COL", PymysqlTypeCode((246, Decimal)), None, None, 41, 2, True
+            )
+        ]
     )
     assert "Snowpark does not support column" in caplog.text
 
@@ -179,10 +186,8 @@ def test_infer_type_from_data(data, number_of_columns, expected_result):
     assert result == expected_result
 
 
-def test_udtf_ingestion_mysql(session):
+def test_udtf_ingestion_mysql(session, caplog):
     from tests.parameters import MYSQL_CONNECTION_PARAMETERS
-
-    his = session.query_history()
 
     def create_connection_mysql():
         import pymysql  # noqa: F811
@@ -206,12 +211,7 @@ def test_udtf_ingestion_mysql(session):
     Utils.check_answer(df, mysql_real_data)
 
     # check that udtf is used
-    flag = False
-    for q in his.queries:
-        if (
-            """CREATE
-TEMPORARY  FUNCTION  data_source_udtf"""
-            in q.sql_text
-        ):
-            flag = True
-    assert flag
+    assert (
+        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
+        and "table(data_source_udtf" in caplog.text
+    )

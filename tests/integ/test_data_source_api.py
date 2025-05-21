@@ -148,7 +148,6 @@ def test_dbapi_retry(session):
                     sql_server_create_connection,
                     StructType([StructField("col1", IntegerType(), False)]),
                     DBMS_TYPE.SQL_SERVER_DB,
-                    False,
                 ),
                 partition="SELECT * FROM test_table",
                 partition_idx=0,
@@ -300,11 +299,11 @@ def test_partition_logic(
         partitioner = DataSourcePartitioner(
             sql_server_create_connection,
             table_or_query="fake_table",
+            is_query=False,
             column=column,
             lower_bound=lower_bound,
             upper_bound=upper_bound,
             num_partitions=num_partitions,
-            is_query=False,
         )
         mock_schema.return_value = schema
         queries = partitioner.partitions
@@ -320,11 +319,11 @@ def test_partition_unsupported_type(session):
             partitioner = DataSourcePartitioner(
                 sql_server_create_connection,
                 table_or_query="fake_table",
+                is_query=False,
                 column="DATE",
                 lower_bound=0,
                 upper_bound=1,
                 num_partitions=4,
-                is_query=False,
             )
             mock_schema.return_value = StructType(
                 [StructField("DATE", MapType(), False)]
@@ -423,12 +422,12 @@ def test_predicates():
         partitioner = DataSourcePartitioner(
             sql_server_create_connection,
             table_or_query="fake_table",
+            is_query=False,
             predicates=[
                 "id > 1 AND id <= 1000",
                 "id > 1001 AND id <= 2000",
                 "id > 2001",
             ],
-            is_query=False,
         )
         mock_schema.return_value = StructType([StructField("ID", IntegerType(), False)])
         queries = partitioner.partitions
@@ -516,8 +515,8 @@ def test_task_fetch_from_data_source_with_fetch_size(
     partitioner = DataSourcePartitioner(
         sql_server_create_connection_small_data,
         table_or_query="fake",
-        fetch_size=fetch_size,
         is_query=False,
+        fetch_size=fetch_size,
     )
     schema = partitioner.schema
     file_count = (
@@ -535,7 +534,6 @@ def test_task_fetch_from_data_source_with_fetch_size(
                 schema=schema,
                 dbms_type=DBMS_TYPE.SQL_SERVER_DB,
                 fetch_size=fetch_size,
-                is_query=False,
             ),
             "partition": "SELECT * FROM test_table",
             "partition_idx": partition_idx,
@@ -576,7 +574,7 @@ def test_type_conversion():
     invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
     with pytest.raises(NotImplementedError, match="sql server type not supported"):
         PyodbcDriver(
-            sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB, False
+            sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
         ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
 
 
@@ -645,11 +643,11 @@ def test_partition_wrong_input(session, caplog):
             partitioner = DataSourcePartitioner(
                 sql_server_create_connection,
                 table_or_query="fake_table",
+                is_query=False,
                 column="DATE",
                 lower_bound=10,
                 upper_bound=1,
                 num_partitions=4,
-                is_query=False,
             )
             mock_schema.return_value = StructType(
                 [StructField("DATE", IntegerType(), False)]
@@ -659,11 +657,11 @@ def test_partition_wrong_input(session, caplog):
         partitioner = DataSourcePartitioner(
             sql_server_create_connection,
             table_or_query="fake_table",
+            is_query=False,
             column="DATE",
             lower_bound=0,
             upper_bound=10,
             num_partitions=20,
-            is_query=False,
         )
         mock_schema.return_value = StructType(
             [StructField("DATE", IntegerType(), False)]
@@ -854,9 +852,7 @@ def test_sql_server_udtf_ingestion(session):
         [["SELECT * FROM ALL_TYPE_DATA"]], schema=["partition"]
     ).write.save_as_table(partitions_table, table_type="temp")
 
-    driver = PyodbcDriver(
-        create_connection_udtf_sql_server, DBMS_TYPE.SQL_SERVER_DB, False
-    )
+    driver = PyodbcDriver(create_connection_udtf_sql_server, DBMS_TYPE.SQL_SERVER_DB)
     df = driver.udtf_ingestion(
         session,
         driver.to_snow_type(raw_schema),
@@ -902,7 +898,6 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
             dbms_type=DBMS_TYPE.SQLITE_DB,
             fetch_size=fetch_size,
             fetch_merge_count=fetch_merge_count,
-            is_query=False,
         )
         all_fetched_data = []
         batch_cnt = 0

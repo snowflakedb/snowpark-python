@@ -66,8 +66,8 @@ class DataSourcePartitioner:
         self.dbms_type = dbms_type
         self.dialect_class = DBMS_MAP.get(dbms_type, BaseDialect)
         self.driver_class = DRIVER_MAP.get(driver_type, BaseDriver)
-        self.dialect = self.dialect_class(is_query)
-        self.driver = self.driver_class(create_connection, dbms_type, is_query)
+        self.dialect = self.dialect_class()
+        self.driver = self.driver_class(create_connection, dbms_type)
 
     def reader(self) -> DataSourceReader:
         return DataSourceReader(
@@ -75,7 +75,6 @@ class DataSourcePartitioner:
             self.create_connection,
             self.schema,
             self.dbms_type,
-            self.is_query,
             self.fetch_size,
             self.query_timeout,
             self.session_init_statement,
@@ -86,7 +85,7 @@ class DataSourcePartitioner:
     def schema(self) -> StructType:
         if self.custom_schema is None:
             return self.driver.infer_schema_from_description_with_error_control(
-                self.table_or_query
+                self.table_or_query, self.is_query
             )
         else:
             if isinstance(self.custom_schema, str):
@@ -110,7 +109,7 @@ class DataSourcePartitioner:
     @cached_property
     def partitions(self) -> List[str]:
         select_query = self.dialect.generate_select_query(
-            self.table_or_query, self.schema, self.driver.raw_schema
+            self.table_or_query, self.schema, self.driver.raw_schema, self.is_query
         )
         logger.debug(f"Generated select query: {select_query}")
         if self.column is None:

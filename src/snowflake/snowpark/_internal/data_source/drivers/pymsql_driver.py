@@ -114,14 +114,13 @@ class PymysqlDriver(BaseDriver):
         self,
         create_connection: Callable[[], "Connection"],
         dbms_type: Enum,
-        is_query: bool,
     ) -> None:
-        super().__init__(create_connection, dbms_type, is_query)
+        super().__init__(create_connection, dbms_type)
 
     def infer_schema_from_description(
-        self, table_or_query: str, cursor: "Cursor"
+        self, table_or_query: str, cursor: "Cursor", is_query: bool
     ) -> StructType:
-        if self.is_query:
+        if is_query:
             random_table_alias = random_name_for_temp_object(TempObjectType.TABLE)
             cursor.execute(
                 f"select {random_table_alias}.* from ({table_or_query}) {random_table_alias} limit {_MYSQL_INFER_TYPE_SAMPLE_LIMIT}"
@@ -195,8 +194,6 @@ class PymysqlDriver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
-                def hexify_binary(row):
-                    return tuple(v.hex() if isinstance(v, bytes) else v for v in row)
 
                 conn = create_connection()
                 cursor = conn.cursor()
@@ -205,7 +202,7 @@ class PymysqlDriver(BaseDriver):
                     rows = cursor.fetchmany(fetch_size)
                     if not rows:
                         break
-                    yield from [hexify_binary(row) for row in rows]
+                    yield from rows
 
         return UDTFIngestion
 
@@ -224,12 +221,10 @@ class PymysqlDriver(BaseDriver):
         raw_data_types_set = [set() for _ in range(number_of_columns)]
         for row in data:
             for i, col in enumerate(row):
-                raw_data_types_set[i].add(type(col))
+                if type(col) != NoneType:
+                    raw_data_types_set[i].add(type(col))
         types = [
-            type_set.pop()
-            if len(type_set) == 1 and next(iter(type_set)) != NoneType
-            else str
-            for type_set in raw_data_types_set
+            type_set.pop() if len(type_set) else str for type_set in raw_data_types_set
         ]
         return types
 
@@ -248,3 +243,17 @@ class PymysqlDriver(BaseDriver):
         return session.table(table_name, _emit_ast=_emit_ast).select(
             project_columns, _emit_ast=_emit_ast
         )
+
+    @staticmethod
+    def to_result_snowpark_df_udtf(
+        res_df: "DataFrame",
+        schema: StructType,
+        _emit_ast: bool = True,
+    ):
+        cols = []
+        for field in schema.fields:
+            if isinstance(field.datatype, VariantType):
+                cols.append(to_variant(parse_json(column(field.name))).as_(field.name))
+            else:
+                cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
+        return res_df.select(cols, _emit_ast=_emit_ast)

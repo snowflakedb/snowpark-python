@@ -9,14 +9,12 @@ from snowflake.snowpark.types import StructType, TimestampType, TimestampTimeZon
 
 
 class OracledbDialect(BaseDialect):
-    def __init__(self, is_query: bool) -> None:
-        super().__init__(is_query)
-
     def generate_select_query(
         self,
         table_or_query: str,
         schema: StructType,
         raw_schema: List[tuple],
+        is_query: bool,
     ) -> str:
         cols = []
         for field, raw_field in zip(schema.fields, raw_schema):

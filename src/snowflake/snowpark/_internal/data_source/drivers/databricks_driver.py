@@ -36,12 +36,11 @@ class DatabricksDriver(BaseDriver):
         self,
         create_connection: Callable[[], "Connection"],
         dbms_type: Enum,
-        is_query: bool,
     ) -> None:
-        super().__init__(create_connection, dbms_type, is_query)
+        super().__init__(create_connection, dbms_type)
 
     def infer_schema_from_description(
-        self, table_or_query: str, cursor: "Cursor"
+        self, table_or_query: str, cursor: "Cursor", is_query: bool
     ) -> StructType:
         # The following query gives a more detailed schema information than
         # just running "SELECT * FROM {table_or_query} WHERE 1 = 0"

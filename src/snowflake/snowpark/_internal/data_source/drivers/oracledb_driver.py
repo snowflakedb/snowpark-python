@@ -30,9 +30,8 @@ class OracledbDriver(BaseDriver):
         self,
         create_connection: Callable[[], "Connection"],
         dbms_type: Enum,
-        is_query: bool,
     ) -> None:
-        super().__init__(create_connection, dbms_type, is_query)
+        super().__init__(create_connection, dbms_type)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         """

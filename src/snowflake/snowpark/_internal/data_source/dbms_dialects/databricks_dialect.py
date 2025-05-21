@@ -5,5 +5,4 @@ from snowflake.snowpark._internal.data_source.dbms_dialects import BaseDialect
 
 
 class DatabricksDialect(BaseDialect):
-    def __init__(self, is_query: bool) -> None:
-        super().__init__(is_query)
+    pass
