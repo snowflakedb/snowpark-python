@@ -93,15 +93,12 @@ def test_groupby_axis_1_mi(group_name):
         ["col1", lambda x: x + 1, lambda x: x % 3, "col2"],
     ],
 )
+@sql_count_checker(query_count=0)
 def test_groupby_with_callable_and_array(basic_snowpark_pandas_df, by) -> None:
-    expected_query_count = 0
-    if isinstance(by, list):
-        expected_query_count = 1
-    with SqlCounter(query_count=expected_query_count):
-        with pytest.raises(
-            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
-        ):
-            basic_snowpark_pandas_df.groupby(by).min()
+    with pytest.raises(
+        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+    ):
+        basic_snowpark_pandas_df.groupby(by).min()
 
 
 @sql_count_checker(query_count=0)
@@ -113,7 +110,7 @@ def test_timeseries_groupby_with_callable(tsframe):
         snow_ts_df.groupby(lambda x: x.month).agg(np.percentile, 80, axis=0)
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     by = [1, 1, 4, 2, 2, 4]
     with pytest.raises(
@@ -126,7 +123,7 @@ def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     "by_list",
     [[2, 1, 1, 2, 3, 3], [[2, 1, 1, 2, 3, 3], "a"]],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_series_with_numpy_array(native_series_multi_numeric, by_list) -> None:
     with pytest.raises(
         NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
@@ -145,7 +142,7 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
         ):
             basic_snowpark_pandas_df.groupby(by=snowpark_pandas_series).sum()
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=0):
         by_list = ["col1", "col2", snowpark_pandas_series]
         with pytest.raises(
             NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN

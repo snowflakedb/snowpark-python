@@ -202,7 +202,7 @@ def test_box(test_dfs):
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_imshow(test_dfs):
     eval_snowpark_pandas_result(
         *test_dfs,

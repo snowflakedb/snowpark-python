@@ -12,11 +12,11 @@ df3 = df.describe("STR", "num")
 
 df = session.table("table1")
 
-df1 = df.describe()
+df1 = df.describe(strings_include_math_stats=False)
 
-df2 = df.describe("num")
+df2 = df.describe("num", strings_include_math_stats=False)
 
-df3 = df.describe("STR", "num")
+df3 = df.describe("STR", "num", strings_include_math_stats=False)
 
 ## EXPECTED ENCODED AST
 

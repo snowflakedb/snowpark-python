@@ -591,10 +591,6 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_id = None
-        if _emit_ast:
-            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
-
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
         else:
@@ -608,6 +604,12 @@ class DataFrame:
             )
         else:
             self._select_statement = None
+
+        # Setup the ast id for the dataframe.
+        self.__ast_id = None
+        if _emit_ast:
+            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
+
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
@@ -658,6 +660,18 @@ class DataFrame:
     @property
     def analytics(self) -> DataFrameAnalyticsFunctions:
         return self._analytics
+
+    @property
+    def _ast_id(self) -> Optional[int]:
+        return self.__ast_id
+
+    @_ast_id.setter
+    def _ast_id(self, value: Optional[int]) -> None:
+        self.__ast_id = value
+        if self._plan is not None:
+            self._plan.df_ast_id = value
+        if self._select_statement is not None:
+            self._select_statement.add_df_ast_id(value)
 
     @publicapi
     @overload
@@ -5554,7 +5568,10 @@ class DataFrame:
 
     @publicapi
     def describe(
-        self, *cols: Union[str, List[str]], _emit_ast: bool = True
+        self,
+        *cols: Union[str, List[str]],
+        strings_include_math_stats=False,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """
         Computes basic statistics for numeric columns, which includes
@@ -5579,6 +5596,7 @@ class DataFrame:
 
         Args:
             cols: The names of columns whose basic statistics are computed.
+            strings_include_math_stats: Whether StringType columns should have mean and stddev stats included.
         """
         stmt = None
         if _emit_ast:
@@ -5588,6 +5606,7 @@ class DataFrame:
             col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+            expr.strings_include_math_stats = strings_include_math_stats
 
         cols = parse_positional_args_to_list(*cols)
         df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
@@ -5635,10 +5654,13 @@ class DataFrame:
                     # for string columns, we need to convert all stats to string
                     # such that they can be fitted into one column
                     if isinstance(t, StringType):
-                        if name in ["mean", "stddev"]:
-                            agg_cols.append(to_char(func(lit(None))).as_(c))
-                        else:
+                        if strings_include_math_stats or name not in (
+                            "mean",
+                            "stddev",
+                        ):
                             agg_cols.append(to_char(func(c)))
+                        else:
+                            agg_cols.append(to_char(func(lit(None))).as_(c))
                     else:
                         agg_cols.append(func(c))
                 agg_stat_df = (
