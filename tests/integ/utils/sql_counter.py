@@ -291,18 +291,34 @@ class SqlCounter(QueryListener):
 
         self.clear()
 
+    def _normalize_sql(self, sql: str) -> str:
+        """Normalize SQL query by
+        converting to uppercase and removing
+        tabs and new lines.
+        """
+        sql = sql.upper()
+
+        sql = sql.replace("\n", "").replace("    ", "")
+        return sql
+
     def _get_actual_queries(self):
+        """Get actual queries after filtering out system queries and normalizing."""
         return list(
             filter(
                 lambda q: not any(
                     [
-                        all([p.upper() in q.upper() for p in fw])
+                        all(
+                            [
+                                self._normalize_sql(p) in self._normalize_sql(q)
+                                for p in fw
+                            ]
+                        )
                         for fw in FILTER_OUT_QUERIES
                     ]
                 ),
                 list(
                     map(
-                        lambda q: q.sql_text,
+                        lambda q: self._normalize_sql(q.sql_text),
                         [q for q in self._queries if not q.is_describe],
                     )
                 ),
@@ -314,6 +330,11 @@ class SqlCounter(QueryListener):
             starts_with = []
         if contains is None:
             contains = []
+
+        # Normalize the search patterns
+        starts_with = [self._normalize_sql(sw) for sw in starts_with]
+        contains = [self._normalize_sql(c) for c in contains]
+
         return sum(
             bool(x)
             for x in map(
@@ -328,6 +349,11 @@ class SqlCounter(QueryListener):
     def _count_instances_by_query_substr(self, starts_with=None, contains=None):
         starts_with = starts_with or []
         contains = contains or []
+
+        # Normalize the search patterns
+        starts_with = [self._normalize_sql(sw) for sw in starts_with]
+        contains = [self._normalize_sql(c) for c in contains]
+
         return sum(
             map(
                 lambda q: sum(
