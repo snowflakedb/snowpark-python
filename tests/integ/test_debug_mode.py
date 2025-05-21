@@ -11,6 +11,10 @@ from unittest.mock import patch, Mock
 from snowflake.snowpark.functions import col, lit, max
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
 @pytest.mark.parametrize("debug_mode", [True, False])
 @pytest.mark.parametrize(
     "transform",
@@ -53,6 +57,10 @@ def test_early_attributes(session, transform, debug_mode):
             assert transformed._plan._metadata.attributes is None
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="debug_mode not used in local testing mode",
+)
 @pytest.mark.parametrize("debug_mode", [True, False])
 @pytest.mark.parametrize(
     "transform",
