@@ -1,14 +1,12 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import json
 import logging
 from enum import Enum
 from typing import Callable, List, Any, TYPE_CHECKING
 
-from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
-from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
+from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark.functions import to_variant, parse_json, column
 from snowflake.snowpark.types import (
     StructType,
@@ -26,8 +24,6 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     StructField,
 )
-from snowflake.connector.options import pandas as pd
-
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
@@ -217,24 +213,6 @@ class Psycopg2Driver(BaseDriver):
         return StructType(fields)
 
     @staticmethod
-    def data_source_data_to_pandas_df(
-        data: List[Any], schema: StructType
-    ) -> "pd.DataFrame":
-        df = BaseDriver.data_source_data_to_pandas_df(data, schema)
-
-        variant_type_indexes = [
-            i
-            for i, field in enumerate(schema.fields)
-            if isinstance(field.datatype, VariantType)
-        ]
-        col_names = df.columns[variant_type_indexes]
-        df[col_names] = BaseDriver.df_map_method(df[col_names])(
-            lambda x: json.dumps(x, cls=PythonObjJSONEncoder)
-        )
-
-        return df
-
-    @staticmethod
     def to_result_snowpark_df(
         session: "Session", table_name, schema, _emit_ast: bool = True
     ) -> "DataFrame":
@@ -251,35 +229,24 @@ class Psycopg2Driver(BaseDriver):
         )
 
     @staticmethod
+    def to_result_snowpark_df_udtf(
+        res_df: "DataFrame",
+        schema: StructType,
+        _emit_ast: bool = True,
+    ):
+        cols = []
+        for field in schema.fields:
+            if isinstance(field.datatype, VariantType):
+                cols.append(to_variant(parse_json(column(field.name))).as_(field.name))
+            else:
+                cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
+        return res_df.select(cols, _emit_ast=_emit_ast)
+
+    @staticmethod
     def prepare_connection(
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
-        # The following is to align with Snowflake Connector behavior which get Interval as string
-        # the default behavior of psycopg2 is to get Interval as datetime.timedelta
-        # https://other-docs.snowflake.com/en/connectors/postgres6/view-data#postgresql-to-snowflake-data-type-mapping
-        from psycopg2.extensions import new_type, register_type
-
-        SNOWPARK_INTERVAL_STR = new_type(
-            (Psycopg2TypeCode.INTERVALOID.value,),
-            "SNOWPARK_INTERVAL_STR",
-            lambda data, cursor: data,
-        )
-        register_type(SNOWPARK_INTERVAL_STR, conn)
-
-        # by default psycopg2 returns binary data as memoryview
-        # to avoid using pandas to convert memoryview to bytes, we use the following native psycopg2 type conversion
-        # psycopg2.extensions.new_type() only works for text format data, it returns bytes as hex string
-        # we reconstruct the bytes from hex string
-        SNOWPARK_BYTE = new_type(
-            (Psycopg2TypeCode.BYTEAOID.value,),
-            "SNOWPARK_BYTE_BYTES",
-            lambda data, cursor: bytes.fromhex(data[2:])
-            if data is not None
-            else None,  # [2:] to skip the '\\x' prefix
-        )
-        register_type(SNOWPARK_BYTE, conn)
-
         if query_timeout:
             # https://www.postgresql.org/docs/current/runtime-config-client.html#GUC-STATEMENT-TIMEOUT
             # postgres default uses milliseconds
@@ -301,52 +268,11 @@ class Psycopg2Driver(BaseDriver):
             conn: "Connection",
             query_timeout: int = 0,
         ) -> "Connection":
-            # The following is to align with Snowflake Connector behavior which get Interval as string
-            # the default behavior of psycopg2 is to get Interval as datetime.timedelta
-            # https://other-docs.snowflake.com/en/connectors/postgres6/view-data#postgresql-to-snowflake-data-type-mapping
-            from psycopg2.extensions import new_type, register_type
-
-            # we do not use Psycopg2TypeCode.INTERVALOID.value because UTDF pickles the psycopg2_driver module
-            # unpickling in the UDTF would results in module not found error if package not available in the backend
-            SNOWPARK_INTERVAL_STR = new_type(
-                (1186,),
-                "SNOWPARK_INTERVAL_STR",
-                lambda data, cursor: data,
-            )
-            register_type(SNOWPARK_INTERVAL_STR, conn)
-
             if query_timeout:
                 # https://www.postgresql.org/docs/current/runtime-config-client.html#GUC-STATEMENT-TIMEOUT
                 # postgres default uses milliseconds
                 conn.cursor().execute(f"SET STATEMENT_TIMEOUT = {query_timeout * 1000}")
             return conn
-
-        binary_column_indexes = [
-            i
-            for i, field in enumerate(schema.fields)
-            if isinstance(field.datatype, BinaryType)
-        ]
-        time_column_indexes = [
-            i
-            for i, field in enumerate(schema.fields)
-            if isinstance(field.datatype, TimeType)
-        ]
-
-        # postgres returns binary data as memoryview, we need to convert it to bytes
-        def convert_rows(rows_to_update):
-            ret = []
-            for row in rows_to_update:
-                # convert tuple to list to make it mutable
-                new_row = list(row)
-                # convert bytes to hexstring so that variant column can be cast to bytes
-                for idx in binary_column_indexes:
-                    new_row[idx] = bytes(row[idx]).hex() if row[idx] else None
-                # remove timezone info from time columns
-                for idx in time_column_indexes:
-                    new_row[idx] = row[idx].replace(tzinfo=None) if row[idx] else None
-                # convert list back to tuple as UDTF requires tuple
-                ret.append(tuple(new_row))
-            return ret
 
         class UDTFIngestion:
             def process(self, query: str):
@@ -357,6 +283,6 @@ class Psycopg2Driver(BaseDriver):
                     rows = cursor.fetchmany(fetch_size)
                     if not rows:
                         break
-                    yield from convert_rows(rows)
+                    yield from rows
 
         return UDTFIngestion

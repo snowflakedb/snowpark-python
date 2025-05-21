@@ -75,6 +75,7 @@ class BaseDriver:
         fetch_size: int = 1000,
         imports: Optional[List[str]] = None,
         packages: Optional[List[str]] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
@@ -97,12 +98,8 @@ class BaseDriver:
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """
-        res = session.sql(call_udtf_sql)
-        cols = [
-            res[field.name].cast(field.datatype).alias(field.name)
-            for field in schema.fields
-        ]
-        return res.select(cols)
+        res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
+        return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
 
     def udtf_class_builder(
         self, fetch_size: int = 1000, schema: StructType = None
@@ -171,3 +168,15 @@ class BaseDriver:
         session: "Session", table_name, schema, _emit_ast: bool = True
     ) -> "DataFrame":
         return session.table(table_name, _emit_ast=_emit_ast)
+
+    @staticmethod
+    def to_result_snowpark_df_udtf(
+        res_df: "DataFrame",
+        schema: StructType,
+        _emit_ast: bool = True,
+    ):
+        cols = [
+            res_df[field.name].cast(field.datatype).alias(field.name)
+            for field in schema.fields
+        ]
+        return res_df.select(cols, _emit_ast=_emit_ast)
