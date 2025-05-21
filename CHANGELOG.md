@@ -10,6 +10,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### Bug Fixes
+
+- Fixed a bug in `Column.isin` that would cause incorrect filtering on joined or previously filtered data.
+
 ### Snowpark pandas API Updates
 
 #### Improvements
