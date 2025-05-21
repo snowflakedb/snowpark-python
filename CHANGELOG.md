@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added PostgreSQL support to `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
+
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
@@ -21,10 +25,6 @@
 ## 1.32.0 (2025-05-15)
 
 ### Snowpark Python API Updates
-
-#### New Features
-
-- Added PostgreSQL support to `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 
 #### Improvements
 
