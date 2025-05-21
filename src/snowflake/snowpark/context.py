@@ -42,8 +42,8 @@ def _should_use_structured_type_semantics():
         return _use_structured_type_semantics
 
 
-@experimental(version="1.32.0")
-def enable_debug_mode(enable_eager_schema_validation=True):
+@experimental(version="1.33.0")
+def enable_debug_mode(*, enable_eager_schema_validation=True):
     """
     Enables debug mode for this session.
 
