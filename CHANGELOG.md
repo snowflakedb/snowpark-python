@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for Mysql in `DataFrameWriter.dbapi` (PrPr).
+
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
@@ -20,9 +24,6 @@
 ## 1.32.0 (2025-05-15)
 
 ### Snowpark Python API Updates
-
-#### New Features
-- Added support for Mysql in `DataFrameWriter.dbapi` (PrPr).
 
 #### Improvements
 

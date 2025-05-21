@@ -5,7 +5,7 @@
 from enum import Enum
 from decimal import Decimal
 from datetime import date, datetime, timedelta
-from typing import List, Any, Type, TYPE_CHECKING, Callable
+from typing import List, Any, Type, TYPE_CHECKING
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import (
@@ -110,13 +110,6 @@ BASE_PYMYSQL_TYPE_TO_SNOW_TYPE = {
 
 
 class PymysqlDriver(BaseDriver):
-    def __init__(
-        self,
-        create_connection: Callable[[], "Connection"],
-        dbms_type: Enum,
-    ) -> None:
-        super().__init__(create_connection, dbms_type)
-
     def infer_schema_from_description(
         self, table_or_query: str, cursor: "Cursor", is_query: bool
     ) -> StructType:
