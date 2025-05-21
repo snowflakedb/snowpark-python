@@ -66,7 +66,7 @@ def test_full_like():
     snow_df = pd.DataFrame(data)
     pandas_df = native_pd.DataFrame(data)
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         snow_result = np.full_like(snow_df, 1234)
         pandas_result = np.full_like(pandas_df, 1234)
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
@@ -76,7 +76,7 @@ def test_full_like():
         pandas_result = np.full_like(pandas_df, 1234, shape=(5, 3))
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         snow_result = np.full_like(snow_df["A"], 1234)
         pandas_result = np.full_like(pandas_df["A"], 1234)
         assert_array_equal(np.array(snow_result), np.array(pandas_result))

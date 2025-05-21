@@ -2832,7 +2832,7 @@ def test_register_artifact_repository(session):
             func=test_urllib,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
         )
 
         # Test UDF call
@@ -2857,24 +2857,12 @@ def test_register_artifact_repository_negative(session):
     temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
     with pytest.raises(
         ValueError,
-        match="artifact_repository must be specified when artifact_repository_packages has been specified",
+        match="artifact_repository must be specified when packages has been specified",
     ):
         udf(
             func=test_nop,
             name=temp_func_name,
-            artifact_repository_packages=["urllib3", "requests"],
-        )
-
-    with pytest.raises(
-        ValueError,
-        match="Cannot create a function with duplicates between packages and artifact repository packages.",
-    ):
-        udf(
-            func=test_nop,
-            name=temp_func_name,
-            packages=["urllib3==2.3.0"],
-            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3==2.1.0", "requests"],
+            packages=["urllib3", "requests"],
         )
 
     with pytest.raises(Exception, match="Unknown resource constraint key"):
@@ -2882,7 +2870,7 @@ def test_register_artifact_repository_negative(session):
             func=test_nop,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"cpu": "x86"},
         )
 
@@ -2893,7 +2881,7 @@ def test_register_artifact_repository_negative(session):
             func=test_nop,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"architecture": "risc-v"},
         )
 
@@ -2902,7 +2890,7 @@ def test_register_artifact_repository_negative(session):
             func=test_nop,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            artifact_repository_packages=["urllib3", "requests"],
+            packages=["urllib3", "requests"],
             resource_constraint={"architecture": "x86"},
         )
     except SnowparkSQLException as ex:
@@ -2938,7 +2926,7 @@ def test_udf_artifact_repository_from_file(session, tmpdir):
         file_path,
         "test_urllib",
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        artifact_repository_packages=["urllib3", "requests"],
+        packages=["urllib3", "requests"],
     )
     df = session.create_dataframe([1]).to_df(["a"])
     Utils.check_answer(df.select(ar_udf()), [Row("test")])

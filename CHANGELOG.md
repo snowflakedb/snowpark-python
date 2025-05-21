@@ -7,9 +7,14 @@
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
-- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leds to a `SnowparkSQLException`. This feature depends on Snowpark AST to be enabled which can be done using ...
+- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leds to a `SnowparkSQLException`.
 
 ### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `Column.isin` that would cause incorrect filtering on joined or previously filtered data.
 
 ### Snowpark pandas API Updates
 
@@ -17,6 +22,7 @@
 
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
+- Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
 
 ## 1.32.0 (2025-05-15)
 

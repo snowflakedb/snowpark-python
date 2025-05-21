@@ -223,7 +223,7 @@ message FlattenMode {
   }
 }
 
-// dataframe.ir:232
+// dataframe.ir:233
 message JoinType {
   oneof variant {
     bool join_type__asof = 1;
@@ -337,7 +337,7 @@ message TimestampTimeZone {
   }
 }
 
-// fn.ir:89
+// fn.ir:87
 message UdtfSchema {
   oneof sealed_value {
     UdtfSchema_Names udtf_schema__names = 1;
@@ -345,12 +345,12 @@ message UdtfSchema {
   }
 }
 
-// fn.ir:90
+// fn.ir:88
 message UdtfSchema_Type {
   DataType return_type = 1;
 }
 
-// fn.ir:91
+// fn.ir:89
 message UdtfSchema_Names {
   repeated string schema = 1;
 }
@@ -493,7 +493,7 @@ message BuiltinFn {
   SrcPosition src = 2;
 }
 
-// fn.ir:153
+// fn.ir:149
 message CallTableFunctionExpr {
   NameRef name = 1;
   SrcPosition src = 2;
@@ -788,7 +788,7 @@ message DataframeAnalyticsTimeSeriesAgg {
   repeated string windows = 8;
 }
 
-// dataframe.ir:348
+// dataframe.ir:349
 message DataframeCacheResult {
   Expr df = 1;
   NameRef object_name = 2;
@@ -887,43 +887,44 @@ message DataframeDescribe {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
+  bool strings_include_math_stats = 4;
 }
 
-// dataframe.ir:187
+// dataframe.ir:188
 message DataframeDistinct {
   Expr df = 1;
   SrcPosition src = 2;
 }
 
-// dataframe.ir:191
+// dataframe.ir:192
 message DataframeDrop {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:196
+// dataframe.ir:197
 message DataframeDropDuplicates {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:201
+// dataframe.ir:202
 message DataframeExcept {
   Expr df = 1;
   Expr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:206
+// dataframe.ir:207
 message DataframeFilter {
   Expr condition = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:220
+// dataframe.ir:221
 message DataframeFirst {
   bool block = 1;
   Expr df = 2;
@@ -932,7 +933,7 @@ message DataframeFirst {
   repeated Tuple_String_String statement_params = 5;
 }
 
-// dataframe.ir:211
+// dataframe.ir:212
 message DataframeFlatten {
   Expr df = 1;
   Expr input = 2;
@@ -957,14 +958,14 @@ message DataframeGroupByGroupingSets {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:227
+// dataframe.ir:228
 message DataframeIntersect {
   Expr df = 1;
   Expr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:243
+// dataframe.ir:244
 message DataframeJoin {
   Expr join_expr = 1;
   JoinType join_type = 2;
@@ -976,14 +977,14 @@ message DataframeJoin {
   SrcPosition src = 8;
 }
 
-// dataframe.ir:253
+// dataframe.ir:254
 message DataframeJoinTableFunction {
   Expr fn = 1;
   Expr lhs = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:258
+// dataframe.ir:259
 message DataframeLimit {
   Expr df = 1;
   int64 n = 2;
@@ -1031,7 +1032,7 @@ message DataframeNaReplace {
   repeated Expr values = 9;
 }
 
-// dataframe.ir:264
+// dataframe.ir:265
 message DataframeNaturalJoin {
   JoinType join_type = 1;
   Expr lhs = 2;
@@ -1048,7 +1049,7 @@ message DataframePivot {
   Expr values = 5;
 }
 
-// dataframe.ir:278
+// dataframe.ir:279
 message DataframeRandomSplit {
   Expr df = 1;
   google.protobuf.Int64Value seed = 2;
@@ -1072,7 +1073,7 @@ message DataframeRef {
   SrcPosition src = 2;
 }
 
-// dataframe.ir:285
+// dataframe.ir:286
 message DataframeRename {
   Expr col_or_mapper = 1;
   Expr df = 2;
@@ -1087,7 +1088,7 @@ message DataframeRollup {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:291
+// dataframe.ir:292
 message DataframeSample {
   Expr df = 1;
   google.protobuf.Int64Value num = 2;
@@ -1096,7 +1097,7 @@ message DataframeSample {
   SrcPosition src = 5;
 }
 
-// dataframe.ir:298
+// dataframe.ir:299
 message DataframeSelect {
   ExprArgList cols = 1;
   Expr df = 2;
@@ -1111,7 +1112,7 @@ message DataframeShow {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:305
+// dataframe.ir:306
 message DataframeSort {
   Expr ascending = 1;
   ExprArgList cols = 2;
@@ -1195,7 +1196,7 @@ message DataframeToPandasBatches {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe.ir:311
+// dataframe.ir:312
 message DataframeUnion {
   bool all = 1;
   bool allow_missing_columns = 2;
@@ -1205,7 +1206,7 @@ message DataframeUnion {
   SrcPosition src = 6;
 }
 
-// dataframe.ir:270
+// dataframe.ir:271
 message DataframeUnpivot {
   repeated Expr column_list = 1;
   Expr df = 2;
@@ -1215,7 +1216,7 @@ message DataframeUnpivot {
   string value_column = 6;
 }
 
-// dataframe.ir:319
+// dataframe.ir:320
 message DataframeWithColumn {
   Expr col = 1;
   string col_name = 2;
@@ -1223,7 +1224,7 @@ message DataframeWithColumn {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:325
+// dataframe.ir:326
 message DataframeWithColumnRenamed {
   Expr col = 1;
   Expr df = 2;
@@ -1231,7 +1232,7 @@ message DataframeWithColumnRenamed {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:331
+// dataframe.ir:332
 message DataframeWithColumns {
   repeated string col_names = 1;
   Expr df = 2;
@@ -1584,7 +1585,7 @@ message Geq {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:337
+// dataframe.ir:338
 message GroupingSets {
   ExprArgList sets = 1;
   SrcPosition src = 2;
@@ -1792,13 +1793,13 @@ message HasSrcPosition {
   }
 }
 
-// fn.ir:149
+// fn.ir:145
 message IndirectTableFnIdRef {
   int64 id = 1;
   SrcPosition src = 2;
 }
 
-// fn.ir:145
+// fn.ir:141
 message IndirectTableFnNameRef {
   NameRef name = 1;
   SrcPosition src = 2;
@@ -2153,29 +2154,28 @@ message Stmt {
 // fn.ir:37
 message StoredProcedure {
   google.protobuf.StringValue artifact_repository = 1;
-  repeated string artifact_repository_packages = 2;
-  google.protobuf.StringValue comment = 3;
-  string execute_as = 4;
-  repeated string external_access_integrations = 5;
-  Callable func = 6;
-  bool if_not_exists = 7;
-  repeated NameRef imports = 8;
-  repeated DataType input_types = 9;
-  bool is_permanent = 10;
-  repeated Tuple_String_Expr kwargs = 11;
-  google.protobuf.BoolValue log_on_exception = 12;
-  NameRef name = 13;
-  repeated string packages = 14;
-  int64 parallel = 15;
-  bool replace = 16;
-  repeated Tuple_String_String resource_constraint = 17;
-  DataType return_type = 18;
-  repeated Tuple_String_String secrets = 19;
-  bool source_code_display = 20;
-  SrcPosition src = 21;
-  string stage_location = 22;
-  repeated Tuple_String_String statement_params = 23;
-  bool strict = 24;
+  google.protobuf.StringValue comment = 2;
+  string execute_as = 3;
+  repeated string external_access_integrations = 4;
+  Callable func = 5;
+  bool if_not_exists = 6;
+  repeated NameRef imports = 7;
+  repeated DataType input_types = 8;
+  bool is_permanent = 9;
+  repeated Tuple_String_Expr kwargs = 10;
+  google.protobuf.BoolValue log_on_exception = 11;
+  NameRef name = 12;
+  repeated string packages = 13;
+  int64 parallel = 14;
+  bool replace = 15;
+  repeated Tuple_String_String resource_constraint = 16;
+  DataType return_type = 17;
+  repeated Tuple_String_String secrets = 18;
+  bool source_code_display = 19;
+  SrcPosition src = 20;
+  string stage_location = 21;
+  repeated Tuple_String_String statement_params = 22;
+  bool strict = 23;
 }
 
 // const.ir:41
@@ -2215,14 +2215,14 @@ message TableDropTable {
   SrcPosition src = 2;
 }
 
-// fn.ir:169
+// fn.ir:165
 message TableFnCallAlias {
   ExprArgList aliases = 1;
   Expr lhs = 2;
   SrcPosition src = 3;
 }
 
-// fn.ir:163
+// fn.ir:159
 message TableFnCallOver {
   Expr lhs = 1;
   ExprArgList order_by = 2;
@@ -2262,7 +2262,7 @@ message TableUpdate {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe.ir:341
+// dataframe.ir:342
 message ToSnowparkPandas {
   repeated string columns = 1;
   Expr df = 2;
@@ -2287,19 +2287,43 @@ message TupleVal {
   repeated Expr vs = 2;
 }
 
-// fn.ir:121
+// fn.ir:118
 message Udaf {
   google.protobuf.StringValue artifact_repository = 1;
-  repeated string artifact_repository_packages = 2;
-  google.protobuf.StringValue comment = 3;
-  repeated string external_access_integrations = 4;
-  Callable handler = 5;
-  bool if_not_exists = 6;
-  bool immutable = 7;
-  repeated NameRef imports = 8;
-  repeated DataType input_types = 9;
-  bool is_permanent = 10;
-  repeated Tuple_String_Expr kwargs = 11;
+  google.protobuf.StringValue comment = 2;
+  repeated string external_access_integrations = 3;
+  Callable handler = 4;
+  bool if_not_exists = 5;
+  bool immutable = 6;
+  repeated NameRef imports = 7;
+  repeated DataType input_types = 8;
+  bool is_permanent = 9;
+  repeated Tuple_String_Expr kwargs = 10;
+  NameRef name = 11;
+  repeated string packages = 12;
+  int64 parallel = 13;
+  bool replace = 14;
+  repeated Tuple_String_String resource_constraint = 15;
+  DataType return_type = 16;
+  repeated Tuple_String_String secrets = 17;
+  SrcPosition src = 18;
+  google.protobuf.StringValue stage_location = 19;
+  repeated Tuple_String_String statement_params = 20;
+}
+
+// fn.ir:62
+message Udf {
+  google.protobuf.StringValue artifact_repository = 1;
+  google.protobuf.StringValue comment = 2;
+  repeated string external_access_integrations = 3;
+  Callable func = 4;
+  bool if_not_exists = 5;
+  bool immutable = 6;
+  repeated NameRef imports = 7;
+  repeated DataType input_types = 8;
+  bool is_permanent = 9;
+  repeated Tuple_String_Expr kwargs = 10;
+  google.protobuf.Int64Value max_batch_size = 11;
   NameRef name = 12;
   repeated string packages = 13;
   int64 parallel = 14;
@@ -2307,65 +2331,38 @@ message Udaf {
   repeated Tuple_String_String resource_constraint = 16;
   DataType return_type = 17;
   repeated Tuple_String_String secrets = 18;
-  SrcPosition src = 19;
-  google.protobuf.StringValue stage_location = 20;
-  repeated Tuple_String_String statement_params = 21;
+  bool secure = 19;
+  bool source_code_display = 20;
+  SrcPosition src = 21;
+  string stage_location = 22;
+  repeated Tuple_String_String statement_params = 23;
+  bool strict = 24;
 }
 
-// fn.ir:63
-message Udf {
-  google.protobuf.StringValue artifact_repository = 1;
-  repeated string artifact_repository_packages = 2;
-  google.protobuf.StringValue comment = 3;
-  repeated string external_access_integrations = 4;
-  Callable func = 5;
-  bool if_not_exists = 6;
-  bool immutable = 7;
-  repeated NameRef imports = 8;
-  repeated DataType input_types = 9;
-  bool is_permanent = 10;
-  repeated Tuple_String_Expr kwargs = 11;
-  google.protobuf.Int64Value max_batch_size = 12;
-  NameRef name = 13;
-  repeated string packages = 14;
-  int64 parallel = 15;
-  bool replace = 16;
-  repeated Tuple_String_String resource_constraint = 17;
-  DataType return_type = 18;
-  repeated Tuple_String_String secrets = 19;
-  bool secure = 20;
-  bool source_code_display = 21;
-  SrcPosition src = 22;
-  string stage_location = 23;
-  repeated Tuple_String_String statement_params = 24;
-  bool strict = 25;
-}
-
-// fn.ir:95
+// fn.ir:93
 message Udtf {
   google.protobuf.StringValue artifact_repository = 1;
-  repeated string artifact_repository_packages = 2;
-  google.protobuf.StringValue comment = 3;
-  repeated string external_access_integrations = 4;
-  Callable handler = 5;
-  bool if_not_exists = 6;
-  bool immutable = 7;
-  repeated NameRef imports = 8;
-  repeated DataType input_types = 9;
-  bool is_permanent = 10;
-  repeated Tuple_String_Expr kwargs = 11;
-  NameRef name = 12;
-  UdtfSchema output_schema = 13;
-  repeated string packages = 14;
-  int64 parallel = 15;
-  bool replace = 16;
-  repeated Tuple_String_String resource_constraint = 17;
-  repeated Tuple_String_String secrets = 18;
-  bool secure = 19;
-  SrcPosition src = 20;
-  string stage_location = 21;
-  repeated Tuple_String_String statement_params = 22;
-  bool strict = 23;
+  google.protobuf.StringValue comment = 2;
+  repeated string external_access_integrations = 3;
+  Callable handler = 4;
+  bool if_not_exists = 5;
+  bool immutable = 6;
+  repeated NameRef imports = 7;
+  repeated DataType input_types = 8;
+  bool is_permanent = 9;
+  repeated Tuple_String_Expr kwargs = 10;
+  NameRef name = 11;
+  UdtfSchema output_schema = 12;
+  repeated string packages = 13;
+  int64 parallel = 14;
+  bool replace = 15;
+  repeated Tuple_String_String resource_constraint = 16;
+  repeated Tuple_String_String secrets = 17;
+  bool secure = 18;
+  SrcPosition src = 19;
+  string stage_location = 20;
+  repeated Tuple_String_String statement_params = 21;
+  bool strict = 22;
 }
 
 message UnaryOp {
