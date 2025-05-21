@@ -425,7 +425,7 @@ def test_df_iloc_get_empty_key(
         )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_df_iloc_get_empty(empty_snowpark_pandas_df):
     _ = empty_snowpark_pandas_df.iloc[0]
 
@@ -1811,8 +1811,8 @@ def test_df_iloc_set_with_row_key_list(
     else:
         snow_row_pos = row_pos
 
-    # 2 extra queries for iter
-    expected_query_count = 3 if isinstance(snow_row_pos, pd.Index) else 1
+    # 1 extra query for iter
+    expected_query_count = 2 if isinstance(snow_row_pos, pd.Index) else 1
     expected_join_count = 2 if isinstance(item_values, int) else 3
 
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):

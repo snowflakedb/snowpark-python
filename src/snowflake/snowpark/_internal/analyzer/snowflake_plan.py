@@ -177,11 +177,6 @@ class SnowflakePlan(LogicalPlan):
                         children = [
                             arg for arg in args if isinstance(arg, SnowflakePlan)
                         ]
-
-                        if not children:
-                            # No context available to enhance error message
-                            raise e
-
                         remapped = [
                             SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
                                 "", val
@@ -241,6 +236,13 @@ class SnowflakePlan(LogicalPlan):
                                         quoted_identifiers.extend(
                                             node.quoted_identifiers
                                         )
+
+                            # No context available to enhance error message
+                            if not quoted_identifiers:
+                                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                                    e
+                                )
+                                raise ne.with_traceback(tb) from None
 
                             def add_single_quote(string: str) -> str:
                                 return f"'{string}'"
@@ -402,6 +404,9 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name,
         )
         self._plan_state: Optional[Dict[PlanState, Any]] = None
+        # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
+        # we will store the ast_id here.
+        self.df_ast_id: Optional[int] = None
 
     @property
     def uuid(self) -> str:
@@ -484,6 +489,9 @@ class SnowflakePlan(LogicalPlan):
 
     @Decorator.wrap_exception
     def _analyze_attributes(self) -> List[Attribute]:
+        assert (
+            self.schema_query is not None
+        ), "No schema query is available for the SnowflakePlan"
         return analyze_attributes(self.schema_query, self.session)
 
     @property
@@ -594,7 +602,7 @@ class SnowflakePlan(LogicalPlan):
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
-            return SnowflakePlan(
+            plan = SnowflakePlan(
                 copy.deepcopy(self.queries) if self.queries else [],
                 self.schema_query,
                 copy.deepcopy(self.post_actions) if self.post_actions else None,
@@ -607,7 +615,7 @@ class SnowflakePlan(LogicalPlan):
                 referenced_ctes=self.referenced_ctes,
             )
         else:
-            return SnowflakePlan(
+            plan = SnowflakePlan(
                 self.queries.copy() if self.queries else [],
                 self.schema_query,
                 self.post_actions.copy() if self.post_actions else None,
@@ -619,6 +627,8 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
+        plan.df_ast_id = self.df_ast_id
+        return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if self.source_plan:
@@ -651,6 +661,7 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
+        copied_plan.df_ast_id = self.df_ast_id
 
         return copied_plan
 
