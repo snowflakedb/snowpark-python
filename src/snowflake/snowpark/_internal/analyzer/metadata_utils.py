@@ -274,9 +274,9 @@ def infer_metadata(
                 ):
                     attributes = source_plan.from_.attributes
 
-        # available_identifiers = {a.name for a in attributes or []}
-        # if available_identifiers and (missing := set(referenced_identifiers) - available_identifiers):
-        #     raise ValueError(missing)
+        available_identifiers = {a.name for a in attributes or []}
+        if available_identifiers and (missing := set(referenced_identifiers) - available_identifiers):
+            raise ValueError(missing)
 
         # If attributes is available, we always set quoted_identifiers to None
         # as it can be retrieved later from attributes
