@@ -66,8 +66,7 @@ def test_basic_databricks(session, input_type, input_value):
     }
     df = session.read.dbapi(create_databricks_connection, **input_dict)
     ret = df.collect()
-    assert ret == EXPECTED_TEST_DATA
-    assert df.schema == EXPECTED_TYPE
+    assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
@@ -154,24 +153,36 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     )
 
 
-def test_unit_udtf_ingestion(session):
+def test_unit_udtf_ingestion():
     dbx_driver = DatabricksDriver(create_databricks_connection, DBMS_TYPE.DATABRICKS_DB)
     udtf_ingestion_class = dbx_driver.udtf_class_builder()
     udtf_ingestion_instance = udtf_ingestion_class()
 
-    dsp = DataSourcePartitioner(create_databricks_connection, "ALL_TYPE_TABLE")
+    dsp = DataSourcePartitioner(create_databricks_connection, TEST_TABLE_NAME)
     yield_data = udtf_ingestion_instance.process(dsp.partitions[0])
     for row, expected_row in zip(yield_data, EXPECTED_TEST_DATA):
         for index, (field, value) in enumerate(zip(EXPECTED_TYPE.fields, row)):
             if isinstance(field.datatype, VariantType):
                 # Convert ArrayType, MapType, and StructType to JSON
                 if "map" in field.name.lower():
-                    assert json.loads(value) == json.loads(expected_row[index])
+                    assert (
+                        (json.loads(value) == json.loads(expected_row[index]))
+                        if value is not None
+                        else True
+                    )
                 else:
-                    assert value == json.loads(expected_row[index])
+                    assert (
+                        (value == json.loads(expected_row[index]))
+                        if value is not None
+                        else True
+                    )
             elif isinstance(field.datatype, BinaryType):
                 # Convert BinaryType to hex string
-                assert bytearray(bytes.fromhex(value)) == expected_row[index]
+                assert (
+                    (bytearray(bytes.fromhex(value)) == expected_row[index])
+                    if value is not None
+                    else True
+                )
             else:
                 # Keep other types as is
                 assert value == expected_row[index]

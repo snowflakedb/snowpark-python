@@ -22,7 +22,7 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
-TEST_TABLE_NAME = "ALL_TYPE_TABLE"
+TEST_TABLE_NAME = "ALL_TYPE_TABLE_2"  # ALL_TYPE_TABLE_2 contains None data while ALL_TYPE_TABLE doesn't
 TZ_INFO = pytz.timezone("America/Los_Angeles")
 EXPECTED_TEST_DATA = [
     (
@@ -135,6 +135,7 @@ EXPECTED_TEST_DATA = [
         "0-7",
         "19 06:25:08.000000000",
     ),
+    tuple([None] * 18),
 ]
 EXPECTED_TYPE = StructType(
     [
