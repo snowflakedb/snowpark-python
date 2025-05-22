@@ -30,7 +30,7 @@ class DataFrameTraceNode:
         """Returns the batch_ids of the children of this node."""
         return get_dependent_bind_ids(self.stmt_cache[self.batch_id])
 
-    def get_src(self) -> Optional[proto.Stmt]:
+    def get_src(self) -> Optional[proto.SrcPosition]:
         """The source Stmt of the DataFrame described by the batch_id."""
         stmt = self.stmt_cache[self.batch_id]
         api_call = stmt.bind.expr.WhichOneof("variant")
