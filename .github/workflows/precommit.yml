@@ -190,7 +190,7 @@ jobs:
       # we only run doctest on macos
       - if: ${{ matrix.os == 'macos-latest' }}
         name: Run doctests
-        run: echo 1 # python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
+        run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -202,7 +202,7 @@ jobs:
       # do not run other tests for macos
       - if: ${{ matrix.os != 'macos-latest' }}
         name: Run tests (excluding doctests)
-        run: echo 1 # python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -210,6 +210,8 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run data source tests
+        # psycopg2 is not supported on macos 3.9
+        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -232,7 +234,6 @@ jobs:
 
   test-local-testing:
     name: Test Local Testing Module py-${{ matrix.os }}-${{ matrix.python-version }}
-    if: false
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -321,7 +322,6 @@ jobs:
 
   test-ast-encoding:
     name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
-    if: false
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -398,7 +398,6 @@ jobs:
 
   doctest-ast-phase0:
     name: Doctest AST (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
-    if: false
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -448,7 +447,6 @@ jobs:
 
   test-ast-phase0:
     name: Test AST enabled (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
-    if: false
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -526,7 +524,6 @@ jobs:
 
   test-snowpark-pandas:
     name: Test modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
-    if: false
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -644,7 +641,6 @@ jobs:
 
   test-modin-extra-without-pandas-extra:
     name: Test modin extra without pandas extra py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}.
-    if: false
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
