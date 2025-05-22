@@ -7,6 +7,7 @@
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+- Added support for parameter `is_return_table` in `Session.call`, which can be used to set the return type of the functions a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 - Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leds to a `SnowparkSQLException`.
 
@@ -58,6 +59,7 @@
 - Added support for `DataFrame.to_html`.
 - Added support for `DataFrame.to_string` and `Series.to_string`.
 - Added support for reading files from S3 buckets using `pd.read_csv`.
+- Added `ENFORCE_EXISTING_FILE_FORMAT` option to the `DataFrameReader`, which allows to read a dataframe only based on an existing file format object when used together with `FORMAT_NAME`.
 
 #### Improvements
 

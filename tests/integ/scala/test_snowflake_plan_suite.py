@@ -470,3 +470,18 @@ def test_invalid_identifier_error_message(session):
         SnowparkSQLException, match="There are existing quoted column identifiers:*..."
     ) as ex:
         df.select("20").collect()
+
+    # Describing an invalid schema has correct context
+    df = session.create_dataframe([1, 2, 3], schema=["A"])
+    with pytest.raises(
+        SnowparkSQLException, match="There are existing quoted column identifiers:*..."
+    ) as ex:
+        df.select("B").schema
+    assert "There are existing quoted column identifiers: ['\"A\"']" in str(ex.value)
+
+    # session.sql does not have schema query so no context is available
+    with pytest.raises(SnowparkSQLException, match="invalid identifier 'B'") as ex:
+        session.sql(
+            """SELECT "B" FROM ( SELECT $1 AS "A" FROM  VALUES (1 :: INT))"""
+        ).select("C")
+    assert "There are existing quoted column identifiers" not in str(ex.value)
