@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug when create dynamic table on a table function cause error because '*' is not allowed in table function select.
+
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
