@@ -10,11 +10,20 @@ from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
+    Cursor,
 )
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark._internal.utils import get_sorted_key_for_version
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-from snowflake.snowpark.types import StructType, StructField, VariantType
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    VariantType,
+    TimestampType,
+    IntegerType,
+    BinaryType,
+    DateType,
+)
 import snowflake.snowpark
 import logging
 
@@ -29,7 +38,9 @@ if TYPE_CHECKING:
 
 class BaseDriver:
     def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
+        self,
+        create_connection: Callable[[], "Connection"],
+        dbms_type: Enum,
     ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
@@ -47,14 +58,21 @@ class BaseDriver:
     ) -> "Connection":
         return conn
 
-    def infer_schema_from_description(self, table_or_query: str) -> StructType:
+    def infer_schema_from_description(
+        self, table_or_query: str, cursor: "Cursor", is_query: bool
+    ) -> StructType:
+        cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
+        raw_schema = cursor.description
+        self.raw_schema = raw_schema
+        return self.to_snow_type(raw_schema)
+
+    def infer_schema_from_description_with_error_control(
+        self, table_or_query: str, is_query: bool
+    ) -> StructType:
         conn = self.create_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
-            raw_schema = cursor.description
-            self.raw_schema = raw_schema
-            return self.to_snow_type(raw_schema)
+            return self.infer_schema_from_description(table_or_query, cursor, is_query)
 
         except Exception as exc:
             raise SnowparkDataframeReaderException(
@@ -75,6 +93,7 @@ class BaseDriver:
         fetch_size: int = 1000,
         imports: Optional[List[str]] = None,
         packages: Optional[List[str]] = None,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
@@ -97,12 +116,8 @@ class BaseDriver:
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """
-        res = session.sql(call_udtf_sql)
-        cols = [
-            res[field.name].cast(field.datatype).alias(field.name)
-            for field in schema.fields
-        ]
-        return res.select(cols)
+        res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
+        return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
 
     def udtf_class_builder(self, fetch_size: int = 1000) -> type:
         create_connection = self.create_connection
@@ -153,15 +168,24 @@ class BaseDriver:
         # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
 
-        df = BaseDriver.df_map_method(df)(
-            lambda x: x.isoformat()
-            if isinstance(x, (datetime.datetime, datetime.date))
-            else x
-        )
-        # convert binary type to object type to work around SNOW-1912094
-        df = BaseDriver.df_map_method(df)(
-            lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
-        )
+        for field in schema.fields:
+            name = unquote_if_quoted(field.name)
+            if isinstance(field.datatype, IntegerType):
+                # 'Int64' is a pandas dtype while 'int64' is a numpy dtype, as stated here:
+                # https://github.com/pandas-dev/pandas/issues/27731
+                # https://pandas.pydata.org/docs/reference/api/pandas.Int64Dtype.html
+                # https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.int64
+                df[name] = df[name].astype("Int64")
+            elif isinstance(field.datatype, (TimestampType, DateType)):
+                df[name] = df[name].map(
+                    lambda x: x.isoformat()
+                    if isinstance(x, (datetime.datetime, datetime.date))
+                    else x
+                )
+            elif isinstance(field.datatype, BinaryType):
+                df[name] = df[name].map(
+                    lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
+                )
         return df
 
     @staticmethod
@@ -169,3 +193,15 @@ class BaseDriver:
         session: "Session", table_name, schema, _emit_ast: bool = True
     ) -> "DataFrame":
         return session.table(table_name, _emit_ast=_emit_ast)
+
+    @staticmethod
+    def to_result_snowpark_df_udtf(
+        res_df: "DataFrame",
+        schema: StructType,
+        _emit_ast: bool = True,
+    ):
+        cols = [
+            res_df[field.name].cast(field.datatype).alias(field.name)
+            for field in schema.fields
+        ]
+        return res_df.select(cols, _emit_ast=_emit_ast)
