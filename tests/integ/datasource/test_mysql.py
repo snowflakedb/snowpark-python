@@ -215,3 +215,30 @@ def test_udtf_ingestion_mysql(session, caplog):
         "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
         and "table(data_source_udtf" in caplog.text
     )
+
+
+def test_pymysql_driver_udtf_class_builder():
+    """Test the UDTF class builder in PymysqlDriver using a real pymysql connection"""
+    # Create the driver with the real connection function
+    driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
+
+    # Get the UDTF class with a small fetch size to test batching
+    UDTFClass = driver.udtf_class_builder(fetch_size=2)
+
+    # Instantiate the UDTF class
+    udtf_instance = UDTFClass()
+
+    # Test with a simple query that should return a few rows
+    test_query = f"SELECT * FROM {TEST_TABLE_NAME} LIMIT 5"
+    result_rows = list(udtf_instance.process(test_query))
+
+    # Verify we got some data back (we know the test table has data from other tests)
+    assert len(result_rows) > 0
+
+    # Test with a query that returns specific columns
+    test_columns_query = f"SELECT INTCOL, DOUBLECOL FROM {TEST_TABLE_NAME} LIMIT 3"
+    column_result_rows = list(udtf_instance.process(test_columns_query))
+
+    # Verify we got data with the right structure (2 columns)
+    assert len(column_result_rows) > 0
+    assert len(column_result_rows[0]) == 2  # Two columns
