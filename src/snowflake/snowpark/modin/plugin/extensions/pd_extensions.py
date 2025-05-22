@@ -307,7 +307,7 @@ def read_snowflake(
           ... def filter_rows(session, table_name, column_to_filter, value):
           ...   df = session.table(table_name)
           ...   return df.filter(col(column_to_filter) == value)$$
-          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)", enforce_ordering=True)
+          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)", enforce_ordering=True) # doctest: +NORMALIZE_WHITESPACE
              A  B  C
           0  1  2  3
 
