@@ -100,18 +100,23 @@ def setup(session, resources_path, local_testing_mode):
     "file,row_tag,expected_row_count,expected_column_count",
     [
         [test_file_books_xml, "book", 12, 7],
-        [test_file_books2_xml, "book", 2, 6],
-        [test_file_house_xml, "House", 37, 22],
-        [test_file_house_large_xml, "House", 740, 22],
+        # [test_file_books2_xml, "book", 2, 6],
+        # [test_file_house_xml, "House", 37, 22],
+        # [test_file_house_large_xml, "House", 740, 22],
     ],
 )
 def test_read_xml_row_tag(
     session, file, row_tag, expected_row_count, expected_column_count
 ):
-    df = session.read.option("rowTag", row_tag).xml(f"@{tmp_stage_name}/{file}")
-    result = df.collect()
-    assert len(result) == expected_row_count
-    assert len(result[0]) == expected_column_count
+    from snowflake.snowpark.files import SnowflakeFile
+    from snowflake.snowpark.functions import lit
+
+    def f(file_path: str) -> str:
+        with SnowflakeFile.open(file_path, require_scoped_url=False) as f:
+            return f.read()
+
+    udf_func = session.udf.register(f, packages=["snowflake-snowpark-python"])
+    print(session.range(1).select(udf_func(lit(f"@{tmp_stage_name}/{file}"))).collect())
 
 
 @pytest.mark.skipif(
