@@ -58,6 +58,7 @@
 - Added support for `DataFrame.to_html`.
 - Added support for `DataFrame.to_string` and `Series.to_string`.
 - Added support for reading files from S3 buckets using `pd.read_csv`.
+- Added `ENFORCE_EXISTING_FILE_FORMAT` option to the `DataFrameReader`, which allows to read a dataframe only based on an existing file format object when used together with `FORMAT_NAME`.
 
 #### Improvements
 
