@@ -2120,3 +2120,28 @@ def test_datasource_put_file_and_copy_into_in_sproc(session):
     # sproc execution
     ingestion = sproc(upload_and_copy_into, return_type=StringType())
     assert ingestion() == "success"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="data source is not supported in local testing",
+    run=False,
+)
+def test_procedure_with_default_value(session):
+    temp_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    sql = f"""
+create temporary procedure {temp_sp_name}(col1 INT, col2 STRING default 'snowflake')
+returns table(col1 INT, col2 STRING)
+LANGUAGE PYTHON
+RUNTIME_VERSION = '3.10'
+packages = ('snowflake-snowpark-python', 'pandas')
+HANDLER = 'my_handler'
+AS $$
+def my_handler(session, col1, col2):
+
+    return session.create_dataframe([[col1,col2]],schema=['col1','col2'])
+$$;
+    """
+    session.sql(sql).collect()
+    df = session.call(temp_sp_name, 1, return_dataframe=True)
+    Utils.check_answer(df, [Row(COL1=1, COL2="snowflake")])

@@ -223,7 +223,7 @@ class TestCrosstab:
     def test_basic_crosstab_with_df_and_series_objs_pandas_errors_columns(
         self, dropna, a, b, c
     ):
-        query_count = 4
+        query_count = 2
         join_count = 1 if dropna else 2
         a = native_pd.Series(
             a,
@@ -269,7 +269,7 @@ class TestCrosstab:
     def test_basic_crosstab_with_df_and_series_objs_pandas_errors_index(
         self, dropna, a, b, c
     ):
-        query_count = 6
+        query_count = 4
         join_count = 5 if dropna else 11
         a = native_pd.Series(
             a,
@@ -556,7 +556,7 @@ class TestCrosstab:
 
     @pytest.mark.parametrize("aggfunc", AGGFUNCS_THAT_CANNOT_PRODUCE_NAN)
     def test_values_series_like(self, dropna, aggfunc, basic_crosstab_dfs):
-        query_count = 5
+        query_count = 3
         join_count = 2 if dropna else 3
         native_df, snow_df = basic_crosstab_dfs
 
@@ -646,7 +646,7 @@ def test_values_unsupported_aggfunc(basic_crosstab_dfs):
         )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_values_series_like_unsupported_aggfunc(basic_crosstab_dfs):
     # The query count above comes from building the DataFrame
     # that we pass in to pivot table.

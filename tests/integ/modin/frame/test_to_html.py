@@ -30,7 +30,7 @@ html_string = """<table border="1" class="dataframe">
 </table>"""
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_to_html():
     df = pd.DataFrame(data={"col1": [1, 2], "col2": [4, 3]})
     assert html_string == df.to_html()

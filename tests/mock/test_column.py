@@ -2,7 +2,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from snowflake.snowpark.functions import col, when, array_agg
+from snowflake.snowpark.functions import (
+    array_agg,
+    col,
+    when,
+)
 from snowflake.snowpark.row import Row
 from tests.utils import Utils
 
@@ -70,3 +74,50 @@ def test_get_item(session):
     )
     get_df = agged.select("ID", col("VALUES").getItem(1).alias("ELEMENT"))
     Utils.check_answer(get_df, [Row(102, None), Row(101, '"dog"')])
+
+
+def test_isin_after_join(session):
+    users = session.create_dataframe(
+        [
+            {"user_id": 1, "username": "Alice"},
+            {"user_id": 2, "username": "Bob"},
+            {"user_id": 3, "username": "Charlie"},
+        ]
+    )
+
+    group_memberships = session.create_dataframe(
+        [
+            {"group_id": 1, "user_id": 1, "status": "Active"},
+            {"group_id": 2, "user_id": 1, "status": "Active"},
+            {"group_id": 1, "user_id": 2, "status": "Disabled"},
+            {"group_id": 2, "user_id": 2, "status": "Active"},
+            {"group_id": 1, "user_id": 3, "status": "Active"},
+        ]
+    )
+
+    df = users.join(
+        group_memberships, users["user_id"] == group_memberships["user_id"]
+    ).select(
+        users["username"], group_memberships["group_id"], group_memberships["status"]
+    )
+
+    Utils.check_answer(
+        df,
+        [
+            Row("Alice", 1, "Active"),
+            Row("Alice", 2, "Active"),
+            Row("Bob", 1, "Disabled"),
+            Row("Bob", 2, "Active"),
+            Row("Charlie", 1, "Active"),
+        ],
+    )
+    filtered = df.where(df["status"].isin(["Active"]))
+    Utils.check_answer(
+        filtered,
+        [
+            Row("Alice", 1, "Active"),
+            Row("Alice", 2, "Active"),
+            Row("Bob", 2, "Active"),
+            Row("Charlie", 1, "Active"),
+        ],
+    )

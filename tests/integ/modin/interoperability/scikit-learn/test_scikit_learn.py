@@ -126,7 +126,7 @@ class TestRegression:
 
 
 class TestClustering:
-    @sql_count_checker(query_count=3)
+    @sql_count_checker(query_count=2)
     def test_clustering(self, test_dfs):
         def get_cluster_centers(df) -> np.ndarray:
             return KMeans(n_clusters=3).fit(df).cluster_centers_
@@ -137,7 +137,7 @@ class TestClustering:
 
 
 class TestDimensionalityReduction:
-    @sql_count_checker(query_count=3)
+    @sql_count_checker(query_count=2)
     def test_principal_component_analysis(self, test_dfs):
         def get_principal_components(df) -> np.ndarray:
             return PCA(n_components=2).fit(df).components_
@@ -192,7 +192,7 @@ class TestModelSelection:
 
 
 class TestPreprocessing:
-    @sql_count_checker(query_count=5)
+    @sql_count_checker(query_count=4)
     def test_maxabs(self, test_dfs):
         eval_snowpark_pandas_result(
             *test_dfs,

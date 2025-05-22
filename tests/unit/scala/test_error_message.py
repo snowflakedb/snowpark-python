@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import pytest
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -274,9 +275,10 @@ def test_sql_last_query_return_resultset():
     )
 
 
-def test_sql_python_report_unexpected_alias():
+@pytest.mark.parametrize("debug_context", [None, "debug_context"])
+def test_sql_python_report_unexpected_alias(debug_context):
     ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
-        "test query"
+        "test query", debug_context
     )
     assert type(ex) == SnowparkSQLUnexpectedAliasException
     assert ex.error_code == "1301"
@@ -286,12 +288,16 @@ def test_sql_python_report_unexpected_alias():
         "select() and agg(). You cannot use aliases for Columns in expressions."
     )
     assert ex.query == "test query"
+    assert ex.debug_context == debug_context
 
 
-def test_sql_python_report_invalid_id():
+@pytest.mark.parametrize("debug_context", [None, "debug_context"])
+def test_sql_python_report_invalid_id(debug_context):
     name = "C1"
     query = "test query"
-    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(name, query)
+    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
+        name, query, debug_context
+    )
     assert type(ex) == SnowparkSQLInvalidIdException
     assert ex.error_code == "1302"
     assert (
@@ -299,14 +305,18 @@ def test_sql_python_report_invalid_id():
         == f'The column specified in df("{name}") is not present in the output of the DataFrame.'
     )
     assert ex.query == query
+    assert ex.debug_context == debug_context
 
 
-def test_sql_report_join_ambiguous():
+@pytest.mark.parametrize("debug_context", [None, "debug_context"])
+def test_sql_report_join_ambiguous(debug_context):
     column = "A"
     c1 = column
     c2 = column
     query = "test query"
-    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(c1, c2, query)
+    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
+        c1, c2, query, debug_context
+    )
     assert type(ex) == SnowparkSQLAmbiguousJoinException
     assert ex.error_code == "1303"
     assert (
@@ -319,6 +329,7 @@ def test_sql_report_join_ambiguous():
         f"the DataFrame.join() method for more details."
     )
     assert ex.query == query
+    assert ex.debug_context == debug_context
 
 
 def test_server_cannot_find_current_db_or_schema():

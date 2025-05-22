@@ -18,7 +18,7 @@ def ignore_index(request):
 
 
 @pytest.mark.modin_sp_precommit
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_df_sample_cols():
     data = np.random.randint(100, size=(20, 20))
 
@@ -47,7 +47,7 @@ def test_df_sample_rows_n(data, n, ignore_index):
 
 
 @pytest.mark.parametrize("n", [0, 1, 10, 20, 30])
-@sql_count_checker(query_count=5, join_count=1)
+@sql_count_checker(query_count=4, join_count=1)
 def test_df_sample_rows_n_replace(n, ignore_index):
     sample_df = pd.DataFrame(np.random.randint(100, size=(20, 20))).sample(
         n=n, replace=True, ignore_index=ignore_index
@@ -67,7 +67,7 @@ def test_df_sample_rows_frac(frac, ignore_index):
 
 
 @pytest.mark.parametrize("frac", [0, 0.1, 0.9, 1, 1.1, 1.9, 2])
-@sql_count_checker(query_count=4, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_df_sample_rows_frac_replace(frac, ignore_index):
     sample_df = pd.DataFrame(np.random.randint(100, size=(20, 20))).sample(
         frac=frac, replace=True, ignore_index=ignore_index
