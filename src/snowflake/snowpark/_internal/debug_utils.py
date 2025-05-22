@@ -30,7 +30,7 @@ class DataFrameTraceNode:
         """Returns the batch_ids of the children of this node."""
         return get_dependent_bind_ids(self.stmt_cache[self.batch_id])
 
-    def get_src(self):
+    def get_src(self) -> Optional[proto.Stmt]:
         """The source Stmt of the DataFrame described by the batch_id."""
         stmt = self.stmt_cache[self.batch_id]
         api_call = stmt.bind.expr.WhichOneof("variant")
@@ -65,7 +65,8 @@ class DataFrameTraceNode:
             code_lines = [line.rstrip() for line in code_lines]
             return "\n".join(code_lines)
 
-    def get_source_id(self) -> str:
+    @cached_property
+    def source_id(self) -> str:
         """Unique identifier of the location of the DataFrame creation in the source code."""
         src = self.get_src()
         if src is None:  # pragma: no cover
@@ -146,7 +147,7 @@ def _get_df_transform_trace(
         next: List[DataFrameTraceNode] = []
         for node in curr:
             # tracing updates
-            source_id = node.get_source_id()
+            source_id = node.source_id
             if source_id not in visited_source_id:
                 visited_source_id.add(source_id)
                 lineage.append(node)
