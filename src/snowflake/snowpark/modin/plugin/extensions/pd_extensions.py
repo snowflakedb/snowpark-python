@@ -300,14 +300,14 @@ def read_snowflake(
           >>> pd.read_snowflake('''WITH filter_rows AS PROCEDURE (table_name VARCHAR, column_to_filter VARCHAR, value NUMBER)
           ... RETURNS TABLE(A NUMBER, B NUMBER, C NUMBER)
           ... LANGUAGE PYTHON
-          ... RUNTIME_VERSION = '3.8'
+          ... RUNTIME_VERSION = '3.9'
           ... PACKAGES = ('snowflake-snowpark-python')
           ... HANDLER = 'filter_rows'
           ... AS $$from snowflake.snowpark.functions import col
           ... def filter_rows(session, table_name, column_to_filter, value):
           ...   df = session.table(table_name)
           ...   return df.filter(col(column_to_filter) == value)$$
-          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)", enforce_ordering=True) # doctest: +NORMALIZE_WHITESPACE
+          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)", enforce_ordering=True)
              A  B  C
           0  1  2  3
 
