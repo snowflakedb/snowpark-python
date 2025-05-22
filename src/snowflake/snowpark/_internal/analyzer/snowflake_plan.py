@@ -4,6 +4,7 @@
 #
 import copy
 import difflib
+from logging import getLogger
 import re
 import sys
 import uuid
@@ -136,6 +137,8 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+_logger = getLogger(__name__)
+
 
 class SnowflakePlan(LogicalPlan):
     class Decorator:
@@ -178,9 +181,12 @@ class SnowflakePlan(LogicalPlan):
                             df_transform_debug_trace = get_df_transform_trace_message(
                                 df_ast_id, stmt_cache
                             )
-                    except Exception:
+                    except Exception as e:
                         # If we encounter an error when getting the df_transform_debug_trace,
                         # we will ignore the error and not add the debug trace to the error message.
+                        _logger.info(
+                            f"Error when getting the df_transform_debug_trace: {e}"
+                        )
                         pass
 
                     if "unexpected 'as'" in e.msg.lower():

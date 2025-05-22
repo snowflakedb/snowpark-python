@@ -6,6 +6,7 @@ from functools import cached_property
 import os
 import sys
 from typing import Dict, List, Optional
+import itertools
 
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
@@ -46,25 +47,20 @@ class DataFrameTraceNode:
         must have read permissions for the executing user."""
         with open(filename) as f:
             code_lines = []
-            for i, line in enumerate(f, 1):
-                if sys.version_info >= (3, 11):
-                    if start_line <= i <= end_line:
-                        code_lines.append(line)
-                    elif i > end_line:
-                        break
-                else:
-                    # For python 3.9/3.10, we do not extract the end line from the source code
-                    # so we just read the start line and return.
-                    if i == start_line:
-                        code_lines.append(line)
-                        break
-
             if sys.version_info >= (3, 11):
+                # Skip to start_line and read only the required lines
+                lines = itertools.islice(f, start_line - 1, end_line)
+                code_lines = list(lines)
                 if start_line == end_line:
                     code_lines[0] = code_lines[0][start_column:end_column]
                 else:
                     code_lines[0] = code_lines[0][start_column:]
                     code_lines[-1] = code_lines[-1][:end_column]
+            else:
+                # For python 3.9/3.10, we do not extract the end line from the source code
+                # so we just read the start line and return.
+                for line in itertools.islice(f, start_line - 1, start_line):
+                    code_lines.append(line)
 
             code_lines = [line.rstrip() for line in code_lines]
             return "\n".join(code_lines)
