@@ -5,7 +5,7 @@
 from functools import cached_property
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
@@ -20,7 +20,7 @@ SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
 class DataFrameTraceNode:
     """A node representing a dataframe operation in the DAG that represents the lineage of a DataFrame."""
 
-    def __init__(self, batch_id: int, stmt_cache) -> None:
+    def __init__(self, batch_id: int, stmt_cache: Dict[int, proto.Stmt]) -> None:
         self.batch_id = batch_id
         self.stmt_cache = stmt_cache
 
@@ -117,7 +117,7 @@ class DataFrameTraceNode:
 
 def _get_df_transform_trace(
     batch_id: int,
-    stmt_cache: Dict[int, Any],
+    stmt_cache: Dict[int, proto.Stmt],
 ) -> List[DataFrameTraceNode]:
     """Helper function to get the transform trace of the dataframe involved in the exception.
     It gathers the lineage in the following way:
