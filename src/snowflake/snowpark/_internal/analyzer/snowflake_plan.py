@@ -1515,10 +1515,26 @@ class SnowflakePlanBuilder:
                 session=self.session,
             )
 
+        # Setting ENFORCE_EXISTING_FILE_FORMAT to True forces Snowpark to use the existing file format object,
+        # disregarding any custom format options and preventing temporary file format creation.
+        use_temp_file_format = not options.get("ENFORCE_EXISTING_FILE_FORMAT", False)
+
+        if not use_temp_file_format and "FORMAT_NAME" not in options:
+            raise ValueError(
+                "Setting the ENFORCE_EXISTING_FILE_FORMAT option requires providing FORMAT_NAME."
+            )
+
         format_type_options, copy_options = get_copy_into_table_options(options)
-        format_type_options = self._merge_file_format_options(
-            format_type_options, options
-        )
+
+        if not use_temp_file_format and len(format_type_options) > 0:
+            raise ValueError(
+                "Option 'ENFORCE_EXISTING_FILE_FORMAT' can not be used with any format type options."
+            )
+
+        if use_temp_file_format:
+            format_type_options = self._merge_file_format_options(
+                format_type_options, options
+            )
         pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
@@ -1545,38 +1561,51 @@ class SnowflakePlanBuilder:
             queries: List[Query] = []
             post_queries: List[Query] = []
             format_name = (
-                self.session.get_fully_qualified_name_if_possible(
-                    f"temp_name_placeholder_{generate_random_alphanumeric()}"
-                )
-                if thread_safe_session_enabled
-                else random_name_for_temp_object(TempObjectType.FILE_FORMAT)
-            )
-            queries.append(
-                Query(
-                    create_file_format_statement(
-                        format_name,
-                        format,
-                        format_type_options,
-                        temp=True,
-                        if_not_exist=True,
-                        use_scoped_temp_objects=self.session._use_scoped_temp_objects,
-                        is_generated=True,
-                    ),
-                    is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT)
+                (
+                    self.session.get_fully_qualified_name_if_possible(
+                        f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                    )
                     if thread_safe_session_enabled
-                    else None,
+                    else random_name_for_temp_object(TempObjectType.FILE_FORMAT)
                 )
+                if use_temp_file_format
+                else options["FORMAT_NAME"]
             )
-            post_queries.append(
-                Query(
-                    drop_file_format_if_exists_statement(format_name),
-                    is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT)
-                    if thread_safe_session_enabled
-                    else None,
+
+            if use_temp_file_format:
+                queries.append(
+                    Query(
+                        create_file_format_statement(
+                            format_name,
+                            format,
+                            format_type_options,
+                            temp=True,
+                            if_not_exist=True,
+                            use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                            is_generated=True,
+                        ),
+                        is_ddl_on_temp_object=True,
+                        temp_obj_name_placeholder=(
+                            format_name,
+                            TempObjectType.FILE_FORMAT,
+                        )
+                        if thread_safe_session_enabled
+                        else None,
+                    )
                 )
-            )
+
+                post_queries.append(
+                    Query(
+                        drop_file_format_if_exists_statement(format_name),
+                        is_ddl_on_temp_object=True,
+                        temp_obj_name_placeholder=(
+                            format_name,
+                            TempObjectType.FILE_FORMAT,
+                        )
+                        if thread_safe_session_enabled
+                        else None,
+                    )
+                )
 
             if schema_available:
                 assert schema_to_cast is not None
