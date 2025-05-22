@@ -157,6 +157,10 @@ class SnowflakePlan(LogicalPlan):
             """
 
             def wrap(*args, **kwargs):
+                from snowflake.snowpark.context import (
+                    _extract_debug_trace_from_ast_enabled,
+                )
+
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
@@ -177,15 +181,19 @@ class SnowflakePlan(LogicalPlan):
                             break
                     df_transform_debug_trace = None
                     try:
-                        if df_ast_id is not None and stmt_cache is not None:
+                        if (
+                            _extract_debug_trace_from_ast_enabled
+                            and df_ast_id is not None
+                            and stmt_cache is not None
+                        ):
                             df_transform_debug_trace = get_df_transform_trace_message(
                                 df_ast_id, stmt_cache
                             )
-                    except Exception as e:
+                    except Exception as trace_error:
                         # If we encounter an error when getting the df_transform_debug_trace,
                         # we will ignore the error and not add the debug trace to the error message.
                         _logger.info(
-                            f"Error when getting the df_transform_debug_trace: {e}"
+                            f"Error when getting the df_transform_debug_trace: {trace_error}"
                         )
                         pass
 

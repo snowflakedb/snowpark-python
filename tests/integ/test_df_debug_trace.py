@@ -15,6 +15,8 @@ from tests.resources.test_df_debug_dir.dataframe_generator1 import DataFrameGene
 from tests.resources.test_df_debug_dir.dataframe_generator2 import DataFrameGenerator2
 
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
+import snowflake.snowpark.context as context
+
 
 pytestmark = [
     pytest.mark.skipif(
@@ -28,10 +30,12 @@ pytestmark = [
 @pytest.fixture(autouse=True)
 def setup(request, session):
     original = session.ast_enabled
+    context.enable_extract_debug_trace()
     set_ast_state(AstFlagSource.TEST, True)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
     yield
+    context.disable_extract_debug_trace()
     set_ast_state(AstFlagSource.TEST, original)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
@@ -267,3 +271,15 @@ def test_error_in_lineage_extraction_is_safe(session):
             DataFrameGenerator1(session).dataframe_with_join_on_bad_col()
 
         assert "--- Additional Debug Information ---" not in str(exc_info.value)
+
+
+def test_enable_and_disable_extract_debug_trace(session):
+    context.enable_extract_debug_trace()
+    with pytest.raises(SnowparkSQLException) as exc_info:
+        DataFrameGenerator1(session).simple_dataframe().select("does_not_exist").show()
+    assert "--- Additional Debug Information ---" in str(exc_info.value)
+
+    context.disable_extract_debug_trace()
+    with pytest.raises(SnowparkSQLException) as exc_info:
+        DataFrameGenerator1(session).simple_dataframe().select("does_not_exist").show()
+    assert "--- Additional Debug Information ---" not in str(exc_info.value)
