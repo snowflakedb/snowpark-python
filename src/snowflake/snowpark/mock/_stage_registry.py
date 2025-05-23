@@ -126,7 +126,10 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
 
-    normalized = normalized[1:]  # remove the beginning '@'
+    if normalized.startswith("@"):
+        normalized = normalized[1:]  # remove the beginning '@'
+    elif normalized.startswith("snow://"):
+        normalized = "snow:/" + normalized[7:]  # remove one of the two slashes
 
     if normalized.startswith("~/"):
         return "~", normalized[3:]  # skip '/'
