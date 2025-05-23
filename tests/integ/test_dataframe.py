@@ -5229,7 +5229,7 @@ def test_create_dataframe_empty_pandas_df(session):
     pdf = pd.DataFrame([])
     with pytest.raises(
         ValueError,
-        match="Cannot write an empty pandas DataFrame with no columns to Snowflake",
+        match="The provided schema or inferred schema cannot be None or empty",
     ):
         session.create_dataframe(pdf)
 

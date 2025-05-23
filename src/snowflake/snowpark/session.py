@@ -3183,8 +3183,7 @@ class Session:
 
         if hasattr(df, "columns") and len(df.columns) == 0:
             raise ValueError(
-                "Cannot write an empty pandas DataFrame with no columns to Snowflake. "
-                "Please provide a DataFrame with at least column definitions."
+                "The provided schema or inferred schema cannot be None or empty"
             )
 
         success = None  # forward declaration
