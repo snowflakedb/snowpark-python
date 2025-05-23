@@ -24,7 +24,7 @@ from snowflake.snowpark.types import (
 POSTGRES_TABLE_NAME = "test_schema.ALL_TYPE_TABLE"
 EXPECTED_TEST_DATA = [
     (
-        -6645531000000000000,
+        -6645531000000000123,
         1,
         "0000",
         "10100101",
@@ -69,7 +69,7 @@ EXPECTED_TEST_DATA = [
         "<root><element>34</element></root>",
     ),
     (
-        -8065880000000000000,
+        -8065880000000000456,
         2,
         "1010",
         "11100010",
@@ -114,7 +114,7 @@ EXPECTED_TEST_DATA = [
         "<root><element>29</element></root>",
     ),
     (
-        9083626000000000000,
+        9083626000000000789,
         3,
         "1100",
         "11000110",
@@ -159,7 +159,7 @@ EXPECTED_TEST_DATA = [
         "<root><element>50</element></root>",
     ),
     (
-        8517274000000000000,
+        8517274000000000123,
         4,
         "1010",
         "10100111",
@@ -204,7 +204,7 @@ EXPECTED_TEST_DATA = [
         "<root><element>95</element></root>",
     ),
     (
-        -5569903000000000000,
+        -5569903000000000456,
         5,
         "1100",
         "11110110",
