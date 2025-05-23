@@ -532,7 +532,7 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_query(self) -> str:
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.NEW_LINE}{analyzer_utils.FROM}{self.entity.name}"
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
     def sql_in_subquery(self) -> str:
