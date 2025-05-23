@@ -736,10 +736,6 @@ class StageEntityRegistry:
         target_directory: str,
         options: Dict[str, str] = None,
     ):
-        if not stage_location.startswith("@"):
-            raise SnowparkLocalTestingException(
-                f"Invalid stage {stage_location}, stage name should start with character '@'"
-            )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         with self._lock:
             if stage_name not in self._stage_registry:
@@ -759,10 +755,6 @@ class StageEntityRegistry:
         analyzer: "MockAnalyzer",
         options: Dict[str, str],
     ):
-        if not stage_location.startswith("@"):
-            raise SnowparkLocalTestingException(
-                f"Invalid stage {stage_location}, stage name should start with character '@'"
-            )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         with self._lock:
             if stage_name not in self._stage_registry:
