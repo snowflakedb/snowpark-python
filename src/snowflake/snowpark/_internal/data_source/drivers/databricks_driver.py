@@ -8,7 +8,9 @@ from typing import List, Any, TYPE_CHECKING
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark._internal.data_source.datasource_typing import (
+    Cursor,
+)
 from snowflake.snowpark.types import (
     StructType,
     MapType,
@@ -28,25 +30,15 @@ logger = logging.getLogger(__name__)
 
 
 class DatabricksDriver(BaseDriver):
-    def infer_schema_from_description(self, table_or_query: str) -> StructType:
-        conn = self.create_connection()
-        cursor = conn.cursor()
-        try:
-            # The following query gives a more detailed schema information than
-            # just running "SELECT * FROM {table_or_query} WHERE 1 = 0"
-            query = f"DESCRIBE QUERY SELECT * FROM ({table_or_query})"
-            logger.debug(f"trying to get schema using query: {query}")
-            raw_schema = cursor.execute(query).fetchall()
-            return self.to_snow_type(raw_schema)
-        except Exception as exc:
-            raise SnowparkDataframeReaderException(
-                f"Failed to infer Snowpark DataFrame schema from '{table_or_query}' due to {exc!r}.\n"
-                f"To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in `DataFrameReader.dbapi`.\n"
-                f"Please check the stack trace for more details."
-            ) from exc
-        finally:
-            cursor.close()
-            conn.close()
+    def infer_schema_from_description(
+        self, table_or_query: str, cursor: "Cursor", is_query: bool
+    ) -> StructType:
+        # The following query gives a more detailed schema information than
+        # just running "SELECT * FROM {table_or_query} WHERE 1 = 0"
+        query = f"DESCRIBE QUERY SELECT * FROM ({table_or_query})"
+        logger.debug(f"trying to get schema using query: {query}")
+        raw_schema = cursor.execute(query).fetchall()
+        return self.to_snow_type(raw_schema)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         # https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-query
