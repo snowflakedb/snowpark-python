@@ -190,7 +190,7 @@ class BaseDriver:
 
     @staticmethod
     def to_result_snowpark_df(
-        session: "Session", table_name, schema, _emit_ast: bool = True
+        session: "Session", table_name: str, schema: StructType, _emit_ast: bool = True
     ) -> "DataFrame":
         return session.table(table_name, _emit_ast=_emit_ast)
 

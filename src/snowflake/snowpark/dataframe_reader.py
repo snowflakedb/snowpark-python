@@ -1355,6 +1355,7 @@ class DataFrameReader:
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
+                _emit_ast=_emit_ast,
             )
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
