@@ -572,7 +572,7 @@ def test_structured_dtypes_iceberg(
             " target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
             f"warehouse = {warehouse} external_volume = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'  "
             "catalog = 'SNOWFLAKE'  base_location = 'python_connector_merge_gate/' \n as  "
-            f"SELECT  * \n FROM (\n SELECT  * \n FROM {formatted_table_name}\n);"
+            f"SELECT  * \n FROM (\n SELECT  *  FROM {formatted_table_name}\n);"
         )
 
     finally:
