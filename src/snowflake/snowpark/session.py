@@ -387,8 +387,7 @@ class Session:
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
-                if self.is_mutable(key):
-                    self.set(key, val)
+                self.set(key, val)
 
         def get(self, key: str, default=None) -> Any:
             with self._lock:
@@ -399,6 +398,7 @@ class Session:
                 return self._conf.get(key, default)
 
         def is_mutable(self, key: str) -> bool:
+            """Check if the key is a mutable property of the Session or SnowflakeConnection."""
             with self._lock:
                 if hasattr(Session, key) and isinstance(
                     getattr(Session, key), property
@@ -408,7 +408,7 @@ class Session:
                     getattr(SnowflakeConnection, key), property
                 ):
                     return getattr(SnowflakeConnection, key).fset is not None
-                return key in self._conf
+                return False
 
         def set(self, key: str, value: Any) -> None:
             with self._lock:
