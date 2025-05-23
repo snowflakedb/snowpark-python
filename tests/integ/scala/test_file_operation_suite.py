@@ -177,9 +177,7 @@ def test_put_with_snowurl_one_file(
     session, path1, temp_target_directory, local_testing_mode
 ):
     snowurl = f"snow://{temp_target_directory}"
-    result = session.file.put(
-        f"file://{path1}", snowurl, auto_compress=not local_testing_mode
-    )[0]
+    result = session.file.put(f"file://{path1}", snowurl, auto_compress=False)[0]
     file_name = os.path.basename(path1)
     assert result.source == file_name
     assert result.target == f"{file_name}.gz" if not local_testing_mode else file_name
@@ -517,7 +515,7 @@ def test_get_with_snowurl_one_file(
     session, path1, temp_target_directory, temp_source_directory, local_testing_mode
 ):
     snowurl = f"snow://{temp_target_directory}"
-    session.file.put(f"file://{path1}", snowurl, auto_compress=not local_testing_mode)
+    session.file.put(f"file://{path1}", snowurl, auto_compress=False)
     file_name = os.path.basename(path1)
     result = session.file.get(
         snowurl,
