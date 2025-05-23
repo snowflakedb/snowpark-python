@@ -462,7 +462,6 @@ def test_create_dynamic_iceberg_table():
 
 
 def test_project_statement_formatting():
-    print(project_statement(["col1", "col2"], "table1"))
     assert project_statement(["col1", "col2"], "table1") == (
         " SELECT \n" "    col1, \n" "    col2\n" " FROM (\n" "table1\n" ")"
     )
@@ -494,7 +493,6 @@ def test_project_statement_formatting():
         ")"
     )
 
-    print(project_statement([], "table1"))
     assert project_statement([], "table1") == (
         " SELECT  * \n" " FROM (\n" "table1\n" ")"
     )
