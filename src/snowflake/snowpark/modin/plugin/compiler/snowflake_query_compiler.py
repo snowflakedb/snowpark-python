@@ -216,7 +216,6 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     groupby_apply_pivot_result_to_final_ordered_dataframe,
     groupby_apply_sort_method,
     is_supported_snowpark_python_function,
-    sort_apply_udtf_result_columns_by_pandas_positions,
     make_series_map_snowpark_function,
     sort_apply_udtf_result_columns_by_pandas_positions,
 )
@@ -398,9 +397,6 @@ from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
-from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
-    NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION,
-)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -787,7 +783,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             num_rows = query_compiler.get_axis_len(0)
         return num_rows
 
-    def _max_shape(self):
+    def _max_shape(self) -> tuple[int, int]:
         ordered_dataframe = self._modin_frame.ordered_dataframe
         num_rows = ordered_dataframe.row_count_upper_bound
         num_columns = len(self.columns)
@@ -804,7 +800,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @classmethod
     def _is_in_memory_init(
         cls, api_cls_name: Optional[str], operation: Optional[str], arguments: Any
-    ):
+    ) -> bool:
         if api_cls_name in ("DataFrame", "Series") and operation == "__init__":
             if (query_compiler := arguments.get("query_compiler")) is not None:
                 return True if isinstance(query_compiler, cls) else False

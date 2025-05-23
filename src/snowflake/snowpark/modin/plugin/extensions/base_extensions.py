@@ -6,11 +6,7 @@
 File containing BasePandasDataset APIs defined in Snowpark pandas but not the Modin API layer.
 """
 
-from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-    SnowflakeQueryCompiler,
-)
 from .base_overrides import register_base_override
-from snowflake.snowpark.modin.plugin.extensions.utils import is_autoswitch_enabled
 
 
 @register_base_override(name="__array_function__")

@@ -746,6 +746,7 @@ def timedelta_native_df() -> pandas.DataFrame:
         }
     )
 
+
 @pytest.fixture(scope="module", autouse=True)
 def f(session):
     # create a snowpark dataframe so that modin keeps an empty query compiler
