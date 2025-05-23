@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
 import os
@@ -8,13 +8,15 @@ from functools import cached_property
 import pytest
 
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
+import snowflake.snowpark.types as T
 
 
 def default_unparser_path():
     explicit = os.getenv("MONOREPO_DIR")
     default_default = os.path.join(os.getenv("HOME"), "Snowflake/trunk")
     base_dir = explicit or default_default
-    unparser_dir = os.path.join(base_dir, "bazel-bin/Snowpark/unparser")
+    unparser_dir = os.path.join(base_dir, "bazel-bin/Snowpark/frontend/unparser")
 
     # Grab all *.jar files from the subtree.
     jars = []
@@ -146,6 +148,50 @@ class TestTables:
             schema=["num", 'Owner\'s""opinion.s'],
         )
 
+    @cached_property
+    def visits(self) -> str:
+        table_name: str = "visits"
+        return self._save_table(
+            table_name,
+            [
+                [
+                    -1,
+                    -1,
+                    "2025-01-31 01:02:03.004",
+                    "2025-01-31 02:03:04.005",
+                    "https://secure-access.globalcorp.org/account/settings",
+                    "USA",
+                ]
+            ],
+            schema=T.StructType(
+                [
+                    T.StructField("visit_id", T.IntegerType()),
+                    T.StructField("user_id", T.IntegerType()),
+                    T.StructField("start_time", T.TimestampType()),
+                    T.StructField("end_time", T.TimestampType()),
+                    T.StructField("page_url", T.StringType()),
+                    T.StructField("country", T.StringType()),
+                ]
+            ),
+        )
+
+    @cached_property
+    def user_profiles(self) -> str:
+        table_name: str = "user_profiles"
+        return self._save_table(
+            table_name,
+            [[-1, "John", "Doe", "1980-01-31", "Palladium"]],
+            schema=T.StructType(
+                [
+                    T.StructField("user_id", T.IntegerType()),
+                    T.StructField("first_name", T.StringType()),
+                    T.StructField("last_name", T.StringType()),
+                    T.StructField("dob", T.DateType()),
+                    T.StructField("membership_type", T.StringType()),
+                ]
+            ),
+        )
+
     def _save_table(self, name: str, *args, **kwargs):
         kwargs.pop("_emit_ast", None)
         kwargs.pop("_ast_stmt", None)
@@ -164,10 +210,12 @@ class TestTables:
 def session(local_testing_mode):
     # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
     # Need to use the Session.builder to properly register this as active session etc.
+    AST_ENABLED = True
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     with Session.builder.config("local_testing", local_testing_mode).config(
         "nop_testing", True
     ).create() as s:
-        s.ast_enabled = True
+        s.ast_enabled = AST_ENABLED
         s.sql_simplifier_enabled = False
         yield s
 
@@ -175,3 +223,8 @@ def session(local_testing_mode):
 @pytest.fixture(scope="function")
 def tables(session):
     return TestTables(session)
+
+
+@pytest.fixture(scope="session")
+def resources_path() -> str:
+    return os.path.normpath(os.path.join(os.path.dirname(__file__), "../resources"))

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined table functions (UDTFs) in Snowpark. Please see `Python UDTF <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udtfs>`_ for details.
@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.open_telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    RegistrationType,
     check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -106,6 +107,7 @@ class UserDefinedTableFunction:
         self._ast = _ast
         self._ast_id = _ast_id
 
+    @publicapi
     def __call__(
         self,
         *arguments: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -587,6 +589,8 @@ class UDTFRegistration:
         copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
@@ -669,6 +673,11 @@ class UDTFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is created
                 using CREATE OR REPLACE FUNCTION.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -720,6 +729,8 @@ class UDTFRegistration:
                 is_permanent=is_permanent,
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -750,7 +761,10 @@ class UDTFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedTableFunction:
         """
         Registers a Python class as a Snowflake Python UDTF from a Python or zip file,
@@ -834,6 +848,11 @@ class UDTFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is created
                 using CREATE OR REPLACE FUNCTION.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -884,7 +903,10 @@ class UDTFRegistration:
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udtf(
@@ -914,15 +936,17 @@ class UDTFRegistration:
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.udtf, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
 
             return UserDefinedTableFunction(
                 handler,
@@ -969,11 +993,15 @@ class UDTFRegistration:
             output_schema=output_schema,
         )
 
+        # Structured Struct is interpreted as Object by function registration
+        # Force unstructured to ensure Table return type.
+        output_schema.structured = False
+
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.udtf, stmt)
-            ast_id = stmt.var_id.bitfield1
+            ast_id = stmt.uid
             build_udtf(
                 ast,
                 handler,
@@ -1027,6 +1055,7 @@ class UDTFRegistration:
             statement_params=statement_params,
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
+            artifact_repository=artifact_repository,
         )
 
         runtime_version_from_requirement = None
@@ -1052,6 +1081,7 @@ class UDTFRegistration:
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
+                registration_type=RegistrationType.UDTF,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -1067,6 +1097,8 @@ class UDTFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

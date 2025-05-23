@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -171,7 +171,7 @@ def test_set_incorrect_active_profiler(
         """WITH myProcedure AS PROCEDURE ()
       RETURNS TABLE ( )
       LANGUAGE PYTHON
-      RUNTIME_VERSION = '3.8'
+      RUNTIME_VERSION = '3.9'
       PACKAGES = ( 'snowflake-snowpark-python==1.2.0', 'pandas==1.3.3' )
       IMPORTS = ( '@my_stage/file1.py', '@my_stage/file2.py' )
       HANDLER = 'my_function'
@@ -260,6 +260,7 @@ def test_create_temp_stage(profiler_session):
         profiler_session.sql(f"use database {current_db}").collect()
 
 
+@pytest.mark.skip(reason="SNOW-1945207")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",

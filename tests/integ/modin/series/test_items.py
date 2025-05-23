@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -16,6 +16,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import RUNNING_ON_GH
 
 # To generate seeded random data.
 rng = np.random.default_rng(12345)
@@ -62,17 +63,18 @@ def test_items(series):
     )
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 def test_items_large_series():
     size = PARTITION_SIZE * 2 + 1
     data = rng.integers(low=-1500, high=1500, size=size)
     native_series = native_pd.Series(data)
     snow_series = pd.Series(native_series)
-    query_count = (np.floor(size / PARTITION_SIZE) + 1) * 6
+    query_count = (np.floor(size / PARTITION_SIZE) + 1) * 4
     with SqlCounter(
         query_count=query_count,
         join_count=0,
         high_count_expected=True,
-        high_count_reason="Series spans multiple iteration partitions, each of which requires 6 queries",
+        high_count_reason="Series spans multiple iteration partitions, each of which requires 4 queries",
     ):
         eval_snowpark_pandas_result(
             snow_series,

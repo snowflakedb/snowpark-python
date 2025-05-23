@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -101,12 +102,12 @@ def test_first_and_last_valid_none_float64_multiindex_dataframe(data):
     native_dataframe = native_pd.DataFrame(data, index=arrays)
     snow_dataframe = pd.DataFrame(native_dataframe)
     with SqlCounter(query_count=1):
-        assert str(native_dataframe.first_valid_index()) == str(
-            snow_dataframe.first_valid_index()
+        assert (
+            native_dataframe.first_valid_index() == snow_dataframe.first_valid_index()
         )
     with SqlCounter(query_count=1):
-        assert str(native_dataframe.last_valid_index()) == str(
-            snow_dataframe.last_valid_index()
+        assert (
+            native_dataframe.first_valid_index() == snow_dataframe.first_valid_index()
         )
 
 

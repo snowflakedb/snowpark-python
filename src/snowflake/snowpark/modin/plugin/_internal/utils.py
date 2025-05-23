@@ -1,13 +1,14 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import json
 import logging
 import re
 import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import modin.pandas as pd
 import numpy as np
@@ -41,14 +42,9 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
-    count,
     equal_nan,
     floor,
     iff,
-    max as max_,
-    mean,
-    min as min_,
-    sum as sum_,
     to_char,
     to_timestamp_ntz,
     to_timestamp_tz,
@@ -320,16 +316,20 @@ def _create_read_only_table(
     return readonly_table_name
 
 
-def create_ordered_dataframe_with_readonly_temp_table(
+def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
+    enforce_ordering: bool,
 ) -> tuple[OrderedDataFrame, str]:
     """
-    create read only temp table on top of the existing table or Snowflake query, and create a OrderedDataFrame
-    with row position column using the read only temp table created.
+    create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
+    with row position column using the read only temp table created or directly using the existing table.
 
     Args:
         table_name_or_query: A string or list of strings that specify the table name or
             fully-qualified object identifier (database name, schema name, and table name) or SQL query.
+        enforce_ordering: If True, create a read only temp table on top of the existing table or Snowflake query,
+            and create the OrderedDataFrame using the read only temp table created.
+            Otherwise, directly using the existing table.
 
     Returns:
         OrderedDataFrame with row position column.
@@ -350,47 +350,67 @@ def create_ordered_dataframe_with_readonly_temp_table(
         table_name_or_query
     )
     is_query = not _is_table_name(table_name_or_query)
-    if not is_query:
-        try:
-            readonly_table_name = _create_read_only_table(
-                table_name=table_name_or_query,
-                materialize_into_temp_table=False,
-            )
-        except SnowparkSQLException as ex:
-            _logger.debug(
-                f"Failed to create read only table for {table_name_or_query}: {ex}"
-            )
-            # Creation of read only table fails for following cases which are not possible
-            # (or very difficult) to detect on client side in advance. We explicitly check
-            # for these errors and create a temporary table by copying the content of the
-            # original table and then create the read only table on the top of this
-            # temporary table.
-            # 1. Row access Policy:
-            #   If the table has row access policy associated, read only table creation will
-            #   fail. SNOW-850878 is created to support the query for row access policy on
-            #   server side.
-            # 2. Table can not be cloned:
-            #   Clone is not supported for tables that are imported from a share, views etc.
-            # 3. Table doesn't support read only table creation:
-            #   Includes iceberg table, hybrid table etc.
-            known_errors = (
-                "Row access policy is not supported on read only table",  # case 1
-                "Cannot clone",  # case 2
-                "Unsupported feature",  # case 3
-            )
-            if any(error in ex.message for error in known_errors):
+    if not is_query or not enforce_ordering:
+        if enforce_ordering:
+            try:
                 readonly_table_name = _create_read_only_table(
                     table_name=table_name_or_query,
-                    materialize_into_temp_table=True,
-                    materialization_reason=ex.message,
+                    materialize_into_temp_table=False,
                 )
-            else:
-                raise SnowparkPandasException(
-                    f"Failed to create Snowpark pandas DataFrame out of table {table_name_or_query} with error {ex}",
-                    error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
-                ) from ex
+            except SnowparkSQLException as ex:
+                _logger.debug(
+                    f"Failed to create read only table for {table_name_or_query}: {ex}"
+                )
+                # Creation of read only table fails for following cases which are not possible
+                # (or very difficult) to detect on client side in advance. We explicitly check
+                # for these errors and create a temporary table by copying the content of the
+                # original table and then create the read only table on the top of this
+                # temporary table.
+                # 1. Row access Policy:
+                #   If the table has row access policy associated, read only table creation will
+                #   fail. SNOW-850878 is created to support the query for row access policy on
+                #   server side.
+                # 2. Table can not be cloned:
+                #   Clone is not supported for tables that are imported from a share, views etc.
+                # 3. Table doesn't support read only table creation:
+                #   Includes iceberg table, hybrid table etc.
+                known_errors = (
+                    "Row access policy is not supported on read only table",  # case 1
+                    "Cannot clone",  # case 2
+                    "Unsupported feature",  # case 3
+                    "Clone Iceberg table should use CREATE ICEBERG TABLE CLONE command",  # case 3
+                )
+                if any(error in ex.message for error in known_errors):
+                    readonly_table_name = _create_read_only_table(
+                        table_name=table_name_or_query,
+                        materialize_into_temp_table=True,
+                        materialization_reason=ex.message,
+                    )
+                else:
+                    raise SnowparkPandasException(
+                        f"Failed to create Snowpark pandas DataFrame out of table {table_name_or_query} with error {ex}",
+                        error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
+                    ) from ex
+
+        if is_query:
+            # If the string passed in to `pd.read_snowflake` is a SQL query, we can simply create
+            # a Snowpark DataFrame, and convert that to a Snowpark pandas DataFrame, and extract
+            # the OrderedDataFrame and row_position_snowflake_quoted_identifier from there.
+            # If there is an ORDER BY in the query, we should log it.
+            contains_order_by = _check_if_sql_query_contains_order_by_and_warn_user(
+                table_name_or_query
+            )
+            statement_params = get_default_snowpark_pandas_statement_params()
+            statement_params[STATEMENT_PARAMS.CONTAINS_ORDER_BY] = str(
+                contains_order_by
+            ).upper()
+
         initial_ordered_dataframe = OrderedDataFrame(
             DataFrameReference(session.table(readonly_table_name, _emit_ast=False))
+            if enforce_ordering
+            else DataFrameReference(session.sql(table_name_or_query, _emit_ast=False))
+            if is_query
+            else DataFrameReference(session.table(table_name_or_query, _emit_ast=False))
         )
         # generate a snowflake quoted identifier for row position column that can be used for aliasing
         snowflake_quoted_identifiers = (
@@ -405,7 +425,10 @@ def create_ordered_dataframe_with_readonly_temp_table(
 
         # create snowpark dataframe with columns: row_position_snowflake_quoted_identifier + snowflake_quoted_identifiers
         # if no snowflake_quoted_identifiers is specified, all columns will be selected
-        row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
+        if enforce_ordering:
+            row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
+        else:
+            row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
 
         columns_to_select = ", ".join(
             [row_position_column_str] + snowflake_quoted_identifiers
@@ -415,8 +438,12 @@ def create_ordered_dataframe_with_readonly_temp_table(
         # which creates a view without metadata column, we won't be able to access the metadata columns
         # with the created snowpark dataframe. In order to get the metadata column access in the created
         # dataframe, we create dataframe through sql which access the corresponding metadata column.
-        dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
+        if enforce_ordering:
+            dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
+        else:
+            dataframe_sql = f"SELECT {columns_to_select} FROM ({table_name_or_query})"
         snowpark_df = session.sql(dataframe_sql, _emit_ast=False)
+        # assert dataframe_sql is None
 
         result_columns_quoted_identifiers = [
             row_position_snowflake_quoted_identifier
@@ -428,6 +455,8 @@ def create_ordered_dataframe_with_readonly_temp_table(
             row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
         )
     else:
+        assert is_query and enforce_ordering
+
         # If the string passed in to `pd.read_snowflake` is a SQL query, we can simply create
         # a Snowpark DataFrame, and convert that to a Snowpark pandas DataFrame, and extract
         # the OrderedDataFrame and row_position_snowflake_quoted_identifier from there.
@@ -448,7 +477,9 @@ def create_ordered_dataframe_with_readonly_temp_table(
             # so we lose the data isolation quality of pandas that we are attempting to replicate. By
             # creating a read only clone, we ensure that the underlying data cannot be modified by anyone
             # else.
-            snowpark_pandas_df = session.sql(table_name_or_query).to_snowpark_pandas()
+            snowpark_pandas_df = session.sql(table_name_or_query).to_snowpark_pandas(
+                enforce_ordering=enforce_ordering
+            )
         except SnowparkSQLException as ex:
             raise SnowparkPandasException(
                 f"Failed to create Snowpark pandas DataFrame out of query {table_name_or_query} with error {ex}",
@@ -460,6 +491,12 @@ def create_ordered_dataframe_with_readonly_temp_table(
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
+    # Set the materialized row count
+    materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
+        _emit_ast=False
+    )
+    ordered_dataframe.row_count = materialized_row_count
+    ordered_dataframe.row_count_upper_bound = materialized_row_count
     return ordered_dataframe, row_position_snowflake_quoted_identifier
 
 
@@ -1150,12 +1187,16 @@ def create_ordered_dataframe_from_pandas(
             ]
         ),
     )
-    return OrderedDataFrame(
+    ordered_df = OrderedDataFrame(
         DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
         projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
         ordering_columns=ordering_columns,
         row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
     )
+    # Set the materialized row count
+    ordered_df.row_count = df.shape[0]
+    ordered_df.row_count_upper_bound = df.shape[0]
+    return ordered_df
 
 
 def fill_none_in_index_labels(
@@ -1193,29 +1234,6 @@ def is_snowpark_pandas_dataframe_or_series_type(obj: Any) -> bool:
     # Return True if result is (Snowpark pandas) DataFrame/Series type.
     # Note: Native pandas.DataFrame/Series return False
     return isinstance(obj, (pd.DataFrame, pd.Series))
-
-
-# TODO: (SNOW-853334) Support other agg functions (any, all, prod, median, skew, kurt, sem, var, std, mad, etc)
-snowflake_pivot_agg_func_supported = [
-    count,
-    mean,
-    min_,
-    max_,
-    sum_,
-]
-
-
-def is_supported_snowflake_pivot_agg_func(agg_func: Callable) -> bool:
-    """
-    Check if the aggregation function is supported with snowflake pivot. Current supported
-    aggregation functions are the functions that can be mapped to snowflake builtin function.
-
-    Args:
-        agg_func: str or Callable. the aggregation function to check
-    Returns:
-        Whether it is valid to implement with snowflake or not.
-    """
-    return agg_func in snowflake_pivot_agg_func_supported
 
 
 def convert_snowflake_string_constant_to_python_string(identifier: str) -> str:
@@ -1871,16 +1889,14 @@ def count_rows(df: OrderedDataFrame) -> int:
     """
     Returns the number of rows of a Snowpark DataFrame.
     """
+    if df.row_count is not None:
+        return df.row_count
     df = df.ensure_row_count_column()
-    rowset = (
-        df.select(df.row_count_snowflake_quoted_identifier)
-        ._dataframe_ref.snowpark_dataframe.select(
-            df.row_count_snowflake_quoted_identifier
-        )
-        .limit(1)
-        .collect()
-    )
-    return 0 if len(rowset) == 0 else rowset[0][0]
+    rowset = df.select(df.row_count_snowflake_quoted_identifier).limit(1).collect()
+    row_count = 0 if len(rowset) == 0 else rowset[0][0]
+    df.row_count = row_count
+    df.row_count_upper_bound = row_count
+    return row_count
 
 
 def append_columns(

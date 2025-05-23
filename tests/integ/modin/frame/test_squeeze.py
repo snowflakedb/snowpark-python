@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -22,12 +22,7 @@ def axis(request):
 
 @pytest.mark.parametrize("dtype", ["int", "timedelta64[ns]"])
 def test_n_by_1(axis, dtype):
-    if axis == 1 or axis == "columns":
-        expected_query_count = 1
-    else:
-        expected_query_count = 2
-
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs([1, 2, 3], dtype=dtype),
             lambda df: df.squeeze(axis=axis),
@@ -37,8 +32,6 @@ def test_n_by_1(axis, dtype):
 @pytest.mark.parametrize("dtype", ["int", "timedelta64[ns]"])
 def test_1_by_n(axis, dtype):
     if axis is None:
-        expected_query_count = 3
-    elif axis in [0, "index"]:
         expected_query_count = 2
     else:
         expected_query_count = 1
@@ -50,7 +43,7 @@ def test_1_by_n(axis, dtype):
 
 
 def test_2d(axis):
-    with SqlCounter(query_count=1 if axis in [1, "columns"] else 2):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs(
                 {
@@ -67,12 +60,8 @@ def test_2d(axis):
     "scalar", [param(pd.Timedelta(1), id="timedelta"), param(1, id="int")]
 )
 def test_scalar(axis, scalar):
-    if axis == 1 or axis == "columns":
-        expected_query_count = 1
-    else:
-        expected_query_count = 2
     snow_df, native_df = create_test_dfs([scalar])
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=1):
         if axis is None:
             assert scalar == snow_df.squeeze()
         else:

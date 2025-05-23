@@ -43,31 +43,43 @@ target.merge(source, join_expr=(target["num"] == source["num"]), clauses=[when_m
 
 ## EXPECTED UNPARSER OUTPUT
 
-source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType([StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_1", session)
 
 target.merge(source=source, join_expr=(target["num"] == source["num"]) & (target["str"] == "too_old"), clauses=[when_matched().update({"str": "value"})])
 
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
+
 target = Table("test_table_1b", session)
 
 target.merge(source=source, join_expr=source["str"] != "bar", clauses=[when_matched(source["str"] == "too_new").update({"str": "value2"}), when_matched().update({"num": 123})])
+
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_2", session)
 
 target.merge(source=source, join_expr=(target["num"] != source["num"]) & (target["str"] != "too_old"), clauses=[when_not_matched().insert({"str": "value"})])
 
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
+
 target = Table("test_table_2b", session)
 
 target.merge(source=source, join_expr=source["str"] != "foo", clauses=[when_not_matched(source["str"] == "too_new").insert({"str": "value"}), when_matched().update({"str": "value3"})])
+
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_3", session)
 
 target.merge(source=source, join_expr=target["num"] == source["num"], clauses=[when_matched().delete()])
 
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
+
 target = Table("test_table_4", session)
 
 target.merge(source=source, join_expr=(source["num"] == 1) & (target["num"] == source["num"]), clauses=[when_matched(source["str"] == "too_new").delete()], block=False)
+
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType(fields=[StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_5", session)
 
@@ -75,18 +87,27 @@ target.merge(source=source, join_expr=target["num"] == source["num"], statement_
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               tuple_val {
                 src {
                   end_column: 96
                   end_line: 27
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 17
                   start_line: 27
                 }
@@ -95,7 +116,7 @@ body {
                     src {
                       end_column: 96
                       end_line: 27
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 17
                       start_line: 27
                     }
@@ -107,7 +128,7 @@ body {
                     src {
                       end_column: 96
                       end_line: 27
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 17
                       start_line: 27
                     }
@@ -121,7 +142,7 @@ body {
                 src {
                   end_column: 96
                   end_line: 27
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 17
                   start_line: 27
                 }
@@ -130,7 +151,7 @@ body {
                     src {
                       end_column: 96
                       end_line: 27
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 17
                       start_line: 27
                     }
@@ -142,7 +163,7 @@ body {
                     src {
                       end_column: 96
                       end_line: 27
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 17
                       start_line: 27
                     }
@@ -156,7 +177,7 @@ body {
                 src {
                   end_column: 96
                   end_line: 27
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 17
                   start_line: 27
                 }
@@ -165,7 +186,7 @@ body {
                     src {
                       end_column: 96
                       end_line: 27
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 17
                       start_line: 27
                     }
@@ -177,7 +198,7 @@ body {
                     src {
                       end_column: 96
                       end_line: 27
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 17
                       start_line: 27
                     }
@@ -189,23 +210,27 @@ body {
           }
         }
         schema {
-          sp_dataframe_schema__struct {
+          dataframe_schema__struct {
             v {
               fields {
                 column_identifier {
-                  name: "num"
+                  column_name {
+                    name: "num"
+                  }
                 }
                 data_type {
-                  sp_integer_type: true
+                  integer_type: true
                 }
                 nullable: true
               }
               fields {
                 column_identifier {
-                  name: "str"
+                  column_name {
+                    name: "str"
+                  }
                 }
                 data_type {
-                  sp_string_type {
+                  string_type {
                     length {
                     }
                   }
@@ -218,128 +243,122 @@ body {
         src {
           end_column: 96
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 17
           start_line: 27
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "source"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      table {
         name {
-          sp_table_name_flat {
-            name: "test_table_1"
+          name {
+            name_flat {
+              name: "test_table_1"
+            }
           }
         }
         src {
           end_column: 47
           end_line: 32
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 17
           start_line: 32
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             update_assignments {
-              list {
-                _1 {
-                  string_val {
-                    src {
-                      end_column: 136
-                      end_line: 34
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 8
-                      start_line: 34
-                    }
-                    v: "str"
+              _1 {
+                string_val {
+                  src {
+                    end_column: 136
+                    end_line: 34
+                    file: 2
+                    start_column: 8
+                    start_line: 34
                   }
+                  v: "str"
                 }
-                _2 {
-                  string_val {
-                    src {
-                      end_column: 136
-                      end_line: 34
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 8
-                      start_line: 34
-                    }
-                    v: "value"
+              }
+              _2 {
+                string_val {
+                  src {
+                    end_column: 136
+                    end_line: 34
+                    file: 2
+                    start_column: 8
+                    start_line: 34
                   }
+                  v: "value"
                 }
               }
             }
           }
         }
-        id {
-          bitfield1: 2
+        df {
+          dataframe_ref {
+            id: 2
+          }
         }
         join_expr {
           and {
             lhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 2
-                        }
+                      dataframe_ref {
+                        id: 2
                       }
                     }
                     src {
                       end_column: 43
                       end_line: 34
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 30
                       start_line: 34
                     }
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                      dataframe_ref {
+                        id: 1
                       }
                     }
                     src {
                       end_column: 60
                       end_line: 34
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 47
                       start_line: 34
                     }
@@ -348,7 +367,7 @@ body {
                 src {
                   end_column: 60
                   end_line: 34
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 30
                   start_line: 34
                 }
@@ -357,19 +376,17 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 2
-                        }
+                      dataframe_ref {
+                        id: 2
                       }
                     }
                     src {
                       end_column: 78
                       end_line: 34
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 65
                       start_line: 34
                     }
@@ -380,7 +397,7 @@ body {
                     src {
                       end_column: 91
                       end_line: 34
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 65
                       start_line: 34
                     }
@@ -390,7 +407,7 @@ body {
                 src {
                   end_column: 91
                   end_line: 34
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 65
                   start_line: 34
                 }
@@ -399,97 +416,248 @@ body {
             src {
               end_column: 92
               end_line: 34
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 29
               start_line: 34
             }
           }
         }
         source {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
           end_column: 136
           end_line: 34
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 34
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
   eval {
-    uid: 4
-    var_id {
-      bitfield1: 3
-    }
+    bind_id: 3
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table {
         name {
-          sp_table_name_flat {
-            name: "test_table_1b"
+          name {
+            name_flat {
+              name: "test_table_1b"
+            }
           }
         }
         src {
           end_column: 48
           end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 17
           start_line: 37
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 5
-    var_id {
-      bitfield1: 5
-    }
+    uid: 4
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                      dataframe_ref {
+                        id: 1
                       }
                     }
                     src {
                       end_column: 88
                       end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 75
                       start_line: 39
                     }
@@ -500,7 +668,7 @@ body {
                     src {
                       end_column: 101
                       end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 75
                       start_line: 39
                     }
@@ -510,93 +678,89 @@ body {
                 src {
                   end_column: 101
                   end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 75
                   start_line: 39
                 }
               }
             }
             update_assignments {
-              list {
-                _1 {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 8
-                      start_line: 39
-                    }
-                    v: "str"
+              _1 {
+                string_val {
+                  src {
+                    end_column: 167
+                    end_line: 39
+                    file: 2
+                    start_column: 8
+                    start_line: 39
                   }
+                  v: "str"
                 }
-                _2 {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 8
-                      start_line: 39
-                    }
-                    v: "value2"
+              }
+              _2 {
+                string_val {
+                  src {
+                    end_column: 167
+                    end_line: 39
+                    file: 2
+                    start_column: 8
+                    start_line: 39
                   }
+                  v: "value2"
                 }
               }
             }
           }
         }
         clauses {
-          sp_merge_update_when_matched_clause {
+          merge_update_when_matched_clause {
             update_assignments {
-              list {
-                _1 {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 8
-                      start_line: 39
-                    }
-                    v: "num"
+              _1 {
+                string_val {
+                  src {
+                    end_column: 167
+                    end_line: 39
+                    file: 2
+                    start_column: 8
+                    start_line: 39
                   }
+                  v: "num"
                 }
-                _2 {
-                  int64_val {
-                    src {
-                      end_column: 167
-                      end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 8
-                      start_line: 39
-                    }
-                    v: 123
+              }
+              _2 {
+                int64_val {
+                  src {
+                    end_column: 167
+                    end_line: 39
+                    file: 2
+                    start_column: 8
+                    start_line: 39
                   }
+                  v: 123
                 }
               }
             }
           }
         }
-        id {
-          bitfield1: 5
+        df {
+          dataframe_ref {
+            id: 4
+          }
         }
         join_expr {
           neq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "str"
                 df {
-                  sp_dataframe_ref {
-                    id {
-                      bitfield1: 1
-                    }
+                  dataframe_ref {
+                    id: 1
                   }
                 }
                 src {
                   end_column: 51
                   end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 38
                   start_line: 39
                 }
@@ -607,7 +771,7 @@ body {
                 src {
                   end_column: 51
                   end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 29
                   start_line: 39
                 }
@@ -617,151 +781,298 @@ body {
             src {
               end_column: 51
               end_line: 39
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 29
               start_line: 39
             }
           }
         }
         source {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
           end_column: 167
           end_line: 39
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 39
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
+    uid: 5
   }
 }
 body {
   eval {
-    uid: 7
-    var_id {
-      bitfield1: 6
-    }
+    bind_id: 5
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table {
         name {
-          sp_table_name_flat {
-            name: "test_table_2"
+          name {
+            name_flat {
+              name: "test_table_2"
+            }
           }
         }
         src {
           end_column: 47
           end_line: 42
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 17
           start_line: 42
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 6
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_insert_when_not_matched_clause {
+          merge_insert_when_not_matched_clause {
             insert_keys {
-              list {
-                string_val {
-                  src {
-                    end_column: 140
-                    end_line: 44
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_column: 8
-                    start_line: 44
-                  }
-                  v: "str"
+              string_val {
+                src {
+                  end_column: 140
+                  end_line: 44
+                  file: 2
+                  start_column: 8
+                  start_line: 44
                 }
+                v: "str"
               }
             }
             insert_values {
-              list {
-                string_val {
-                  src {
-                    end_column: 140
-                    end_line: 44
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_column: 8
-                    start_line: 44
-                  }
-                  v: "value"
+              string_val {
+                src {
+                  end_column: 140
+                  end_line: 44
+                  file: 2
+                  start_column: 8
+                  start_line: 44
                 }
+                v: "value"
               }
             }
           }
         }
-        id {
-          bitfield1: 8
+        df {
+          dataframe_ref {
+            id: 6
+          }
         }
         join_expr {
           and {
             lhs {
               neq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 8
-                        }
+                      dataframe_ref {
+                        id: 6
                       }
                     }
                     src {
                       end_column: 43
                       end_line: 44
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 30
                       start_line: 44
                     }
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                      dataframe_ref {
+                        id: 1
                       }
                     }
                     src {
                       end_column: 60
                       end_line: 44
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 47
                       start_line: 44
                     }
@@ -770,7 +1081,7 @@ body {
                 src {
                   end_column: 60
                   end_line: 44
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 30
                   start_line: 44
                 }
@@ -779,19 +1090,17 @@ body {
             rhs {
               neq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 8
-                        }
+                      dataframe_ref {
+                        id: 6
                       }
                     }
                     src {
                       end_column: 78
                       end_line: 44
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 65
                       start_line: 44
                     }
@@ -802,7 +1111,7 @@ body {
                     src {
                       end_column: 91
                       end_line: 44
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 65
                       start_line: 44
                     }
@@ -812,7 +1121,7 @@ body {
                 src {
                   end_column: 91
                   end_line: 44
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 65
                   start_line: 44
                 }
@@ -821,97 +1130,248 @@ body {
             src {
               end_column: 92
               end_line: 44
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 29
               start_line: 44
             }
           }
         }
         source {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
           end_column: 140
           end_line: 44
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 44
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
+    uid: 7
   }
 }
 body {
   eval {
-    uid: 10
-    var_id {
-      bitfield1: 9
-    }
+    bind_id: 7
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table {
         name {
-          sp_table_name_flat {
-            name: "test_table_2b"
+          name {
+            name_flat {
+              name: "test_table_2b"
+            }
           }
         }
         src {
           end_column: 48
           end_line: 46
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 17
           start_line: 46
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
+    uid: 8
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_insert_when_not_matched_clause {
+          merge_insert_when_not_matched_clause {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                      dataframe_ref {
+                        id: 1
                       }
                     }
                     src {
                       end_column: 92
                       end_line: 49
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 79
                       start_line: 49
                     }
@@ -922,7 +1382,7 @@ body {
                     src {
                       end_column: 105
                       end_line: 49
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 79
                       start_line: 49
                     }
@@ -932,93 +1392,87 @@ body {
                 src {
                   end_column: 105
                   end_line: 49
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 79
                   start_line: 49
                 }
               }
             }
             insert_keys {
-              list {
+              string_val {
+                src {
+                  end_column: 175
+                  end_line: 49
+                  file: 2
+                  start_column: 8
+                  start_line: 49
+                }
+                v: "str"
+              }
+            }
+            insert_values {
+              string_val {
+                src {
+                  end_column: 175
+                  end_line: 49
+                  file: 2
+                  start_column: 8
+                  start_line: 49
+                }
+                v: "value"
+              }
+            }
+          }
+        }
+        clauses {
+          merge_update_when_matched_clause {
+            update_assignments {
+              _1 {
                 string_val {
                   src {
                     end_column: 175
                     end_line: 49
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 8
                     start_line: 49
                   }
                   v: "str"
                 }
               }
-            }
-            insert_values {
-              list {
+              _2 {
                 string_val {
                   src {
                     end_column: 175
                     end_line: 49
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_column: 8
                     start_line: 49
                   }
-                  v: "value"
+                  v: "value3"
                 }
               }
             }
           }
         }
-        clauses {
-          sp_merge_update_when_matched_clause {
-            update_assignments {
-              list {
-                _1 {
-                  string_val {
-                    src {
-                      end_column: 175
-                      end_line: 49
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 8
-                      start_line: 49
-                    }
-                    v: "str"
-                  }
-                }
-                _2 {
-                  string_val {
-                    src {
-                      end_column: 175
-                      end_line: 49
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 8
-                      start_line: 49
-                    }
-                    v: "value3"
-                  }
-                }
-              }
-            }
+        df {
+          dataframe_ref {
+            id: 8
           }
-        }
-        id {
-          bitfield1: 11
         }
         join_expr {
           neq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "str"
                 df {
-                  sp_dataframe_ref {
-                    id {
-                      bitfield1: 1
-                    }
+                  dataframe_ref {
+                    id: 1
                   }
                 }
                 src {
                   end_column: 42
                   end_line: 49
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 29
                   start_line: 49
                 }
@@ -1029,7 +1483,7 @@ body {
                 src {
                   end_column: 51
                   end_line: 49
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 29
                   start_line: 49
                 }
@@ -1039,121 +1493,272 @@ body {
             src {
               end_column: 51
               end_line: 49
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 29
               start_line: 49
             }
           }
         }
         source {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
           end_column: 175
           end_line: 49
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 49
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 12
-    var_id {
-      bitfield1: 12
-    }
+    uid: 9
   }
 }
 body {
   eval {
-    uid: 13
-    var_id {
-      bitfield1: 12
-    }
+    bind_id: 9
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table {
         name {
-          sp_table_name_flat {
-            name: "test_table_3"
+          name {
+            name_flat {
+              name: "test_table_3"
+            }
           }
         }
         src {
           end_column: 47
           end_line: 52
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 17
           start_line: 52
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 14
-    var_id {
-      bitfield1: 14
-    }
+    uid: 10
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table_merge {
+      table_merge {
         block: true
         clauses {
-          sp_merge_delete_when_matched_clause {
+          merge_delete_when_matched_clause {
           }
         }
-        id {
-          bitfield1: 14
+        df {
+          dataframe_ref {
+            id: 10
+          }
         }
         join_expr {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
-                    id {
-                      bitfield1: 14
-                    }
+                  dataframe_ref {
+                    id: 10
                   }
                 }
                 src {
                   end_column: 60
                   end_line: 54
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 47
                   start_line: 54
                 }
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
-                    id {
-                      bitfield1: 1
-                    }
+                  dataframe_ref {
+                    id: 1
                   }
                 }
                 src {
                   end_column: 77
                   end_line: 54
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 64
                   start_line: 54
                 }
@@ -1162,96 +1767,247 @@ body {
             src {
               end_column: 77
               end_line: 54
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 47
               start_line: 54
             }
           }
         }
         source {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
           end_column: 114
           end_line: 54
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 54
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 15
-    var_id {
-      bitfield1: 15
-    }
+    uid: 11
   }
 }
 body {
   eval {
-    uid: 16
-    var_id {
-      bitfield1: 15
-    }
+    bind_id: 11
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table {
         name {
-          sp_table_name_flat {
-            name: "test_table_4"
+          name {
+            name_flat {
+              name: "test_table_4"
+            }
           }
         }
         src {
           end_column: 47
           end_line: 57
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 17
           start_line: 57
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 17
-    var_id {
-      bitfield1: 17
-    }
+    uid: 12
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table_merge {
+      table_merge {
         clauses {
-          sp_merge_delete_when_matched_clause {
+          merge_delete_when_matched_clause {
             condition {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "str"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                      dataframe_ref {
+                        id: 1
                       }
                     }
                     src {
                       end_column: 113
                       end_line: 59
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 100
                       start_line: 59
                     }
@@ -1262,7 +2018,7 @@ body {
                     src {
                       end_column: 126
                       end_line: 59
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 100
                       start_line: 59
                     }
@@ -1272,7 +2028,7 @@ body {
                 src {
                   end_column: 126
                   end_line: 59
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 100
                   start_line: 59
                 }
@@ -1280,27 +2036,27 @@ body {
             }
           }
         }
-        id {
-          bitfield1: 17
+        df {
+          dataframe_ref {
+            id: 12
+          }
         }
         join_expr {
           and {
             lhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                      dataframe_ref {
+                        id: 1
                       }
                     }
                     src {
                       end_column: 43
                       end_line: 59
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 30
                       start_line: 59
                     }
@@ -1311,7 +2067,7 @@ body {
                     src {
                       end_column: 48
                       end_line: 59
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 30
                       start_line: 59
                     }
@@ -1321,7 +2077,7 @@ body {
                 src {
                   end_column: 48
                   end_line: 59
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 30
                   start_line: 59
                 }
@@ -1330,38 +2086,34 @@ body {
             rhs {
               eq {
                 lhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 17
-                        }
+                      dataframe_ref {
+                        id: 12
                       }
                     }
                     src {
                       end_column: 66
                       end_line: 59
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 53
                       start_line: 59
                     }
                   }
                 }
                 rhs {
-                  sp_dataframe_col {
+                  dataframe_col {
                     col_name: "num"
                     df {
-                      sp_dataframe_ref {
-                        id {
-                          bitfield1: 1
-                        }
+                      dataframe_ref {
+                        id: 1
                       }
                     }
                     src {
                       end_column: 83
                       end_line: 59
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 70
                       start_line: 59
                     }
@@ -1370,7 +2122,7 @@ body {
                 src {
                   end_column: 83
                   end_line: 59
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 53
                   start_line: 59
                 }
@@ -1379,116 +2131,267 @@ body {
             src {
               end_column: 84
               end_line: 59
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 29
               start_line: 59
             }
           }
         }
         source {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
           end_column: 151
           end_line: 59
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 59
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 18
-    var_id {
-      bitfield1: 18
-    }
+    uid: 13
   }
 }
 body {
   eval {
-    uid: 19
-    var_id {
-      bitfield1: 18
-    }
+    bind_id: 13
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "one"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "two"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 96
+                  end_line: 27
+                  file: 2
+                  start_column: 17
+                  start_line: 27
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 96
+                      end_line: 27
+                      file: 2
+                      start_column: 17
+                      start_line: 27
+                    }
+                    v: "three"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "num"
+                  }
+                }
+                data_type {
+                  integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "str"
+                  }
+                }
+                data_type {
+                  string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 27
+          file: 2
+          start_column: 17
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table {
         name {
-          sp_table_name_flat {
-            name: "test_table_5"
+          name {
+            name_flat {
+              name: "test_table_5"
+            }
           }
         }
         src {
           end_column: 47
           end_line: 62
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 17
           start_line: 62
         }
         variant {
-          sp_table_init: true
+          table_init: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "target"
     }
-    uid: 20
-    var_id {
-      bitfield1: 20
-    }
+    uid: 14
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table_merge {
-        id {
-          bitfield1: 20
+      table_merge {
+        df {
+          dataframe_ref {
+            id: 14
+          }
         }
         join_expr {
           eq {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
-                    id {
-                      bitfield1: 20
-                    }
+                  dataframe_ref {
+                    id: 14
                   }
                 }
                 src {
                   end_column: 53
                   end_line: 64
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 40
                   start_line: 64
                 }
               }
             }
             rhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "num"
                 df {
-                  sp_dataframe_ref {
-                    id {
-                      bitfield1: 1
-                    }
+                  dataframe_ref {
+                    id: 1
                   }
                 }
                 src {
                   end_column: 70
                   end_line: 64
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 57
                   start_line: 64
                 }
@@ -1497,23 +2400,21 @@ body {
             src {
               end_column: 70
               end_line: 64
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 40
               start_line: 64
             }
           }
         }
         source {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
           end_column: 160
           end_line: 64
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 64
         }
@@ -1523,20 +2424,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 21
-    var_id {
-      bitfield1: 21
-    }
+    uid: 15
   }
 }
 body {
   eval {
-    uid: 22
-    var_id {
-      bitfield1: 21
-    }
+    bind_id: 15
   }
 }
 client_ast_version: 1
@@ -1552,5 +2448,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 32
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

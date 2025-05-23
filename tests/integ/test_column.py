@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -10,8 +10,26 @@ import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkColumnException, SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, parse_json, when
-from tests.utils import TestData, Utils
+from snowflake.snowpark.functions import (
+    col,
+    lit,
+    parse_json,
+    second,
+    to_timestamp,
+    when,
+    hour,
+    minute,
+    window,
+)
+from snowflake.snowpark.types import (
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+)
+from tests.utils import TestData, Utils, IS_IN_STORED_PROC
 
 
 def test_column_constructors_subscriptable(session):
@@ -58,7 +76,7 @@ def test_try_cast_work_cast_not_work(session, local_testing_mode):
     with pytest.raises(SnowparkSQLException) as execinfo:
         df.select(df["a"].cast("date")).collect()
     if not local_testing_mode:
-        assert "Date 'aaa' is not recognized" in str(execinfo)
+        assert "Date 'aaa' is not recognized" in str(execinfo.value)
 
     Utils.check_answer(
         df.select(df["a"].try_cast("date")), [Row(None)]
@@ -137,6 +155,37 @@ def test_contains(session):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2037787: timestamp is return in RFC 1123 format, need more investigation, skip to unblock",
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="window function is not supported in Local Testing",
+)
+def test_internal_alias(session):
+    df = session.create_dataframe(
+        [[datetime.datetime(1970, 1, 1, 0, 0, 0)]], schema=["ts"]
+    )
+    Utils.check_answer(
+        df.select(window(df.ts, "10 seconds").alias("my_alias")),
+        [
+            Row(
+                MY_ALIAS='{\n  "end": "1970-01-01 00:00:10.000",\n  "start": "1970-01-01 00:00:00.000"\n}'
+            )
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(window(df.ts, "10 seconds").cast(StringType())),
+        [Row('{"end":"1970-01-01 00:00:10.000","start":"1970-01-01 00:00:00.000"}')],
+    )
+    Utils.check_answer(
+        df.select(second(to_timestamp(window(df.ts, "10 seconds")["end"]))),
+        [Row(10)],
+    )
+
+
 def test_when_accept_literal_value(session):
     assert TestData.null_data1(session).select(
         when(col("a").is_null(), 5).when(col("a") == 1, 6).otherwise(7).as_("a")
@@ -156,6 +205,40 @@ def test_logical_operator_raise_error(session):
     with pytest.raises(TypeError) as execinfo:
         df.filter(df.a > 1 and df.b > 1)
     assert "Cannot convert a Column object into bool" in str(execinfo)
+
+
+def test_function_calls_inside_when(session):
+    schema = StructType(
+        [
+            StructField("id", IntegerType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+        ]
+    )
+    df = session.create_dataframe(
+        [
+            (1, datetime.datetime(2020, 1, 1, 1, 1, 1)),
+            (1, datetime.datetime(2020, 1, 1, 23, 46, 1)),
+            (1, datetime.datetime(2020, 1, 1, 1, 46, 1)),
+        ],
+        schema=schema,
+    )
+
+    df2 = df.withColumn(
+        "hour_rounded",
+        when(
+            minute("timestamp") > 45,
+            when(hour("timestamp") == 23, lit(0)).otherwise(hour("timestamp") + 1),
+        ).otherwise(hour("timestamp")),
+    )
+
+    Utils.check_answer(
+        df2,
+        [
+            Row(1, datetime.datetime(2020, 1, 1, 1, 1, 1), 1),
+            Row(1, datetime.datetime(2020, 1, 1, 23, 46, 1), 0),
+            Row(1, datetime.datetime(2020, 1, 1, 1, 46, 1), 2),
+        ],
+    )
 
 
 @pytest.mark.xfail(

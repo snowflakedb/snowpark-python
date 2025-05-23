@@ -1,7 +1,6 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 
 import modin.pandas as pd
 import numpy as np
@@ -317,19 +316,31 @@ def test_align_frame_with_series(join):
 
 
 @pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
-def test_align_basic_axis0_on_row_position_columns(join):
+@pytest.mark.parametrize("enable_sql_simplifier", [True, False])
+def test_align_basic_axis0_on_row_position_columns(
+    session, join, enable_sql_simplifier
+):
+    session.sql_simplifier_enabled = enable_sql_simplifier
+    expected_window_count = 16
+    if not session.sql_simplifier_enabled:
+        expected_window_count = 18
+
     num_cols = 3
     select_data = [f'{i} as "{i}"' for i in range(num_cols)]
     query = f"select {', '.join(select_data)}"
 
     df1 = pd.read_snowflake(query)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df1 = df1.sort_values(df1.columns.to_list())
+
     df2 = pd.read_snowflake(query)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df2 = df2.sort_values(df2.columns.to_list())
 
     native_df1 = df1.to_pandas()
     native_df2 = df2.to_pandas()
 
-    # verify that no window function is generated
-    with SqlCounter(query_count=2, join_count=2, window_count=0):
+    with SqlCounter(query_count=2, join_count=2, window_count=expected_window_count):
         native_left, native_right = native_df1.align(
             native_df2,
             join=join,

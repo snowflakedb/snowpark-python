@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import AbstractSet, Dict, List, Optional
@@ -231,3 +231,7 @@ class LastValue(RankRelatedFunctionExpression):
 
 class FirstValue(RankRelatedFunctionExpression):
     sql = "FIRST_VALUE"
+
+
+class NthValue(RankRelatedFunctionExpression):
+    sql = "NTH_VALUE"

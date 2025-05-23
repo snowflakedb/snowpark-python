@@ -1,7 +1,6 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 
 import modin.pandas as pd
 import numpy as np
@@ -16,9 +15,9 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 @pytest.mark.parametrize(
     "args, kwargs, expected_query_count",
     [
-        ([{"A": [1, 2], "B": [3, 4], "C": [5, 6]}], {}, 1),
-        ([{"A": [], "B": []}], {}, 1),
-        ([np.random.rand(100, 10)], {}, 6),
+        ([{"A": [1, 2], "B": [3, 4], "C": [5, 6]}], {}, 0),
+        ([{"A": [], "B": []}], {}, 0),
+        ([np.random.rand(100, 10)], {}, 0),
         (
             [{"Value": [10, 20, 30, 40]}],
             {
@@ -28,7 +27,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
             },
             1,
         ),
-        ([[pd.Timedelta(1), 1]], {}, 1),
+        ([[pd.Timedelta(1), 1]], {}, 0),
     ],
     ids=[
         "non-empty 2x3",
@@ -48,7 +47,7 @@ def test_dataframe_size_param(args, kwargs, expected_query_count):
         )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_dataframe_size_index_empty(empty_index_native_pandas_dataframe):
     eval_snowpark_pandas_result(
         pd.DataFrame(empty_index_native_pandas_dataframe),

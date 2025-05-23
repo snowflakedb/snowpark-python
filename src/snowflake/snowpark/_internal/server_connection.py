@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -49,11 +49,15 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryClient
+from snowflake.snowpark._internal.telemetry import (
+    TelemetryClient,
+    get_plan_telemetry_metrics,
+)
 from snowflake.snowpark._internal.utils import (
     create_rlock,
     create_thread_local,
     escape_quotes,
+    is_ast_enabled,
     get_application_name,
     get_version,
     is_in_stored_procedure,
@@ -263,7 +267,6 @@ class ServerConnection:
         rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
-    @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(
             self._run_new_describe(self._cursor, query), self.max_string_size
@@ -427,7 +430,7 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
         notify_kwargs = {}
-        if DATAFRAME_AST_PARAMETER in kwargs:
+        if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
 
         try:
@@ -489,6 +492,7 @@ class ServerConnection:
         num_statements: Optional[int] = None,
         ignore_results: bool = False,
         async_post_actions: Optional[List[Query]] = None,
+        to_arrow: bool = False,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -524,7 +528,10 @@ class ServerConnection:
             if ignore_results:
                 return {"data": None, "sfqid": results_cursor.sfqid}
             return self._to_data_or_iter(
-                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+                results_cursor=results_cursor,
+                to_pandas=to_pandas,
+                to_iter=to_iter,
+                to_arrow=to_arrow,
             )
         else:
             return AsyncJob(
@@ -544,6 +551,7 @@ class ServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
+        to_arrow: bool = False,
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
         if to_iter:
@@ -576,6 +584,12 @@ class ServerConnection:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
                     str(ex)
                 )
+        elif to_arrow:
+            data_or_iter = (
+                results_cursor.fetch_arrow_batches()
+                if to_iter
+                else results_cursor.fetch_arrow_all(True)
+            )
         else:
             data_or_iter = (
                 iter(results_cursor) if to_iter else results_cursor.fetchall()
@@ -588,6 +602,7 @@ class ServerConnection:
         plan: SnowflakePlan,
         to_pandas: bool = False,
         to_iter: bool = False,
+        to_arrow: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
@@ -615,10 +630,11 @@ class ServerConnection:
             data_type=data_type,
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
+            to_arrow=to_arrow,
         )
         if not block:
             return result_set
-        elif to_pandas:
+        elif to_pandas or to_arrow:
             return result_set["data"]
         else:
             if to_iter:
@@ -641,6 +657,7 @@ class ServerConnection:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         ignore_results: bool = False,
+        to_arrow: bool = False,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -698,6 +715,7 @@ class ServerConnection:
                     params=params,
                     ignore_results=ignore_results,
                     async_post_actions=post_actions,
+                    to_arrow=to_arrow,
                     **kwargs,
                 )
 
@@ -724,10 +742,11 @@ class ServerConnection:
                             final_query = final_query.replace(holder, id_)
                         if i == len(main_queries) - 1 and dataframe_ast:
                             kwargs[DATAFRAME_AST_PARAMETER] = dataframe_ast
+                        is_final_query = i == len(main_queries) - 1
                         result = self.run_query(
                             final_query,
                             to_pandas,
-                            to_iter and (i == len(main_queries) - 1),
+                            to_iter and is_final_query,
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
@@ -737,6 +756,7 @@ class ServerConnection:
                             params=query.params,
                             ignore_results=ignore_results,
                             async_post_actions=post_actions,
+                            to_arrow=to_arrow and is_final_query,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -759,6 +779,12 @@ class ServerConnection:
                         case_sensitive=case_sensitive,
                         **kwargs,
                     )
+
+            if plan.session._collect_snowflake_plan_telemetry_at_critical_path:
+                self._telemetry_client.send_plan_metrics_telemetry(
+                    session_id=self.get_session_id(),
+                    data=get_plan_telemetry_metrics(plan),
+                )
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()

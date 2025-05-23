@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -103,7 +103,7 @@ def test_series_where_index_no_names():
     )
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_series_where_with_np_array_cond():
     data = [1, 2]
     cond = np.array([True, False])
@@ -220,9 +220,7 @@ def test_series_where_with_scalar_cond(cond):
     native_ser = native_pd.Series([1, 2, 3])
     snow_ser = pd.Series(native_ser)
 
-    sql_count = 1 if isinstance(cond, list) else 0
-
-    with SqlCounter(query_count=sql_count):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_ser,
             native_ser,

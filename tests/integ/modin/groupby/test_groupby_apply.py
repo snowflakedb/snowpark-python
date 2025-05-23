@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -18,7 +18,6 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     assert_values_equal,
@@ -27,11 +26,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
+from tests.utils import RUNNING_ON_GH
 
 # Use the workaround shown below for applying functions that are attributes
 # of this module.
@@ -80,7 +75,7 @@ def transform_that_changes_columns(df: native_pd.DataFrame) -> native_pd.DataFra
     return native_pd.DataFrame(
         {
             "custom_sum": df["int_col"].cumsum() + df["int_col"].max(),
-            "custom_string": df["string_col_1"].astype("object").cumsum()
+            "custom_string": (df["string_col_2"].astype("object").cumsum())
             + df["string_col_2"].str.cat(sep="-"),
         }
     )
@@ -149,7 +144,7 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
     )
 
 
-# For almost all test cases, the query count is either 5 or 6,
+# For almost all test cases, the query count is 4,
 # the join count is 1, and the UDTF count is 1:
 
 # 0. Create temporary stage for UDTF (we filter this out when counting queries)
@@ -159,37 +154,38 @@ def grouping_dfs_with_multiindexes() -> tuple[pd.DataFrame, native_pd.DataFrame]
 # 2. Put a zip file with the UDTF definition in the temporary stage (we filter this out when counting queries)
 # 3. Create the UDTF (increasing UDTF count by 1)
 # 3. Apply the UDTF using a join (increasing join count by 1)
-# 4. Save UDTF result as temp table to work around SNOW-1060191
-# 5. convert result to pandas
+# 4. convert result to pandas
 
-# For cases where we need to check whether we have a transform, we add an extra
-# query between 4) and 5) to check whether the function acted as a transform.
-
-QUERY_COUNT_WITHOUT_TRANSFORM_CHECK = 5
-QUERY_COUNT_WITH_TRANSFORM_CHECK = 6
+QUERY_COUNT = 4
 JOIN_COUNT = 1
 UDTF_COUNT = 1
 
 
+@pytest.mark.parametrize(
+    "include_groups", [True, False], ids=lambda v: f"include_groups_{v}"
+)
 class TestFuncReturnsDataFrame:
     @pytest.mark.parametrize(
         "func",
         [
             normalize_numeric_columns_by_sum,
             param(
-                lambda df: df.iloc[:, [2, 2, 0, 1]],
+                lambda df: df.iloc[:, [1, 0]],
                 id="different_columns_but_same_index",
             ),
             param(
                 lambda df: (
                     native_pd.DataFrame(
-                        [["k0_grouped", 0, 1], ["k0_grouped", 2, 2]],
+                        [
+                            list(range(0, len(df.columns))),
+                            list(range(1, 1 + len(df.columns))),
+                        ],
                         index=native_pd.Index([None, 3], name="new_index"),
                         columns=df.columns,
                     )
-                    if df[("a", "string_col_1")].iloc[0] == "k0"
+                    if df.index[0][0] == "i1"
                     else native_pd.DataFrame(
-                        [["other_key_grouped", 100, 101]],
+                        [list(range(2, 2 + len(df.columns)))],
                         index=native_pd.Index([None, 3], name="new_index"),
                         columns=df.columns,
                     )
@@ -200,84 +196,114 @@ class TestFuncReturnsDataFrame:
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
     def test_group_by_one_column_and_one_level_with_default_kwargs(
-        self, grouping_dfs_with_multiindexes, func
+        self, grouping_dfs_with_multiindexes, func, include_groups
     ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby(
                 ["level_0", ("a", "string_col_1")],
-            ).apply(func),
+            ).apply(func, include_groups=include_groups),
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_df_with_default_index(self, grouping_dfs_with_multiindexes):
+    def test_df_with_default_index(
+        self, grouping_dfs_with_multiindexes, include_groups
+    ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.reset_index(drop=True)
             .groupby(("a", "string_col_1"))
-            .apply(normalize_numeric_columns_by_sum),
+            .apply(normalize_numeric_columns_by_sum, include_groups=include_groups),
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_func_returns_empty_frame(self):
+    def test_func_returns_empty_frame(self, include_groups):
         eval_snowpark_pandas_result(
             *create_test_dfs([[1, 2], [3, 4]]),
             lambda df: df.groupby(0).apply(
-                lambda df: native_pd.DataFrame(index=[1, 3], columns=[4, 5])
+                lambda df: native_pd.DataFrame(index=[1, 3], columns=[4, 5]),
+                include_groups=include_groups,
             ),
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_args_and_kwargs(self, grouping_dfs_with_multiindexes):
+    def test_args_and_kwargs(self, grouping_dfs_with_multiindexes, include_groups):
         def func(df, num1, str1):
             return df.applymap(lambda x: "_".join((str(x), num1, str1)))
 
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
-            lambda df: df.groupby("level_0").apply(func, "0.3", str1="str1"),
+            lambda df: df.groupby("level_0").apply(
+                func, "0.3", str1="str1", include_groups=include_groups
+            ),
         )
 
     @pytest.mark.parametrize(
         "level",
         [
             0,
+            ["level_1", "level_0"],
+        ],
+    )
+    @sql_count_checker(
+        query_count=QUERY_COUNT,
+        udtf_count=UDTF_COUNT,
+        join_count=JOIN_COUNT,
+    )
+    def test_group_by_level_basic(
+        self, grouping_dfs_with_multiindexes, level, include_groups
+    ):
+        eval_snowpark_pandas_result(
+            *grouping_dfs_with_multiindexes,
+            lambda df: df.groupby(level=level).apply(
+                lambda df: df.iloc[::-1, ::-1], include_groups=include_groups
+            ),
+        )
+
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
+    @pytest.mark.parametrize(
+        "level",
+        [
             [0],
             [1, 0],
             "level_0",
             ["level_0"],
-            ["level_1", "level_0"],
             [0, "level_1"],
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_group_by_level(self, grouping_dfs_with_multiindexes, level):
+    def test_group_by_level(
+        self, grouping_dfs_with_multiindexes, level, include_groups
+    ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
-            lambda df: df.groupby(level=level).apply(lambda df: df.iloc[::-1, ::-1]),
+            lambda df: df.groupby(level=level).apply(
+                lambda df: df.iloc[::-1, ::-1], include_groups=include_groups
+            ),
         )
 
-    def test_dropna_false(self, grouping_dfs_with_multiindexes):
+    def test_dropna_false(self, grouping_dfs_with_multiindexes, include_groups):
         snow_df, pandas_df = grouping_dfs_with_multiindexes
         # check that we are going to group by a column that has nulls.
         assert pandas_df[("a", "string_col_1")].isna().sum() > 0
@@ -286,7 +312,7 @@ class TestFuncReturnsDataFrame:
             return df.groupby(
                 ("a", "string_col_1"),
                 dropna=False,
-            ).apply(normalize_numeric_columns_by_sum)
+            ).apply(normalize_numeric_columns_by_sum, include_groups=include_groups)
 
         with SqlCounter(
             # When dropna=False, we can skip the dropna query
@@ -294,12 +320,12 @@ class TestFuncReturnsDataFrame:
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT,
         ):
+            pandas_result = operation(pandas_df)
             snow_result = operation(snow_df)
-        pandas_result = operation(pandas_df)
-        # results are equal if we ignore index
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            snow_result.reset_index(drop=True), pandas_result.reset_index(drop=True)
-        )
+            # results are equal if we ignore index
+            assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+                snow_result.reset_index(drop=True), pandas_result.reset_index(drop=True)
+            )
         # pandas index is not equal to snow index due to https://github.com/pandas-dev/pandas/issues/29111,
         # so hardcode the index for comparison
         assert_values_equal(
@@ -318,7 +344,7 @@ class TestFuncReturnsDataFrame:
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         join_count=JOIN_COUNT,
         udtf_count=UDTF_COUNT,
     )
@@ -334,14 +360,18 @@ class TestFuncReturnsDataFrame:
             np.nan,
         ],
     )
-    def test_group_dataframe_with_column_of_all_nulls_snow_1233832(self, null_value):
+    def test_group_dataframe_with_column_of_all_nulls_snow_1233832(
+        self, null_value, include_groups
+    ):
         eval_snowpark_pandas_result(
             *create_test_dfs({"null_col": [null_value], "int_col": [1]}),
-            lambda df: df.groupby("int_col").apply(lambda x: x),
+            lambda df: df.groupby("int_col").apply(
+                lambda x: x, include_groups=include_groups
+            ),
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -352,16 +382,16 @@ class TestFuncReturnsDataFrame:
             ("a", "string_col_1"),
         ],
     )
-    def test_sort_false(self, grouping_dfs_with_multiindexes, by):
+    def test_sort_false(self, grouping_dfs_with_multiindexes, by, include_groups):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby(by, sort=False).apply(
-                normalize_numeric_columns_by_sum
+                normalize_numeric_columns_by_sum, include_groups=include_groups
             ),
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
@@ -373,10 +403,14 @@ class TestFuncReturnsDataFrame:
         # behavior depends on whether the function is a transform.
         [normalize_numeric_columns_by_sum, duplicate_df_rowwise],
     )
-    def test_as_index_false(self, grouping_dfs_with_multiindexes, by, func):
+    def test_as_index_false(
+        self, grouping_dfs_with_multiindexes, by, func, include_groups
+    ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
-            lambda df: df.groupby(by=by, as_index=False).apply(func),
+            lambda df: df.groupby(by=by, as_index=False).apply(
+                func, include_groups=include_groups
+            ),
         )
 
     @pytest.mark.parametrize(
@@ -388,27 +422,29 @@ class TestFuncReturnsDataFrame:
     @sql_count_checker(
         # when group_keys=False, we have to check whether the function was a
         # transform because we only reindex to the original ordering if
-        query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_group_keys_false(self, grouping_dfs_with_multiindexes, as_index):
+    def test_group_keys_false(
+        self, grouping_dfs_with_multiindexes, as_index, include_groups
+    ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby(
                 by=["level_0", ("a", "string_col_1")],
                 as_index=as_index,
                 group_keys=False,
-            ).apply(normalize_numeric_columns_by_sum),
+            ).apply(normalize_numeric_columns_by_sum, include_groups=include_groups),
         )
 
     @sql_count_checker(query_count=0)
     @pytest.mark.xfail(strict=True, raises=NotImplementedError)
-    def test_axis_one(self, grouping_dfs_with_multiindexes):
+    def test_axis_one(self, grouping_dfs_with_multiindexes, include_groups):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby(level=0, axis=1).apply(
-                normalize_numeric_columns_by_sum
+                normalize_numeric_columns_by_sum, include_groups=include_groups
             ),
         )
 
@@ -463,7 +499,7 @@ class TestFuncReturnsDataFrame:
         ],
     )
     def test_df_with_single_level_labels(
-        self, by, as_index, func, group_keys, dfs_kwargs
+        self, by, as_index, func, group_keys, dfs_kwargs, include_groups
     ):
         mdf, pdf = create_test_dfs(**dfs_kwargs)
 
@@ -472,17 +508,11 @@ class TestFuncReturnsDataFrame:
                 by=by,
                 group_keys=group_keys,
                 as_index=as_index,
-            ).apply(func)
+            ).apply(func, include_groups=include_groups)
 
         pandas_result = operation(pdf)
         with SqlCounter(
-            # group_keys=False requires an extra query to check whether we're
-            # applying a transform.
-            query_count=(
-                QUERY_COUNT_WITHOUT_TRANSFORM_CHECK
-                if group_keys
-                else QUERY_COUNT_WITH_TRANSFORM_CHECK
-            ),
+            query_count=QUERY_COUNT,
             join_count=JOIN_COUNT + 1,
             udtf_count=UDTF_COUNT,
         ):
@@ -509,7 +539,7 @@ class TestFuncReturnsDataFrame:
                         native_pd.DataFrame(
                             {
                                 "custom_sum": [26, 30, 30, 46],
-                                "custom_string": ["k0e", "k1d-b", "k0c", "k1k0d-b"],
+                                "custom_string": ["ee", "dd-b", "cc", "dbd-b"],
                             },
                             index=native_pd.Index(
                                 ["i0", "i1", "i2", "i1"], name="index"
@@ -524,10 +554,10 @@ class TestFuncReturnsDataFrame:
                             {
                                 "custom_sum": [29, 28, 44, 60],
                                 "custom_string": [
-                                    "k0e-c-b",
-                                    "k1d",
-                                    "k0k0e-c-b",
-                                    "k0k0k0e-c-b",
+                                    "ee-c-b",
+                                    "dd",
+                                    "ece-c-b",
+                                    "ecbe-c-b",
                                 ],
                             },
                             index=native_pd.Index(
@@ -542,20 +572,19 @@ class TestFuncReturnsDataFrame:
 
     @pytest.mark.parametrize("set_sql_simplifier", [True, False], indirect=True)
     @sql_count_checker(
-        # we need a transform check because group_keys=False.
-        query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         join_count=JOIN_COUNT,
         udtf_count=UDTF_COUNT,
     )
     def test_apply_transfform_to_subset(
-        self, grouping_dfs_with_multiindexes, set_sql_simplifier
+        self, grouping_dfs_with_multiindexes, set_sql_simplifier, include_groups
     ):
         """Test a bug where groupby.apply on a subset of columns was giving a syntax error only if sql simplifier was off."""
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby("level_0", group_keys=False)[
                 [("b", "int_col"), ("b", "string_col_2")]
-            ].apply(normalize_numeric_columns_by_sum),
+            ].apply(normalize_numeric_columns_by_sum, include_groups=include_groups),
         )
 
     @pytest.mark.parametrize(
@@ -576,37 +605,47 @@ class TestFuncReturnsDataFrame:
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         join_count=JOIN_COUNT,
         udtf_count=UDTF_COUNT,
     )
-    def test_numpy_ints_in_result(self, grouping_dfs_with_multiindexes, result):
+    def test_numpy_ints_in_result(
+        self, grouping_dfs_with_multiindexes, result, include_groups
+    ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
-            lambda df: df.groupby(level=0).apply(lambda grp: result),
+            lambda df: df.groupby(level=0).apply(
+                lambda grp: result, include_groups=include_groups
+            ),
         )
 
     @pytest.mark.xfail(
-        strict=True,
-        raises=NotImplementedError,
-        reason="No support for applying a function that returns two dataframes that have different labels for the column at a given position",
+        raises=AssertionError,
+        reason="If function that returns different labels for different groups, we"
+        + " pick the labels based on dummy input. This should be very rare in"
+        + " practice",
     )
-    def test_mismatched_data_column_positions(self, grouping_dfs_with_multiindexes):
+    def test_mismatched_data_column_positions(
+        self, grouping_dfs_with_multiindexes, include_groups
+    ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby("level_0").apply(
                 lambda df: native_pd.DataFrame([0], columns=["a"])
                 if df.iloc[0, 1] == 13
-                else native_pd.DataFrame([1], columns=["b"])
+                else native_pd.DataFrame([1], columns=["b"]),
+                include_groups=include_groups,
             ),
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=NotImplementedError,
-        reason="No support for applying a function that returns two dataframes that have different names for a given index level",
+    @sql_count_checker(
+        query_count=QUERY_COUNT,
+        join_count=JOIN_COUNT,
+        udtf_count=UDTF_COUNT,
     )
-    def test_mismatched_index_column_positions(self, grouping_dfs_with_multiindexes):
+    def test_mismatched_index_column_positions(
+        self, grouping_dfs_with_multiindexes, include_groups
+    ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby("level_0").apply(
@@ -618,11 +657,12 @@ class TestFuncReturnsDataFrame:
                 else native_pd.DataFrame(
                     [0],
                     index=native_pd.Index([0], name="b"),
-                )
+                ),
+                include_groups=include_groups,
             ),
         )
 
-    def test_duplicate_index_groupby_mismatch_with_pandas(self):
+    def test_duplicate_index_groupby_mismatch_with_pandas(self, include_groups):
         # use a frame that has duplicates in its index to reproduce https://github.com/pandas-dev/pandas/issues/57906
         # this bug is fixed in snowpark pandas but not in pandas.
         snow_df, pandas_df = create_test_dfs(
@@ -642,13 +682,13 @@ class TestFuncReturnsDataFrame:
         def groupby_apply_without_sort(df):
             return df.groupby("index", sort=False, dropna=False, group_keys=False)[
                 "int_col"
-            ].apply(lambda v: v)
+            ].apply(lambda v: v, include_groups=include_groups)
 
         # Assertion fails because index order is different due to pandas issue
         # 57906.
         with pytest.raises(AssertionError) as ex:
             with SqlCounter(
-                query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+                query_count=QUERY_COUNT,
                 udtf_count=UDTF_COUNT,
                 join_count=JOIN_COUNT,
             ):
@@ -663,7 +703,7 @@ class TestFuncReturnsDataFrame:
         # a deterministic order.
         assert pandas_result.is_unique
         with SqlCounter(
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
+            query_count=QUERY_COUNT,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT + 1,
         ):
@@ -673,6 +713,9 @@ class TestFuncReturnsDataFrame:
             )
 
 
+@pytest.mark.parametrize(
+    "include_groups", [True, False], ids=lambda v: f"include_groups_{v}"
+)
 class TestFuncReturnsScalar:
     @pytest.mark.parametrize("sort", [True, False], ids=lambda v: f"sort_{v}")
     @pytest.mark.parametrize("as_index", [True, False], ids=lambda v: f"as_index_{v}")
@@ -681,11 +724,13 @@ class TestFuncReturnsScalar:
     )
     @pytest.mark.parametrize("dropna", [True, False], ids=lambda v: f"dropna_{v}")
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_volume_from_brazil_per_year(self, sort, dropna, group_keys, as_index):
+    def test_volume_from_brazil_per_year(
+        self, sort, dropna, group_keys, as_index, include_groups
+    ):
         """Test an example that a user provided here: https://snowflake.slack.com/archives/C05RX90ETGU/p1707126781811689"""
         # TODO: group_keys should have no impact when func: df -> scalar
         # (normally it tells whether to include group keys in the index)
@@ -714,16 +759,18 @@ class TestFuncReturnsScalar:
                 group_keys=group_keys,
                 dropna=dropna,
             ).apply(
-                lambda grp: grp[grp.country == "brazil"].volume.sum() / grp.volume.sum()
+                lambda grp: grp[grp.country == "brazil"].volume.sum()
+                / grp.volume.sum(),
+                include_groups=include_groups,
             ),
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_root_mean_squared_error(self):
+    def test_root_mean_squared_error(self, include_groups):
         """Test an example that a user provided here: https://groups.google.com/a/snowflake.com/g/snowpark-pandas-api-customer-adoption-DL/c/0PDdj9-p5Hs/m/pRJ-I08dBAAJ"""
         eval_snowpark_pandas_result(
             *create_test_dfs(
@@ -734,7 +781,8 @@ class TestFuncReturnsScalar:
                 }
             ),
             lambda df: df.groupby("customer_id").apply(
-                lambda grp: np.sqrt((grp.actual - grp.expected) ** 2).mean()
+                lambda grp: np.sqrt((grp.actual - grp.expected) ** 2).mean(),
+                include_groups=include_groups,
             ),
         )
 
@@ -744,18 +792,19 @@ class TestFuncReturnsScalar:
     @pytest.mark.parametrize("sort", [True, False], ids=lambda v: f"sort_{v}")
     @pytest.mark.parametrize("as_index", [True, False], ids=lambda v: f"as_index_{v}")
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_multiindex_df(self, grouping_dfs_with_multiindexes, by, sort, as_index):
+    def test_multiindex_df(
+        self, grouping_dfs_with_multiindexes, by, sort, as_index, include_groups
+    ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
-            lambda df: df.groupby(
-                by,
-                sort=sort,
-                as_index=as_index,
-            ).apply(lambda df: df.astype(str).astype(object).sum().sum()),
+            lambda df: df.groupby(by, sort=sort, as_index=as_index,).apply(
+                lambda df: df.astype(str).astype(object).sum().sum(),
+                include_groups=include_groups,
+            ),
         )
 
     @pytest.mark.parametrize(
@@ -780,18 +829,20 @@ class TestFuncReturnsScalar:
         ],
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
     def test_non_series_or_dataframe_return_types(
-        self, return_value, grouping_dfs_with_multiindexes
+        self, return_value, grouping_dfs_with_multiindexes, include_groups
     ):
         """These return types are scalars in the sense that they are not pandas Series or DataFrames."""
         snow_df, pandas_df = grouping_dfs_with_multiindexes
 
         def operation(df):
-            return df.groupby(level=0).apply(lambda df: return_value)
+            return df.groupby(level=0).apply(
+                lambda df: return_value, include_groups=include_groups
+            )
 
         if return_value is None:
             # this is a pandas bug: https://github.com/pandas-dev/pandas/issues/57775
@@ -810,11 +861,11 @@ class TestFuncReturnsScalar:
             )
 
     @sql_count_checker(
-        query_count=8,
+        query_count=7,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_group_apply_return_df_from_lambda(self):
+    def test_group_apply_return_df_from_lambda(self, include_groups):
         diamonds_path = (
             pathlib.Path(__file__).parent.parent.parent.parent
             / "resources"
@@ -830,25 +881,17 @@ class TestFuncReturnsScalar:
                 lambda x: x.sort_values(
                     "price", ascending=False, kind="mergesort"
                 ).head(5),
-                include_groups=True,
+                include_groups=include_groups,
             ),
         )
 
-        with pytest.raises(
-            NotImplementedError,
-            match="No support for groupby.apply with include_groups = False",
-        ):
-            pd.DataFrame(diamonds_pd).groupby("cut").apply(
-                lambda x: x.sort_values("price", ascending=False).head(5),
-                include_groups=False,
-            )
-
     @pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1619940")
-    def test_return_timedelta(self):
+    def test_return_timedelta(self, include_groups):
         eval_snowpark_pandas_result(
             *create_test_dfs([[1, 2]]),
             lambda df: df.groupby(0).apply(
-                lambda df: native_pd.Timedelta(df.sum().sum())
+                lambda df: native_pd.Timedelta(df.sum().sum()),
+                include_groups=include_groups,
             ),
         )
 
@@ -869,12 +912,16 @@ class TestFuncReturnsScalar:
             ),
         ],
     )
-    def test_timedelta_input(self, pandas_df):
+    def test_timedelta_input(self, pandas_df, include_groups):
         eval_snowpark_pandas_result(
-            *create_test_dfs(pandas_df), lambda df: df.groupby(0).apply(lambda df: 1)
+            *create_test_dfs(pandas_df),
+            lambda df: df.groupby(0).apply(lambda df: 1, include_groups=include_groups),
         )
 
 
+@pytest.mark.parametrize(
+    "include_groups", [True, False], ids=lambda v: f"include_groups_{v}"
+)
 class TestFuncReturnsSeries:
     @pytest.mark.parametrize(
         "by,level",
@@ -893,12 +940,19 @@ class TestFuncReturnsSeries:
         "group_keys", [True, False], ids=lambda v: f"group_keys={v}"
     )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
     def test_return_series_with_two_columns(
-        self, grouping_dfs_with_multiindexes, by, level, as_index, sort, group_keys
+        self,
+        grouping_dfs_with_multiindexes,
+        by,
+        level,
+        as_index,
+        sort,
+        group_keys,
+        include_groups,
     ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
@@ -909,20 +963,21 @@ class TestFuncReturnsSeries:
                     {
                         "custom_sum": group[("b", "int_col")].sum()
                         + group[("b", "int_col")].max(),
-                        "custom_string": group[("a", "string_col_1")].str.cat(sep="-")
+                        "custom_string": group[("b", "string_col_2")].str.cat(sep="-")
                         + group[("b", "string_col_2")].str.cat(sep="_"),
                     },
                     name="custom_metrics",
-                )
+                ),
+                include_groups=include_groups,
             ),
         )
 
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
-    def test_args_and_kwargs(self, grouping_dfs_with_multiindexes):
+    def test_args_and_kwargs(self, grouping_dfs_with_multiindexes, include_groups):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby(level=0).apply(
@@ -938,18 +993,19 @@ class TestFuncReturnsSeries:
                 ),
                 7,
                 kwarg1="x",
+                include_groups=include_groups,
             ),
         )
 
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
         # One extra query to convert index to native pandas in dataframe constructor to create test dataframes
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT + 1,
     )
     @pytest.mark.parametrize("index", [[2.0, np.nan, 2.0, 1.0], [np.nan] * 4])
-    def test_dropna(self, dropna, index):
+    def test_dropna(self, dropna, index, include_groups):
         pandas_index = native_pd.Index(index, name="index")
         if dropna and pandas_index.isna().all():
             pytest.xfail(
@@ -980,18 +1036,24 @@ class TestFuncReturnsSeries:
                         + group["string_col_2"].str.cat(sep="_"),
                     },
                     name="custom_metrics",
-                )
+                ),
+                include_groups=include_groups,
             ),
         )
 
-    @pytest.mark.xfail(raises=NotImplementedError, strict=True, reason="SNOW-1232201")
+    @pytest.mark.xfail(
+        raises=AssertionError,
+        strict=True,
+        reason="Snowpark pandas uses name returned from first group, while pandas "
+        + "returns None. This should be very rare in practice",
+    )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
     def test_returning_series_with_different_names(
-        self, grouping_dfs_with_multiindexes
+        self, grouping_dfs_with_multiindexes, include_groups
     ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
@@ -1001,34 +1063,39 @@ class TestFuncReturnsSeries:
                         "int_sum": group[("b", "int_col")].sum(),
                         "string_sum": group[("b", "string_col_2")].astype(object).sum(),
                     },
-                    name="name_" + group[("a", "string_col_1")].iloc[0],
-                )
+                    name="name_" + str(group.iloc[0, 0]),
+                ),
+                include_groups=include_groups,
             ),
         )
 
-    @pytest.mark.xfail(raises=NotImplementedError, strict=True, reason="SNOW-1232208")
+    @pytest.mark.xfail(
+        raises=AssertionError,
+        strict=True,
+        reason="Snowpark pandas return a DataFrame but native pandas returns a"
+        + " Series. This should be very rare in practice.",
+    )
     @sql_count_checker(
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        query_count=QUERY_COUNT,
         udtf_count=UDTF_COUNT,
         join_count=JOIN_COUNT,
     )
     def test_returning_series_with_conflicting_indexes(
-        self, grouping_dfs_with_multiindexes
+        self, grouping_dfs_with_multiindexes, include_groups
     ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
             lambda df: df.groupby(("a", "string_col_1")).apply(
                 lambda group: native_pd.Series(
                     {
-                        # Since we are grouping by ("a", "string_col_1"), the
-                        # series we return for each group will have a different index.
-                        group[("a", "string_col_1")]
-                        .iloc[0]: group[("b", "int_col")]
-                        .sum(),
-                        group[("a", "string_col_1")].iloc[0]
-                        + "_2": group[("b", "string_col_2")].astype(object).sum(),
+                        str(group[("b", "int_col")].iloc[0]): group[
+                            ("b", "int_col")
+                        ].sum(),
+                        str(group[("b", "int_col")].iloc[0])
+                        + "_2": group[("b", "int_col")].astype(object).sum(),
                     },
-                )
+                ),
+                include_groups=include_groups,
             ),
         )
 
@@ -1046,15 +1113,15 @@ class TestFuncReturnsSeries:
 @pytest.mark.parametrize("group_keys", [True, False], ids=lambda v: f"group_keys_{v}")
 @pytest.mark.parametrize("sort", [True, False], ids=lambda v: f"sort_{v}")
 @pytest.mark.parametrize("dropna", [True, False], ids=lambda v: f"dropna_{v}")
+@pytest.mark.parametrize(
+    "include_groups", [True, False], ids=lambda v: f"include_groups_{v}"
+)
 class TestSeriesGroupBy:
     @pytest.mark.parametrize("by", ["string_col_1", ["index", "string_col_1"], "index"])
-    def test_dataframe_groupby_getitem(self, by, func, dropna, group_keys, sort):
+    def test_dataframe_groupby_getitem(
+        self, by, func, dropna, group_keys, sort, include_groups
+    ):
         """Test apply() on a SeriesGroupBy that we get by DataFrameGroupBy.__getitem__"""
-        qc = (
-            QUERY_COUNT_WITH_TRANSFORM_CHECK
-            if group_keys is False and not func == get_scalar_from_numeric_series
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK
-        )
         if (
             func in (get_dataframe_from_numeric_series, get_series_from_numeric_series)
             and not dropna
@@ -1064,7 +1131,7 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            query_count=qc,
+            query_count=QUERY_COUNT,
             udtf_count=UDTF_COUNT,
             join_count=JOIN_COUNT + 1,
         ):
@@ -1083,22 +1150,32 @@ class TestSeriesGroupBy:
                     ),
                 ),
                 lambda df: df.groupby(
-                    by, dropna=dropna, group_keys=group_keys, sort=sort
-                )["int_col"].apply(func),
+                    by,
+                    dropna=dropna,
+                    group_keys=group_keys,
+                    sort=sort,
+                )["int_col"].apply(func, include_groups=include_groups),
             )
 
     @pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1238546")
-    def test_grouping_series_by_self(self, func, dropna, group_keys, sort):
+    def test_grouping_series_by_self(
+        self, func, dropna, group_keys, sort, include_groups
+    ):
         """Test apply() on a SeriesGroupBy that we get by grouping a series by itself."""
         eval_snowpark_pandas_result(
             *create_test_series([0, 1, 2]),
             lambda s: s.groupby(
-                s, dropna=dropna, group_keys=group_keys, sort=sort
-            ).apply(func),
+                s,
+                dropna=dropna,
+                group_keys=group_keys,
+                sort=sort,
+            ).apply(func, include_groups=include_groups),
         )
 
     @pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1238546")
-    def test_grouping_series_by_external_by(self, func, dropna, group_keys, sort):
+    def test_grouping_series_by_external_by(
+        self, func, dropna, group_keys, sort, include_groups
+    ):
         """Test apply() on a SeriesGroupBy that we get by grouping a series by its index."""
         # This example is from pandas SeriesGroupBy apply docstring.
         eval_snowpark_pandas_result(
@@ -1108,7 +1185,7 @@ class TestSeriesGroupBy:
                 dropna=dropna,
                 group_keys=group_keys,
                 sort=sort,
-            ).apply(func),
+            ).apply(func, include_groups=include_groups),
         )
 
 
@@ -1174,8 +1251,9 @@ class TestCallableWithMixedReturnTypes:
 
     @pytest.mark.xfail(
         strict=True,
-        raises=NotImplementedError,
-        reason="NotImplementedError in Snowpark pandas. see SNOW-1236959",
+        raises=SnowparkSQLException,
+        reason="Results in mismatch between udtf schema and the actual result."
+        + " This should be rare in practice.",
     )
     def test_scalar_then_dataframe(self):
         eval_snowpark_pandas_result(
@@ -1190,7 +1268,8 @@ class TestCallableWithMixedReturnTypes:
     @pytest.mark.xfail(
         strict=True,
         raises=AssertionError,
-        reason="Snowpark pandas transposes the series, but pandas doesn't. See SNOW-1236959",
+        reason="Results in mismatch between udtf schema and the actual result."
+        + " This should be rare in practice.",
     )
     def test_series_then_dataframe(self):
         eval_snowpark_pandas_result(
@@ -1233,3 +1312,21 @@ class TestCallableWithMixedReturnTypes:
                 else native_pd.DataFrame([[2, 4], [5, 6]])
             ),
         )
+
+
+@sql_count_checker(
+    query_count=QUERY_COUNT,
+    join_count=JOIN_COUNT,
+    udtf_count=UDTF_COUNT,
+)
+def test_include_groups_default_value(grouping_dfs_with_multiindexes):
+    """
+    Test that the default value behavior include_groups matches pandas.
+
+    We don't test the default include_groups value for all test cases
+    because that would substantially increase the size of the test suite.
+    """
+    eval_snowpark_pandas_result(
+        *grouping_dfs_with_multiindexes,
+        lambda df: df.groupby(("a", "string_col_1")).apply(lambda df: df.count()),
+    )

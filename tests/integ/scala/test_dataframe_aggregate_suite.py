@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from decimal import Decimal
 from math import sqrt
+import re
 from typing import NamedTuple
 
 import pytest
@@ -54,14 +55,15 @@ def test_pivot(session):
         sort=False,
     )
 
-    with pytest.raises(SnowparkDataframeException) as ex_info:
-        TestData.monthly_sales(session).pivot(
-            "month", ["JAN", "FEB", "MAR", "APR"]
-        ).agg([sum(col("amount")), avg(col("amount"))]).sort(col("empid"))
 
-    assert (
-        "You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot() method."
-        in str(ex_info)
+def test_pivot_snow_1869802_repro(session):
+    df = session.create_dataframe(
+        [[1, "A", 10], [1, "B", 0], [2, "A", 11], [2, "B", 12]]
+    )
+    Utils.check_answer(
+        df.pivot(pivot_col="_2", values=["A", "B"]).function("min")("_3"),
+        [Row(1, 10, 0), Row(2, 11, 12)],
+        False,
     )
 
 
@@ -175,13 +177,23 @@ def test_group_by_pivot(session):
         ],
         sort=False,
     )
-    with pytest.raises(
-        SnowparkDataframeException,
-        match="You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot()",
-    ):
-        TestData.monthly_sales_with_team(session).group_by("empid").pivot(
-            "month", ["JAN", "FEB", "MAR", "APR"]
-        ).agg([sum(col("amount")), avg(col("amount"))])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="not supported in local testing when pivot column and aggregate column are the same.",
+)
+def test_group_by_pivot_agg_same_column(session):
+    Utils.check_answer(
+        TestData.monthly_sales_with_team(session)
+        .group_by("empid")
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(count(col("month"))),
+        [
+            Row(EMPID=1, JAN=2, FEB=2, MAR=2, APR=2),
+            Row(EMPID=2, JAN=2, FEB=2, MAR=2, APR=2),
+        ],
+    )
 
 
 @multithreaded_run()
@@ -376,7 +388,9 @@ def test_pivot_dynamic_subquery_with_bad_subquery(session):
             "month", subquery_df.select("month").sort("month")
         ).agg(sum(col("amount"))).collect()
 
-    assert "Invalid subquery pivot order by must be distinct query" in str(ex_info)
+    assert "Invalid subquery pivot order by must be distinct query" in str(
+        ex_info.value
+    )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.monthly_sales(session).pivot(
@@ -419,6 +433,89 @@ def test_pivot_default_on_none(session, caplog):
             ],
             sort=False,
         )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Multiple aggregations are not supported in local testing mode",
+)
+def test_pivot_multiple_aggs(session):
+    with pytest.raises(
+        SnowparkDataframeException,
+        match=re.escape(
+            "You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot() method unless the pivot is applied with a groupby clause."
+        ),
+    ):
+        TestData.monthly_sales(session).pivot(
+            "month", ["JAN", "FEB", "MAR", "APR"]
+        ).agg([sum(col("amount")), avg(col("amount"))]).sort(col("empid"))
+
+    df = (
+        TestData.monthly_sales(session)
+        .groupBy(col("empid"))
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg([sum(col("amount")), avg(col("amount"))])
+        .sort(col("empid"))
+    )
+
+    assert [f.name for f in df.schema.fields] == [
+        "EMPID",
+        '"JAN_sum(""AMOUNT"")"',
+        '"FEB_sum(""AMOUNT"")"',
+        '"MAR_sum(""AMOUNT"")"',
+        '"APR_sum(""AMOUNT"")"',
+        '"JAN_avg(""AMOUNT"")"',
+        '"FEB_avg(""AMOUNT"")"',
+        '"MAR_avg(""AMOUNT"")"',
+        '"APR_avg(""AMOUNT"")"',
+    ]
+
+    Utils.check_answer(
+        df,
+        [
+            Row(1, 10400, 8000, 11000, 18000, 5200.0, 4000.0, 5500.0, 9000.0),
+            Row(
+                2,
+                39500,
+                90700,
+                12000,
+                5300,
+                19750.0,
+                45350.0,
+                6000.0,
+                2650.0,
+            ),
+        ],
+    )
+
+    df = (
+        TestData.monthly_sales(session)
+        .groupBy(col("empid"))
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg([min(col("amount")), max(col("amount"))])
+        .sort(col("empid"))
+    )
+
+    assert [f.name for f in df.schema.fields] == [
+        "EMPID",
+        '"JAN_min(""AMOUNT"")"',
+        '"FEB_min(""AMOUNT"")"',
+        '"MAR_min(""AMOUNT"")"',
+        '"APR_min(""AMOUNT"")"',
+        '"JAN_max(""AMOUNT"")"',
+        '"FEB_max(""AMOUNT"")"',
+        '"MAR_max(""AMOUNT"")"',
+        '"APR_max(""AMOUNT"")"',
+    ]
+
+    # 2) MIN and MAX
+    Utils.check_answer(
+        df,
+        [
+            Row(1, 400, 3000, 5000, 8000, 10000, 5000, 6000, 10000),
+            Row(2, 4500, 200, 2500, 800, 35000, 90500, 9500, 4500),
+        ],
+    )
 
 
 def test_rel_grouped_dataframe_agg(session):
@@ -527,14 +624,14 @@ def test_group_by_grouping_sets(session):
         TestData.nurse(session)
         .group_by("medical_license", "radio_license")
         .agg(count(col("*")).as_("count"))
-        .sort(col("count"))
+        .sort(col("count"), col("medical_license"), col("radio_license"))
         .select("count", "medical_license", "radio_license"),
         [
             Row(1, "LVN", "General"),
-            Row(1, "RN", "Amateur Extra"),
             Row(1, "RN", None),
-            Row(2, "LVN", "Technician"),
+            Row(1, "RN", "Amateur Extra"),
             Row(2, "LVN", None),
+            Row(2, "LVN", "Technician"),
         ],
         sort=False,
     )
@@ -547,13 +644,13 @@ def test_group_by_grouping_sets(session):
             GroupingSets([col("radio_license")]),
         )  # duplicated column is removed in the result
         .agg(col("radio_license"))
-        .sort(col("radio_license"), col("medical_license")),
+        .sort(col("medical_license"), col("radio_license")),
         [
             Row("LVN", None),
-            Row("RN", None),
-            Row("RN", "Amateur Extra"),
             Row("LVN", "General"),
             Row("LVN", "Technician"),
+            Row("RN", None),
+            Row("RN", "Amateur Extra"),
         ],
         sort=False,
     )
@@ -568,14 +665,14 @@ def test_group_by_grouping_sets(session):
             ]
         )  # duplicated column is removed in the result
         .agg(col("radio_license").as_("rl"))
-        .sort(col("rl"), col("medical_license"))
+        .sort(col("medical_license"), col("radio_license"))
         .select("medical_license", "rl"),
         [
             Row("LVN", None),
-            Row("RN", None),
-            Row("RN", "Amateur Extra"),
             Row("LVN", "General"),
             Row("LVN", "Technician"),
+            Row("RN", None),
+            Row("RN", "Amateur Extra"),
         ],
         sort=False,
     )
@@ -588,15 +685,19 @@ def test_rel_grouped_dataframe_max(session):
 
     # below 2 ways to call max() must return the same result.
     expected = [Row("a", 3, 33), Row("b", 4, 44)]
-    assert df1.group_by("key").max(col("value1"), col("value2")).collect() == expected
-    assert (
-        df1.group_by("key").agg([max(col("value1")), max(col("value2"))]).collect()
-        == expected
+    Utils.check_answer(
+        df1.group_by("key").max(col("value1"), col("value2")).collect(), expected
+    )
+    Utils.check_answer(
+        df1.group_by("key").agg([max(col("value1")), max(col("value2"))]).collect(),
+        expected,
     )
 
     # same as above, but pass str instead of Column
-    assert df1.group_by("key").max("value1", "value2").collect() == expected
-    assert df1.group_by("key").agg([max("value1"), max("value2")]).collect() == expected
+    Utils.check_answer(df1.group_by("key").max("value1", "value2").collect(), expected)
+    Utils.check_answer(
+        df1.group_by("key").agg([max("value1"), max("value2")]).collect(), expected
+    )
 
 
 def test_rel_grouped_dataframe_avg_mean(session):
@@ -605,25 +706,25 @@ def test_rel_grouped_dataframe_avg_mean(session):
     ).to_df(["key", "value1", "value2", "rest"])
 
     expected = [Row("a", 2.0, 22.0), Row("b", 3, 33.0)]
-    assert df1.group_by("key").avg(col("value1"), col("value2")).collect() == expected
-    assert (
-        df1.group_by("key").agg([avg(col("value1")), avg(col("value2"))]).collect()
-        == expected
+    Utils.check_answer(df1.group_by("key").avg(col("value1"), col("value2")), expected)
+    Utils.check_answer(
+        df1.group_by("key").agg([avg(col("value1")), avg(col("value2"))]), expected
     )
     # Same results for mean()
-    assert df1.group_by("key").mean(col("value1"), col("value2")).collect() == expected
-    assert (
-        df1.group_by("key").agg([mean(col("value1")), mean(col("value2"))]).collect()
-        == expected
+    Utils.check_answer(df1.group_by("key").mean(col("value1"), col("value2")), expected)
+    Utils.check_answer(
+        df1.group_by("key").agg([mean(col("value1")), mean(col("value2"))]), expected
     )
 
     # same as above, but pass str instead of Column
-    assert df1.group_by("key").avg("value1", "value2").collect() == expected
-    assert df1.group_by("key").agg([avg("value1"), avg("value2")]).collect() == expected
+    Utils.check_answer(df1.group_by("key").avg("value1", "value2"), expected)
+    Utils.check_answer(
+        df1.group_by("key").agg([avg("value1"), avg("value2")]), expected
+    )
     # Same results for mean()
-    assert df1.group_by("key").mean("value1", "value2").collect() == expected
-    assert (
-        df1.group_by("key").agg([mean("value1"), mean("value2")]).collect() == expected
+    Utils.check_answer(df1.group_by("key").mean("value1", "value2"), expected)
+    Utils.check_answer(
+        df1.group_by("key").agg([mean("value1"), mean("value2")]), expected
     )
 
 
@@ -758,23 +859,24 @@ def test_distinct(session):
         [(1, "one", 1.0), (2, "one", 2.0), (2, "two", 1.0)]
     ).to_df("i", "s", '"i"')
 
-    assert df.distinct().collect() == [
-        Row(1, "one", 1.0),
-        Row(2, "one", 2.0),
-        Row(2, "two", 1.0),
-    ]
-    assert df.select("i").distinct().collect() == [Row(1), Row(2)]
-    assert df.select('"i"').distinct().collect() == [Row(1), Row(2)]
-    assert df.select("s").distinct().collect() == [Row("one"), Row("two")]
+    Utils.check_answer(
+        df.distinct(),
+        [
+            Row(1, "one", 1.0),
+            Row(2, "one", 2.0),
+            Row(2, "two", 1.0),
+        ],
+    )
+    Utils.check_answer(df.select("i").distinct(), [Row(1), Row(2)])
+    Utils.check_answer(df.select('"i"').distinct(), [Row(1), Row(2)])
+    Utils.check_answer(df.select("s").distinct(), [Row("one"), Row("two")])
 
-    res = df.select(["i", '"i"']).distinct().collect()
-    res.sort(key=lambda x: (x[0], x[1]))
-    assert res == [Row(1, 1.0), Row(2, 1.0), Row(2, 2.0)]
+    res = df.select(["i", '"i"']).distinct()
+    Utils.check_answer(res, [Row(1, 1.0), Row(2, 1.0), Row(2, 2.0)])
 
-    res = df.select(["s", '"i"']).distinct().collect()
-    res.sort(key=lambda x: (x[1], x[0]))
-    assert res == [Row("one", 1.0), Row("two", 1.0), Row("one", 2.0)]
-    assert df.filter(col("i") < 0).distinct().collect() == []
+    res = df.select(["s", '"i"']).distinct()
+    Utils.check_answer(res, [Row("one", 1.0), Row("two", 1.0), Row("one", 2.0)])
+    Utils.check_answer(df.filter(col("i") < 0).distinct(), [])
 
 
 def test_distinct_and_joins(session):
@@ -807,54 +909,71 @@ def test_distinct_and_joins(session):
 
 
 def test_groupBy(session):
-    assert TestData.test_data2(session).group_by("a").agg(sum(col("b"))).collect() == [
-        Row(1, 3),
-        Row(2, 3),
-        Row(3, 3),
-    ]
+    Utils.check_answer(
+        TestData.test_data2(session).group_by("a").agg(sum(col("b"))).collect(),
+        [
+            Row(1, 3),
+            Row(2, 3),
+            Row(3, 3),
+        ],
+    )
 
-    assert TestData.test_data2(session).group_by("a").agg(
-        sum(col("b")).as_("totB")
-    ).agg(sum(col("totB"))).collect() == [Row(9)]
+    Utils.check_answer(
+        TestData.test_data2(session)
+        .group_by("a")
+        .agg(sum(col("b")).as_("totB"))
+        .agg(sum(col("totB"))),
+        [Row(9)],
+    )
 
-    assert TestData.test_data2(session).group_by("a").agg(
-        count(col("*"))
-    ).collect() == [
-        Row(1, 2),
-        Row(2, 2),
-        Row(3, 2),
-    ]
+    Utils.check_answer(
+        TestData.test_data2(session).group_by("a").agg(count(col("*"))),
+        [
+            Row(1, 2),
+            Row(2, 2),
+            Row(3, 2),
+        ],
+    )
 
-    assert TestData.test_data2(session).group_by("a").agg(
-        [(col("*"), "count")]
-    ).collect() == [Row(1, 2), Row(2, 2), Row(3, 2)]
+    Utils.check_answer(
+        TestData.test_data2(session).group_by("a").agg([(col("*"), "count")]),
+        [Row(1, 2), Row(2, 2), Row(3, 2)],
+    )
 
-    assert TestData.test_data2(session).group_by("a").agg(
-        [(col("b"), "sum")]
-    ).collect() == [Row(1, 3), Row(2, 3), Row(3, 3)]
+    Utils.check_answer(
+        TestData.test_data2(session).group_by("a").agg([(col("b"), "sum")]),
+        [Row(1, 3), Row(2, 3), Row(3, 3)],
+    )
 
     df1 = session.create_dataframe(
         [("a", 1, 0, "b"), ("b", 2, 4, "c"), ("a", 2, 3, "d")]
     ).to_df(["key", "value1", "value2", "rest"])
 
-    assert df1.group_by("key").min(col("value2")).collect() == [
-        Row("a", 0),
-        Row("b", 4),
-    ]
+    Utils.check_answer(
+        df1.group_by("key").min(col("value2")),
+        [
+            Row("a", 0),
+            Row("b", 4),
+        ],
+    )
 
     # same as above, but pass str instead of Column to min()
-    assert df1.group_by("key").min("value2").collect() == [
-        Row("a", 0),
-        Row("b", 4),
-    ]
+    Utils.check_answer(
+        df1.group_by("key").min("value2"),
+        [
+            Row("a", 0),
+            Row("b", 4),
+        ],
+    )
 
-    assert TestData.decimal_data(session).group_by("a").agg(
-        sum(col("b"))
-    ).collect() == [
-        Row(Decimal(1), Decimal(3)),
-        Row(Decimal(2), Decimal(3)),
-        Row(Decimal(3), Decimal(3)),
-    ]
+    Utils.check_answer(
+        TestData.decimal_data(session).group_by("a").agg(sum(col("b"))),
+        [
+            Row(Decimal(1), Decimal(3)),
+            Row(Decimal(2), Decimal(3)),
+            Row(Decimal(3), Decimal(3)),
+        ],
+    )
 
 
 def test_agg_should_be_order_preserving(session):
@@ -870,7 +989,7 @@ def test_agg_should_be_order_preserving(session):
         '"COUNT(ID)"',
         '"MIN(ID)"',
     ]
-    assert df.collect() == [Row(0, 0, 1, 0), Row(1, 1, 1, 1)]
+    Utils.check_answer(df, [Row(0, 0, 1, 0), Row(1, 1, 1, 1)])
 
 
 def test_count(session):
@@ -1020,7 +1139,7 @@ def test_decimal_sum_over_window_should_work(session):
 def test_aggregate_function_in_groupby(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.test_data4(session).group_by(sum(col('"KEY"'))).count().collect()
-    assert "is not a valid group by expression" in str(ex_info)
+    assert "is not a valid group by expression" in str(ex_info.value)
 
 
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):

@@ -133,18 +133,27 @@ time_series_agg_res2 = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
-  assign {
+  bind {
     expr {
-      sp_create_dataframe {
+      create_dataframe {
         data {
-          sp_dataframe_data__list {
+          dataframe_data__list {
             vs {
               list_val {
                 src {
                   end_column: 43
                   end_line: 32
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 13
                   start_line: 32
                 }
@@ -153,7 +162,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -165,7 +174,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -177,7 +186,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -191,7 +200,7 @@ body {
                 src {
                   end_column: 43
                   end_line: 32
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 13
                   start_line: 32
                 }
@@ -200,7 +209,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -212,7 +221,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -224,7 +233,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -238,7 +247,7 @@ body {
                 src {
                   end_column: 43
                   end_line: 32
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 13
                   start_line: 32
                 }
@@ -247,7 +256,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -259,7 +268,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -271,7 +280,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -285,7 +294,7 @@ body {
                 src {
                   end_column: 43
                   end_line: 32
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 13
                   start_line: 32
                 }
@@ -294,7 +303,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -306,7 +315,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -318,7 +327,7 @@ body {
                     src {
                       end_column: 43
                       end_line: 32
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 13
                       start_line: 32
                     }
@@ -332,74 +341,101 @@ body {
         src {
           end_column: 43
           end_line: 32
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 32
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_to_df {
-        col_names: "ORDERDATE"
-        col_names: "PRODUCTKEY"
-        col_names: "SALESAMOUNT"
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
+      dataframe_to_df {
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "ORDERDATE"
             }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "PRODUCTKEY"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "SALESAMOUNT"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
           }
         }
         src {
           end_column: 9
           end_line: 34
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 32
         }
-        variadic: true
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           div {
             lhs {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "SALESAMOUNT"
                 df {
-                  sp_dataframe_ref {
-                    id {
-                      bitfield1: 2
-                    }
+                  dataframe_ref {
+                    id: 2
                   }
                 }
                 src {
                   end_column: 61
                   end_line: 36
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 44
                   start_line: 36
                 }
@@ -410,7 +446,7 @@ body {
                 src {
                   end_column: 65
                   end_line: 36
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 44
                   start_line: 36
                 }
@@ -420,7 +456,7 @@ body {
             src {
               end_column: 65
               end_line: 36
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 44
               start_line: 36
             }
@@ -428,44 +464,38 @@ body {
         }
         col_name: "HALF_AMOUNT"
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         src {
           end_column: 66
           end_line: 36
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 36
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df2"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_moving_agg {
+      dataframe_analytics_moving_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
           _2: "AVG"
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         group_by: "PRODUCTKEY"
@@ -473,7 +503,7 @@ body {
         src {
           end_column: 9
           end_line: 43
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 25
           start_line: 38
         }
@@ -481,19 +511,17 @@ body {
         window_sizes: 3
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "moving_agg_res"
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_moving_agg {
+      dataframe_analytics_moving_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -503,10 +531,8 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 3
-            }
+          dataframe_ref {
+            id: 3
           }
         }
         formatted_col_names: "SALESAMOUNT_X_SUM_Y_2"
@@ -518,7 +544,7 @@ body {
         src {
           end_column: 9
           end_line: 54
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 26
           start_line: 48
         }
@@ -526,19 +552,17 @@ body {
         window_sizes: 3
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "moving_agg_res2"
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_cumulative_agg {
+      dataframe_analytics_cumulative_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -546,10 +570,8 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         group_by: "PRODUCTKEY"
@@ -558,25 +580,23 @@ body {
         src {
           end_column: 9
           end_line: 61
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 29
           start_line: 56
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "cumulative_agg_res"
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_cumulative_agg {
+      dataframe_analytics_cumulative_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
@@ -584,10 +604,8 @@ body {
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         formatted_col_names: "SALESAMOUNT_W_SUM"
@@ -599,31 +617,29 @@ body {
         src {
           end_column: 9
           end_line: 72
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 30
           start_line: 66
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "cumulative_agg_res2"
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_compute_lag {
+      dataframe_analytics_compute_lag {
         cols {
           string_val {
             src {
               end_column: 9
               end_line: 79
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 26
               start_line: 74
             }
@@ -631,10 +647,8 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         group_by: "PRODUCTKEY"
@@ -644,31 +658,29 @@ body {
         src {
           end_column: 9
           end_line: 79
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 26
           start_line: 74
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "compute_lag_res"
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_compute_lag {
+      dataframe_analytics_compute_lag {
         cols {
           string_val {
             src {
               end_column: 9
               end_line: 87
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 27
               start_line: 81
             }
@@ -676,10 +688,8 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         formatted_col_names: "SALESAMOUNT_X_LAG_Y_1"
@@ -691,31 +701,29 @@ body {
         src {
           end_column: 9
           end_line: 87
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 27
           start_line: 81
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "compute_lag_res2"
     }
     uid: 9
-    var_id {
-      bitfield1: 9
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_compute_lead {
+      dataframe_analytics_compute_lead {
         cols {
           string_val {
             src {
               end_column: 9
               end_line: 94
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 27
               start_line: 89
             }
@@ -723,10 +731,8 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         group_by: "PRODUCTKEY"
@@ -736,31 +742,29 @@ body {
         src {
           end_column: 9
           end_line: 94
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 27
           start_line: 89
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "compute_lead_res"
     }
     uid: 10
-    var_id {
-      bitfield1: 10
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_compute_lead {
+      dataframe_analytics_compute_lead {
         cols {
           string_val {
             src {
               end_column: 9
               end_line: 102
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 28
               start_line: 96
             }
@@ -768,10 +772,8 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         formatted_col_names: "SALESAMOUNT_X_LEAD_Y_1"
@@ -783,50 +785,48 @@ body {
         src {
           end_column: 9
           end_line: 102
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 28
           start_line: 96
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "compute_lead_res2"
     }
     uid: 11
-    var_id {
-      bitfield1: 11
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_with_column {
+      dataframe_with_column {
         col {
           apply_expr {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "to_timestamp"
+                  name {
+                    name_flat {
+                      name: "to_timestamp"
+                    }
                   }
                 }
               }
             }
             pos_args {
-              sp_dataframe_col {
+              dataframe_col {
                 col_name: "ORDERDATE"
                 df {
-                  sp_dataframe_ref {
-                    id {
-                      bitfield1: 2
-                    }
+                  dataframe_ref {
+                    id: 2
                   }
                 }
                 src {
                   end_column: 69
                   end_line: 104
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 54
                   start_line: 104
                 }
@@ -835,7 +835,7 @@ body {
             src {
               end_column: 70
               end_line: 104
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 41
               start_line: 104
             }
@@ -843,44 +843,38 @@ body {
         }
         col_name: "ORDERDATE"
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 2
-            }
+          dataframe_ref {
+            id: 2
           }
         }
         src {
           end_column: 71
           end_line: 104
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 104
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 12
-    var_id {
-      bitfield1: 12
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_time_series_agg {
+      dataframe_analytics_time_series_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 12
-            }
+          dataframe_ref {
+            id: 12
           }
         }
         group_by: "PRODUCTKEY"
@@ -888,7 +882,7 @@ body {
         src {
           end_column: 9
           end_line: 112
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 30
           start_line: 106
         }
@@ -897,29 +891,25 @@ body {
         windows: "-1D"
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "time_series_agg_res"
     }
     uid: 13
-    var_id {
-      bitfield1: 13
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_analytics_time_series_agg {
+      dataframe_analytics_time_series_agg {
         aggs {
           _1: "SALESAMOUNT"
           _2: "SUM"
           _2: "MAX"
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 12
-            }
+          dataframe_ref {
+            id: 12
           }
         }
         formatted_col_names: "SUM_SALESAMOUNT_1D"
@@ -931,7 +921,7 @@ body {
         src {
           end_column: 9
           end_line: 124
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 31
           start_line: 117
         }
@@ -940,13 +930,11 @@ body {
         windows: "-1D"
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "time_series_agg_res2"
     }
     uid: 14
-    var_id {
-      bitfield1: 14
-    }
   }
 }
 client_ast_version: 1
@@ -962,5 +950,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 32
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

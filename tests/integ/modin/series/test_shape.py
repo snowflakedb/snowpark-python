@@ -1,7 +1,6 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 
 import modin.pandas as pd
 import numpy as np
@@ -34,7 +33,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
         "empty series with only index",
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_series_shape(args, kwargs):
     eval_snowpark_pandas_result(
         pd.Series(*args, **kwargs),

@@ -1,52 +1,203 @@
 ## TEST CASE
 
-df = session.table_function("my_fn", lit(1), lit("two"))
+from snowflake.snowpark.functions import sproc
 
-df2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
+def my_sproc(session: snowflake.snowpark.Session, foo: int, bar: str, baz: bool) -> str:
+    return "SUCCESS!"
 
-df3 = session.table_function(["foo", "bar"])
+def my_sproc2(session: snowflake.snowpark.Session, foo: int) -> str:
+    return "SUCCESS!"
+
+my_sproc_sp = session.sproc.register(my_sproc, name="my_fn1", replace=True, comment="The parameters are useless.")
+
+my_sproc_sp2 = session.sproc.register(my_sproc, name="my_fn2", replace=True, comment="Hello!")
+
+df1 = session.table_function("my_fn1", lit(1), lit("two"), lit(True))
+
+df2 = session.table_function("my_fn2", lit(20))
+
+df3 = session.table_function(["my_fn1", "my_fn2"])
 
 fn1 = table_function("my_fn1")
-df4 = session.table_function(fn1())
+df4 = session.table_function(fn1(lit(1), lit("V"), lit(True)))
 
 fn2 = table_function("my_fn2")
-df5 = session.table_function(fn2("foo"))
+df5 = session.table_function(fn2(lit(12)))
 
-fn3 = call_table_function("my_fn3")
+fn3 = call_table_function("my_fn1", lit(5), lit("A"), lit(False))
 df6 = session.table_function(fn3)
 
-fn4 = call_table_function("my_fn4", "foo")
+fn4 = call_table_function("my_fn2")
 df7 = session.table_function(fn4)
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table_function("my_fn", lit(1), lit("two"))
+my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn1", replace=True, comment="The parameters are useless.", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN1\"")
 
-df2 = session.table_function("my_fn", foo=lit("bar"), kwd=lit(3))
+my_sproc_sp2 = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), BooleanType()], name="my_fn2", replace=True, comment="Hello!", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN2\"")
 
-df3 = session.table_function(["foo", "bar"])
+df1 = session.table_function("my_fn1", lit(1), lit("two"), lit(True))
 
-df4 = session.table_function(call_table_function("my_fn1"))
+df2 = session.table_function("my_fn2", lit(20))
 
-df5 = session.table_function(call_table_function("my_fn2", "foo"))
+df3 = session.table_function(["my_fn1", "my_fn2"])
 
-df6 = session.table_function(call_table_function("my_fn3"))
+df4 = session.table_function(call_table_function("my_fn1", lit(1), lit("V"), lit(True)))
 
-df7 = session.table_function(call_table_function("my_fn4", "foo"))
+df5 = session.table_function(call_table_function("my_fn2", lit(12)))
+
+df6 = session.table_function(call_table_function("my_fn1", lit(5), lit("A"), lit(False)))
+
+df7 = session.table_function(call_table_function("my_fn2"))
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
-  assign {
+  bind {
     expr {
-      sp_session_table_function {
+      stored_procedure {
+        comment {
+          value: "The parameters are useless."
+        }
+        execute_as: "owner"
+        func {
+          name: "my_sproc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN1\""
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          boolean_type: true
+        }
+        name {
+          name {
+            name_flat {
+              name: "my_fn1"
+            }
+          }
+        }
+        parallel: 4
+        replace: true
+        return_type {
+          string_type {
+            length {
+            }
+          }
+        }
+        source_code_display: true
+        src {
+          end_column: 122
+          end_line: 33
+          file: 2
+          start_column: 22
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "my_sproc_sp"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      stored_procedure {
+        comment {
+          value: "Hello!"
+        }
+        execute_as: "owner"
+        func {
+          name: "my_sproc"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_FN2\""
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        input_types {
+          string_type {
+            length {
+            }
+          }
+        }
+        input_types {
+          boolean_type: true
+        }
+        name {
+          name {
+            name_flat {
+              name: "my_fn2"
+            }
+          }
+        }
+        parallel: 4
+        replace: true
+        return_type {
+          string_type {
+            length {
+            }
+          }
+        }
+        source_code_display: true
+        src {
+          end_column: 102
+          end_line: 35
+          file: 2
+          start_column: 23
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "my_sproc_sp2"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      session_table_function {
         fn {
           apply_expr {
             fn {
               indirect_table_fn_name_ref {
                 name {
-                  fn_name_flat {
-                    name: "my_fn"
+                  name {
+                    name_flat {
+                      name: "my_fn1"
+                    }
                   }
                 }
               }
@@ -56,8 +207,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "lit"
+                      name {
+                        name_flat {
+                          name: "lit"
+                        }
                       }
                     }
                   }
@@ -65,21 +218,21 @@ body {
                 pos_args {
                   int64_val {
                     src {
-                      end_column: 51
-                      end_line: 25
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 45
-                      start_line: 25
+                      end_column: 53
+                      end_line: 37
+                      file: 2
+                      start_column: 47
+                      start_line: 37
                     }
                     v: 1
                   }
                 }
                 src {
-                  end_column: 51
-                  end_line: 25
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_column: 45
-                  start_line: 25
+                  end_column: 53
+                  end_line: 37
+                  file: 2
+                  start_column: 47
+                  start_line: 37
                 }
               }
             }
@@ -88,8 +241,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "lit"
+                      name {
+                        name_flat {
+                          name: "lit"
+                        }
                       }
                     }
                   }
@@ -97,508 +252,701 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 63
-                      end_line: 25
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 53
-                      start_line: 25
+                      end_column: 65
+                      end_line: 37
+                      file: 2
+                      start_column: 55
+                      start_line: 37
                     }
                     v: "two"
                   }
                 }
                 src {
-                  end_column: 63
-                  end_line: 25
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_column: 53
-                  start_line: 25
+                  end_column: 65
+                  end_line: 37
+                  file: 2
+                  start_column: 55
+                  start_line: 37
                 }
               }
             }
-            src {
-              end_column: 64
-              end_line: 25
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 13
-              start_line: 25
-            }
-          }
-        }
-        src {
-          end_column: 64
-          end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
-          start_line: 25
-        }
-      }
-    }
-    symbol {
-      value: "df"
-    }
-    uid: 1
-    var_id {
-      bitfield1: 1
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_session_table_function {
-        fn {
-          apply_expr {
-            fn {
-              indirect_table_fn_name_ref {
-                name {
-                  fn_name_flat {
-                    name: "my_fn"
-                  }
-                }
-              }
-            }
-            named_args {
-              _1: "foo"
-              _2 {
-                apply_expr {
-                  fn {
-                    builtin_fn {
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
                       name {
-                        fn_name_flat {
+                        name_flat {
                           name: "lit"
                         }
                       }
                     }
                   }
-                  pos_args {
-                    string_val {
-                      src {
-                        end_column: 72
-                        end_line: 27
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 62
-                        start_line: 27
-                      }
-                      v: "bar"
+                }
+                pos_args {
+                  bool_val {
+                    src {
+                      end_column: 76
+                      end_line: 37
+                      file: 2
+                      start_column: 67
+                      start_line: 37
                     }
-                  }
-                  src {
-                    end_column: 72
-                    end_line: 27
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_column: 62
-                    start_line: 27
+                    v: true
                   }
                 }
-              }
-            }
-            named_args {
-              _1: "kwd"
-              _2 {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "lit"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    int64_val {
-                      src {
-                        end_column: 56
-                        end_line: 27
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_column: 50
-                        start_line: 27
-                      }
-                      v: 3
-                    }
-                  }
-                  src {
-                    end_column: 56
-                    end_line: 27
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_column: 50
-                    start_line: 27
-                  }
+                src {
+                  end_column: 76
+                  end_line: 37
+                  file: 2
+                  start_column: 67
+                  start_line: 37
                 }
               }
             }
             src {
-              end_column: 73
-              end_line: 27
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 77
+              end_line: 37
+              file: 2
               start_column: 14
-              start_line: 27
+              start_line: 37
             }
           }
         }
         src {
-          end_column: 73
-          end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 27
-        }
-      }
-    }
-    symbol {
-      value: "df2"
-    }
-    uid: 2
-    var_id {
-      bitfield1: 2
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_session_table_function {
-        fn {
-          apply_expr {
-            fn {
-              indirect_table_fn_name_ref {
-                name {
-                  fn_name_structured {
-                    name: "foo"
-                    name: "bar"
-                  }
-                }
-              }
-            }
-            src {
-              end_column: 52
-              end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 29
-            }
-          }
-        }
-        src {
-          end_column: 52
-          end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 29
-        }
-      }
-    }
-    symbol {
-      value: "df3"
-    }
-    uid: 3
-    var_id {
-      bitfield1: 3
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          call_table_function_expr {
-            name {
-              fn_name_flat {
-                name: "my_fn1"
-              }
-            }
-          }
-        }
-        src {
-          end_column: 42
-          end_line: 32
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 37
-          start_line: 32
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 4
-    var_id {
-      bitfield1: 4
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_session_table_function {
-        fn {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 4
-                }
-              }
-            }
-            src {
-              end_column: 43
-              end_line: 32
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 32
-            }
-          }
-        }
-        src {
-          end_column: 43
-          end_line: 32
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 32
-        }
-      }
-    }
-    symbol {
-      value: "df4"
-    }
-    uid: 5
-    var_id {
-      bitfield1: 5
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          call_table_function_expr {
-            name {
-              fn_name_flat {
-                name: "my_fn2"
-              }
-            }
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              end_column: 47
-              end_line: 35
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 37
-              start_line: 35
-            }
-            v: "foo"
-          }
-        }
-        src {
-          end_column: 47
-          end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 37
-          start_line: 35
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_session_table_function {
-        fn {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 6
-                }
-              }
-            }
-            src {
-              end_column: 48
-              end_line: 35
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 35
-            }
-          }
-        }
-        src {
-          end_column: 48
-          end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 35
-        }
-      }
-    }
-    symbol {
-      value: "df5"
-    }
-    uid: 7
-    var_id {
-      bitfield1: 7
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          call_table_function_expr {
-            name {
-              fn_name_flat {
-                name: "my_fn3"
-              }
-            }
-          }
-        }
-        src {
-          end_column: 43
+          end_column: 77
           end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 37
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
+      value: "df1"
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 3
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 8
+              indirect_table_fn_name_ref {
+                name {
+                  name {
+                    name_flat {
+                      name: "my_fn2"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      end_column: 54
+                      end_line: 39
+                      file: 2
+                      start_column: 47
+                      start_line: 39
+                    }
+                    v: 20
+                  }
+                }
+                src {
+                  end_column: 54
+                  end_line: 39
+                  file: 2
+                  start_column: 47
+                  start_line: 39
                 }
               }
             }
             src {
-              end_column: 41
-              end_line: 38
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 55
+              end_line: 39
+              file: 2
               start_column: 14
-              start_line: 38
+              start_line: 39
             }
           }
         }
         src {
-          end_column: 41
-          end_line: 38
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 55
+          end_line: 39
+          file: 2
           start_column: 14
-          start_line: 38
+          start_line: 39
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
-      value: "df6"
+      value: "df2"
     }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
+    uid: 4
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      apply_expr {
-        fn {
-          call_table_function_expr {
-            name {
-              fn_name_flat {
-                name: "my_fn4"
-              }
-            }
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              end_column: 50
-              end_line: 40
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
-              start_line: 40
-            }
-            v: "foo"
-          }
-        }
-        src {
-          end_column: 50
-          end_line: 40
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 40
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 10
-    var_id {
-      bitfield1: 10
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_session_table_function {
+      session_table_function {
         fn {
           apply_expr {
             fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 10
+              indirect_table_fn_name_ref {
+                name {
+                  name {
+                    name_structured {
+                      name: "my_fn1"
+                      name: "my_fn2"
+                    }
+                  }
                 }
               }
             }
             src {
-              end_column: 41
+              end_column: 58
               end_line: 41
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 41
             }
           }
         }
         src {
-          end_column: 41
+          end_column: 58
           end_line: 41
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 41
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              name {
+                name_flat {
+                  name: "my_fn1"
+                }
+              }
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 47
+                  end_line: 44
+                  file: 2
+                  start_column: 41
+                  start_line: 44
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 47
+              end_line: 44
+              file: 2
+              start_column: 41
+              start_line: 44
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 57
+                  end_line: 44
+                  file: 2
+                  start_column: 49
+                  start_line: 44
+                }
+                v: "V"
+              }
+            }
+            src {
+              end_column: 57
+              end_line: 44
+              file: 2
+              start_column: 49
+              start_line: 44
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  end_column: 68
+                  end_line: 44
+                  file: 2
+                  start_column: 59
+                  start_line: 44
+                }
+                v: true
+              }
+            }
+            src {
+              end_column: 68
+              end_line: 44
+              file: 2
+              start_column: 59
+              start_line: 44
+            }
+          }
+        }
+        src {
+          end_column: 69
+          end_line: 44
+          file: 2
+          start_column: 37
+          start_line: 44
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 6
+              }
+            }
+            src {
+              end_column: 70
+              end_line: 44
+              file: 2
+              start_column: 14
+              start_line: 44
+            }
+          }
+        }
+        src {
+          end_column: 70
+          end_line: 44
+          file: 2
+          start_column: 14
+          start_line: 44
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              name {
+                name_flat {
+                  name: "my_fn2"
+                }
+              }
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 48
+                  end_line: 47
+                  file: 2
+                  start_column: 41
+                  start_line: 47
+                }
+                v: 12
+              }
+            }
+            src {
+              end_column: 48
+              end_line: 47
+              file: 2
+              start_column: 41
+              start_line: 47
+            }
+          }
+        }
+        src {
+          end_column: 49
+          end_line: 47
+          file: 2
+          start_column: 37
+          start_line: 47
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 8
+  }
+}
+body {
+  bind {
+    expr {
+      session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 8
+              }
+            }
+            src {
+              end_column: 50
+              end_line: 47
+              file: 2
+              start_column: 14
+              start_line: 47
+            }
+          }
+        }
+        src {
+          end_column: 50
+          end_line: 47
+          file: 2
+          start_column: 14
+          start_line: 47
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df5"
+    }
+    uid: 9
+  }
+}
+body {
+  bind {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              name {
+                name_flat {
+                  name: "my_fn1"
+                }
+              }
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 50
+                  end_line: 49
+                  file: 2
+                  start_column: 44
+                  start_line: 49
+                }
+                v: 5
+              }
+            }
+            src {
+              end_column: 50
+              end_line: 49
+              file: 2
+              start_column: 44
+              start_line: 49
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 60
+                  end_line: 49
+                  file: 2
+                  start_column: 52
+                  start_line: 49
+                }
+                v: "A"
+              }
+            }
+            src {
+              end_column: 60
+              end_line: 49
+              file: 2
+              start_column: 52
+              start_line: 49
+            }
+          }
+        }
+        pos_args {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  end_column: 72
+                  end_line: 49
+                  file: 2
+                  start_column: 62
+                  start_line: 49
+                }
+              }
+            }
+            src {
+              end_column: 72
+              end_line: 49
+              file: 2
+              start_column: 62
+              start_line: 49
+            }
+          }
+        }
+        src {
+          end_column: 73
+          end_line: 49
+          file: 2
+          start_column: 14
+          start_line: 49
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 10
+  }
+}
+body {
+  bind {
+    expr {
+      session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 10
+              }
+            }
+            src {
+              end_column: 41
+              end_line: 50
+              file: 2
+              start_column: 14
+              start_line: 50
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 50
+          file: 2
+          start_column: 14
+          start_line: 50
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df6"
+    }
+    uid: 11
+  }
+}
+body {
+  bind {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              name {
+                name_flat {
+                  name: "my_fn2"
+                }
+              }
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 52
+          file: 2
+          start_column: 14
+          start_line: 52
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 12
+  }
+}
+body {
+  bind {
+    expr {
+      session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id: 12
+              }
+            }
+            src {
+              end_column: 41
+              end_line: 53
+              file: 2
+              start_column: 14
+              start_line: 53
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 53
+          file: 2
+          start_column: 14
+          start_line: 53
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df7"
     }
-    uid: 11
-    var_id {
-      bitfield1: 11
-    }
+    uid: 13
   }
 }
 client_ast_version: 1
@@ -614,5 +962,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 32
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

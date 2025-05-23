@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -13,10 +13,10 @@ from tests.integ.utils.sql_counter import SqlCounter
 
 SERIES_TO_TEST = [(IRIS_DF.iloc[:, i], 1, 0) for i in range(IRIS_DF.shape[1])] + [
     (native_pd.Series(), 1, 0),
-    (native_pd.Series(list(range(10000))), 6, 0),
+    (native_pd.Series(list(range(10000))), 4, 0),
     (
         native_pd.Series(list(range(10000)), index=np.random.randint(-100, 100, 10000)),
-        6,
+        4,
         0,
     ),
     (
@@ -26,7 +26,7 @@ SERIES_TO_TEST = [(IRIS_DF.iloc[:, i], 1, 0) for i in range(IRIS_DF.shape[1])] +
         1,
         0,
     ),
-    (native_pd.Series(index=list(range(10000))), 6, 0),
+    (native_pd.Series(index=list(range(10000))), 4, 0),
 ]
 
 

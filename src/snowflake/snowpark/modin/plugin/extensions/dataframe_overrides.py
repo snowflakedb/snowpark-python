@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -137,9 +137,15 @@ def register_dataframe_not_implemented():
 
 # Avoid overwriting builtin `map` by accident
 @register_dataframe_accessor("map")
-@dataframe_not_implemented()
-def _map(self, func, na_action: str | None = None, **kwargs) -> DataFrame:
-    pass  # pragma: no cover
+def _map(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
+    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+    if not callable(func):
+        raise TypeError(f"{func} is not callable")  # pragma: no cover
+    return self.__constructor__(
+        query_compiler=self._query_compiler.applymap(
+            func, na_action=na_action, **kwargs
+        )
+    )
 
 
 @register_dataframe_not_implemented()
@@ -276,7 +282,6 @@ def to_orc(self, path=None, *, engine="pyarrow", index=None, engine_kwargs=None)
     pass  # pragma: no cover
 
 
-@register_dataframe_not_implemented()
 def to_html(
     self,
     buf=None,
@@ -303,7 +308,10 @@ def to_html(
     render_links=False,
     encoding=None,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    WarningMessage.single_warning(
+        "DataFrame.to_html materializes data to the local machine."
+    )
+    return self._to_pandas().to_html
 
 
 @register_dataframe_not_implemented()
@@ -332,6 +340,54 @@ def to_records(
     self, index=True, column_dtypes=None, index_dtypes=None
 ):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
+
+
+def to_string(
+    self,
+    buf=None,
+    columns=None,
+    col_space=None,
+    header=True,
+    index=True,
+    na_rep="NaN",
+    formatters=None,
+    float_format=None,
+    sparsify=None,
+    index_names=True,
+    justify=None,
+    max_rows=None,
+    min_rows=None,
+    max_cols=None,
+    show_dimensions=False,
+    decimal=".",
+    line_width=None,
+    max_colwidth=None,
+    encoding=None,
+):  # noqa: PR01, RT01, D200
+    WarningMessage.single_warning(
+        "DataFrame.to_string materializes data to the local machine."
+    )
+    return self._to_pandas().to_string(
+        buf=buf,
+        columns=columns,
+        col_space=col_space,
+        header=header,
+        index=index,
+        na_rep=na_rep,
+        formatters=formatters,
+        float_format=float_format,
+        sparsify=sparsify,
+        index_names=index_names,
+        justify=justify,
+        max_rows=max_rows,
+        min_rows=min_rows,
+        max_cols=max_cols,
+        show_dimensions=show_dimensions,
+        decimal=decimal,
+        line_width=line_width,
+        max_colwidth=max_colwidth,
+        encoding=encoding,
+    )
 
 
 @register_dataframe_not_implemented()
@@ -377,11 +433,6 @@ def to_xml(
     pass  # pragma: no cover
 
 
-@register_dataframe_not_implemented()
-def __delitem__(self, key):
-    pass  # pragma: no cover
-
-
 @register_dataframe_accessor("style")
 @property
 def style(self):  # noqa: RT01, D200
@@ -406,17 +457,27 @@ def __rdivmod__(self, other):
 # The from_dict and from_records accessors are class methods and cannot be overridden via the
 # extensions module, as they need to be foisted onto the namespace directly because they are not
 # routed through getattr. To this end, we manually set DataFrame.from_dict to our new method.
-@dataframe_not_implemented()
+@classmethod
 def from_dict(
     cls, data, orient="columns", dtype=None, columns=None
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    """
+    Construct ``DataFrame`` from dict of array-like or dicts.
+    """
+    return DataFrame(
+        native_pd.DataFrame.from_dict(
+            data=data,
+            orient=orient,
+            dtype=dtype,
+            columns=columns,
+        )
+    )
 
 
 DataFrame.from_dict = from_dict
 
 
-@dataframe_not_implemented()
+@classmethod
 def from_records(
     cls,
     data,
@@ -426,7 +487,23 @@ def from_records(
     coerce_float=False,
     nrows=None,
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    """
+    Convert structured or record ndarray to ``DataFrame``.
+    """
+    if isinstance(data, DataFrame):
+        ErrorMessage.not_implemented(
+            "Snowpark pandas 'DataFrame.from_records' method does not yet support 'data' parameter of type 'DataFrame'"
+        )
+    return DataFrame(
+        native_pd.DataFrame.from_records(
+            data=data,
+            index=index,
+            exclude=exclude,
+            columns=columns,
+            coerce_float=coerce_float,
+            nrows=nrows,
+        )
+    )
 
 
 DataFrame.from_records = from_records
@@ -804,14 +881,12 @@ def apply(
 # Snowpark pandas uses a separate QC method, while modin directly calls map.
 @register_dataframe_accessor("applymap")
 def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
-    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    if not callable(func):
-        raise TypeError(f"{func} is not callable")
-    return self.__constructor__(
-        query_compiler=self._query_compiler.applymap(
-            func, na_action=na_action, **kwargs
-        )
+    warnings.warn(
+        "DataFrame.applymap has been deprecated. Use DataFrame.map instead.",
+        FutureWarning,
+        stacklevel=2,
     )
+    return self.map(func, na_action=na_action, **kwargs)
 
 
 # We need to override _get_columns to satisfy
@@ -989,27 +1064,19 @@ def groupby(
             (
                 (hashable(o) and (o in self))
                 or isinstance(o, Series)
+                or (isinstance(o, native_pd.Grouper) and o.key in self)
                 or (is_list_like(o) and len(o) == len(self.shape[axis]))
             )
             for o in by
         ):
-            # plit 'by's into those that belongs to the self (internal_by)
-            # and those that doesn't (external_by). For SnowSeries that belongs
-            # to current DataFrame, we convert it to labels for easy process.
-            internal_by, external_by = [], []
-
-            for current_by in by:
-                if hashable(current_by):
-                    internal_by.append(current_by)
-                elif isinstance(current_by, Series):
-                    if current_by._parent is self:
-                        internal_by.append(current_by.name)
-                    else:
-                        external_by.append(current_by)  # pragma: no cover
-                else:
-                    external_by.append(current_by)
-
-            by = internal_by + external_by
+            # OSS modin needs to determine which `by` keys come from self and which do not,
+            # but we defer this decision to a lower layer to preserve lazy evaluation semantics.
+            by = [
+                current_by.name
+                if isinstance(current_by, Series) and current_by._parent is self
+                else current_by
+                for current_by in by
+            ]
 
     return DataFrameGroupBy(
         self,

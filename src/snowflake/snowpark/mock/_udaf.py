@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -69,9 +69,9 @@ class MockUDAFRegistration(UDAFRegistration):
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.udaf, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
 
             object_name = kwargs["_registered_object_name"]
             udaf = MockUserDefinedAggregateFunction(
@@ -107,9 +107,9 @@ class MockUDAFRegistration(UDAFRegistration):
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.udaf, stmt)
-            ast_id = stmt.var_id.bitfield1
+            ast_id = stmt.uid
             build_udaf(
                 ast,
                 handler,

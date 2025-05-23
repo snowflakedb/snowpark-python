@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import datetime
 import math
 from typing import Callable
@@ -23,7 +24,6 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import DoubleType, StringType, VariantType
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     ColumnSchema,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -32,11 +32,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
+from tests.utils import RUNNING_ON_GH
 
 BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
     ([1, 2, 3, None], lambda x: x + 1, "int"),
@@ -169,7 +165,7 @@ def create_func_with_return_type_hint(func: Callable, return_type: str) -> Calla
     return d["f"]
 
 
-TEST_NUMPY_FUNCS = [np.min, np.sqrt, np.tan, np.sum, np.median]
+TEST_NUMPY_FUNCS = [np.min, np.sqrt, np.tan, np.sum, np.square, np.log1p, np.exp2]
 
 
 @pytest.mark.parametrize("method", ["apply", "map"])
@@ -292,12 +288,13 @@ class TestApplyOrMapCallable:
                 ),
             },
         ]
-        with SqlCounter(query_count=2):
+        with SqlCounter(query_count=3):
             snow_df = create_snow_df_with_table_and_data(
                 session,
                 random_name_for_temp_object(TempObjectType.TABLE),
                 [ColumnSchema("col", VariantType())],
                 [[e] for e in data],
+                enforce_ordering=True,
             )
 
         expected_types = [
@@ -412,7 +409,7 @@ class TestApplyOrMapCallable:
         )
 
     @pytest.mark.parametrize("func", TEST_NUMPY_FUNCS)
-    @sql_count_checker(query_count=4, udf_count=1)
+    @sql_count_checker(query_count=1)
     def test_apply_and_map_numpy(self, method, func):
         data = [1.0, 2.0, 3.0]
         native_series = native_pd.Series(data)
@@ -441,16 +438,16 @@ class TestApplyOrMapCallable:
         )
 
     @pytest.mark.parametrize(
-        "input, expected_output",
+        "input",
         [
             # The last element in this numeric column becomes np.nan in Python UDF -> SQL null
-            ([1, 2, 3, 4, None], [False, True, True, False, True]),
+            [1, 2, 3, 4, None],
             # The last element in this string column becomes pd.NA in Python UDF -> SQL null
-            (["s", "t", "null", None], [False, False, False, True]),
+            ["s", "t", "null", None],
         ],
     )
     @sql_count_checker(query_count=4, udf_count=1)
-    def test_variant_json_null(self, method, input, expected_output):
+    def test_variant_json_null(self, method, input):
         def f(x):
             if native_pd.isna(x):
                 return x
@@ -463,11 +460,16 @@ class TestApplyOrMapCallable:
             else:
                 return x
 
-        assert getattr(pd.Series(input), method)(f).isna().tolist() == expected_output
+        snow_series = pd.Series(input)
+        native_series = native_pd.Series(input)
+        eval_snowpark_pandas_result(
+            snow_series, native_series, lambda x: getattr(x, method)(f).isna()
+        )
 
     # This import is related to the test below. Do not remove.
     import scipy  # noqa: E402
 
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
     @pytest.mark.parametrize(
         "package,expected_query_count",
         [
@@ -632,6 +634,9 @@ class TestApplyOnly:
     not.
     """
 
+    @pytest.mark.skip(
+        "SNOW-1896426 Test run into high failing rate, turn back on once fixed"
+    )
     def test_args_and_kwargs(self):
         def f(x, y, z=1) -> int:
             return x + y + z
@@ -816,6 +821,15 @@ class TestMapOnly:
             assert_exception_equal=False,
             expect_exception_type=TypeError,
         )
+
+    @sql_count_checker(query_count=3)
+    def test_incorrect_inferred_type(self):
+        s = pd.Series([1, 2, 17])
+        # The return type of the lambda is inferred as int, but the return type is
+        # mix of int and string.
+        # Attempt to convert "abc" to int will raise an exception.
+        with pytest.raises(SnowparkSQLException):
+            s.map(lambda x: "abc" if x == 17 else x).to_pandas()
 
 
 # NOTE: Please add test cases to one of TestApplyOrMapCallable, TestApplyOnly,

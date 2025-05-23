@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -474,8 +474,8 @@ def test_async_job_to_df(session, create_async_job_from_query_id):
 
 
 def test_async_job_result_wait_no_result(session):
-    async_job = session.sql("select system$wait(3)").collect_nowait()
     t0 = time()
+    async_job = session.sql("select system$wait(3)").collect_nowait()
     result = async_job.result("no_result")
     t1 = time()
     assert t1 - t0 >= 3.0

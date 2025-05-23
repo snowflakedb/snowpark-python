@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import csv
 import glob
@@ -29,8 +29,16 @@ from snowflake.snowpark.mock._snowflake_data_type import (
     TableEmulator,
 )
 from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
+from snowflake.snowpark.mock._util import convert_snowflake_datetime_format
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
-from snowflake.snowpark.types import DecimalType, StringType, VariantType
+from snowflake.snowpark.types import (
+    DecimalType,
+    StringType,
+    VariantType,
+    TimestampType,
+    DateType,
+    TimeType,
+)
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -38,6 +46,9 @@ if TYPE_CHECKING:
 
 _logger = getLogger(__name__)
 
+DEFAULT_TIMESTAMP_FORMAT = "YYYY-MM-DD HH24:MI:SS"
+DEFAULT_DATE_FORMAT = "YYYY-MM-DD"
+DEFAULT_TIME_FORMAT = "HH24:MI:SS"
 
 PUT_RESULT_KEYS = [
     "source",
@@ -57,7 +68,6 @@ GET_RESULT_KEYS = [
     "status",
     "message",
 ]
-
 
 # option support map
 # top level:
@@ -80,6 +90,10 @@ SUPPORT_READ_OPTIONS = {
         "COMPRESSION": ("AUTO", "NONE"),
         "PATTERN": None,
         "ENCODING": ("UTF8", "UTF-8"),
+        "NULL_IF": None,
+        "DATE_FORMAT": None,
+        "TIMESTAMP_FORMAT": None,
+        "TIME_FORMAT": None,
     },
     "json": {
         "INFER_SCHEMA": ("TRUE", "FALSE"),
@@ -448,6 +462,16 @@ class StageEntity:
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+            null_if = options.get("NULL_IF", None)
+            date_format, _ = convert_snowflake_datetime_format(
+                options.get("DATE_FORMAT", None), DEFAULT_DATE_FORMAT
+            )
+            time_format, _ = convert_snowflake_datetime_format(
+                options.get("TIME_FORMAT", None), DEFAULT_TIME_FORMAT
+            )
+            timestamp_format, _ = convert_snowflake_datetime_format(
+                options.get("TIMESTAMP_FORMAT", None), DEFAULT_TIMESTAMP_FORMAT
+            )
 
             if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
                 raise SnowparkLocalTestingException(
@@ -493,16 +517,21 @@ class StageEntity:
                     )
                     continue
                 converter = CONVERT_MAP[type(column_series.sf_type.datatype)]
-                converters_dict[i] = (
-                    partial(
-                        converter,
-                        datatype=column_series.sf_type.datatype,
-                        field_optionally_enclosed_by=field_optionally_enclosed_by,
-                    )
-                    if field_optionally_enclosed_by
-                    else partial(converter, datatype=column_series.sf_type.datatype)
-                )
-
+                kwargs = {
+                    "datatype": column_series.sf_type.datatype,
+                    "null_if": null_if,
+                }
+                if field_optionally_enclosed_by:
+                    kwargs[
+                        "field_optionally_enclosed_by"
+                    ] = field_optionally_enclosed_by
+                if isinstance(column_series.sf_type.datatype, DateType):
+                    kwargs["format"] = date_format
+                if isinstance(column_series.sf_type.datatype, TimeType):
+                    kwargs["format"] = time_format
+                if isinstance(column_series.sf_type.datatype, TimestampType):
+                    kwargs["format"] = timestamp_format
+                converters_dict[i] = partial(converter, **kwargs)
             for local_file in local_files:
                 # pre-read to check columns number
                 df = pd.read_csv(

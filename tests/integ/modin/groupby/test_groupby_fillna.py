@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -218,14 +219,11 @@ def test_groupby_fillna_multiindex_ffill_bfill_with_level(
 
 @pytest.mark.parametrize("method_or_value", METHOD_OR_VALUES)
 @pytest.mark.parametrize("fillna_axis", [None, 1])
-@pytest.mark.parametrize(
-    "by_info", [(["I", "A"], 1), (["A"], 0), (["A", "B"], 1), (10, 0)]
-)
+@pytest.mark.parametrize("by_list", [["I", "A"], ["A"], ["A", "B"], 10])
 def test_groupby_fillna_multiindex_ffill_bfill_negative(
-    method_or_value, fillna_axis, by_info
+    method_or_value, fillna_axis, by_list
 ):
     method, value = method_or_value
-    by_list, expected_query_count = by_info
     native_df = native_pd.DataFrame(
         TEST_DF_DATA_2, index=TEST_DF_INDEX_2, columns=TEST_DF_COLUMNS_2
     )
@@ -237,7 +235,7 @@ def test_groupby_fillna_multiindex_ffill_bfill_negative(
     else:
         level = None
 
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,

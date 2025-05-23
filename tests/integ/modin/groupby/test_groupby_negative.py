@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import re
 from typing import Sequence
 
@@ -24,21 +25,18 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize(
-    "invalid_by, expected_query_count",
+    "invalid_by",
     [
-        (["col1"], 0),
-        (None, 0),
-        ([], 0),
-        ("non_exist_by", 0),
-        (
-            ["col2", "non_exist_by"],
-            1,
-        ),  # non existing label in list leads to count query
-        (("col2", "col3"), 0),
+        ["col1"],
+        None,
+        [],
+        "non_exist_by",
+        ["col2", "non_exist_by"],
+        ("col2", "col3"),
     ],
 )
-def test_invalid_by(invalid_by, expected_query_count) -> None:
-    snowpark_pandas_df = pd.DataFrame(
+def test_invalid_by(invalid_by) -> None:
+    pandas_df = native_pd.DataFrame(
         {
             "col1": [0, 1, 1, 0],
             "col2": [4, 5, 36, 7],
@@ -47,10 +45,10 @@ def test_invalid_by(invalid_by, expected_query_count) -> None:
         }
     )
     # rename the columns to have duplicated column names
-    snowpark_pandas_df.columns = ["col1", "col2", "col3", "col1"]
-    pandas_df = snowpark_pandas_df.to_pandas()
+    pandas_df.columns = ["col1", "col2", "col3", "col1"]
+    snowpark_pandas_df = pd.DataFrame(pandas_df)
 
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
             pandas_df,
@@ -59,7 +57,7 @@ def test_invalid_by(invalid_by, expected_query_count) -> None:
         )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_invalid_none_label():
     snowpark_pandas_df = pd.DataFrame(
         {

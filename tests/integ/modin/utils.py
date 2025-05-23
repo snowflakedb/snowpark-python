@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 from __future__ import annotations
 
 import datetime
@@ -15,7 +16,6 @@ import pandas as native_pd
 import pandas.testing as tm
 import pytest
 from modin.pandas import DataFrame, Index, Series
-from packaging import version
 from pandas import isna
 from pandas._typing import Scalar
 from pandas.core.dtypes.common import is_list_like
@@ -27,10 +27,6 @@ from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_t
 from snowflake.snowpark.modin.utils import SupportsPublicToPandas
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import StructField, StructType
-
-PANDAS_VERSION_PREDICATE = version.parse(native_pd.__version__) >= version.parse(
-    "2.2.3"
-)
 
 ValuesEqualType = Optional[
     Union[
@@ -658,6 +654,7 @@ def create_snow_df_with_table_and_data(
     table_name: str,
     column_schema: list[ColumnSchema],
     data: list[list[Any]],
+    enforce_ordering: bool = False,
 ) -> pd.DataFrame:
     """
     Create a snowpark pandas dataframe out of a snowflake table. This function creates a snowflake
@@ -703,7 +700,7 @@ def create_snow_df_with_table_and_data(
         table_name, table_type="temporary"
     )
 
-    snow_df = pd.read_snowflake(table_name)
+    snow_df = pd.read_snowflake(table_name, enforce_ordering=enforce_ordering)
     return snow_df
 
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -19,7 +19,8 @@ from tests.integ.utils.sql_counter import sql_count_checker
         ({"td": native_pd.timedelta_range(1, periods=20)}, 20),
     ],
 )
-@sql_count_checker(query_count=1)
+# Frames constructed from literal objects cache their sizes, so no queries are necessary.
+@sql_count_checker(query_count=0)
 def test_len(sample, expected_len):
     snow = pd.DataFrame(sample)
     native = native_pd.DataFrame(sample)
