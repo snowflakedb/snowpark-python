@@ -1683,7 +1683,7 @@ def merge_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + TAB
-        + source.replace(NEW_LINE, NEW_LINE + TAB)
+        + source
         + NEW_LINE
         + RIGHT_PARENTHESIS
         + NEW_LINE

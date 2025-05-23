@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import pytest
-import re
+from unittest import mock
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     CHANGE_TRACKING,
@@ -447,7 +447,6 @@ def test_create_dynamic_iceberg_table():
 
 
 def test_project_statement_formatting():
-    print(project_statement(["col1", "col2"], "table1"))
     assert project_statement(["col1", "col2"], "table1") == (
         " SELECT \n" "    col1, \n" "    col2\n" " FROM (\n" "table1\n" ")"
     )
@@ -479,7 +478,6 @@ def test_project_statement_formatting():
         ")"
     )
 
-    print(project_statement([], "table1"))
     assert project_statement([], "table1") == (
         " SELECT  * \n" " FROM (\n" "table1\n" ")"
     )
@@ -530,34 +528,36 @@ def test_filter_statement_formatting():
     )
 
 
-def test_sample_by_statement_formatting():
-    # We use regex to match the output because the percent rank col is randomly generated
+@mock.patch(
+    "snowflake.snowpark._internal.analyzer.analyzer_utils.random_name_for_temp_object",
+    return_value="SNOWPARK_TEMP_COLUMN_T9IE0TMCWC",
+)
+def test_sample_by_statement_formatting(mock_random_name):
     sample = sample_by_statement(
         child="my_table", col="category", fractions={"A": 0.1, "B": 0.5, "C": 1.0}
     )
-    print(sample)
-    expected_pattern = re.compile(
-        r" SELECT SNOWPARK_LEFT\.\* EXCLUDE (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
-        r" SELECT  \* , PERCENT_RANK\(\) OVER \(PARTITION BY category ORDER BY RANDOM\(\)\) AS (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
-        r"my_table\n"
-        r"\)\n"
-        r"\) AS SNOWPARK_LEFT JOIN \(\n"
-        r"SELECT KEY, VALUE FROM TABLE\(FLATTEN\(input => parse_json\('\{\"A\": 0\.1, \"B\": 0\.5, \"C\": 1\.0\}'\)\)\)\n"
-        r"\) AS SNOWPARK_RIGHT ON SNOWPARK_LEFT\.category = SNOWPARK_RIGHT\.KEY WHERE SNOWPARK_LEFT\.(?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) <= SNOWPARK_RIGHT\.VALUE"
+    expected = (
+        " SELECT SNOWPARK_LEFT.* EXCLUDE SNOWPARK_TEMP_COLUMN_T9IE0TMCWC FROM (\n"
+        " SELECT  * , PERCENT_RANK() OVER (PARTITION BY category ORDER BY RANDOM()) AS SNOWPARK_TEMP_COLUMN_T9IE0TMCWC FROM (\n"
+        "my_table\n"
+        ")\n"
+        ") AS SNOWPARK_LEFT JOIN (\n"
+        'SELECT KEY, VALUE FROM TABLE(FLATTEN(input => parse_json(\'{"A": 0.1, "B": 0.5, "C": 1.0}\')))\n'
+        ") AS SNOWPARK_RIGHT ON SNOWPARK_LEFT.category = SNOWPARK_RIGHT.KEY WHERE SNOWPARK_LEFT.SNOWPARK_TEMP_COLUMN_T9IE0TMCWC <= SNOWPARK_RIGHT.VALUE"
     )
-    assert expected_pattern.match(sample) is not None
+    assert sample == expected
 
     sample = sample_by_statement(child="my_table", col="category", fractions={})
-    expected_pattern = re.compile(
-        r" SELECT SNOWPARK_LEFT\.\* EXCLUDE (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
-        r" SELECT  \* , PERCENT_RANK\(\) OVER \(PARTITION BY category ORDER BY RANDOM\(\)\) AS (?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) FROM \(\n"
-        r"my_table\n"
-        r"\)\n"
-        r"\) AS SNOWPARK_LEFT JOIN \(\n"
-        r"SELECT KEY, VALUE FROM TABLE\(FLATTEN\(input => parse_json\('\{\}'\)\)\)\n"
-        r"\) AS SNOWPARK_RIGHT ON SNOWPARK_LEFT\.category = SNOWPARK_RIGHT\.KEY WHERE SNOWPARK_LEFT\.(?:SNOWPARK_TEMP_COLUMN_[A-Z0-9]+) <= SNOWPARK_RIGHT\.VALUE"
+    expected = (
+        " SELECT SNOWPARK_LEFT.* EXCLUDE SNOWPARK_TEMP_COLUMN_T9IE0TMCWC FROM (\n"
+        " SELECT  * , PERCENT_RANK() OVER (PARTITION BY category ORDER BY RANDOM()) AS SNOWPARK_TEMP_COLUMN_T9IE0TMCWC FROM (\n"
+        "my_table\n"
+        ")\n"
+        ") AS SNOWPARK_LEFT JOIN (\n"
+        "SELECT KEY, VALUE FROM TABLE(FLATTEN(input => parse_json('{}')))\n"
+        ") AS SNOWPARK_RIGHT ON SNOWPARK_LEFT.category = SNOWPARK_RIGHT.KEY WHERE SNOWPARK_LEFT.SNOWPARK_TEMP_COLUMN_T9IE0TMCWC <= SNOWPARK_RIGHT.VALUE"
     )
-    assert expected_pattern.match(sample) is not None
+    assert sample == expected
 
 
 def test_aggregate_statement_formatting():
