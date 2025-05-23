@@ -27,7 +27,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.lazy_import_utils import lazy_import
+from snowflake.snowpark._internal.lazy_import_utils import get_pyarrow, get_pandas_tools
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     ALREADY_QUOTED,
@@ -1882,8 +1882,8 @@ def write_arrow(
     # It should be pushed down into the connector, but would require a minimum required version bump.
 
     # Lazy load pyarrow_parquet and pandas_tools modules
-    pyarrow_parquet = lazy_import("pyarrow.parquet")
-    pandas_tools = lazy_import("snowflake.connector.pandas_tools")
+    pyarrow_parquet = get_pyarrow().parquet
+    pandas_tools = get_pandas_tools()
     _create_temp_stage = pandas_tools._create_temp_stage
     _create_temp_file_format = pandas_tools._create_temp_file_format
     build_location_helper = pandas_tools.build_location_helper
