@@ -64,13 +64,15 @@ def test_basic_databricks(session, input_type, input_value):
     input_dict = {
         input_type: input_value,
     }
-    df = session.read.dbapi(create_databricks_connection, **input_dict)
+    df = session.read.dbapi(create_databricks_connection, **input_dict).order_by(
+        "COL_BYTE"
+    )
     ret = df.collect()
     assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    df2 = session.table(table_name)
+    df2 = session.table(table_name).order_by("COL_BYTE")
     assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
 
 
@@ -144,7 +146,7 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
         udtf_configs={
             "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
         },
-    )
+    ).order_by("COL_BYTE")
     ret = df.collect()
     assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 
@@ -160,10 +162,17 @@ def test_unit_udtf_ingestion():
     udtf_ingestion_instance = udtf_ingestion_class()
 
     dsp = DataSourcePartitioner(
-        create_databricks_connection, TEST_TABLE_NAME, is_query=False
+        create_databricks_connection,
+        f"(select * from {TEST_TABLE_NAME} SORT BY COL_BYTE)",
+        is_query=True,
     )
-    yield_data = udtf_ingestion_instance.process(dsp.partitions[0])
-    for row, expected_row in zip(yield_data, EXPECTED_TEST_DATA):
+    yield_data = list(udtf_ingestion_instance.process(dsp.partitions[0]))
+    assert (
+        yield_data[-1] == EXPECTED_TEST_DATA[0]
+    )  # databricks sort by returns the all None row as the last row, while in snowflake None is the first row
+    for row, expected_row in zip(
+        yield_data[:-1], EXPECTED_TEST_DATA[1:]
+    ):  # None data ordering is the same
         for index, (field, value) in enumerate(zip(EXPECTED_TYPE.fields, row)):
             if isinstance(field.datatype, VariantType):
                 # Convert ArrayType, MapType, and StructType to JSON
