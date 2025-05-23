@@ -20,7 +20,6 @@ from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
 from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
     TimedeltaIndex,
 )
-from snowflake.snowpark.modin.plugin.extensions.utils import is_autoswitch_enabled
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
@@ -41,14 +40,34 @@ def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
 def explain(last=20) -> native_pd.DataFrame:
     stats = get_hybrid_switch_log()
     stats = stats.reset_index(drop=True).sort_index().reset_index()
-    stats['decision'] = stats.groupby(['group']).bfill().ffill()['decision']
-    stats['api'] = stats.groupby(['group']).bfill().ffill()['api']
-    stats = stats.groupby('group', sort=False).apply(include_groups=False,func=lambda x: x.melt(ignore_index=False, id_vars=['source', 'api', 'decision', 'candidate', 'index', 'mode'], var_name='metric', value_vars=['stay_cost', 'move_to_cost', 'other_execute_cost', 'delta', 'rows', 'cols'])).dropna()
-    stats = stats.set_index(['source', 'decision', 'api', 'index'])
-    stats = stats.sort_index(level='index')
-    stats['value'] = stats['value'].astype(int)
-    stats.reset_index().drop(columns='index').set_index(['source', 'decision', 'api'])
+    stats["decision"] = stats.groupby(["group"]).bfill().ffill()["decision"]
+    stats["api"] = stats.groupby(["group"]).bfill().ffill()["api"]
+    stats = (
+        stats.groupby("group", sort=False)
+        .apply(
+            include_groups=False,
+            func=lambda x: x.melt(
+                ignore_index=False,
+                id_vars=["source", "api", "decision", "candidate", "index", "mode"],
+                var_name="metric",
+                value_vars=[
+                    "stay_cost",
+                    "move_to_cost",
+                    "other_execute_cost",
+                    "delta",
+                    "rows",
+                    "cols",
+                ],
+            ),
+        )
+        .dropna()
+    )
+    stats = stats.set_index(["source", "decision", "api", "index"])
+    stats = stats.sort_index(level="index")
+    stats["value"] = stats["value"].astype(int)
+    stats.reset_index().drop(columns="index").set_index(["source", "decision", "api"])
     return stats.tail(last)
+
 
 @register_pd_accessor("read_snowflake")
 def read_snowflake(

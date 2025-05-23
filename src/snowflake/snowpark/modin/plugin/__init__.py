@@ -4,7 +4,7 @@
 
 import inspect
 import sys
-from typing import Any, Union
+from typing import Any, Union, Callable
 
 from packaging import version
 
@@ -141,7 +141,7 @@ Backend.register_backend(
 Backend.put("snowflake")
 
 # Hybrid Mode Registration
-pre_op_switch_points = [
+pre_op_switch_points: list[dict[str, Union[str, None]]] = [
     {"class_name": "DataFrame", "method": "__init__"},
     {"class_name": "Series", "method": "__init__"},
     {"class_name": "DataFrame", "method": "apply"},
@@ -185,8 +185,8 @@ aggregations = [
     "cumsum",
 ]
 
-post_op_switch_points = (
-    [
+post_op_switch_points: list[dict[str, Union[str, None]]] = (
+    [  # type: ignore[assignment]
         {"class_name": None, "method": "read_snowflake"},
         {"class_name": "Series", "method": "value_counts"},
         {"class_name": "DataFrame", "method": "value_counts"},
@@ -275,7 +275,7 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
 
 def _maybe_apply_telemetry(
     cls: Union[DataFrame, Series, BasePandasDataset],
-    register_method: callable,
+    register_method: Callable,
     attr_name: str,
 ) -> Any:
     if (
@@ -329,6 +329,7 @@ for attr_name in BasePandasDataset.__dict__:
 
 # Apply telemetry to top-level functions in the pd namespace.
 
+defined_backend = None
 for attr_name in dir(modin.pandas):
     # Upstream modin creates a dispatch wrapper for top-level methods, so we need to read
     # from the extensions dict instead of directly calling getattr to prevent recursion.
