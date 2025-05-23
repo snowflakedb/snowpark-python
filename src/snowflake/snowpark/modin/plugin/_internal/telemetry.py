@@ -10,7 +10,7 @@ from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast, List
 
-from cachetools import cached
+from cachetools import cached  # type: ignore[import]
 from typing_extensions import ParamSpec
 
 from modin.config import MetricsMode
@@ -622,8 +622,9 @@ hybrid_switch_log = native_pd.DataFrame({})
 
 
 @cached(cache={})
-def get_user_source_location(group) -> str:
+def get_user_source_location(group: str) -> dict[str, str]:
     import inspect
+
     stack = inspect.stack()
     frame_before_snowpandas = None
     location = "<unknown>"
@@ -639,10 +640,10 @@ def get_user_source_location(group) -> str:
         and frame_before_snowpandas.code_context is not None
     ):
         location = frame_before_snowpandas.code_context[0].replace("\n", "")
-    return { 'group': group, 'source': location }
+    return {"group": group, "source": location}
 
 
-def get_hybrid_switch_log():
+def get_hybrid_switch_log() -> native_pd.DataFrame:
     global hybrid_switch_log
     return hybrid_switch_log.copy()
 
@@ -657,24 +658,24 @@ def hybrid_metrics_watcher(metric_name: str, metric_value: Union[int, float]) ->
     else:
         return
     tokens = metric_name.split(".")[3:]
-    entry = {'mode': mode}
+    entry = {"mode": mode}
     while len(tokens) >= 2:
         key = tokens.pop(0)
-        if key == 'api':
-            value = tokens.pop(0) + '.' + tokens.pop(0)
+        if key == "api":
+            value = tokens.pop(0) + "." + tokens.pop(0)
         else:
             value = tokens.pop(0)
         entry[key] = value
-    
+
     if len(tokens) == 1:
         key = tokens.pop(0)
-        entry[key] = metric_value
-    
-    source = get_user_source_location(entry['group'])
-    entry['source'] = source['source']
+        entry[key] = metric_value  # type: ignore[assignment]
+
+    source = get_user_source_location(entry["group"])
+    entry["source"] = source["source"]
     new_row = native_pd.DataFrame(entry, index=[0])
     hybrid_switch_log = native_pd.concat([hybrid_switch_log, new_row])
- 
+
 
 def connect_modin_telemetry() -> None:
     MetricsMode.enable()
