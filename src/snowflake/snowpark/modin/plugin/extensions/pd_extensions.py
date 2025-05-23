@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -39,15 +39,23 @@ def read_snowflake(
     name_or_query: Union[str, Iterable[str]],
     index_col: Union[str, list[str], None] = None,
     columns: Optional[list[str]] = None,
+    enforce_ordering: bool = False,
 ) -> DataFrame:
     """
     Read a Snowflake table or SQL Query to a Snowpark pandas DataFrame.
 
     Args:
-        name_or_query: A table name or fully-qualified object identifier or a SQL SELECT Query. It follows the same syntax in
+        name_or_query:
+            A table name or fully-qualified object identifier or a SQL SELECT Query. It follows the same syntax in
             https://docs.snowflake.com/developer-guide/snowpark/reference/python/api/snowflake.snowpark.Session.table.html
-        index_col: A column name or a list of column names to use as index.
-        columns: A list of column names to select from the table. If not specified, select all columns.
+        index_col:
+            A column name or a list of column names to use as index.
+        columns:
+            A list of column names to select from the table. If not specified, select all columns.
+        enforce_ordering:
+            If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
+            DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. See the Notes
+            section for more details.
 
     See also:
         - :func:`to_snowflake <modin.pandas.to_snowflake>`
@@ -63,8 +71,26 @@ def read_snowflake(
         `Snowflake Python Connector <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector>`_, or Snowpark's
         Session object which can be retrieved via `pd.session`.
 
-        Snowpark pandas provides the same consistency and isolation guarantees for `read_snowflake` as if local files were read. Depending on the type of source, `pd.read_snowflake` will do one of the following
-        at the time of calling `pd.read_snowflake`:
+        Snowpark pandas provides two modes of consistency and ordering semantics.
+
+        * When `enforce_ordering` is set to False, Snowpark pandas provides relaxed consistency and ordering guarantees. In particular, the returned DataFrame object will be
+          directly based on the source given by `name_or_query`. Consistency and isolation guarantees are relaxed in this case because any changes that happen to the source will be reflected in the
+          DataFrame object returned by `pd.read_snowflake`.
+
+          Ordering guarantees will also be relaxed in the sense that each time an operation is run on the returned DataFrame object, the underlying ordering of rows maybe
+          different. For example, calling `df.head(5)` two consecutive times can result in a different set of 5 rows each time and with different ordering.
+          Some order-sensitive operations (such as `df.items`, `df.iterrows`, or `df.itertuples`) may not behave as expected.
+
+          With this mode, it is still possible to switch to strict ordering guarantees by explicitly calling `df.sort_values()` and providing a custom sort key. This will
+          ensure that future operations will consistently experience the same sort order, but the consistency guarantees will remain relaxed.
+
+          Note that when `name_or_query` is a query with an ORDER BY clause, this will only guarantee that the immediate results of the input query are sorted. But it still gives no guarantees
+          on the order of the final results (after applying a sequence of pandas operations to those initial results).
+
+        * When `enforce_ordering` is set to True, Snowpark pandas provides the same consistency and ordering guarantees for `read_snowflake` as if local files were read.
+          For example, calling `df.head(5)` two consecutive times is guaranteed to result in the exact same set of 5 rows each time and with the same ordering.
+          Depending on the type of source, `pd.read_snowflake` will do one of the following
+          at the time of calling `pd.read_snowflake`:
 
             * For a table referenced by `name_or_query` the base table is snapshotted and the snapshot is used to back the resulting DataFrame.
 
@@ -84,8 +110,8 @@ def read_snowflake(
                 * For CTEs with anonymous stored procedures and CALL queries, the procedure is evaluated at the time of calling `pd.read_snowflake`,
                   and a temporary table is created with the result.
 
-        Any changes to the base table(s) or view(s) of the queries (whether the query is a SELECT query or a CTE with an anonymous stored procedure) that
-        happen after calling `pd.read_snowflake` will not be reflected in the DataFrame object returned by `pd.read_snowflake`.
+          Any changes to the base table(s) or view(s) of the queries (whether the query is a SELECT query or a CTE with an anonymous stored procedure) that
+          happen after calling `pd.read_snowflake` will not be reflected in the DataFrame object returned by `pd.read_snowflake`.
 
     Examples:
 
@@ -225,8 +251,9 @@ def read_snowflake(
 
           >>> pd.read_snowflake(f'''-- SQL Comment 1
           ... -- SQL Comment 2
-          ... SELECT * FROM {table_name} WHERE A > 0
-          ... -- SQL Comment 3''')
+          ... SELECT * FROM {table_name}
+          ... -- SQL Comment 3
+          ... WHERE A > 0''')
              A  B  C
           0  1  2  3
 
@@ -268,7 +295,7 @@ def read_snowflake(
         - Anonymous Stored Procedures (using CTEs) may also be used (although special care must be taken with respect to indentation of the code block,
           since the entire string encapsulated by the `$$` will be passed directly to a Python interpreter. In the example below, the lines within
           the function are indented, but not the import statement or function definition). The output schema must be specified when defining
-          an anonymous stored procedure.
+          an anonymous stored procedure. Currently CALL statements are only supported when `enforce_ordering=True`.
 
           >>> pd.read_snowflake('''WITH filter_rows AS PROCEDURE (table_name VARCHAR, column_to_filter VARCHAR, value NUMBER)
           ... RETURNS TABLE(A NUMBER, B NUMBER, C NUMBER)
@@ -280,7 +307,7 @@ def read_snowflake(
           ... def filter_rows(session, table_name, column_to_filter, value):
           ...   df = session.table(table_name)
           ...   return df.filter(col(column_to_filter) == value)$$
-          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)")
+          ... ''' + f"CALL filter_rows('{table_name}', 'A', 1)", enforce_ordering=True)
              A  B  C
           0  1  2  3
 
@@ -305,7 +332,7 @@ def read_snowflake(
           ...   }
           ... }
           ... $$
-          ... ''' + f"CALL filter_rows('{table_name}', 'A', -1)")
+          ... ''' + f"CALL filter_rows('{table_name}', 'A', -1)", enforce_ordering=True)
              A  B  C
           0 -1 -2 -3
 
@@ -321,7 +348,7 @@ def read_snowflake(
           ...     df = session_.table(table_name)
           ...     return df.select('*', (col(col_to_multiply)*value).as_("D"))
 
-          >>> pd.read_snowflake(f"CALL multiply_col_by_value('{table_name}', 'A', 2)")
+          >>> pd.read_snowflake(f"CALL multiply_col_by_value('{table_name}', 'A', 2)", enforce_ordering=True)
              A  B  C  D
           0  1  2  3  2
           1 -1 -2 -3 -2
@@ -362,7 +389,10 @@ def read_snowflake(
 
     return DataFrame(
         query_compiler=FactoryDispatcher.get_factory()._read_snowflake(
-            name_or_query, index_col=index_col, columns=columns
+            name_or_query,
+            index_col=index_col,
+            columns=columns,
+            enforce_ordering=enforce_ordering,
         )
     )
 
@@ -385,9 +415,9 @@ def to_snowflake(
             Name of the SQL table or fully-qualified object identifier
         if_exists:
             How to behave if table already exists. default 'fail'
-            - fail: Raise ValueError.
-            - replace: Drop the table before inserting new values.
-            - append: Insert new values to the existing table. The order of insertion is not guaranteed.
+                - fail: Raise ValueError.
+                - replace: Drop the table before inserting new values.
+                - append: Insert new values to the existing table. The order of insertion is not guaranteed.
         index: default True
             If true, save DataFrame index columns as table columns.
         index_label:

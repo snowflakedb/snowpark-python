@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """Window frames in Snowpark."""
@@ -105,11 +105,13 @@ class Window:
     currentRow: int = CURRENT_ROW
 
     @staticmethod
+    @publicapi
     def partition_by(
         *cols: Union[
             ColumnOrName,
             Iterable[ColumnOrName],
-        ]
+        ],
+        _emit_ast: bool = True,
     ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with partition by clause.
@@ -118,7 +120,7 @@ class Window:
             cols: A column, as :class:`str`, :class:`~snowflake.snowpark.column.Column`
                 or a list of those.
         """
-        return Window._spec().partition_by(*cols)
+        return Window._spec().partition_by(*cols, _emit_ast=_emit_ast)
 
     @staticmethod
     @publicapi
@@ -265,7 +267,7 @@ def _check_window_position_parameter(
 
 
 def _fill_window_spec_ast_with_relative_positions(
-    ast: proto.SpWindowSpecExpr,
+    ast: proto.WindowSpecExpr,
     start: Union[int, WindowRelativePosition],
     end: Union[int, WindowRelativePosition],
 ) -> None:
@@ -281,26 +283,26 @@ def _fill_window_spec_ast_with_relative_positions(
 
     if isinstance(start, WindowRelativePosition):
         if start == WindowRelativePosition.CURRENT_ROW:
-            ast.start.sp_window_relative_position__current_row = True
+            ast.start.window_relative_position__current_row = True
         if start == WindowRelativePosition.UNBOUNDED_FOLLOWING:
-            ast.start.sp_window_relative_position__unbounded_following = True
+            ast.start.window_relative_position__unbounded_following = True
         if start == WindowRelativePosition.UNBOUNDED_PRECEDING:
-            ast.start.sp_window_relative_position__unbounded_preceding = True
+            ast.start.window_relative_position__unbounded_preceding = True
     else:
         build_expr_from_snowpark_column_or_python_val(
-            ast.start.sp_window_relative_position__position.n, start
+            ast.start.window_relative_position__position.n, start
         )
 
     if isinstance(end, WindowRelativePosition):
         if end == WindowRelativePosition.CURRENT_ROW:
-            ast.end.sp_window_relative_position__current_row = True
+            ast.end.window_relative_position__current_row = True
         if end == WindowRelativePosition.UNBOUNDED_FOLLOWING:
-            ast.end.sp_window_relative_position__unbounded_following = True
+            ast.end.window_relative_position__unbounded_following = True
         if end == WindowRelativePosition.UNBOUNDED_PRECEDING:
-            ast.end.sp_window_relative_position__unbounded_preceding = True
+            ast.end.window_relative_position__unbounded_preceding = True
     else:
         build_expr_from_snowpark_column_or_python_val(
-            ast.end.sp_window_relative_position__position.n, end
+            ast.end.window_relative_position__position.n, end
         )
 
 
@@ -312,15 +314,15 @@ class WindowSpec:
         partition_spec: List[Expression],
         order_spec: List[SortOrder],
         frame: WindowFrame,
-        ast: Optional[proto.SpWindowSpecExpr] = None,
+        ast: Optional[proto.WindowSpecExpr] = None,
     ) -> None:
         self.partition_spec = partition_spec
         self.order_spec = order_spec
         self.frame = frame
 
         if ast is None:
-            ast = proto.SpWindowSpecExpr()
-            window_ast = with_src_position(ast.sp_window_spec_empty)  # noqa: F841
+            ast = proto.WindowSpecExpr()
+            window_ast = with_src_position(ast.window_spec_empty)  # noqa: F841
 
         self._ast = ast
 
@@ -350,15 +352,15 @@ class WindowSpec:
         # AST.
         ast = None
         if _emit_ast:
-            ast = proto.SpWindowSpecExpr()
-            window_ast = with_src_position(ast.sp_window_spec_partition_by)
+            ast = proto.WindowSpecExpr()
+            window_ast = with_src_position(ast.window_spec_partition_by)
             window_ast.wnd.CopyFrom(self._ast)
             for e in exprs:
                 col_ast = window_ast.cols.add()
                 col = (
                     e
                     if isinstance(e, snowflake.snowpark.column.Column)
-                    else snowflake.snowpark.column.Column(e)
+                    else snowflake.snowpark.column.Column(e, _caller_name=None)
                 )
                 build_expr_from_snowpark_column_or_python_val(col_ast, col)
 
@@ -397,15 +399,15 @@ class WindowSpec:
         # AST.
         ast = None
         if _emit_ast:
-            ast = proto.SpWindowSpecExpr()
-            window_ast = with_src_position(ast.sp_window_spec_order_by)
+            ast = proto.WindowSpecExpr()
+            window_ast = with_src_position(ast.window_spec_order_by)
             window_ast.wnd.CopyFrom(self._ast)
             for e in exprs:
                 col_ast = window_ast.cols.add()
                 col = (
                     e
                     if isinstance(e, snowflake.snowpark.column.Column)
-                    else snowflake.snowpark.column.Column(e)
+                    else snowflake.snowpark.column.Column(e, _caller_name=None)
                 )
                 build_expr_from_snowpark_column_or_python_val(col_ast, col)
 
@@ -432,8 +434,8 @@ class WindowSpec:
         # AST.
         ast = None
         if _emit_ast:
-            ast = proto.SpWindowSpecExpr()
-            window_ast = with_src_position(ast.sp_window_spec_rows_between)
+            ast = proto.WindowSpecExpr()
+            window_ast = with_src_position(ast.window_spec_rows_between)
             _fill_window_spec_ast_with_relative_positions(window_ast, start, end)
             window_ast.wnd.CopyFrom(self._ast)
 
@@ -464,8 +466,8 @@ class WindowSpec:
         # AST.
         ast = None
         if _emit_ast:
-            ast = proto.SpWindowSpecExpr()
-            window_ast = with_src_position(ast.sp_window_spec_range_between)
+            ast = proto.WindowSpecExpr()
+            window_ast = with_src_position(ast.window_spec_range_between)
             _fill_window_spec_ast_with_relative_positions(window_ast, start, end)
             window_ast.wnd.CopyFrom(self._ast)
 

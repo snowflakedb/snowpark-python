@@ -1,12 +1,15 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
-from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional
+from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSnowflakePlan,
+    Selectable,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
@@ -27,6 +30,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import CreateViewCommand
 from snowflake.snowpark.session import Session
+from snowflake.snowpark._internal.utils import ExprAliasUpdateDict
 
 
 class SnowflakeCreateTablePlanInfo(NamedTuple):
@@ -65,6 +69,25 @@ class QueryGenerator(Analyzer):
         # order of when the with query block is visited. The order is important to make sure the dependency
         # between the CTE definition is satisfied.
         self.resolved_with_query_block: Dict[str, Query] = {}
+        # This is a memoization dict for storing the selectable for a SnowflakePlan when to_selectable
+        # method is called with the same SnowflakePlan. This is used to de-duplicate nodes created during
+        # compilation process
+        self._to_selectable_memo_dict = {}
+
+    def to_selectable(self, plan: LogicalPlan) -> Selectable:
+        """Given a LogicalPlan, convert it to a Selectable."""
+        if isinstance(plan, Selectable):
+            return plan
+
+        plan_id = hex(id(plan))
+        if plan_id in self._to_selectable_memo_dict:
+            return self._to_selectable_memo_dict[plan_id]
+
+        snowflake_plan = self.resolve(plan)
+        selectable = SelectSnowflakePlan(snowflake_plan, analyzer=self)
+        selectable._is_valid_for_replacement = True
+        self._to_selectable_memo_dict[plan_id] = selectable
+        return selectable
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
@@ -109,7 +132,9 @@ class QueryGenerator(Analyzer):
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: Union[
+            DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+        ],
     ) -> SnowflakePlan:
 
         if isinstance(logical_plan, SnowflakeCreateTable):
@@ -205,11 +230,11 @@ class QueryGenerator(Analyzer):
 
         elif isinstance(logical_plan, WithQueryBlock):
             resolved_child = resolved_children[logical_plan.children[0]]
-            # record the CTE definition of the current block
-            if logical_plan.name not in self.resolved_with_query_block:
-                self.resolved_with_query_block[
-                    logical_plan.name
-                ] = resolved_child.queries[-1]
+            # record the CTE definition of the current block or update the query when
+            # the child is re-resolved during optimization stage.
+            self.resolved_with_query_block[logical_plan.name] = resolved_child.queries[
+                -1
+            ]
 
             resolved_plan = self.plan_builder.with_query_block(
                 logical_plan,

@@ -1,7 +1,6 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 
 import modin.pandas as pd
 import numpy as np
@@ -11,11 +10,11 @@ from pandas.testing import assert_frame_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
 )
 from tests.integ.utils.sql_counter import SqlCounter
+from tests.utils import RUNNING_ON_GH
 
 
 def assert_empty_snowpark_pandas_equals_to_pandas(snow_df, native_df):
@@ -177,10 +176,7 @@ class TestCacheResultReducesQueryCount:
                 cached_snow_df, native_df
             )
 
-    @pytest.mark.skipif(
-        PANDAS_VERSION_PREDICATE,
-        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-    )
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
     def test_cache_result_post_apply(self, inplace, simple_test_data):
         # In this test, the caching doesn't aid in the query counts since
         # the implementation of apply(axis=1) itself contains intermediate
@@ -209,10 +205,7 @@ class TestCacheResultReducesQueryCount:
                 native_df,
             )
 
-    @pytest.mark.skipif(
-        PANDAS_VERSION_PREDICATE,
-        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-    )
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
     def test_cache_result_post_applymap(self, inplace, simple_test_data):
         # The high query counts in this test case come from the setup and definition
         # of the UDFs used.

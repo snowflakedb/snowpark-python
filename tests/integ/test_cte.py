@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -16,7 +16,15 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import avg, col, lit, seq1, uniform, when_matched
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    lit,
+    seq1,
+    uniform,
+    when_matched,
+    to_timestamp,
+)
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
@@ -66,7 +74,13 @@ def check_result(
     cte_join_count=None,
     high_query_count_expected=False,
     high_query_count_reason=None,
+    describe_count_for_optimized=None,
 ):
+    describe_count_for_optimized = (
+        describe_count_for_optimized
+        if describe_count_for_optimized is not None
+        else describe_count
+    )
     df = df.sort(df.columns)
     session._cte_optimization_enabled = False
     with SqlCounter(
@@ -96,7 +110,7 @@ def check_result(
         cte_join_count = join_count
     with SqlCounter(
         query_count=query_count,
-        describe_count=describe_count,
+        describe_count=describe_count_for_optimized,
         union_count=cte_union_count,
         join_count=cte_join_count,
         high_count_expected=high_query_count_expected,
@@ -105,7 +119,7 @@ def check_result(
         cte_result = df.collect()
     with SqlCounter(
         query_count=query_count,
-        describe_count=describe_count,
+        describe_count=describe_count_for_optimized,
         union_count=cte_union_count,
         join_count=cte_join_count,
         high_count_expected=high_query_count_expected,
@@ -122,7 +136,7 @@ def check_result(
         assert_frame_equal(result_pandas, cte_result_pandas)
 
     # verify no actual query or describe query is issued during that process
-    with SqlCounter(query_count=0, describe_count=0):
+    with SqlCounter(query_count=0, describe_count=describe_count_for_optimized):
         last_query = df.queries["queries"][-1]
 
         if expect_cte_optimized:
@@ -216,7 +230,7 @@ def test_binary(session, type, action):
         session,
         df3,
         expect_cte_optimized=True,
-        query_count=6,
+        query_count=4,
         describe_count=0,
         union_count=union_count,
         join_count=join_count,
@@ -227,27 +241,58 @@ def test_binary(session, type, action):
     assert len(plan_queries["post_actions"]) == 1
 
 
-@sql_count_checker(query_count=2, describe_count=5, join_count=2)
 def test_join_with_alias_dataframe(session):
-    df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
-    df_res = (
-        df1.alias("L")
-        .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
-        .select(col("L", "col1"), col("R", "col2"))
+    expected_describe_count = (
+        3
+        if (session.reduce_describe_query_enabled and session.sql_simplifier_enabled)
+        else 5
     )
+    with SqlCounter(
+        query_count=2, describe_count=expected_describe_count, join_count=2
+    ):
+        df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
+        df_res = (
+            df1.alias("L")
+            .join(df1.alias("R"), col("L", "col1") == col("R", "col1"))
+            .select(col("L", "col1"), col("R", "col2"))
+        )
 
-    session._cte_optimization_enabled = False
-    result = df_res.collect()
+        session._cte_optimization_enabled = False
+        result = df_res.collect()
 
-    session._cte_optimization_enabled = True
-    cte_result = df_res.collect()
+        session._cte_optimization_enabled = True
+        cte_result = df_res.collect()
 
-    Utils.check_answer(cte_result, result)
+        Utils.check_answer(cte_result, result)
 
-    with SqlCounter(query_count=0, describe_count=0):
-        last_query = df_res.queries["queries"][-1]
-        assert last_query.startswith(WITH)
-        assert last_query.count(WITH) == 1
+        with SqlCounter(query_count=0, describe_count=0):
+            last_query = df_res.queries["queries"][-1]
+            assert last_query.startswith(WITH)
+            assert last_query.count(WITH) == 1
+
+
+def test_join_with_set_operation(session):
+    df1 = session.create_dataframe([[1, 2, 3], [4, 5, 6]], "a: int, b: int, c: int")
+    df2 = session.create_dataframe([[1, 1], [4, 5]], "a: int, b: int")
+
+    df1 = df1.filter(df1.a > 1)
+    df1 = df1.union_all(df1)
+
+    df3 = df1.join(df2, (df1.a == df2.a) & (df1.b == df2.b)).select(
+        df2.a.as_("a"), df2.b.as_("b"), df1.c
+    )
+    df4 = df3.except_(df1)
+
+    check_result(
+        session,
+        df4,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=2,
+        cte_union_count=1,
+        join_count=1,
+    )
 
 
 @pytest.mark.parametrize("type, action", binary_operations)
@@ -655,8 +700,9 @@ def test_sql_simplifier(session):
         describe_count=0,
         union_count=0,
         join_count=2,
+        describe_count_for_optimized=1 if session._join_alias_fix else None,
     )
-    with SqlCounter(query_count=0, describe_count=0):
+    with SqlCounter(query_count=0, describe_count=2 if session._join_alias_fix else 0):
         # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
         # so we will get a common CTE with filter
         assert count_number_of_ctes(df6.queries["queries"][-1]) == 2
@@ -802,7 +848,9 @@ def test_aggregate(session, action):
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
         temp_table_name, table_type="temp"
     )
-    df = action(session.table(temp_table_name)).filter(col("a") == 1)
+    # add limit to add a layer of nesting for distinct()
+    base_df = session.table(temp_table_name).limit(10)
+    df = action(base_df).filter(col("a") == 1)
     df_result = df.union_by_name(df)
     check_result(
         session,
@@ -819,6 +867,38 @@ def test_aggregate(session, action):
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_df_reader(session, mode, resources_path):
+    """
+    Test the following cases for reader:
+
+    1.
+                        UNION (invalid)
+                ________/    |_________
+                |                      |
+        SelectFromFileNode        SelectFromFileNode
+
+    2.
+                        UNION (invalid)
+                ________/    |_________
+                |                      |
+        WithColumn (invalid)        WithColumn (invalid)
+                |                      |
+        SelectFromFileNode        SelectFromFileNode
+
+    3.
+                            UNION (invalid)
+            __________________/    |____________________________
+            |                                                  |
+        UNION (invalid)                                 UNION (invalid)
+         /     |_____________                             ____/    |____________
+        |                   |                           |                      |
+    WithColumn(invalid)    WithColumn(valid)        WithColumn(invalid)    WithColumn (valid)
+        |                     |                         |                       |
+    SelectFromFileNode      Filter (valid)          SelectFromFileNode      Filter (valid)
+                               |                                                |
+                          Select (valid)                                  Select (valid)
+    """
+    if not session.sql_simplifier_enabled:
+        pytest.skip("Skip test for simplifier disabled")
     reader = get_reader(session, mode)
     session_stage = session.get_session_stage()
     test_files = TestFiles(resources_path)
@@ -826,18 +906,54 @@ def test_df_reader(session, mode, resources_path):
     Utils.upload_to_stage(
         session, session_stage, test_files.test_file_csv, compress=False
     )
-    df = reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
-    df_result = df.union_by_name(df)
-    expected_query_count = 3
-    if mode == "copy":
-        expected_query_count = 4
+    table_name = Utils.random_table_name()
+    session.create_dataframe(
+        [[3, "three", 3.3], [4, "four", 4.4]], schema=["a", "b", "c"]
+    ).write.save_as_table(table_name, table_type="temp")
+    df_reader = (
+        reader.option("INFER_SCHEMA", True).csv(test_file_on_stage).to_df("a", "b", "c")
+    )
+    df_select = session.table(table_name).select("a", "b", "c")
+
+    # Case 1
+    df_result = df_reader.union_by_name(df_reader)
+    expected_query_count = 4 if mode == "copy" else 3
+    check_result(
+        session,
+        df_result,
+        expect_cte_optimized=(mode == "copy"),
+        query_count=expected_query_count,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
+
+    # Case 2
+    df_with_column1 = df_reader.with_column("a1", col("a") + 1)
+    df_result = df_with_column1.union_by_name(df_with_column1)
+    expected_query_count = 4 if mode == "copy" else 3
+    check_result(
+        session,
+        df_result,
+        expect_cte_optimized=(mode == "copy"),
+        query_count=expected_query_count,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
+
+    # Case 3
+    df_with_column2 = df_select.filter(col("a") == 3).with_column("a1", col("a") + 1)
+    df_union = df_with_column1.union_by_name(df_with_column2)
+    df_result = df_union.union_by_name(df_union)
+    expected_query_count = 4 if mode == "copy" else 3
     check_result(
         session,
         df_result,
         expect_cte_optimized=True,
         query_count=expected_query_count,
         describe_count=0,
-        union_count=1,
+        union_count=3,
         join_count=0,
     )
 
@@ -942,7 +1058,7 @@ def test_in_with_subquery_multiple_query(session):
             session,
             df_result,
             expect_cte_optimized=True,
-            query_count=11,
+            query_count=7,
             describe_count=0,
             union_count=1,
             join_count=0,
@@ -991,23 +1107,24 @@ def test_time_series_aggregation_grouping(session):
     df = session.create_dataframe(data).to_df(
         "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
     )
+    df = df.with_column("TS", to_timestamp("TS"))
 
     res = df.analytics.time_series_agg(
         time_col="TS",
         group_by=["PRODUCT_ID"],
         aggs={"QUANTITY": ["SUM"]},
         windows=["-1D", "-7D"],
-        sliding_interval="1D",
     )
     check_result(
         session,
         res,
-        expect_cte_optimized=True,
+        expect_cte_optimized=False,
         query_count=1,
         describe_count=0,
         union_count=0,
-        join_count=8,
-        cte_join_count=4,
+        join_count=0,
+        cte_join_count=0,
+        describe_count_for_optimized=6 if session._join_alias_fix else None,
     )
 
 
@@ -1022,7 +1139,7 @@ def test_table_select_cte(session):
     check_result(
         session,
         df_result,
-        expect_cte_optimized=False if session.sql_simplifier_enabled else True,
+        expect_cte_optimized=False,
         query_count=1,
         describe_count=0,
         union_count=1,

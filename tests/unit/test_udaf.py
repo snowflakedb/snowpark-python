@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -9,7 +9,11 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Session
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    set_ast_state,
+    AstFlagSource,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udaf
 from snowflake.snowpark.types import IntegerType
@@ -17,9 +21,11 @@ from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFuncti
 
 
 def test_register_udaf_negative():
+    AST_ENABLED = False
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     fake_session = mock.create_autospec(Session)
+    fake_session.ast_enabled = AST_ENABLED
     fake_session.udaf = UDAFRegistration(fake_session)
-    fake_session.ast_enabled = False
     with pytest.raises(TypeError, match="Invalid handler: expecting a class type"):
         fake_session.udaf.register(1)
 
@@ -41,7 +47,10 @@ def test_register_udaf_negative():
 
 @mock.patch("snowflake.snowpark.udaf.cleanup_failed_permanent_registration")
 def test_do_register_udaf_negative(cleanup_registration_patch):
+    AST_ENABLED = False
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     fake_session = mock.create_autospec(Session)
+    fake_session.ast_enabled = AST_ENABLED
     fake_session.get_fully_qualified_name_if_possible = mock.Mock(
         return_value="database.schema"
     )
@@ -49,7 +58,6 @@ def test_do_register_udaf_negative(cleanup_registration_patch):
     fake_session._runtime_version_from_requirement = None
     fake_session._packages = []
     fake_session.udaf = UDAFRegistration(fake_session)
-    fake_session.ast_enabled = False
     with pytest.raises(SnowparkSQLException) as ex_info:
 
         @udaf(session=fake_session)

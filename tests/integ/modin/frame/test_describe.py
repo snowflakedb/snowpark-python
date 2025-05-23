@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime as dt
@@ -349,7 +349,7 @@ def test_describe_duplicate_columns_mixed():
 
 
 @sql_count_checker(
-    query_count=3,
+    query_count=4,
     union_count=8,
 )
 # SNOW-1320296 - pd.concat SQL Compilation ambigious __row_position__ issue

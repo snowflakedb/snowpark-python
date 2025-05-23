@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -12,7 +12,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
-    "values", [[], [1], [3, 2], [1, 3, 2], [1, 2, 2], [1, np.NaN, 3]]
+    "values", [[], [1], [3, 2], [1, 3, 2], [1, 2, 2], [1, np.nan, 3]]
 )
 @sql_count_checker(query_count=1)
 def test_monotonic_increasing_numbers(values):
@@ -23,7 +23,7 @@ def test_monotonic_increasing_numbers(values):
 
 
 @pytest.mark.parametrize(
-    "values", [[], [3], [1, 2], [3, 1, 2], [2, 2, 1], [3, np.NaN, 1]]
+    "values", [[], [3], [1, 2], [3, 1, 2], [2, 2, 1], [3, np.nan, 1]]
 )
 @sql_count_checker(query_count=1)
 def test_monotonic_decreasing_numbers(values):

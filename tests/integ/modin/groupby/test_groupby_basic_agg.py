@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import logging
 from typing import Any
 
@@ -113,6 +114,11 @@ def test_single_group_row_groupby_with_variant(
     snowpark_pandas_df = create_snow_df_with_table_and_data(
         session, test_table_name, column_schema, pandas_df.values.tolist()
     )
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+    pandas_df = pandas_df.sort_values(pandas_df.columns.to_list())
 
     by = "COL_0"
     with SqlCounter(query_count=1):
@@ -139,6 +145,11 @@ def test_groupby_agg_with_decimal_dtype(session, agg_method) -> None:
     session.sql(f"insert into {table_name} values ('B', 5)").collect()
 
     snowpark_pandas_df = pd.read_snowflake(table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+
     pandas_df = snowpark_pandas_df.to_pandas()
 
     by = "COL_G"
@@ -161,6 +172,11 @@ def test_groupby_agg_with_decimal_dtype_named_agg(session) -> None:
     session.sql(f"insert into {table_name} values ('B', 5)").collect()
 
     snowpark_pandas_df = pd.read_snowflake(table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+
     pandas_df = snowpark_pandas_df.to_pandas()
 
     by = "COL_G"
@@ -281,6 +297,54 @@ def test_groupby_agg_with_float_dtypes_named_agg() -> None:
             new_col6=("col7_float_missing", max),
             new_col7=("col8_mix_missing", min),
         ),
+    )
+
+
+@pytest.mark.parametrize(
+    "grpby_fn",
+    [
+        lambda gr: gr.quantile(),
+        lambda gr: gr.quantile(q=0.3),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_groupby_agg_quantile_with_int_dtypes(grpby_fn) -> None:
+    native_df = native_pd.DataFrame(
+        {
+            "col1_grp": ["g1", "g2", "g0", "g0", "g2", "g3", "g0", "g2", "g3"],
+            "col2_int64": np.arange(9, dtype="int64") // 3,
+            "col3_int_identical": [2] * 9,
+            "col4_int32": np.arange(9, dtype="int32") // 4,
+            "col5_int16": np.arange(9, dtype="int16") // 3,
+            "col6_mixed": np.concatenate(
+                [
+                    np.arange(3, dtype="int64") // 3,
+                    np.arange(3, dtype="int32") // 3,
+                    np.arange(3, dtype="int16") // 3,
+                ]
+            ),
+            "col7_int_missing": [5, 6, np.nan, 2, 1, np.nan, 5, np.nan, np.nan],
+            "col8_mixed_missing": np.concatenate(
+                [
+                    np.arange(2, dtype="int64") // 3,
+                    [np.nan],
+                    np.arange(2, dtype="int32") // 3,
+                    [np.nan],
+                    np.arange(2, dtype="int16") // 3,
+                    [np.nan],
+                ]
+            ),
+        }
+    )
+    snowpark_pandas_df = pd.DataFrame(native_df)
+    by = "col1_grp"
+    snowpark_pandas_groupby = snowpark_pandas_df.groupby(by=by)
+    pandas_groupby = native_df.groupby(by=by)
+    eval_snowpark_pandas_result(
+        snowpark_pandas_groupby,
+        pandas_groupby,
+        grpby_fn,
+        comparator=assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     )
 
 
@@ -453,6 +517,44 @@ def test_groupby_agg_on_groupby_columns(
         basic_snowpark_pandas_df,
         native_pandas,
         lambda df: df.groupby(by=by, sort=sort, as_index=as_index).agg(agg_func),
+    )
+
+
+@pytest.mark.parametrize("as_index", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@sql_count_checker(query_count=1)
+def test_groupby_agg_with_incorrect_func(as_index, sort) -> None:
+    basic_snowpark_pandas_df = pd.DataFrame(
+        data=8 * [range(3)], columns=["a", "b", "c"]
+    )
+    native_pandas = basic_snowpark_pandas_df.to_pandas()
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        native_pandas,
+        lambda df: df.groupby(by="a", sort=sort, as_index=as_index).agg(
+            {"b": sum, "c": "COUNT"}
+        ),
+        expect_exception=True,
+        expect_exception_match="'SeriesGroupBy' object has no attribute 'COUNT'",
+    )
+
+
+@pytest.mark.parametrize("as_index", [True, False])
+@pytest.mark.parametrize("sort", [True, False])
+@sql_count_checker(query_count=1)
+def test_groupby_agg_with_multiple_incorrect_funcs(as_index, sort) -> None:
+    basic_snowpark_pandas_df = pd.DataFrame(
+        data=8 * [range(3)], columns=["a", "b", "c"]
+    )
+    native_pandas = basic_snowpark_pandas_df.to_pandas()
+    eval_snowpark_pandas_result(
+        basic_snowpark_pandas_df,
+        native_pandas,
+        lambda df: df.groupby(by="a", sort=sort, as_index=as_index).agg(
+            {"b": "COUNT", "c": "RANDOM_FUNC"}
+        ),
+        expect_exception=True,
+        expect_exception_match="'SeriesGroupBy' object has no attribute 'COUNT'",
     )
 
 
@@ -1077,6 +1179,11 @@ def test_groupby_agg_on_valid_variant_column(session, test_table_name):
     snowpark_pandas_df = create_snow_df_with_table_and_data(
         session, test_table_name, column_schema, pandas_df.values.tolist()
     )
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snowpark_pandas_df = snowpark_pandas_df.sort_values(
+        snowpark_pandas_df.columns.to_list()
+    )
+    pandas_df = pandas_df.sort_values(pandas_df.columns.to_list())
 
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
@@ -1098,6 +1205,40 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         basic_snowpark_pandas_df.groupby("col1").agg(max, min_count=2),
         basic_snowpark_pandas_df.to_pandas().groupby("col1").max(min_count=2),
+    )
+
+
+@pytest.mark.parametrize("skipna", [True, False])
+@pytest.mark.parametrize("op", ["first", "last"])
+@sql_count_checker(query_count=1)
+def test_groupby_agg_first_and_last(skipna, op):
+    native_df = native_pd.DataFrame(
+        {"grp_col": ["A", "A", "B", "B", "A"], "float_col": [np.nan, 2, 3, np.nan, 4]}
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    def comparator(snow_result, native_result):
+        # When passing a list of aggregations, native pandas does not respect kwargs, so skipna
+        # is always treated as the default value (true).
+        # Massage the native results to match the expected behavior.
+        if not skipna:
+            if op == "first":
+                assert native_result["float_col", "first"]["A"] == 2
+                assert native_result["float_col", "first"]["B"] == 3
+                native_result["float_col", "first"]["A"] = None
+            else:
+                assert native_result["float_col", "last"]["A"] == 4
+                assert native_result["float_col", "last"]["B"] == 3
+                native_result["float_col", "last"]["B"] = None
+        assert_snowpark_pandas_equal_to_pandas(snow_result, native_result)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby(by="grp_col").agg(
+            {"float_col": ["quantile", op]}, skipna=skipna
+        ),
+        comparator=comparator,
     )
 
 

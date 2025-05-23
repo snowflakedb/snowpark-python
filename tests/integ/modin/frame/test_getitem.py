@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import itertools
 import random
 from itertools import chain, combinations
@@ -83,8 +84,8 @@ def test_df_getitem_with_string_list_like(
         else:
             return df[key]
 
-    # 5 extra queries for iter
-    with SqlCounter(query_count=6 if isinstance(key, native_pd.Index) else 1):
+    # 4 extra queries for iter
+    with SqlCounter(query_count=5 if isinstance(key, native_pd.Index) else 1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -118,8 +119,8 @@ def test_df_getitem_with_int_list_like(key):
     native_df = native_pd.DataFrame(data)
     snowpark_df = pd.DataFrame(native_df)
 
-    # 5 extra queries for iter
-    with SqlCounter(query_count=6 if isinstance(key, native_pd.Index) else 1):
+    # 4 extra queries for iter
+    with SqlCounter(query_count=5 if isinstance(key, native_pd.Index) else 1):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,

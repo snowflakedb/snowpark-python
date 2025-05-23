@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import pathlib
 import re
 from datetime import datetime
@@ -21,7 +22,7 @@ from tests.integ.utils.sql_counter import (
     generate_sql_count_report,
     is_sql_counter_called,
 )
-from tests.utils import Utils, running_on_public_ci
+from tests.utils import Utils, running_on_jenkins
 
 INTEG_PANDAS_SUBPATH = "tests/integ/modin/"
 
@@ -83,7 +84,13 @@ def check_sql_counter_invoked(request):
 
     do_check = (
         INTEG_PANDAS_SUBPATH in request.node.location[0]
-        and running_on_public_ci()
+        # Originally, we ran this check in Github Actions but not when running
+        # tests locally or on Jenkins. It turned out to be more convenient to
+        # have the local development experience match the Github Actions
+        # experience, so now we run the check for local development, but we
+        # still don't run it on Jenkins. We may eventually want to run the check
+        # on Jenkins.
+        and not running_on_jenkins()
         and not SKIP_SQL_COUNT_CHECK
     )
 

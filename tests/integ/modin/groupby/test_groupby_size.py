@@ -1,6 +1,9 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -175,6 +178,17 @@ def test_error_checking():
     s = pd.Series(list("abc") * 4)
     with pytest.raises(NotImplementedError):
         s.groupby(s).size()
+
+
+@sql_count_checker(query_count=0)
+def test_multiindex_negative():
+    # Because of internal calls to reset_index, attempting to perform groupby_size with
+    # a level parameter in a MultiIndex frame will fail.
+    df = pd.DataFrame(
+        {"a": list(range(10)), "b": list(range(10)), "c": list(range(10))}
+    ).set_index(["a", "b"])
+    with pytest.raises(KeyError, match=re.escape("['a'] not in index")):
+        df.groupby(pd.Grouper(level=0)).size()
 
 
 @pytest.mark.parametrize("by", ["A", "B"])

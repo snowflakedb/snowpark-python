@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -27,13 +27,13 @@ def axis_negative(request):
     return request.param
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_noop(axis):
     s = pd.Series([1, 2, 3])
     assert_series_equal(s, s.squeeze(axis=axis))
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_squeeze_to_scalar(axis):
     s = pd.Series([1])
     assert 1 == s.squeeze(axis=axis)

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -58,7 +58,7 @@ read from a table.
 
 >>> import numpy as np
 
->>> np.all((new_{object_var_name} == {object_var_name}).values)
+>>> np.all((new_{object_var_name} == {object_var_name}).values)  # doctest: +SKIP
 True
 
 >>> {object_var_name}.reset_index(drop=True, inplace=True) # Slower

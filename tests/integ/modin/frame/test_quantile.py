@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -137,15 +137,11 @@ def test_quantile_datetime_negative():
         snow_df.quantile(numeric_only=False)
 
 
-@pytest.mark.skip(
-    reason="Bug in quantile emitting large amount of queries except for small data. TODO: SNOW-1229442",
-)
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=4, union_count=15)
 def test_quantile_large():
-    snow_series = pd.DataFrame({"a": range(1000), "b": range(1000)})
+    native_df = native_pd.DataFrame({"a": range(1000), "b": range(1000)})
+    snow_df = pd.DataFrame(native_df)
     q = np.linspace(0, 1, 16)
-
-    # actual query count for this 81. This seems like a bug.
-    ans = snow_series.quantile(q, interpolation="linear").to_pandas()
-
-    assert len(ans) == len(q)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.quantile(q, interpolation="linear")
+    )

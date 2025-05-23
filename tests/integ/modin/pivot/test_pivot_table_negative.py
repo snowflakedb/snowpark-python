@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -14,6 +14,7 @@ from tests.integ.modin.pivot.pivot_utils import (
     pivot_table_test_helper_expects_exception,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
+import re
 
 
 @pytest.mark.parametrize(
@@ -147,14 +148,42 @@ def test_pivot_table_not_implemented_or_supported(df_data):
     with pytest.raises(NotImplementedError, match="Not implemented non-string"):
         snow_df2.pivot_table(index="A", columns="B", values=[baz])
 
-    with pytest.raises(NotImplementedError, match="foo"):
-        snow_df.pivot_table(index="A", columns="C", values="E", aggfunc="foo")
 
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "aggfunc,name_in_error",
+    [
+        ("foo", "'foo'"),
+        ("kurt", "'kurt'"),
+        ("prod", "'prod'"),
+        ("sem", "'sem'"),
+        (np.argmax, "np.argmax"),
+        (np.argmin, "np.argmin"),
+        (
+            "all",
+            "'all'",
+        ),
+        (np.all, "np.all"),
+        ("any", "'any'"),
+        (np.any, "np.any"),
+        ("size", "'size'"),
+        (len, "<built-in function len>"),
+        ("nunique", "'nunique'"),
+        ("idxmax", "'idxmax'"),
+        ("idxmin", "'idxmin'"),
+    ],
+)
+def test_not_implemented_single_aggfunc(df_data, aggfunc, name_in_error):
     with pytest.raises(
         NotImplementedError,
-        match="median",
+        match=re.escape(
+            "Snowpark pandas DataFrame.pivot_table does not yet support "
+            + f"the aggregation {name_in_error} with the given arguments."
+        ),
     ):
-        snow_df.pivot_table(index="A", columns="C", values="D", aggfunc="median")
+        pd.DataFrame(df_data).pivot_table(
+            index="A", columns="C", values="E", aggfunc=aggfunc
+        )
 
 
 def sensitive_function_name(col: native_pd.Series) -> int:

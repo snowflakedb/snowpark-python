@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from unittest import mock
@@ -121,7 +121,7 @@ def test_selectable_entity_individual_node_complexity(mock_session, mock_analyze
     assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 1}
 
 
-def test_select_sql_individual_node_complexity(mock_analyzer):
+def test_select_sql_individual_node_complexity(mock_session, mock_analyzer):
     plan_node = SelectSQL("non-select statement", analyzer=mock_analyzer)
     assert plan_node.individual_node_complexity == {PlanNodeCategory.COLUMN: 1}
 
@@ -167,6 +167,7 @@ def test_select_statement_individual_node_complexity(
     from_.post_actions = None
     from_.expr_to_alias = {}
     from_.df_aliased_col_name_to_real_col_name = {}
+    from_.df_ast_ids = None
 
     plan_node = SelectStatement(from_=from_, analyzer=mock_analyzer)
     setattr(plan_node, attribute, value)
@@ -198,7 +199,9 @@ def test_select_table_function_individual_node_complexity(
 
 
 @pytest.mark.parametrize("set_operator", [UNION, UNION_ALL, INTERSECT, EXCEPT])
-def test_set_statement_individual_node_complexity(mock_analyzer, set_operator):
+def test_set_statement_individual_node_complexity(
+    mock_session, mock_analyzer, set_operator
+):
     mock_selectable = mock.create_autospec(Selectable)
     mock_selectable.pre_actions = None
     mock_selectable.post_actions = None
@@ -389,12 +392,15 @@ def test_subtract_complexities(complexity1, complexity2, expected_result):
     assert subtract_complexities(complexity1, complexity2) == expected_result
 
 
-def test_select_statement_get_complexity_map_no_column_state(mock_analyzer):
+def test_select_statement_get_complexity_map_no_column_state(
+    mock_session, mock_analyzer
+):
     mock_from = mock.create_autospec(Selectable)
     mock_from.pre_actions = None
     mock_from.post_actions = None
     mock_from.expr_to_alias = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
+    mock_from.df_ast_ids = None
     select_statement = SelectStatement(analyzer=mock_analyzer, from_=mock_from)
 
     assert select_statement.get_projection_name_complexity_map() is None
@@ -407,12 +413,15 @@ def test_select_statement_get_complexity_map_no_column_state(mock_analyzer):
     assert select_statement.get_projection_name_complexity_map() is None
 
 
-def test_select_statement_get_complexity_map_mismatch_projection_length(mock_analyzer):
+def test_select_statement_get_complexity_map_mismatch_projection_length(
+    mock_session, mock_analyzer
+):
     mock_from = mock.create_autospec(Selectable)
     mock_from.pre_actions = None
     mock_from.post_actions = None
     mock_from.expr_to_alias = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
+    mock_from.df_ast_ids = None
 
     # create a select_statement with 2 projections
     select_statement = SelectStatement(

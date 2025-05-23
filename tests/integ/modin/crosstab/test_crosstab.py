@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import re
@@ -12,6 +12,24 @@ import pytest
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+# See SNOW-1892612 for why we have this list.
+AGGFUNCS_THAT_CANNOT_PRODUCE_NAN = (
+    "median",
+    np.median,
+    "count",
+    "mean",
+    np.mean,
+    min,
+    "min",
+    np.min,
+    max,
+    "max",
+    np.max,
+    "sum",
+    np.sum,
+    sum,
+)
 
 
 @pytest.mark.parametrize("dropna", [True, False])
@@ -205,7 +223,7 @@ class TestCrosstab:
     def test_basic_crosstab_with_df_and_series_objs_pandas_errors_columns(
         self, dropna, a, b, c
     ):
-        query_count = 4
+        query_count = 2
         join_count = 1 if dropna else 2
         a = native_pd.Series(
             a,
@@ -251,7 +269,7 @@ class TestCrosstab:
     def test_basic_crosstab_with_df_and_series_objs_pandas_errors_index(
         self, dropna, a, b, c
     ):
-        query_count = 6
+        query_count = 4
         join_count = 5 if dropna else 11
         a = native_pd.Series(
             a,
@@ -371,7 +389,7 @@ class TestCrosstab:
             )
 
     @pytest.mark.parametrize("normalize", [0, 1, "index", "columns"])
-    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
+    @pytest.mark.parametrize("aggfunc", AGGFUNCS_THAT_CANNOT_PRODUCE_NAN)
     def test_normalize_margins_and_values(self, dropna, normalize, aggfunc, a, b, c):
         counts = {
             "columns": [3, 10 if dropna else 13, 3],
@@ -398,7 +416,7 @@ class TestCrosstab:
                 dropna=dropna,
                 aggfunc=aggfunc,
             )
-            if aggfunc == "sum":
+            if aggfunc in (sum, "sum", np.sum, sum):
                 # When normalizing the data, we apply the normalization function to the
                 # entire table (including margins), which requires us to multiply by 2
                 # (since the function takes the sum over the rows, and the margins row is
@@ -419,7 +437,7 @@ class TestCrosstab:
                 eval_func,
             )
 
-    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
+    @pytest.mark.parametrize("aggfunc", AGGFUNCS_THAT_CANNOT_PRODUCE_NAN)
     def test_margins_and_values(self, dropna, aggfunc, a, b, c):
         vals = np.array([12, 10, 9, 4, 3, 49, 19, 20, 21, 34, 0])
 
@@ -448,7 +466,7 @@ class TestCrosstab:
             )
 
     @pytest.mark.parametrize("normalize", [0, 1, True, "all", "index", "columns"])
-    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
+    @pytest.mark.parametrize("aggfunc", AGGFUNCS_THAT_CANNOT_PRODUCE_NAN)
     def test_normalize_and_values(self, dropna, normalize, aggfunc, a, b, c):
         counts = {
             "columns": [2, 4 if dropna else 6],
@@ -474,7 +492,7 @@ class TestCrosstab:
                 dropna=dropna,
                 aggfunc=aggfunc,
             )
-            if aggfunc in ["sum", "max"]:
+            if aggfunc in ("sum", "max", np.sum, max, np.max, sum):
                 # When normalizing the data, we apply the normalization function to the
                 # entire table (including margins), which requires us to multiply by 2
                 # (since the function takes the sum over the rows, and the margins row is
@@ -495,7 +513,7 @@ class TestCrosstab:
             )
 
     @pytest.mark.parametrize("normalize", ["all", True])
-    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
+    @pytest.mark.parametrize("aggfunc", AGGFUNCS_THAT_CANNOT_PRODUCE_NAN)
     @sql_count_checker(query_count=0)
     def test_normalize_margins_and_values_not_supported(
         self, dropna, normalize, aggfunc, a, b, c
@@ -517,7 +535,7 @@ class TestCrosstab:
                 aggfunc=aggfunc,
             )
 
-    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
+    @pytest.mark.parametrize("aggfunc", AGGFUNCS_THAT_CANNOT_PRODUCE_NAN)
     def test_values(self, dropna, aggfunc, basic_crosstab_dfs):
         query_count = 1
         join_count = 2 if dropna else 3
@@ -536,9 +554,9 @@ class TestCrosstab:
                 ),
             )
 
-    @pytest.mark.parametrize("aggfunc", ["count", "mean", "min", "max", "sum"])
+    @pytest.mark.parametrize("aggfunc", AGGFUNCS_THAT_CANNOT_PRODUCE_NAN)
     def test_values_series_like(self, dropna, aggfunc, basic_crosstab_dfs):
-        query_count = 5
+        query_count = 3
         join_count = 2 if dropna else 3
         native_df, snow_df = basic_crosstab_dfs
 
@@ -567,6 +585,49 @@ class TestCrosstab:
                 eval_func,
             )
 
+    @pytest.mark.parametrize(
+        "aggfunc",
+        (
+            # std is NaN for < 2 values
+            "std",
+            np.std,
+            # var is NaN for < 1 values
+            "var",
+            np.var,
+            # skew is NaN for < 3 values
+            "skew",
+        ),
+    )
+    def test_aggfuncs_that_may_produce_nan(self, dropna, aggfunc):
+        """
+        Test aggfuncs that may produce NaN.
+
+        We test these aggfuncs separately because when dropna=True and some
+        aggfuncs produce NaN, pandas has some bugs:
+
+        - https://github.com/pandas-dev/pandas/issues/60768
+        - https://github.com/pandas-dev/pandas/issues/60767
+
+        We design these test cases so that the aggfuncs do not produce NaN, and
+        we can compare with pandas.
+
+        TODO(SNOW-1892612): Once pandas fixes these bugs, merge these test cases
+        with the rest of the test suite by adding these aggfuncs to the lists
+        of aggfuncs that we test in other functions.
+        """
+        with SqlCounter(query_count=1, join_count=(2 if dropna else 3)):
+            eval_snowpark_pandas_result(
+                pd,
+                native_pd,
+                lambda lib: lib.crosstab(
+                    index=["index1"] * 3 + ["index2"] * 3,
+                    columns=["column1"] * 6,
+                    values=list(range(6)),
+                    dropna=dropna,
+                    aggfunc=aggfunc,
+                ),
+            )
+
 
 @sql_count_checker(query_count=0)
 def test_values_unsupported_aggfunc(basic_crosstab_dfs):
@@ -574,18 +635,18 @@ def test_values_unsupported_aggfunc(basic_crosstab_dfs):
 
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas DataFrame.pivot_table does not yet support the aggregation 'median' with the given arguments.",
+        match="Snowpark pandas DataFrame.pivot_table does not yet support the aggregation 'size' with the given arguments.",
     ):
         pd.crosstab(
             native_df["species"].values,
             native_df["favorite_food"].values,
             values=native_df["age"].values,
-            aggfunc="median",
+            aggfunc="size",
             dropna=False,
         )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_values_series_like_unsupported_aggfunc(basic_crosstab_dfs):
     # The query count above comes from building the DataFrame
     # that we pass in to pivot table.
@@ -593,13 +654,13 @@ def test_values_series_like_unsupported_aggfunc(basic_crosstab_dfs):
 
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas DataFrame.pivot_table does not yet support the aggregation 'median' with the given arguments.",
+        match="Snowpark pandas DataFrame.pivot_table does not yet support the aggregation 'size' with the given arguments.",
     ):
         snow_df = pd.crosstab(
             snow_df["species"],
             snow_df["favorite_food"],
             values=snow_df["age"],
-            aggfunc="median",
+            aggfunc="size",
             dropna=False,
         )
 

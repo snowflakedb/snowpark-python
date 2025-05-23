@@ -1,19 +1,24 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
 import decimal
+import os
+import sys
+from textwrap import dedent
 from typing import Any, Dict, List
 
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udaf
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType, Variant
+from snowflake.snowpark.types import IntegerType, Variant, StringType
 from tests.utils import IS_IN_STORED_PROC, IS_NOT_ON_GITHUB, TestFiles, Utils
 
 pytestmark = [
@@ -453,6 +458,7 @@ def test_register_udaf_from_file_with_type_hints(session, resources_path):
     Utils.check_answer(df.group_by("a").agg(sum_udaf("b")), [Row(1, 7), Row(2, 11)])
 
 
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_udaf_negative(session, db_parameters):
     stage_name = Utils.random_stage_name()
@@ -478,7 +484,6 @@ def test_permanent_udaf_negative(session, db_parameters):
 
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
-        new_session.ast_enabled = session.ast_enabled
         df2 = new_session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df(
             "a", "b"
         )
@@ -589,3 +594,107 @@ def test_udaf_external_access_integration(session, db_parameters):
         Utils.check_answer(df.agg(external_access_udaf("a")), [Row(4)])
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udaf_artifact_repository(session):
+    class ArtifactRepositoryHandler:
+        def __init__(self) -> None:
+            self._result = ""
+
+        @property
+        def aggregate_state(self):
+            return self._result
+
+        def accumulate(self, input_value):
+            import urllib3
+
+            self._result = str(urllib3.exceptions.HTTPError("test"))
+
+        def merge(self, other_result):
+            self._result += other_result
+
+        def finish(self):
+            return self._result
+
+    ar_udaf = udaf(
+        ArtifactRepositoryHandler,
+        return_type=StringType(),
+        input_types=[IntegerType()],
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        packages=["urllib3", "requests"],
+    )
+    df = session.create_dataframe([(1,)], schema=["a"])
+    Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])
+
+    try:
+        ar_udaf = udaf(
+            ArtifactRepositoryHandler,
+            return_type=StringType(),
+            input_types=[IntegerType()],
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "x86"},
+        )
+    except SnowparkSQLException as ex:
+        assert (
+            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+            in str(ex.value)
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udaf_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import urllib3
+
+    class ArtifactRepositoryHandler:
+        def __init__(self) -> None:
+            self._result = ""
+
+        @property
+        def aggregate_state(self):
+            return self._result
+
+        def accumulate(self, input_value):
+            import urllib3
+
+            self._result = str(urllib3.exceptions.HTTPError("test"))
+
+        def merge(self, other_result):
+            self._result += other_result
+
+        def finish(self):
+            return self._result
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_udaf.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    ar_udaf = session.udaf.register_from_file(
+        file_path,
+        "ArtifactRepositoryHandler",
+        return_type=StringType(),
+        input_types=[IntegerType()],
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        packages=["urllib3", "requests"],
+    )
+    df = session.create_dataframe([(1,)], schema=["a"])
+    Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])

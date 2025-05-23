@@ -1,10 +1,17 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import concurrent.futures
+import random
 import pytest
+from snowflake.connector.options import MissingPandas
 
 from snowflake.snowpark._internal import utils
+from snowflake.snowpark._internal.utils import (
+    _pandas_importer,
+    generate_random_alphanumeric,
+    split_snowflake_identifier_with_dot,
+)
 
 
 @pytest.mark.parametrize(
@@ -60,8 +67,74 @@ def test_split_path(path: str, expected_dir: str, expected_file: str) -> None:
             False,
             "'snow://domain/test_entity/versions/test_version/file.txt'",
         ),
+        ("/some/file.yml", False, "'/some/file.yml'"),
+        ("'/some/file.yml'", False, "'/some/file.yml'"),
     ],
 )
 def test_normalize_path(path: str, is_local: bool, expected: str) -> None:
     actual = utils.normalize_path(path, is_local)
     assert expected == actual
+
+
+def test__pandas_importer():
+    imported_pandas = _pandas_importer()
+    try:
+        import pandas
+
+        assert imported_pandas == pandas
+    except ImportError:
+        assert isinstance(imported_pandas, MissingPandas)
+
+
+def test_generate_random_alphanumeric():
+    random.seed(42)
+    random_string1 = generate_random_alphanumeric()
+    random.seed(42)
+    random_string2 = generate_random_alphanumeric()
+    assert (
+        isinstance(random_string1, str)
+        and isinstance(random_string2, str)
+        and random_string1 != random_string2
+    )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        # Submit tasks to the pool and get future objects
+        futures = [executor.submit(generate_random_alphanumeric) for _ in range(5)]
+        res = [f.result() for f in futures]
+        assert len(set(res)) == 5  # no duplicate string
+
+
+@pytest.mark.parametrize(
+    "string, expected_result",
+    [
+        ('foo.bar."hello.world".baz', ["foo", "bar", '"hello.world"', "baz"]),
+        ('"a.b".c."d.e.f".g', ['"a.b"', "c", '"d.e.f"', "g"]),
+        ('x."y.z".w', ["x", '"y.z"', "w"]),
+        ("noquotes.here", ["noquotes", "here"]),
+        ('"only.one.token"', ['"only.one.token"']),
+        ('start."middle.with.dots".end', ["start", '"middle.with.dots"', "end"]),
+        ('part.with"quote".inside', ["part", 'with"quote"', "inside"]),
+        (
+            '"quoted with ""embedded"" quotes".end',
+            ['"quoted with ""embedded"" quotes"', "end"],
+        ),
+        (
+            '"quoted with ""embedded.and.some.dots"" quotes".end',
+            ['"quoted with ""embedded.and.some.dots"" quotes"', "end"],
+        ),
+        (
+            '"quoted with ""embedded.and.some.dots"" quotes escaped".end',
+            ['"quoted with ""embedded.and.some.dots"" quotes escaped"', "end"],
+        ),
+        (
+            '"open.quotes.end',
+            ['"open', "quotes", "end"],
+        ),
+        (
+            'a."b.""c".d."e.f.g".h.i.j."k"".""l."',
+            ["a", '"b.""c"', "d", '"e.f.g"', "h", "i", "j", '"k"".""l."'],
+        ),
+    ],
+)
+def test_split_snowflake_identifier_with_dot(string, expected_result):
+    assert split_snowflake_identifier_with_dot(string) == expected_result

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -67,7 +67,7 @@ def test_mix_temporary_and_permanent_udf(session, new_session):
             Utils.check_answer(
                 df2.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
             )
-        assert "SQL compilation error" in str(ex_info)
+        assert "SQL compilation error" in str(ex_info.value)
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
@@ -150,7 +150,7 @@ def test_support_fully_qualified_udf_name(session, new_session):
             Utils.check_answer(
                 df2.select(call_udf(temp_func_name, col("a"))), [Row(2), Row(3)]
             )
-        assert "SQL compilation error" in str(ex_info)
+        assert "SQL compilation error" in str(ex_info.value)
     finally:
         session._run_query(f"drop function if exists {temp_func_name}(int)")
         session._run_query(f"drop function if exists {perm_func_name}(int)")
@@ -195,7 +195,7 @@ def test_clean_up_files_if_udf_registration_fails(session):
                 is_permanent=True,
                 stage_location=stage_name,
             )
-        assert "SQL compilation error" in str(ex_info)
+        assert "SQL compilation error" in str(ex_info.value)
         # without clean up, below LIST gets 2 files
         assert len(session.sql(f"ls @{stage_name}/{perm_func_name}").collect()) == 1
     finally:

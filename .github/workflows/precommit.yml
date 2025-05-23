@@ -94,7 +94,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws, gcp, azure]
         exclude:
           # only run macos with aws py3.9 for doctest
@@ -134,6 +134,25 @@ jobs:
           - os: windows-latest-64-cores
             python-version: "3.11"
             cloud-provider: azure
+          # limit python 3.12 to one os per csp
+          - os: macos-latest
+            python-version: "3.12"
+            cloud-provider: aws
+          - os: macos-latest
+            python-version: "3.12"
+            cloud-provider: gcp
+          - os: ubuntu-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: azure
+          - os: ubuntu-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: gcp
+          - os: windows-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: azure
+          - os: windows-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: aws
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -177,13 +196,21 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
-          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
+          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.13 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
       - if: ${{ matrix.os != 'macos-latest' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - name: Run data source tests
+        run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -211,8 +238,30 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: [ "3.8", "3.9", "3.10", "3.11" ]
+        python-version: ["3.9", "3.10", "3.11", "3.12" ]
         cloud-provider: [aws]
+        exclude:
+          # only run each version on one os
+          # daily-precommit does full matrix
+          # macos runs 3.10
+          - os: macos-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.11"
+          - os: macos-latest
+            python-version: "3.9"
+          # windows runs 3.9 and 3.11
+          - os: windows-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.10"
+          # ubuntu runs 3.12
+          - os: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.9"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -270,7 +319,7 @@ jobs:
             .tox/coverage.xml
 
   test-ast-encoding:
-    name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}
+    name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -279,7 +328,7 @@ jobs:
         os: [macos-latest, windows-latest, ubuntu-latest]
         # TODO SNOW-1763185 use py39 by default
         # Protobuf encoding differs per python version, use 3.8 by default.
-        python-version: [ "3.8"]
+        python-version: [ "3.11" ]
         cloud-provider: [aws]
         protobuf-version: ["3.20.1"]
     steps:
@@ -402,8 +451,24 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
-        python-version: [ "3.9", "3.11" ]
-        cloud-provider: [ aws ]
+        python-version: [ "3.9", "3.11", "3.12" ]
+        cloud-provider: [aws, gcp, azure]
+        exclude:
+          # Run 3.9 on aws
+          - python-version: "3.11"
+            cloud-provider: aws
+          - python-version: "3.12"
+            cloud-provider: aws
+          # Run 3.11 on gcp
+          - python-version: "3.9"
+            cloud-provider: gcp
+          - python-version: "3.12"
+            cloud-provider: gcp
+          # Run 3.12 on azure
+          - python-version: "3.9"
+            cloud-provider: azure
+          - python-version: "3.11"
+            cloud-provider: azure
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

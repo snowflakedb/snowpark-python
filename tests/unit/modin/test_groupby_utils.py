@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from unittest import mock
@@ -14,6 +14,7 @@ from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     check_is_groupby_supported_by_snowflake,
     is_groupby_value_label_like,
+    validate_grouper,
 )
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
@@ -89,8 +90,51 @@ def test_check_groupby_snowflake_execution_by_args_axis_1():
         (None, True),
         (pd.Series(query_compiler=create_series_query_compiler()), False),
         ({"col1": 0, "col2": 1}, False),  # map
-        (pd.Grouper(level=1), False),  # grouper
+        (pd.Grouper(level=1), True),  # grouper identifying a multiindex level
+        (pd.Grouper("col1"), True),  # grouper with explicit label
+        (
+            pd.Grouper(freq="1s"),
+            True,
+        ),  # grouper implicitly referencing a datetime index
+        (pd.Grouper(), False),  # grouper specifying nothing
     ],
 )
 def test_is_groupby_value_label_like(val, expected_result):
     assert is_groupby_value_label_like(val) == expected_result
+
+
+@pytest.mark.parametrize(
+    "val, invalid_params",
+    [
+        (pd.Grouper(freq="1s"), []),  # parameters are valid, don't error
+        (
+            pd.Grouper(level=1, sort=True),
+            ["sort"],
+        ),  # sort=True invalid for non-datetime groupers
+        pytest.param(
+            pd.Grouper(freq="1s", sort=False),
+            ["sort"],
+            marks=pytest.mark.skip(
+                "sort=False is unsupported for datetime groupers, but pandas does not pass the sort argument for some reason"
+            ),
+        ),
+        # non-default values
+        (
+            pd.Grouper(
+                freq="1s",
+                closed="right",
+                label="right",
+                convention="s",
+                origin="end_day",
+                offset="1s",
+            ),
+            ["sort", "origin", "offset", "dropna"],
+        ),
+    ],
+)
+def test_grouper_parameters(val, invalid_params):
+    if len(invalid_params) == 0:
+        validate_grouper(val)
+    else:
+        with pytest.raises(NotImplementedError, match=", ".join(invalid_params)):
+            validate_grouper(val)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import List
@@ -140,7 +140,8 @@ def test_array_type(session):
         pytest.param("parameters", marks=pytest.mark.xfail),
         "functions",
         "roles",
-        "grants",
+        # SNOW-1991751: grants describe and result mismatch
+        # "grants",
         "warehouses",
         "databases",
         "variables",

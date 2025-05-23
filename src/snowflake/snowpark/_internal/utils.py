@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import array
@@ -21,12 +21,13 @@ import string
 import sys
 import threading
 import traceback
+import uuid
 import zipfile
-from enum import Enum
+from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache
 from itertools import count
 from json import JSONEncoder
-from random import choice
+from random import Random
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -42,18 +43,23 @@ from typing import (
     Tuple,
     Type,
     Union,
+    TypeVar,
 )
 
 import snowflake.snowpark
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -63,9 +69,13 @@ _logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
+RELATIVE_PATH_PREFIX = "/"
 SNOWFLAKE_PATH_PREFIXES = [
     STAGE_PREFIX,
     SNOWURL_PREFIX,
+]
+SNOWFLAKE_PATH_PREFIXES_FOR_GET = SNOWFLAKE_PATH_PREFIXES + [
+    RELATIVE_PATH_PREFIX,
 ]
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
@@ -185,7 +195,14 @@ NON_FORMAT_TYPE_OPTIONS = {
     "TARGET_COLUMNS",
     "TRANSFORMATIONS",
     "COPY_OPTIONS",
+    "ENFORCE_EXISTING_FILE_FORMAT",
 }
+
+XML_ROW_TAG_STRING = "ROWTAG"
+XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
+XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
+XML_READER_API_SIGNATURE = "DataFrameReader.xml[rowTag]"
+XML_READER_SQL_COMMENT = f"/* Python:snowflake.snowpark.{XML_READER_API_SIGNATURE} */"
 
 QUERY_TAG_STRING = "QUERY_TAG"
 SKIP_LEVELS_TWO = (
@@ -209,8 +226,8 @@ def _pandas_importer():  # noqa: E302
         pandas = importlib.import_module("pandas")
         # since we enable relative imports without dots this import gives us an issues when ran from test directory
         from pandas import DataFrame  # NOQA
-    except ImportError as e:
-        _logger.error(f"pandas is not installed {e}")
+    except ImportError:  # pragma: no cover
+        pass  # pragma: no cover
     return pandas
 
 
@@ -298,6 +315,19 @@ def validate_object_name(name: str):
         raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
 
+def validate_stage_location(stage_location: str) -> str:
+    stage_location = stage_location.strip()
+    if not stage_location:
+        raise ValueError(
+            "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
+        )
+    if stage_location[-1] == "/":
+        raise ValueError(
+            "stage_location should end with target filename like @mystage/prefix/stage/filename"
+        )
+    return stage_location
+
+
 @lru_cache
 def get_version() -> str:
     return ".".join([str(d) for d in snowpark_version if d is not None])
@@ -306,6 +336,11 @@ def get_version() -> str:
 @lru_cache
 def get_python_version() -> str:
     return platform.python_version()
+
+
+@lru_cache
+def is_interactive() -> bool:
+    return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
 
 
 @lru_cache
@@ -365,7 +400,7 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
-    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES
+    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES_FOR_GET
     if is_single_quoted(path):
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
@@ -376,12 +411,7 @@ def normalize_path(path: str, is_local: bool) -> str:
     return f"'{path}'"
 
 
-def warn_session_config_update_in_multithreaded_mode(
-    config: str, thread_safe_mode_enabled: bool
-) -> None:
-    if not thread_safe_mode_enabled:
-        return
-
+def warn_session_config_update_in_multithreaded_mode(config: str) -> None:
     if threading.active_count() > 1:
         _logger.warning(
             "You might have more than one threads sharing the Session object trying to update "
@@ -406,7 +436,7 @@ def split_path(path: str) -> Tuple[str, str]:
 
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
+    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES_FOR_GET):
         return new_name
     return f"{STAGE_PREFIX}{new_name}"
 
@@ -627,9 +657,12 @@ def create_or_update_statement_params_with_query_tag(
     statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
+    collect_stacktrace: bool = False,
 ) -> Dict[str, str]:
-    if exists_session_query_tag or (
-        statement_params and QUERY_TAG_STRING in statement_params
+    if (
+        exists_session_query_tag
+        or (statement_params and QUERY_TAG_STRING in statement_params)
+        or not collect_stacktrace
     ):
         return statement_params
 
@@ -683,7 +716,7 @@ def random_name_for_temp_object(object_type: TempObjectType) -> str:
 
 
 def generate_random_alphanumeric(length: int = 10) -> str:
-    return "".join(choice(ALPHANUMERIC) for _ in range(length))
+    return "".join(Random().choice(ALPHANUMERIC) for _ in range(length))
 
 
 def column_to_bool(col_):
@@ -698,12 +731,40 @@ def column_to_bool(col_):
     return bool(col_)
 
 
+def _parse_result_meta(
+    result_meta: Union[List[ResultMetadata], List["ResultMetadataV2"]]
+) -> Tuple[Optional[List[str]], Optional[List[Callable]]]:
+    """
+    Takes a list of result metadata objects and returns a list containing the names of all fields as
+    well as a list of functions that wrap specific columns.
+
+    A column type may need to be wrapped if the connector is unable to provide the columns data in
+    an expected format. For example StructType columns are returned as dict objects, but are better
+    represented as Row objects.
+    """
+    if not result_meta:
+        return None, None
+    col_names = []
+    wrappers = []
+    for col in result_meta:
+        col_names.append(col.name)
+        if (
+            _should_use_structured_type_semantics()
+            and FIELD_ID_TO_NAME[col.type_code] == "OBJECT"
+            and col.fields is not None
+        ):
+            wrappers.append(lambda x: Row(**x))
+        else:
+            wrappers.append(None)
+    return col_names, wrappers
+
+
 def result_set_to_rows(
     result_set: List[Any],
     result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
     case_sensitive: bool = True,
 ) -> List[Row]:
-    col_names = [col.name for col in result_meta] if result_meta else None
+    col_names, wrappers = _parse_result_meta(result_meta or [])
     rows = []
     row_struct = Row
     if col_names:
@@ -711,6 +772,9 @@ def result_set_to_rows(
             Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
         )
     for data in result_set:
+        if wrappers:
+            data = [wrap(d) if wrap else d for wrap, d in zip(wrappers, data)]
+
         if data is None:
             raise ValueError("Result returned from Python connector is None")
         row = row_struct(*data)
@@ -723,7 +787,7 @@ def result_set_to_iter(
     result_meta: Optional[List[ResultMetadata]] = None,
     case_sensitive: bool = True,
 ) -> Iterator[Row]:
-    col_names = [col.name for col in result_meta] if result_meta else None
+    col_names, wrappers = _parse_result_meta(result_meta)
     row_struct = Row
     if col_names:
         row_struct = (
@@ -732,6 +796,8 @@ def result_set_to_iter(
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
+        if wrappers:
+            data = [wrap(d) if wrap else d for wrap, d in zip(wrappers, data)]
         row = row_struct(*data)
         yield row
 
@@ -761,6 +827,15 @@ class WarningHelper:
         if self.count < self.warning_times:
             _logger.warning(text)
         self.count += 1
+
+
+warning_dict: Dict[str, WarningHelper] = {}
+
+
+def warning(name: str, text: str, warning_times: int = 1) -> None:
+    if name not in warning_dict:
+        warning_dict[name] = WarningHelper(warning_times)
+    warning_dict[name].warning(text)
 
 
 # TODO: SNOW-1720855: Remove DummyRLock and DummyThreadLocal after the rollout
@@ -804,162 +879,208 @@ def create_rlock(
     return DummyRLock()
 
 
-warning_dict: Dict[str, WarningHelper] = {}
+@unique
+class AstMode(IntEnum):
+    """
+    Describes the ast modes that instruct the client to send sql and/or dataframe AST to snowflake server.
+    """
+
+    SQL_ONLY = 0
+    SQL_AND_AST = 1
+    AST_ONLY = 2
 
 
-def warning(name: str, text: str, warning_times: int = 1) -> None:
-    if name not in warning_dict:
-        warning_dict[name] = WarningHelper(warning_times)
-    warning_dict[name].warning(text)
+@unique
+class AstFlagSource(IntEnum):
+    """
+    Describes the source of the AST feature flag value. This is not just an annotation!
+    The enum value determines the precedence of the value.
+    """
+
+    LOCAL = auto()
+    """Some local criteria determined the value. This has the lowest precedence. Any other source can override it."""
+    SERVER = auto()
+    """The server set the value. This has the highest precedence. Nothing else can override it."""
+    TEST = auto()
+    """
+    Do not use this in production Snowpark code. Test code sets the value. This has the highest precedence.
+    However, other test code can override previous settings.
+
+    Do not misuse this flag source in production code, as it will lead to unpredictable behavior.
+    """
 
 
-# TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: no cover
-    session = None
-    try:
-        # Multiple default session attempts:
-        session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
-            None
-        )
-        assert session is not None
-    except (
-        snowflake.snowpark.exceptions.SnowparkSessionException,
-        AssertionError,
-    ):
-        # Use modin session retrieval first, as it supports multiple sessions.
-        # Expect this to fail if modin was not installed, for Python 3.8, ... but that's ok.
-        try:
-            import modin.pandas as pd
+@unique
+class _AstFlagState(IntEnum):
+    """
+    Describes the state of the AST feature flag value.
+    """
 
-            session = pd.session
-        except Exception as e:  # noqa: F841
-            try:
-                # Get from default session.
-                from snowflake.snowpark.context import get_active_session
+    NEW = auto()
+    """The flag is initialized with a hard-coded default. No source has set the value."""
+    TENTATIVE = auto()
+    """The flag has been set by a source with lower precedence than SERVER. It can be overridden by SERVER."""
+    FINALIZED = auto()
+    """The flag has been set by SERVER. It cannot be overridden."""
 
-                session = get_active_session()
-            except Exception as e:  # noqa: F841
-                pass
-    finally:
-        if session is None:
+
+class _AstState:
+    """
+    Tracks the state of the ast_enabled feature flag. This class is thread-safe. The most important role of this
+    class is to prevent the flag from flip-flopping. In particular, once the feature is disabled (for any reason),
+    nothing can re-enable it.
+    """
+
+    def __init__(self) -> None:
+        """Creates an instance of _AstState."""
+        self._mutex = threading.Lock()
+        # The only safe default value is True. If the default is False, the flag can never be enabled.
+        # Consider a simple scenario:
+        # Initialize Snowpark.
+        # Create a few objects that are session-agnostic:
+        # a = Col("a")
+        # b = Col("b")
+        # Initialize a Snowpark session, and try to use a and b with ast_enabled = True.
+        # The objects got created with ast_enabled = False and are unusable.
+        self._ast_enabled = True
+        self._state = _AstFlagState.NEW
+
+    @property
+    def enabled(self) -> bool:
+        """Gets the value of the ast_enabled feature flag."""
+        with self._mutex:
+            if self._state == _AstFlagState.NEW:
+                # Nothing (test harness, local code, or explicit server setting) has set the value.
+                # Transition to TENTATIVE state as if local code had set the value.
+                _logger.info(
+                    "AST state has not been set explicitly. Defaulting to ast_enabled = %s.",
+                    self._ast_enabled,
+                )
+                self._state = _AstFlagState.TENTATIVE
+            return self._ast_enabled
+
+    def set_state(self, source: AstFlagSource, enable: bool) -> None:
+        """
+        Sets the value of the ast_enabled feature flag. The method may ignore the change request if the requested
+        transition is unsafe, or if the flag was already set at a precedence level not greater than the precedence
+        level of "source".
+
+        Flip-flopping the flag (enabled -> disabled -> enabled) is unsafe.
+
+        The AST feature can be disabled only once, and stays disabled no matter what happens afterward. The feature can
+        be enabled transiently, and once something (server setting or test configuration) makes a final decision, that
+        decision is permanent for the life of the process.
+
+        Args:
+            source: The source of the request. Using SERVER or TEST will finalize the flag.
+            enable: The new value of the flag.
+        """
+        with self._mutex:
             _logger.debug(
-                f"Could not retrieve default session "
-                f"for function {func.__qualname__}, capturing AST by default."
+                "Setting AST state. Current state: ast_enabled = %s, state = %s. Request: source = %s, enable = %s.",
+                self._ast_enabled,
+                self._state,
+                source,
+                enable,
             )
-            # session has not been created yet. To not lose information, always encode AST.
-            return True  # noqa: B012
-        else:
-            return session.ast_enabled  # noqa: B012
+            if source == AstFlagSource.TEST:
+                # TEST behaviors override everything.
+                # If you see this code path running in production, the calling code is broken.
+                self._state = _AstFlagState.FINALIZED
+                self._ast_enabled = enable
+                return
+            if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
+                _logger.warning(
+                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s.",
+                    self._ast_enabled,
+                    enable,
+                )
+                return
+            safe_transition: bool = not (
+                self._state == _AstFlagState.TENTATIVE
+                and not self._ast_enabled
+                and enable
+            )
+            if source == AstFlagSource.SERVER:
+                if safe_transition:
+                    self._ast_enabled = enable
+                else:
+                    _logger.warning(
+                        "Server cannot enable AST after treating it as disabled locally. Ignoring request."
+                    )
+                self._state = _AstFlagState.FINALIZED
+            elif source == AstFlagSource.LOCAL:
+                if safe_transition:
+                    self._ast_enabled = enable
+                else:
+                    _logger.warning(
+                        "Cannot enable AST by local preference after treating it as disabled. Ignoring request."
+                    )
+                self._state = _AstFlagState.TENTATIVE
+            else:
+                raise NotImplementedError(
+                    f"Unhandled transition. Current state: ast_enabled = {self._ast_enabled}, state = {self._state}. Request: source = {source}, enable = {enable}"
+                )
 
 
-def publicapi(func) -> Callable:
+_ast_state: _AstState = _AstState()
+
+
+def is_ast_enabled() -> bool:
+    """Gets the value of the ast_enabled feature flag."""
+    global _ast_state
+    return _ast_state.enabled
+
+
+def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
+    """
+    Sets the value of the ast_enabled feature flag.
+
+    See _AstState.set_state for more information.
+    """
+    global _ast_state
+    return _ast_state.set_state(source, enabled)
+
+
+# When the minimum supported Python version is at least 3.10, the type
+# annotations for publicapi should use typing.ParamSpec:
+# P = ParamSpec("P")
+# ReturnT = TypeVar("ReturnT")
+# def publicapi(func: Callable[P, ReturnT]) -> Callable[P, ReturnT]:
+#   ...
+#   @functools.wraps(func)
+#   def call_wrapper(*args: P.args, **kwargs: P.kwargs) -> ReturnT:
+#     ...
+#   ...
+#   return call_wrapper
+CallableT = TypeVar("CallableT", bound=Callable)
+
+
+def publicapi(func: CallableT) -> CallableT:
     """decorator to safeguard public APIs with global feature flags."""
 
-    # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
+    # Note that co_varnames also includes local variables. This can trigger false positives.
+    has_emit_ast: bool = "_emit_ast" in func.__code__.co_varnames
+
     @functools.wraps(func)
-    def func_call_wrapper(*args, **kwargs):  # pragma: no cover
+    def call_wrapper(*args, **kwargs):
         # warning(func.__qualname__, warning_text)
 
-        # Handle AST encoding, by modifying default behavior.
-        # If a function supports AST encoding, it must have a parameter _emit_ast.
-        # If now _emit_ast is passed as part of kwargs (we do not allow for the positional syntax!)
-        # then we use this value directly. If not, but the function supports _emit_ast,
-        # we override _emit_ast with the session parameter.
-        if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
-            # No arguments, or single argument with function.
-            if len(args) == 0 or (len(args) == 1 and isinstance(args[0], Callable)):
-                if func.__name__ in {
-                    "udf",
-                    "udtf",
-                    "udaf",
-                    "pandas_udf",
-                    "pandas_udtf",
-                    "sproc",
-                }:
-                    session = kwargs.get("session")
-                    # Lookup session directly as in implementation of these decorators.
-                    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
-                        session
-                    )
-                    # If session is None, do nothing (i.e., keep encoding AST).
-                    # This happens when the decorator is called before a session is started.
-                    if session is not None:
-                        kwargs["_emit_ast"] = session.ast_enabled
-                # Function passed fully with kwargs only (i.e., not a method - self will always be passed positionally)
-                elif len(kwargs) != 0:
-                    # Check if one of the kwargs holds a session object. If so, retrieve AST enabled from there.
-                    session_vars = [
-                        var
-                        for var in kwargs.values()
-                        if isinstance(var, snowflake.snowpark.session.Session)
-                    ]
-                    if session_vars:
-                        kwargs["_emit_ast"] = session_vars[0].ast_enabled
-                    else:
-                        kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(
-                            func
-                        )
-            elif isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
-                # special case: __init__ called, self._session is then not initialized yet.
-                if func.__qualname__.endswith(".__init__"):
-                    # Try to find a session argument.
-                    session_args = [
-                        arg
-                        for arg in args
-                        if isinstance(arg, snowflake.snowpark.session.Session)
-                    ]
-                    assert (
-                        len(session_args) != 0
-                    ), f"{func.__qualname__} must have at least one session arg."
-                    kwargs["_emit_ast"] = session_args[0].ast_enabled
-                else:
-                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
-            elif isinstance(
-                args[0], snowflake.snowpark.dataframe_reader.DataFrameReader
-            ):
-                if func.__qualname__.endswith(".__init__"):
-                    assert isinstance(
-                        args[1], snowflake.snowpark.session.Session
-                    ), f"{func.__qualname__} second arg must be session."
-                    kwargs["_emit_ast"] = args[1].ast_enabled
-                else:
-                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
-            elif isinstance(
-                args[0], snowflake.snowpark.dataframe_writer.DataFrameWriter
-            ):
-                if func.__qualname__.endswith(".__init__"):
-                    assert isinstance(
-                        args[1], snowflake.snowpark.DataFrame
-                    ), f"{func.__qualname__} second arg must be dataframe."
-                    kwargs["_emit_ast"] = args[1]._session.ast_enabled
-                else:
-                    kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
-            elif isinstance(
-                args[0],
-                (
-                    snowflake.snowpark.dataframe_stat_functions.DataFrameStatFunctions,
-                    snowflake.snowpark.dataframe_analytics_functions.DataFrameAnalyticsFunctions,
-                    snowflake.snowpark.dataframe_na_functions.DataFrameNaFunctions,
-                ),
-            ):
-                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
-            elif hasattr(args[0], "_session") and args[0]._session is not None:
-                kwargs["_emit_ast"] = args[0]._session.ast_enabled
-            elif isinstance(args[0], snowflake.snowpark.session.Session):
-                kwargs["_emit_ast"] = args[0].ast_enabled
-            elif isinstance(
-                args[0],
-                snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
-            ):
-                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
-            else:
-                kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(func)
+        if not has_emit_ast:
+            # This callee doesn't have a _emit_ast parameter.
+            return func(*args, **kwargs)
+
+        if "_emit_ast" in kwargs:
+            # The caller provided _emit_ast explicitly.
+            return func(*args, **kwargs)
+
+        kwargs["_emit_ast"] = is_ast_enabled()
 
         # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
 
         return func(*args, **kwargs)
 
-    return func_call_wrapper
+    return call_wrapper
 
 
 def func_decorator(
@@ -1055,17 +1176,6 @@ def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) 
         if use_scoped_temp_objects and is_generated
         else TEMPORARY_STRING
     )
-
-
-def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
-    if not isinstance(result, pandas.DataFrame):
-        raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-            "to_pandas() did not return a pandas DataFrame. "
-            "If you use session.sql(...).to_pandas(), the input query can only be a "
-            "SELECT statement. Or you can use session.sql(...).collect() to get a "
-            "list of Row objects for a non-SELECT statement, then convert it to a "
-            "pandas DataFrame."
-        )
 
 
 def check_imports_type(
@@ -1273,6 +1383,50 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
+def split_snowflake_identifier_with_dot(s: str) -> list:
+    """
+    Splits the Snowflake identifier by dots that are not within double-quoted parts.
+    Tokens that appear quoted in the input remain unchanged (quotes are kept).
+    See details in https://docs.snowflake.com/en/sql-reference/identifiers-syntax.
+
+    Examples:
+      'foo.bar."hello.world".baz'
+          -> ['foo', 'bar', '"hello.world"', 'baz']
+      '"a.b".c."d.e.f".g'
+          -> ['"a.b"', 'c', '"d.e.f"', 'g']
+    """
+    # ensures that dots inside quotes are not used for splitting.
+    parts = re.compile(r'"(?:[^"]|"")*"|[^.]+').findall(s)
+    return parts
+
+
+# Define the full-width regex pattern, copied from Spark
+full_width_regex = re.compile(
+    r"[\u1100-\u115F"
+    r"\u2E80-\uA4CF"
+    r"\uAC00-\uD7A3"
+    r"\uF900-\uFAFF"
+    r"\uFE10-\uFE19"
+    r"\uFE30-\uFE6F"
+    r"\uFF00-\uFF60"
+    r"\uFFE0-\uFFE6]"
+)
+
+
+def string_half_width(s: str) -> int:
+    """
+    Calculate the half-width of a string by adding 1 for each character
+    and adding an extra 1 for each full-width character.
+
+    :param s: The input string
+    :return: The calculated width
+    """
+    if s is None:
+        return 0
+    full_width_count = len(full_width_regex.findall(s))
+    return len(s) + full_width_count
+
+
 def prepare_pivot_arguments(
     df: "snowflake.snowpark.DataFrame",
     df_name: str,
@@ -1329,7 +1483,7 @@ def check_flatten_mode(mode: str) -> None:
         raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
 
-def check_create_map_parameter(*cols: Any) -> None:
+def check_create_map_parameter(*cols: Any) -> bool:
     """Helper function to check parameter cols for create_map function."""
 
     error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
@@ -1342,6 +1496,8 @@ def check_create_map_parameter(*cols: Any) -> None:
 
     if not len(cols) % 2 == 0:
         raise ValueError(error_message.format(len(cols)))
+
+    return len(cols) == 1 and isinstance(cols, (tuple, list))
 
 
 def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
@@ -1403,10 +1559,6 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         return MissingModin(), False
 
 
-# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
-COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
-
-
 class GlobalCounter:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -1422,3 +1574,229 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+class ExprAliasUpdateDict(dict):
+    """
+    A specialized dictionary for mapping expressions (UUID keys) to alias names updates tracking.
+    This is used to resolve ambiguous column names in join operations.
+
+    This dictionary is designed to store aliases as string values while also tracking whether
+    each alias was inherited from child DataFrame plan.
+    The values are stored as tuples of the form `(alias: str, updated_from_inherited: bool)`, where:
+
+    - `alias` (str): The alias name for the expression.
+    - `updated_from_inheritance` (bool): A flag indicating whether the expr alias was updated
+     because it's inherited from child plan (True) or not (False).
+
+    Below is an example for resolving alias mapping:
+
+    data = [25, 30]
+    columns = ["age"]
+    df1 = session.createDataFrame(data, columns)
+    df2 = session.createDataFrame(data, columns)
+    df3 = df1.join(df2)
+    # in DF3:
+    #    df1.age expr_id -> (age_alias_left, False)  # comes from df1 due to being disambiguated in the join condition
+    #    df2.age expr_id -> (age_alias_right, False)  # comes from df2 due to being disambiguated in the join condition
+
+    df4 = df3.select(df1.age.alias("age"))
+
+    # in DF4:
+    #    df1.age.expr_id -> (age, False)  # comes from df3 explict alias
+    #    df2.age.expr_id -> (age_alias_right, False)  # unchanged, inherited from df3
+    df5 = df1.join(df4, df1["age"] == df4["age"])
+
+    # in the middle of df1.join(df2) operation, we have the following expr_to_alias mapping:
+    #  DF4 intermediate expr_to_alias:
+    #    df4.age.expr_id -> (age_alias_right2, False)  # comes from df4 due to being disambiguated in the join condition, note here df4.age is not the same as df1.age, it's a new attribute
+    #    df1.age.expr_id -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #  DF1 intermediate expr_to_alias:
+    #    df1.age.expr_id -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+
+    # when executing merge_multiple_snowflake_plan_expr_to_alias, we drop df1.age.expr_id -> (age_alias_right2, True)
+
+    # in DF5:
+    #    df4.age.expr_id -> (age_alias_right2, False)
+    #    df1.age.expr_id -> (age_alias_left2, False)
+    """
+
+    def __setitem__(
+        self, key: Union[uuid.UUID, str], value: Union[Tuple[str, bool], str]
+    ):
+        """If a string value is provided, it is automatically stored as `(value, False)`.
+        If a tuple `(str, bool)` is provided, it must conform to the expected format.
+        """
+        if isinstance(value, str):
+            # if value is a string, we set inherit to False
+            value = (value, False)
+        if not (
+            isinstance(value, tuple)
+            and len(value) == 2
+            and isinstance(value[0], str)
+            and isinstance(value[1], bool)
+        ):
+            raise ValueError("Value must be a tuple of (str, bool)")
+        super().__setitem__(key, value)
+
+    def __getitem__(self, item) -> str:
+        """Returns only the alias string (`str`), omitting the inheritance flag."""
+        value = super().__getitem__(item)
+        return value[0]
+
+    def get(self, key, default=None) -> str:
+        value = super().get(key, None)
+        if value is not None:
+            return value[0]
+        return default
+
+    def was_updated_due_to_inheritance(self, key):
+        """Returns whether a key was inherited (`True` or `False`)."""
+        value = super().get(key, None)
+        if value is not None:
+            return value[1]
+        return False
+
+    def items(self):
+        """Return (key, str) pairs instead of (key, (str, bool)) pairs."""
+        return ((key, value[0]) for key, value in super().items())
+
+    def values(self) -> Iterable[str]:
+        """Return only the string parts of the tuple in the dictionary values."""
+        return (value[0] for value in super().values())
+
+    def update(self, other):
+        assert isinstance(other, ExprAliasUpdateDict)
+        for k in other:
+            self[k] = (other[k], other.was_updated_due_to_inheritance(k))
+
+    def copy(self) -> "ExprAliasUpdateDict":
+        """Return a shallow copy of the dictionary, preserving the (str, bool) tuple structure."""
+        return self.__copy__()
+
+    def __copy__(self) -> "ExprAliasUpdateDict":
+        """Shallow copy implementation for copy.copy()"""
+        new_copy = ExprAliasUpdateDict()
+        new_copy.update(self)
+        return new_copy
+
+    def __deepcopy__(self, memo) -> "ExprAliasUpdateDict":
+        """Deep copy implementation for copy.deepcopy()"""
+        return self.__copy__()
+
+
+def merge_multiple_snowflake_plan_expr_to_alias(
+    snowflake_plans: List["SnowflakePlan"],
+) -> ExprAliasUpdateDict:
+    """
+    Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
+    The conflict resolution strategy is as follows:
+
+    1) If they map to the same alias:
+        * Retain the expression in the final expr_to_alias map.
+    2) If they map to different aliases:
+        a) If one appears in the output attributes of the plan and the other does not:
+            * Retain the one present in the output attributes and discard the other. This is because
+            I. The one that shows up in the output attribute can be referenced by users to perform dataframe column operations.
+            II. The one that does not show up in the output is an intermediate alias mapping and can not be referenced directly by users.
+        b) If both appear in the output attributes:
+            * Discard both expressions as this constitutes a valid ambiguous case that cannot be resolved.
+    3) If neither appears in the output attributes:
+        * Discard both expressions since they will no longer be referenced.
+
+    taking our example from the class docstring, the conflicting df1.age in df5:
+    #    df1.age -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #    df1.age -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+
+    we are going to:
+    DROP: df1.age -> (age_alias_right2, True) because it's not directly in the output and can not be referenced
+    KEEP: df1.age -> (age_alias_left2, False) is going to be kept because it's directly in the output and can be referenced
+
+    Args:
+        snowflake_plans (List[SnowflakePlan]): List of SnowflakePlan objects.
+
+    Returns:
+        Dict[Any, str]: Merged expression-to-alias mapping.
+    """
+
+    # Gather all expression-to-alias mappings
+    all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
+
+    # Initialize the merged dictionary
+    merged_dict = ExprAliasUpdateDict()
+
+    # Collect all unique keys from all dictionaries
+    all_expr_ids = set().union(*all_expr_to_alias_dicts)
+
+    conflicted_expr_ids = {}
+
+    for expr_id in all_expr_ids:
+        values = list(
+            {
+                (d[expr_id], d.was_updated_due_to_inheritance(expr_id))
+                for d in all_expr_to_alias_dicts
+                if expr_id in d
+            }
+        )
+        # Check if all aliases are identical
+        if len(values) == 1:
+            merged_dict[expr_id] = values[0]
+        else:
+            conflicted_expr_ids[expr_id] = values
+
+    if not conflicted_expr_ids:
+        return merged_dict
+
+    for expr_id in conflicted_expr_ids:
+        expr_id_alias_candidates = set()
+        for plan in snowflake_plans:
+            output_columns = []
+            if plan.schema_query is not None:
+                output_columns = [attr.name for attr in plan.output]
+            tmp_alias_name, tmp_updated_due_to_inheritance = plan.expr_to_alias[
+                expr_id
+            ], plan.expr_to_alias.was_updated_due_to_inheritance(expr_id)
+            if tmp_alias_name not in output_columns or tmp_updated_due_to_inheritance:
+                # alias updated due to inheritance are not considered as they are not used in the output
+                # check Analyzer.unary_expression_extractor functions
+                continue
+            if len(expr_id_alias_candidates) == 1:
+                # Only one candidate so far
+                candidate_name, candidate_updated_due_to_inheritance = next(
+                    iter(expr_id_alias_candidates)
+                )
+                if candidate_name == tmp_alias_name:
+                    # The candidate is the same as the current alias
+                    # we keep the non-inherited bool information as our strategy is to keep alias
+                    # that shows directly in the output column rather than updates because of inheritance
+                    tmp_updated_due_to_inheritance = (
+                        candidate_updated_due_to_inheritance
+                        and tmp_updated_due_to_inheritance
+                    )
+                    expr_id_alias_candidates.pop()
+            expr_id_alias_candidates.add(
+                (tmp_alias_name, tmp_updated_due_to_inheritance)
+            )
+        # Add the candidate to the merged dictionary if resolved
+        if len(expr_id_alias_candidates) == 1:
+            merged_dict[expr_id] = expr_id_alias_candidates.pop()
+        else:
+            # No valid candidate found
+            _logger.debug(
+                f"Expression '{expr_id}' is associated with multiple aliases across different plans. "
+                f"Unable to determine which alias to use. Conflicting values: {conflicted_expr_ids[expr_id]}"
+            )
+
+    return merged_dict
+
+
+def str_contains_alphabet(ver):
+    """Return True if ver contains alphabet, e.g., 1a1; otherwise, return False, e.g., 112"""
+    return bool(re.search("[a-zA-Z]", ver))
+
+
+def get_sorted_key_for_version(version_str):
+    """Generate a key to sort versions. Note if a version component is not a number, e.g., "1a1", we will treat it as -1. E.g., 1.11.1a1 will be treated as 1.11.-1"""
+    return tuple(
+        -1 if str_contains_alphabet(num) else int(num) for num in version_str.split(".")
+    )

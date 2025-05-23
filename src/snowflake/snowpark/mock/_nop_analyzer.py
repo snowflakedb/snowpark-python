@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import List, Union
@@ -47,14 +47,20 @@ class NopSelectStatement(MockSelectStatement):
         nop_statement.__dict__.update(statement.__dict__)
         return nop_statement
 
-    def select(self, cols: List[Expression]) -> "SelectStatement":
+    def select(self, cols: List[Expression]) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().select(cols))
 
     def filter(self, col: Expression) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().filter(col))
 
-    def sort(self, cols: List[Expression]) -> "SelectStatement":
+    def sort(self, cols: List[Expression]) -> "MockSelectStatement":
         return self._make_nop_select_statement_copy(super().sort(cols))
+
+    def distinct(self) -> "MockSelectStatement":
+        return self._make_nop_select_statement_copy(super().distinct())
+
+    def exclude(self, exclude_cols, keep_cols) -> "MockSelectStatement":
+        return super().exclude(exclude_cols, keep_cols)
 
     def set_operator(
         self,
@@ -102,7 +108,7 @@ class NopSelectExecutionPlan(MockSelectExecutionPlan):
 class NopSelectableEntity(MockSelectableEntity):
     @property
     def attributes(self):
-        return resolve_attributes(self.entity_plan, session=self.analyzer.session)
+        return resolve_attributes(self.entity_plan, session=self._session)
 
 
 class NopAnalyzer(MockAnalyzer):

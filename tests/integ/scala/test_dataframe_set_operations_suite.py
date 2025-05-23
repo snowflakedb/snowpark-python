@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import random
@@ -10,7 +10,7 @@ from typing import List
 import pytest
 
 from snowflake.snowpark import Column, Row
-from snowflake.snowpark.exceptions import SnowparkClientException, SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import col, lit, min, sum
 from snowflake.snowpark.types import IntegerType
 from tests.utils import TestData, Utils
@@ -132,6 +132,14 @@ def test_except_between_two_projects_without_references_used_in_filter(session):
     Utils.check_answer(df1.select("b").except_(df2.select("c")), Row(2))
 
 
+def test_dataframe_except_edge_cases(session):
+    # Tests that all None row is kept, and values split between rows are respected
+    df1 = session.create_dataframe([[None, None], [1, 2], [1, 2], [3, 4], [5, 6]])
+    df2 = session.create_dataframe([[1, 1], [2, 2], [5, 6]])
+
+    Utils.check_answer(df1.except_(df2), [Row(None, None), Row(1, 2), Row(3, 4)])
+
+
 def test_union_unionall_unionbyname_unionallbyname_in_one_case(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
@@ -185,16 +193,38 @@ def test_union_by_name(session):
     union_df = df1.union_by_name(df2.union_by_name(df3))
     Utils.check_answer(union_df, Row(1, 2, 3))
 
-    # Check failure cases
-    df1 = session.create_dataframe([(1, 2)]).to_df("a", "c")
-    df2 = session.create_dataframe([(3, 4, 5)]).to_df("a", "b", "c")
-    with pytest.raises(SnowparkSQLException):
-        df1.union_by_name(df2).collect()
+    # Check missing columns cases
+    df1 = session.create_dataframe([(1, "A"), (1, "A")]).to_df("a", "c")
+    df2 = session.create_dataframe([(2, 2, "B")]).to_df("a", "b", "c")
+    df3 = session.create_dataframe([(3, "C", "C")]).to_df("a", "c", "e")
 
-    df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
-    df2 = session.create_dataframe([(4, 5, 6)]).to_df("a", "c", "d")
-    with pytest.raises(SnowparkClientException):
-        df1.union_by_name(df2)
+    with pytest.raises(
+        SnowparkClientException,
+        match='Cannot union the DataFrames by column names. \\("B"\\) is in the right hand side, but not the left.',
+    ):
+        df1.union_by_name(df2).collect()
+    with pytest.raises(
+        SnowparkClientException,
+        match='Cannot union the DataFrames by column names. \\("E"\\) is in the right hand side, but not the left. \\("B"\\) is in the left hand side, but not the right.',
+    ):
+        df2.union_by_name(df3).collect()
+    with pytest.raises(
+        SnowparkClientException,
+        match='Cannot union the DataFrames by column names. \\("E"\\) is in the left hand side, but not the right.',
+    ):
+        df3.union_by_name(df1).collect()
+
+    union1 = df1.union_by_name(df2, allow_missing_columns=True)
+    assert union1.columns == ["A", "C", "B"]
+    Utils.check_answer(union1, [Row(A=1, C="A", B=None), Row(A=2, C="B", B=2)])
+    union2 = df2.union_by_name(df3, allow_missing_columns=True)
+    assert union2.columns == ["A", "B", "C", "E"]
+    Utils.check_answer(
+        union2, [Row(A=2, B=2, C="B", E=None), Row(A=3, B=None, C="C", E="C")]
+    )
+    union3 = df3.union_by_name(df1, allow_missing_columns=True)
+    assert union3.columns == ["A", "C", "E"]
+    Utils.check_answer(union3, [Row(A=3, C="C", E="C"), Row(A=1, C="A", E=None)])
 
 
 def test_unionall_by_name(session):
@@ -205,16 +235,38 @@ def test_unionall_by_name(session):
     union_df = df1.union_all_by_name(df2.union_all_by_name(df3))
     Utils.check_answer(union_df, [Row(1, 2, 3), Row(1, 2, 3), Row(1, 2, 3)])
 
-    # Check failure cases
-    df1 = session.create_dataframe([(1, 2)]).to_df("a", "c")
-    df2 = session.create_dataframe([(3, 4, 5)]).to_df("a", "b", "c")
-    with pytest.raises(SnowparkSQLException):
-        df1.union_all_by_name(df2).collect()
+    # Check missing columns cases
+    df1 = session.create_dataframe([(1, "A"), (1, "A")]).to_df("a", "c")
+    df2 = session.create_dataframe([(2, 2, "B")]).to_df("a", "b", "c")
+    df3 = session.create_dataframe([(3, "C", "C")]).to_df("a", "c", "e")
 
-    df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
-    df2 = session.create_dataframe([(4, 5, 6)]).to_df("a", "c", "d")
-    with pytest.raises(SnowparkClientException):
-        df1.union_all_by_name(df2)
+    with pytest.raises(
+        SnowparkClientException,
+        match='Cannot union the DataFrames by column names. \\("B"\\) is in the right hand side, but not the left.',
+    ):
+        df1.union_all_by_name(df2).collect()
+    with pytest.raises(
+        SnowparkClientException,
+        match='Cannot union the DataFrames by column names. \\("E"\\) is in the right hand side, but not the left. \\("B"\\) is in the left hand side, but not the right.',
+    ):
+        df2.union_all_by_name(df3).collect()
+    with pytest.raises(
+        SnowparkClientException,
+        match='Cannot union the DataFrames by column names. \\("E"\\) is in the left hand side, but not the right.',
+    ):
+        df3.union_all_by_name(df1).collect()
+
+    union1 = df1.union_all_by_name(df2, allow_missing_columns=True)
+    assert union1.columns == ["A", "C", "B"]
+    Utils.check_answer(union1, [Row(1, "A", None), Row(1, "A", None), Row(2, "B", 2)])
+    union2 = df2.union_all_by_name(df3, allow_missing_columns=True)
+    assert union2.columns == ["A", "B", "C", "E"]
+    Utils.check_answer(
+        union2, [Row(A=2, B=2, C="B", E=None), Row(A=3, B=None, C="C", E="C")]
+    )
+    union3 = df3.union_all_by_name(df1, allow_missing_columns=True)
+    assert union3.columns == ["A", "C", "E"]
+    Utils.check_answer(union3, [Row(1, "A", None), Row(1, "A", None), Row(3, "C", "C")])
 
 
 def test_union_by_quoted_name(session):
@@ -408,14 +460,12 @@ def test_mix_set_operator(session):
     df2 = session.create_dataframe([2]).to_df("a")
     df3 = session.create_dataframe([3]).to_df("a")
 
-    res = df1.union(df2).intersect(df2.union(df3)).collect()
-    expected = df2.collect()
-    assert res == expected
+    res = df1.union(df2).intersect(df2.union(df3))
+    Utils.check_answer(res, df2)
 
-    res1 = df1.union(df2).intersect(df2.union(df3)).union(df3).collect()
-    res2 = df2.union(df3).collect()
-    assert res1 == res2
+    res1 = df1.union(df2).intersect(df2.union(df3)).union(df3)
+    res2 = df2.union(df3)
+    Utils.check_answer(res1, res2)
 
-    res = df1.union(df2).except_(df2.union(df3).intersect(df1.union(df2))).collect()
-    expected = df1.collect()
-    assert res == expected
+    res = df1.union(df2).except_(df2.union(df3).intersect(df1.union(df2)))
+    Utils.check_answer(res, df1)

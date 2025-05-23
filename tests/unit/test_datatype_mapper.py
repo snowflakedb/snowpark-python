@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytest
 
+from snowflake.snowpark import Session
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
     schema_expression,
     to_sql,
+    to_sql_no_cast,
 )
+from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -124,7 +128,15 @@ def test_to_sql():
         to_sql([1, "2", 3.5], ArrayType()) == "PARSE_JSON('[1, \"2\", 3.5]') :: ARRAY"
     )
     assert (
+        to_sql([1, 2, 3], ArrayType(IntegerType(), structured=True))
+        == "PARSE_JSON('[1, 2, 3]') :: ARRAY(INT)"
+    )
+    assert (
         to_sql({"'": '"'}, MapType()) == 'PARSE_JSON(\'{"\'\'": "\\\\""}\') :: OBJECT'
+    )
+    assert (
+        to_sql({"'": '"'}, MapType(StringType(), structured=True))
+        == 'PARSE_JSON(\'{"\'\'": "\\\\""}\') :: MAP(STRING, STRING)'
     )
     assert to_sql([{1: 2}], ArrayType()) == "PARSE_JSON('[{\"1\": 2}]') :: ARRAY"
     assert to_sql({1: [2]}, MapType()) == "PARSE_JSON('{\"1\": [2]}') :: OBJECT"
@@ -153,6 +165,118 @@ def test_to_sql():
     assert (
         to_sql([1, 2, 31234567, -1928, 0, -3], VectorType(int, 5))
         == "[1, 2, 31234567, -1928, 0, -3] :: VECTOR(int,5)"
+    )
+
+
+def test_to_sql_system_function():
+    # Test nulls
+    assert to_sql_no_cast(None, NullType()) == "NULL"
+    assert to_sql_no_cast(None, ArrayType(DoubleType())) == "NULL"
+    assert to_sql_no_cast(None, MapType(IntegerType(), ByteType())) == "NULL"
+    assert to_sql_no_cast(None, StructType([])) == "NULL"
+    assert to_sql_no_cast(None, GeographyType()) == "NULL"
+    assert to_sql_no_cast(None, GeometryType()) == "NULL"
+
+    assert to_sql_no_cast(None, IntegerType()) == "NULL"
+    assert to_sql_no_cast(None, ShortType()) == "NULL"
+    assert to_sql_no_cast(None, ByteType()) == "NULL"
+    assert to_sql_no_cast(None, LongType()) == "NULL"
+    assert to_sql_no_cast(None, FloatType()) == "NULL"
+    assert to_sql_no_cast(None, StringType()) == "NULL"
+    assert to_sql_no_cast(None, DoubleType()) == "NULL"
+    assert to_sql_no_cast(None, BooleanType()) == "NULL"
+
+    assert to_sql_no_cast(None, "Not any of the previous types") == "NULL"
+
+    # Test non-nulls
+    assert (
+        to_sql_no_cast("\\ '  ' abc \n \\", StringType())
+        == "'\\\\ ''  '' abc \\n \\\\'"
+    )
+    assert (
+        to_sql_no_cast("\\ '  ' abc \n \\", StringType())
+        == "'\\\\ ''  '' abc \\n \\\\'"
+    )
+    assert to_sql_no_cast(1, ByteType()) == "1"
+    assert to_sql_no_cast(1, ShortType()) == "1"
+    assert to_sql_no_cast(1, IntegerType()) == "1"
+    assert to_sql_no_cast(1, LongType()) == "1"
+    assert to_sql_no_cast(1, BooleanType()) == "1"
+    assert to_sql_no_cast(0, ByteType()) == "0"
+    assert to_sql_no_cast(0, ShortType()) == "0"
+    assert to_sql_no_cast(0, IntegerType()) == "0"
+    assert to_sql_no_cast(0, LongType()) == "0"
+    assert to_sql_no_cast(0, BooleanType()) == "0"
+
+    assert to_sql_no_cast(float("nan"), FloatType()) == "'NAN'"
+    assert to_sql_no_cast(float("inf"), FloatType()) == "'INF'"
+    assert to_sql_no_cast(float("-inf"), FloatType()) == "'-INF'"
+    assert to_sql_no_cast(1.2, FloatType()) == "1.2"
+
+    assert to_sql_no_cast(float("nan"), DoubleType()) == "'NAN'"
+    assert to_sql_no_cast(float("inf"), DoubleType()) == "'INF'"
+    assert to_sql_no_cast(float("-inf"), DoubleType()) == "'-INF'"
+    assert to_sql_no_cast(1.2, DoubleType()) == "1.2"
+
+    assert to_sql_no_cast(Decimal(0.5), DecimalType(2, 1)) == "0.5"
+
+    assert to_sql_no_cast(397, DateType()) == "'1971-02-02'"
+
+    assert to_sql_no_cast(datetime.date(1971, 2, 2), DateType()) == "'1971-02-02'"
+
+    assert (
+        to_sql_no_cast(1622002533000000, TimestampType())
+        == "'2021-05-26 04:15:33+00:00'"
+    )
+
+    assert (
+        to_sql_no_cast(bytearray.fromhex("2Ef0 F1f2 "), BinaryType())
+        == "b'.\\xf0\\xf1\\xf2'"
+    )
+
+    assert to_sql_no_cast([1, "2", 3.5], ArrayType()) == "PARSE_JSON('[1, \"2\", 3.5]')"
+    assert to_sql_no_cast({"'": '"'}, MapType()) == 'PARSE_JSON(\'{"\'\'": "\\\\""}\')'
+    assert to_sql_no_cast([{1: 2}], ArrayType()) == "PARSE_JSON('[{\"1\": 2}]')"
+    assert to_sql_no_cast({1: [2]}, MapType()) == "PARSE_JSON('{\"1\": [2]}')"
+
+    assert to_sql_no_cast([1, bytearray(1)], ArrayType()) == "PARSE_JSON('[1, \"00\"]')"
+
+    assert (
+        to_sql_no_cast(["2", Decimal(0.5)], ArrayType()) == "PARSE_JSON('[\"2\", 0.5]')"
+    )
+
+    dt = datetime.datetime.today()
+    assert (
+        to_sql_no_cast({1: dt}, MapType())
+        == 'PARSE_JSON(\'{"1": "' + dt.isoformat() + "\"}')"
+    )
+
+    assert to_sql_no_cast([1, 2, 3.5], VectorType(float, 3)) == "[1, 2, 3.5]"
+    assert (
+        to_sql_no_cast("POINT(-122.35 37.55)", GeographyType())
+        == "TO_GEOGRAPHY('POINT(-122.35 37.55)')"
+    )
+    assert (
+        to_sql_no_cast("POINT(-122.35 37.55)", GeometryType())
+        == "TO_GEOMETRY('POINT(-122.35 37.55)')"
+    )
+    assert to_sql_no_cast("1", VariantType()) == "PARSE_JSON('\"1\"')"
+    assert (
+        to_sql_no_cast([1, 2, 3.5, 4.1234567, -3.8], VectorType("float", 5))
+        == "[1, 2, 3.5, 4.1234567, -3.8]"
+    )
+    assert to_sql_no_cast([1, 2, 3], VectorType(int, 3)) == "[1, 2, 3]"
+    assert (
+        to_sql_no_cast([1, 2, 31234567, -1928, 0, -3], VectorType(int, 5))
+        == "[1, 2, 31234567, -1928, 0, -3]"
+    )
+
+
+def test_generate_call_python_sp_sql():
+    fake_session = MagicMock(Session)
+    assert (
+        generate_call_python_sp_sql(fake_session, "system$wait", 1)
+        == "CALL system$wait(1)"
     )
 
 

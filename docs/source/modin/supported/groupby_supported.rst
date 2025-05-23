@@ -30,18 +30,17 @@ Function application
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | GroupBy method              | Snowpark implemented? (Y/N/P/D) | Missing parameters               | Notes for current implementation                   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``agg``                     | P                               | ``axis`` other than 0 is not     | ``Y``, support functions are count, mean, min, max,|
-|                             |                                 | implemented.                     | sum, median, std, size, len, and var               |
-|                             |                                 |                                  | (including both Python and NumPy functions)        |
-|                             |                                 |                                  | otherwise ``N``.                                   |
+| ``agg``                     | P                               | ``axis`` other than 0 is not     | Check                                              |
+|                             |                                 | implemented.                     | `Supported Aggregation Functions <agg_supp.html>`_ |
+|                             |                                 |                                  | for a list of supported functions.                 |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``aggregate``               | P                               | ``axis`` other than 0 is not     | See ``agg``                                        |
 |                             |                                 | implemented.                     |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``apply``                   | P                               | ``axis`` other than 0 is not     | ``Y`` if the following are true, otherwise ``N``:  |
 |                             |                                 | implemented.                     |   - ``func`` is a callable that always returns     |
-|                             |                                 | ``include_groups = False`` is    |     either a pandas DataFrame, a pandas Series, or |
-|                             |                                 | not implemented.                 |     objects that are neither DataFrame nor Series. |
+|                             |                                 |                                  |     either a pandas DataFrame, a pandas Series, or |
+|                             |                                 |                                  |     objects that are neither DataFrame nor Series. |
 |                             |                                 |                                  |   - grouping on axis=0                             |
 |                             |                                 |                                  |   - Not applying transform to a dataframe with a   |
 |                             |                                 |                                  |     non-unique index                               |
@@ -147,7 +146,10 @@ Computations/descriptive stats
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``rank``                    | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``resample``                | N                               |                                                    |
+| ``resample``                | P                               | Implemented for DataFrameGroupBy objects.          |
+|                             |                                 | Only DatetimeIndex is supported and its ``freq``   |
+|                             |                                 | will be lost. ``rule`` frequencies 's', 'min',     |
+|                             |                                 | 'h', and 'D' are supported.                        |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``rolling``                 | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
@@ -169,6 +171,8 @@ Computations/descriptive stats
 | ``tail``                    | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``take``                    | N                               |                                                    |
++-----------------------------+---------------------------------+----------------------------------------------------+
+| ``unique``                  | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``value_counts``            | P                               | ``N`` if ``bins`` is given for SeriesGroupBy       |
 +-----------------------------+---------------------------------+----------------------------------------------------+

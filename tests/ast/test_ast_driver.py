@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.ast.utils import (
 )
 from snowflake.snowpark._internal.utils import global_counter
 from tests.ast.ast_test_utils import render
+from tests.utils import TestFiles
 
 _logger = logging.getLogger(__name__)
 
@@ -94,11 +95,15 @@ def load_test_cases():
     Returns: a list of test cases.
     """
     test_files = DATA_DIR.glob("*.test")
-    if sys.version_info[0] == 3 and sys.version_info[1] < 9:
+    major_version, minor_version = sys.version_info[0], sys.version_info[1]
+    if major_version == 3 and minor_version < 9:
         # Remove the `to_snowpark_pandas` test since Snowpark pandas is only supported in Python 3.9+.
         test_files = filter(
             lambda file: "to_snowpark_pandas" not in file.name, test_files
         )
+    if major_version == 3 and minor_version == 12:
+        # Skip df_copy when run in Python 3.12 due to differences in reported source positions.
+        test_files = filter(lambda file: "df_copy" not in file.name, test_files)
     return [parse_file(file) for file in test_files]
 
 
@@ -120,10 +125,11 @@ def normalize_temp_names(s: str):
     )
 
 
-def run_test(session, tables, test_name, test_source):
+def run_test(session, tables, test_name, test_source, resources_path):
     override_time_zone()
     os.chdir(DATA_DIR)
 
+    test_files = TestFiles(resources_path)
     source = f"""
 import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import *
@@ -139,9 +145,9 @@ AstBatch.generate_request_id = lambda: uuid.uuid5(uuid.NAMESPACE_DNS, "id-gen")
 
 ast_utils.SRC_POSITION_TEST_MODE = True
 
-def run_test(session, tables):
+def run_test(session, tables, test_files):
     # Reset the entity ID generator.
-    session._ast_batch.reset_id_gen()
+    session._ast_batch._reset_id_gen()
 
     session._ast_batch.flush()  # Clear the AST.
 
@@ -175,7 +181,7 @@ def run_test(session, tables):
         test_module = importlib.util.module_from_spec(spec)
         sys.modules[test_name] = test_module
         spec.loader.exec_module(test_module)
-        base64_batches = test_module.run_test(session, tables)
+        base64_batches = test_module.run_test(session, tables, test_files)
         raw_unparser_output = (
             render(base64_batches, pytest.unparser_jar) if pytest.unparser_jar else ""
         )
@@ -188,11 +194,24 @@ def run_test(session, tables):
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
-def test_ast(session, tables, test_case):
+def test_ast(session, tables, test_case, resources_path):
     _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
 
+    # Reset string interning (avoids issues for testing).
+    from snowflake.snowpark._internal.ast.utils import (
+        __intern_string,
+        __reset_interning_map,
+    )
+
+    __reset_interning_map()
+    assert __intern_string("SRC_POSITION_TEST_MODE") == 2
+
     actual, base64_str = run_test(
-        session, tables, test_case.filename.replace(".", "_"), test_case.source
+        session,
+        tables,
+        test_case.filename.replace(".", "_"),
+        test_case.source,
+        resources_path,
     )
 
     if pytest.update_expectations:

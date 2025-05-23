@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 from unittest import mock
 
 import modin.pandas as pd
@@ -71,8 +72,6 @@ def test_unsupported_general(general_method, kwargs):
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],
         ["filter", {}],
-        ["from_dict", {"data": ""}],
-        ["from_records", {"data": ""}],
         ["hist", {}],
         ["infer_objects", {}],
         ["interpolate", {}],
@@ -81,7 +80,6 @@ def test_unsupported_general(general_method, kwargs):
         ["kurtosis", {}],
         ["mode", {}],
         ["pipe", {"func": ""}],
-        ["pop", {"item": ""}],
         ["prod", {}],
         ["product", {}],
         ["query", {"expr": ""}],
@@ -96,7 +94,6 @@ def test_unsupported_general(general_method, kwargs):
         ["to_feather", {"path": ""}],
         ["to_gbq", {"destination_table": ""}],
         ["to_hdf", {"path_or_buf": "", "key": ""}],
-        ["to_html", {}],
         ["to_json", {}],
         ["to_latex", {}],
         ["to_markdown", {}],
@@ -107,7 +104,6 @@ def test_unsupported_general(general_method, kwargs):
         ["to_records", {}],
         ["to_sql", {"name": "", "con": ""}],
         ["to_stata", {"path": ""}],
-        ["to_string", {}],
         ["to_timestamp", {}],
         ["to_xarray", {}],
         ["to_xml", {}],
@@ -135,7 +131,6 @@ def test_unsupported_df(df_method, kwargs):
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["autocorr", {}],
-        ["between", {"left": "", "right": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
         ["bool", {}],
         ["clip", {}],
@@ -150,7 +145,6 @@ def test_unsupported_df(df_method, kwargs):
         ["explode", {}],
         ["factorize", {}],
         ["filter", {}],
-        ["hist", {}],
         ["infer_objects", {}],
         ["interpolate", {}],
         ["item", {}],
@@ -159,7 +153,6 @@ def test_unsupported_df(df_method, kwargs):
         ["mode", {}],
         ["nbytes", {}],
         ["pipe", {"func": ""}],
-        ["pop", {"item": ""}],
         ["prod", {}],
         ["ravel", {}],
         ["reindex_like", {"other": ""}],
@@ -180,7 +173,6 @@ def test_unsupported_df(df_method, kwargs):
         ["to_period", {}],
         ["to_pickle", {"path": ""}],
         ["to_sql", {"name": "", "con": ""}],
-        ["to_string", {}],
         ["to_timestamp", {}],
         ["to_xarray", {}],
         ["transform", {"func": ""}],

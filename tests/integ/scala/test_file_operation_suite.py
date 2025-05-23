@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import os
@@ -274,13 +274,13 @@ def test_put_negative(
             stage_with_prefix,
             auto_compress=not local_testing_mode,
         )
-    assert "File doesn't exist" in str(file_not_exist_info)
+    assert "File doesn't exist" in str(file_not_exist_info.value)
 
     if not local_testing_mode:
         # local testing currently doesn't support stage CRUD
         with pytest.raises(SnowparkSQLException) as stage_not_exist_info:
             session.file.put(f"file://{path1}", "@NOT_EXIST_STAGE_NAME_TEST")
-        assert "does not exist or not authorized." in str(stage_not_exist_info)
+        assert "does not exist or not authorized." in str(stage_not_exist_info.value)
 
 
 def test_put_stream_with_one_file(
@@ -574,7 +574,7 @@ def test_get_negative_test(
     # Stage name doesn't exist, raise exception.
     with pytest.raises(SnowparkSQLException) as exec_info:
         session.file.get("@NOT_EXIST_STAGE_NAME_TEST", str(temp_target_directory))
-    assert "does not exist or not authorized." in str(exec_info)
+    assert "does not exist or not authorized." in str(exec_info.value)
 
     # If stage name exists but prefix doesn't exist, download nothing
     get_results = session.file.get(
@@ -662,7 +662,7 @@ def test_get_stream_negative(session, temp_stage):
         pytest.skip("Skip in stored-proc to prevent XP failing whole test")
     with pytest.raises(SnowparkSQLException) as ex_info:
         session.file.get_stream(f"{stage_with_prefix}non_existing_file")
-    assert "the file does not exist" in str(ex_info)
+    assert "the file does not exist" in str(ex_info.value)
 
 
 def test_quoted_local_file_name(

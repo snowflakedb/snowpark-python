@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -74,7 +74,7 @@ def test_value_counts_subset_negative(test_data, subset):
     snow_df = pd.DataFrame(test_data)
     native_df = native_pd.DataFrame(test_data)
 
-    with SqlCounter(query_count=1 if len(subset) > 0 else 0):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -180,7 +180,7 @@ def test_value_counts_dropna(test_data, dropna):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_non_existing_labels():
     # when subset contains non-existing labels, it is unimplemented
     # because of function `get_frame_with_groupby_columns_as_index`

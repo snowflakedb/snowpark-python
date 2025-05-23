@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import contextlib
 import logging
 import re
@@ -107,7 +108,7 @@ def test_series_to_numeric(input, dtype, expected_dtype):
         (True, "bool"),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_scalar_to_numeric(input, dtype):
     snow = pd.to_numeric(input)
     assert snow.dtype == dtype
@@ -118,7 +119,7 @@ def test_scalar_to_numeric(input, dtype):
         assert snow == native
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_scalar_timedelta_to_numeric():
     # Test this case separately because of a bug in pandas: https://github.com/pandas-dev/pandas/issues/59944
     input = native_pd.Timedelta(1)
@@ -127,7 +128,7 @@ def test_scalar_timedelta_to_numeric():
     assert pd.to_numeric(input) == 1
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_downcast_ignored(downcast, caplog):
     caplog.clear()
     with caplog.at_level(logging.DEBUG):
@@ -138,7 +139,7 @@ def test_downcast_ignored(downcast, caplog):
         assert "downcast is ignored in Snowflake backend" not in caplog.text
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_nan_to_numeric():
     # snowpark pandas can handle "nan" correctly but native pandas does not
     input = "nan"
@@ -154,7 +155,7 @@ def large_val(request):
     return request.param
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_really_large_scalar(large_val):
     snow = pd.to_numeric(large_val)
     native = native_pd.to_numeric(large_val)
@@ -355,7 +356,7 @@ def test_unsupported_types(
         samples = [samples]
     for sample in samples:
         session.sql(f"insert into {test_table_name} {sample}").collect()
-    series = pd.read_snowflake(test_table_name).squeeze()
+    series = pd.read_snowflake(test_table_name, enforce_ordering=True).squeeze()
     with SqlCounter(query_count=0 if errors == "raise" else 1):
         eval_snowpark_pandas_result(
             series,

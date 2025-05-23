@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import re
 
 import modin.pandas as pd
@@ -58,14 +59,11 @@ def test_to_snowflake_index_name_conflict_negative(test_table_name, snow_series)
         snow_series.to_snowflake(test_table_name, if_exists="replace", index_label="a")
 
 
-@sql_count_checker(query_count=0)
-def test_to_snowflake_index_label_none_raises(test_table_name):
+@sql_count_checker(query_count=2)
+def test_to_snowflake_index_label_none(test_table_name):
     snow_series = pd.Series([1, 2, 3], name="a", index=native_pd.Index([4, 5, 6]))
-    message = re.escape(
-        "Label None is found in the index columns [None], which is invalid in Snowflake."
-    )
-    with pytest.raises(ValueError, match=message):
-        snow_series.to_snowflake(test_table_name, if_exists="replace", index=True)
+    snow_series.to_snowflake(test_table_name, if_exists="replace", index=True)
+    _verify_columns(test_table_name, ["index", "a"])
 
 
 @sql_count_checker(query_count=2)

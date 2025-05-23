@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import inspect
@@ -42,7 +42,7 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_msg
     )  # pragma: no cover
 
-supported_modin_version = "0.30.1"
+supported_modin_version = "0.32.0"
 if version.parse(modin.__version__) != version.parse(supported_modin_version):
     raise ImportError(
         f"The Modin version installed ({modin.__version__}) does not match the supported Modin version in"

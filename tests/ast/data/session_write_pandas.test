@@ -10,23 +10,34 @@ ans2 = session.write_pandas(df, "test", schema="a", database="b", chunk_size=7, 
 
 ## EXPECTED UNPARSER OUTPUT
 
-ans = session.write_pandas(pandas.DataFrame(<not shown>)), "table1")
+ans = session.write_pandas(pandas.DataFrame(<not shown>), "table1")
 
-ans2 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
+ans2 = session.write_pandas(pandas.DataFrame(<not shown>), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
-  assign {
+  bind {
     expr {
-      sp_write_pandas {
+      write_pandas {
         compression: "gzip"
         df {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
               temp_table {
-                sp_table_name_flat {
-                  name: "\"table1\""
+                name {
+                  name_flat {
+                    name: "\"table1\""
+                  }
                 }
               }
             }
@@ -38,30 +49,30 @@ body {
         src {
           end_column: 53
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
         table_name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            name_flat {
+              name: "table1"
+            }
           }
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "ans"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_write_pandas {
+      write_pandas {
         auto_create_table: true
         chunk_size {
           value: 7
@@ -69,11 +80,13 @@ body {
         compression: "brotli"
         create_temp_table: true
         df {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
               temp_table {
-                sp_table_name_flat {
-                  name: "b.a.test"
+                name {
+                  name_flat {
+                    name: "b.a.test"
+                  }
                 }
               }
             }
@@ -86,7 +99,7 @@ body {
               src {
                 end_column: 260
                 end_line: 31
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 15
                 start_line: 31
               }
@@ -100,27 +113,27 @@ body {
         src {
           end_column: 260
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 15
           start_line: 31
         }
         table_name {
-          sp_table_name_structured {
-            name: "b"
-            name: "a"
-            name: "test"
+          name {
+            name_structured {
+              name: "b"
+              name: "a"
+              name: "test"
+            }
           }
         }
         table_type: "temporary"
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "ans2"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 client_ast_version: 1
@@ -136,5 +149,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 32
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

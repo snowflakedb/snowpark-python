@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -361,7 +361,7 @@ def test_literal(session, local_testing_mode):
         BooleanType(),
         # snowflake doesn't enforce the inner type of ArrayType, so it is expected that
         # it returns StringType() as inner type.
-        ArrayType(LongType()) if local_testing_mode else ArrayType(StringType()),
+        ArrayType(LongType()) if local_testing_mode else ArrayType(),
     ]
     verify_column_result(
         session,

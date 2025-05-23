@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -59,9 +59,8 @@ def assert_iterators_equal(snowpark_iterator, native_iterator):
 def test_df_iterrows(native_df):
     # Test that the tuple returned is correct: (index, Series).
     snowpark_df = pd.DataFrame(native_df)
-    # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN
-    # operations performed due to iloc.
-    with SqlCounter(query_count=len(native_df) + 1):
+    # One query is used to retrieve each row - each query has 4 JOIN operations performed due to iloc.
+    with SqlCounter(query_count=len(native_df)):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,
@@ -70,11 +69,10 @@ def test_df_iterrows(native_df):
         )
 
 
-@sql_count_checker(query_count=8, union_count=7)
+@sql_count_checker(query_count=7, union_count=7)
 def test_df_iterrows_mixed_types(default_index_native_df):
     # Same test as above on bigger df with mixed types.
-    # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN
-    # operations performed due to iloc.
+    # One query is used to retrieve each row - each query has 4 JOIN operations performed due to iloc.
     native_df = default_index_native_df
     snowpark_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
@@ -85,11 +83,10 @@ def test_df_iterrows_mixed_types(default_index_native_df):
     )
 
 
-@sql_count_checker(query_count=7, union_count=6)
+@sql_count_checker(query_count=6, union_count=6)
 def test_df_iterrows_multindex_df():
     # Create df with a MultiIndex index.
-    # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN
-    # operations performed due to iloc.
+    # One query is used to retrieve each row - each query has 4 JOIN operations performed due to iloc.
     arrays = [
         np.array(["bar", "bar", "baz", "baz", "foo", "foo"]),
         np.array(["one", "two", "one", "two", "one", "two"]),

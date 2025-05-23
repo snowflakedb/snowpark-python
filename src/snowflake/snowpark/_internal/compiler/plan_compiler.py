@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -125,7 +125,7 @@ class PlanCompiler:
                     plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
 
                 # Large query breakdown
-                breakdown_failure_summary, skipped_summary = {}, {}
+                breakdown_summary, skipped_summary = {}, {}
                 if session.large_query_breakdown_enabled:
                     large_query_breakdown = LargeQueryBreakdown(
                         session,
@@ -135,7 +135,7 @@ class PlanCompiler:
                     )
                     breakdown_result = large_query_breakdown.apply()
                     logical_plans = breakdown_result.logical_plans
-                    breakdown_failure_summary = breakdown_result.breakdown_summary
+                    breakdown_summary = breakdown_result.breakdown_summary
                     skipped_summary = breakdown_result.skipped_summary
 
                 large_query_breakdown_end_time = time.time()
@@ -166,8 +166,8 @@ class PlanCompiler:
                     CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
                     CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
                     CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
-                    CompilationStageTelemetryField.BREAKDOWN_FAILURE_SUMMARY.value: breakdown_failure_summary,
-                    CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value: skipped_summary,
+                    CompilationStageTelemetryField.BREAKDOWN_SUMMARY.value: breakdown_summary,
+                    CompilationStageTelemetryField.LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value: skipped_summary,
                 }
                 # add the extra optimization status
                 summary_value.update(extra_optimization_status)
@@ -185,7 +185,6 @@ class PlanCompiler:
                     error_type=type(e).__name__,
                     error_message=str(e),
                 )
-                pass
 
         return self.replace_temp_obj_placeholders(queries)
 
@@ -206,34 +205,33 @@ class PlanCompiler:
         here.
         """
         session = self._plan.session
-        if session._conn._thread_safe_session_enabled:
-            # This dictionary will store the mapping between placeholder name and actual temp object name.
-            placeholders = {}
-            # Final execution queries
-            execution_queries = {}
-            for query_type, query_list in queries.items():
-                execution_queries[query_type] = []
-                for query in query_list:
-                    # If the query contains a temp object name placeholder, we generate a random
-                    # name for the temp object and add it to the placeholders dictionary.
-                    if query.temp_obj_name_placeholder:
-                        (
-                            placeholder_name,
-                            temp_obj_type,
-                        ) = query.temp_obj_name_placeholder
-                        placeholders[placeholder_name] = random_name_for_temp_object(
-                            temp_obj_type
-                        )
+        if not session._conn._thread_safe_session_enabled:
+            return queries
+        # This dictionary will store the mapping between placeholder name and actual temp object name.
+        placeholders = {}
+        # Final execution queries
+        execution_queries = {}
+        for query_type, query_list in queries.items():
+            execution_queries[query_type] = []
+            for query in query_list:
+                # If the query contains a temp object name placeholder, we generate a random
+                # name for the temp object and add it to the placeholders dictionary.
+                if query.temp_obj_name_placeholder:
+                    (
+                        placeholder_name,
+                        temp_obj_type,
+                    ) = query.temp_obj_name_placeholder
+                    placeholders[placeholder_name] = random_name_for_temp_object(
+                        temp_obj_type
+                    )
 
-                    copied_query = copy.copy(query)
-                    for placeholder_name, target_temp_name in placeholders.items():
-                        # Copy the original query and replace all the placeholder names with the
-                        # actual temp object names.
-                        copied_query.sql = copied_query.sql.replace(
-                            placeholder_name, target_temp_name
-                        )
+                copied_query = copy.copy(query)
+                for placeholder_name, target_temp_name in placeholders.items():
+                    # Copy the original query and replace all the placeholder names with the
+                    # actual temp object names.
+                    copied_query.sql = copied_query.sql.replace(
+                        placeholder_name, target_temp_name
+                    )
 
-                    execution_queries[query_type].append(copied_query)
-            return execution_queries
-
-        return queries
+                execution_queries[query_type].append(copied_query)
+        return execution_queries

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -39,7 +39,11 @@ def setup(session, resources_path):
     session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
 
 
-@sql_count_checker(query_count=9)
+@sql_count_checker(
+    query_count=10,
+    high_count_expected=True,
+    high_count_reason="Expected dtypes with parquet high query count",
+)
 def test_read_parquet_all_dtypes(resources_path):
     test_files = TestFiles(resources_path)
 
@@ -51,7 +55,7 @@ def test_read_parquet_all_dtypes(resources_path):
     assert_frame_equal(snow_df, native_df, check_index_type=False, check_dtype=False)
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=9)
 def test_read_parquet_stage_file(resources_path):
     got = pd.read_parquet(f"@{tmp_stage_name1}/{test_file_parquet}")
     test_files = TestFiles(resources_path)
@@ -62,7 +66,11 @@ def test_read_parquet_stage_file(resources_path):
     assert_frame_equal(got, expected, check_dtype=False)
 
 
-@sql_count_checker(query_count=9)
+@sql_count_checker(
+    query_count=10,
+    high_count_expected=True,
+    high_count_reason="Expected special chars parquet high query count",
+)
 def test_read_parquet_special_chars_in_column_names(resources_path):
     test_files = TestFiles(resources_path)
     native_df = native_pd.read_parquet(
@@ -92,7 +100,7 @@ def test_read_parquet_special_chars_in_column_names(resources_path):
         [],
     ],
 )
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=9)
 def test_read_parquet_columns(resources_path, columns):
 
     got = pd.read_parquet(f"@{tmp_stage_name1}/{test_file_parquet}", columns=columns)
@@ -133,7 +141,7 @@ def test_read_parquet_columns_invalid_types_negative(resources_path, columns):
     "columns",
     [["Ema!l", "non_existent_col"], ["non_existent_col_in_list"]],
 )
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=8)
 def test_read_parquet_columns_non_existent_column_negative(resources_path, columns):
 
     with pytest.raises(
@@ -160,7 +168,11 @@ def test_read_parquet_unimplemented_parameter_negative():
         ("filters", [("foo", "==", "1")]),
     ],
 )
-@sql_count_checker(query_count=9)
+@sql_count_checker(
+    query_count=10,
+    high_count_expected=True,
+    high_count_reason="Expected high query count multiple reads",
+)
 def test_read_parquet_warning(caplog, parameter, argument):
     # generate a random temp name so these tests can be run in parallel
     temp_file_name = (

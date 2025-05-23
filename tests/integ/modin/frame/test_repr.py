@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -37,7 +37,7 @@ _DATAFRAMES_TO_TEST = [
     ),
     (
         IRIS_DF,
-        6,
+        4,
     ),
     (
         native_pd.DataFrame(),
@@ -47,7 +47,7 @@ _DATAFRAMES_TO_TEST = [
         native_pd.DataFrame(
             {"A": list(range(10000)), "B": np.random.normal(size=10000)}
         ),
-        6,
+        4,
     ),
     (
         native_pd.DataFrame(columns=["A", "B", "C", "D", "C", "B", "A"]),
@@ -63,7 +63,7 @@ _DATAFRAMES_TO_TEST = [
         native_pd.DataFrame(
             data=np.zeros(shape=(300, 300)), columns=[f"x{i}" for i in range(300)]
         ),
-        6,
+        4,
     ),
 ]
 
@@ -194,7 +194,7 @@ class TestWithGlobalSettings:
         native_pd.set_option("display.max_rows", None)
         pd.set_option("display.max_rows", None)
 
-        with SqlCounter(select_count=2):
+        with SqlCounter(select_count=1):
             snow_str = repr(self.snow_df)
         native_str = repr(self.native_df)
 

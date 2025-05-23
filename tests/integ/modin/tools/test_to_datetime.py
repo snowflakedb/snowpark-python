@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """ test to_datetime """
@@ -589,7 +589,7 @@ class TestToDatetime:
             check_dtype=False,
         )
 
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=0)
     def test_to_datetime_pydatetime(self):
         actual = to_datetime(pd.Index([datetime(2008, 1, 15)]))
         assert actual == np.datetime64(datetime(2008, 1, 15))

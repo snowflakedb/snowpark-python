@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -14,7 +15,6 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
-from tests.utils import running_on_public_ci
 
 
 @pytest.mark.parametrize(
@@ -133,25 +133,13 @@ def test_df_groupby_idxmax_idxmin_with_dates_on_axis_0(func):
     )
 
 
-@pytest.mark.xfail(
-    reason="SNOW-1336091: Snowpark pandas cannot run in sprocs until modin 0.28.1 is available in conda",
-    strict=True,
-    raises=RuntimeError,
-)
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
-@sql_count_checker(
-    query_count=11,
-    fallback_count=1,
-    sproc_count=1,
-    high_count_expected=True,
-    high_count_reason="Snowpark pandas defaults to pandas for idxmax/idxmin when DataFrame is grouped by axis=1.",
-)
-def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_default_to_pandas(func):
+@sql_count_checker(query_count=0)
+def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_unimplemented(func):
     """
     Test DataFrameGroupBy.idxmax and DataFrameGroupBy.idxmin.
-    Here, the DataFrames are grouped by `by` and should execute using native pandas.
-    Only testing with idxmax/idxmin axis=0 since we raise NotImplementedError when axis=1.
+    Here, the DataFrames are grouped by `by` and should raise NotImplementedError
+    Only testing with idxmax/idxmin(axis=0) since we already raise NotImplementedError when axis=1 is passed.
     """
     # Example from discussion comment:
     # https://github.com/pandas-dev/pandas/issues/51203#issuecomment-1426864317
@@ -167,8 +155,12 @@ def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_default_to_pandas(func):
     costs = np.random.default_rng().uniform(low=1, high=10_000, size=(50, len(items)))
     df = native_pd.DataFrame(costs, columns=items)
     native_res = df.groupby(by=grouper, axis=1).idxmax(axis=0)
-    snow_res = pd.DataFrame(df).groupby(by=grouper, axis=1).idxmax(axis=0)
-    assert_frame_equal(native_res, snow_res, check_index_type=False)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas GroupBy.aggregate does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels.",
+    ):
+        snow_res = pd.DataFrame(df).groupby(by=grouper, axis=1).idxmax(axis=0)
+        assert_frame_equal(native_res, snow_res, check_index_type=False)
 
 
 @pytest.mark.parametrize("agg_func", ["idxmin", "idxmax"])

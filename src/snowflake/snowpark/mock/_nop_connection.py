@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from copy import copy
 from logging import getLogger
@@ -21,7 +21,10 @@ from snowflake.snowpark.mock._options import pandas
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SnowflakePlan,
+    PlanQueryType,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SaveMode,
@@ -120,6 +123,28 @@ class NopConnection(MockServerConnection):
     ]:
         source_plan = plan.source_plan
 
+        if hasattr(source_plan, "execution_queries"):
+            # If temp read-only table, explicitly create it.
+            # This occurs when code such as to_snowpark_pandas is run where the Snowpark version of the table is
+            # cloned and then read.
+            from snowflake.snowpark.mock import TableEmulator
+
+            for plan_query_type, query in source_plan.execution_queries.items():
+                if query:
+                    query_sql = query[0].sql
+                    if (
+                        plan_query_type == PlanQueryType.QUERIES
+                        and "TEMPORARY READ ONLY TABLE" in query_sql
+                    ):
+                        temp_table_name = query_sql.split("TEMPORARY READ ONLY TABLE ")[
+                            1
+                        ].split(" ")[0]
+                        self.entity_registry.write_table(
+                            temp_table_name,
+                            TableEmulator({"A": [1], "B": [1], "C": [1]}),
+                            SaveMode.IGNORE,
+                        )
+
         if isinstance(source_plan, SnowflakeCreateTable):
             result = self.entity_registry.write_table(
                 source_plan.table_name,
@@ -129,7 +154,7 @@ class NopConnection(MockServerConnection):
             )
         elif isinstance(source_plan, CreateViewCommand):
             result = self.entity_registry.create_or_replace_view(
-                source_plan, source_plan.name
+                source_plan, source_plan.name, source_plan.replace
             )
         else:
             result_meta = []

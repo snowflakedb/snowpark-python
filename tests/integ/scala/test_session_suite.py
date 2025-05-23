@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import NamedTuple
@@ -277,7 +277,16 @@ def test_large_local_relation_no_commit(session):
     reason="transactions not supported by local testing.",
     run=False,
 )
-def test_create_temp_table_no_commit(session):
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="creating new session is not allowed in stored proc"
+)
+def test_create_temp_table_no_commit(
+    db_parameters,
+    sql_simplifier_enabled,
+):
+    session = Session.builder.configs(db_parameters).create()
+    session.sql_simplifier_enabled = sql_simplifier_enabled
+
     # cache_result creates a temp table
     test_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -291,3 +300,4 @@ def test_create_temp_table_no_commit(session):
         assert not Utils.is_active_transaction(session)
     finally:
         Utils.drop_table(session, test_table)
+        session.close()
