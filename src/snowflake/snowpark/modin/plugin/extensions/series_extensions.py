@@ -26,7 +26,6 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
 from snowflake.snowpark.row import Row
-import functools
 
 
 register_series_accessor = functools.partial(
