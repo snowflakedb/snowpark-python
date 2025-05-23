@@ -163,13 +163,13 @@ def test_unit_udtf_ingestion():
 
     dsp = DataSourcePartitioner(
         create_databricks_connection,
-        f"(select * from {TEST_TABLE_NAME} SORT BY COL_BYTE)",
+        f"(select * from {TEST_TABLE_NAME}) SORT BY COL_BYTE NULLS FIRST",
         is_query=True,
     )
     yield_data = list(udtf_ingestion_instance.process(dsp.partitions[0]))
-    assert (
-        yield_data[-1] == EXPECTED_TEST_DATA[0]
-    )  # databricks sort by returns the all None row as the last row, while in snowflake None is the first row
+    # databricks sort by returns the all None row as the last row regardless of NULLS FIRST/LAST
+    # while in snowflake test data after default sort None is the first row
+    assert yield_data[-1] == EXPECTED_TEST_DATA[0]
     for row, expected_row in zip(
         yield_data[:-1], EXPECTED_TEST_DATA[1:]
     ):  # None data ordering is the same
