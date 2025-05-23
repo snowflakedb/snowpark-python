@@ -7,6 +7,7 @@
 #### New Features
 
 - Added support for ingestion with Snowflake UDTF to databricks in `DataFrameReader.dbapi` (PrPr).
+- Added support for Mysql in `DataFrameWriter.dbapi` (PrPr).
 
 #### Bug Fixes
 
@@ -16,8 +17,14 @@
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+- Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
+- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 
 ### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `Column.isin` that would cause incorrect filtering on joined or previously filtered data.
 
 ### Snowpark pandas API Updates
 
@@ -25,7 +32,7 @@
 
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
-- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
 
 ## 1.32.0 (2025-05-15)
 
@@ -60,6 +67,7 @@
 - Added support for `DataFrame.to_html`.
 - Added support for `DataFrame.to_string` and `Series.to_string`.
 - Added support for reading files from S3 buckets using `pd.read_csv`.
+- Added `ENFORCE_EXISTING_FILE_FORMAT` option to the `DataFrameReader`, which allows to read a dataframe only based on an existing file format object when used together with `FORMAT_NAME`.
 
 #### Improvements
 

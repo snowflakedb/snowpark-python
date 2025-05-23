@@ -108,6 +108,7 @@ def test_unit_data_source_data_to_pandas_df():
 
 def test_unicode_column_databricks(session):
     df = session.read.dbapi(create_databricks_connection, table="User_profile_unicode")
+
     assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
 
 
@@ -158,7 +159,9 @@ def test_unit_udtf_ingestion():
     udtf_ingestion_class = dbx_driver.udtf_class_builder()
     udtf_ingestion_instance = udtf_ingestion_class()
 
-    dsp = DataSourcePartitioner(create_databricks_connection, TEST_TABLE_NAME)
+    dsp = DataSourcePartitioner(
+        create_databricks_connection, TEST_TABLE_NAME, is_query=False
+    )
     yield_data = udtf_ingestion_instance.process(dsp.partitions[0])
     for row, expected_row in zip(yield_data, EXPECTED_TEST_DATA):
         for index, (field, value) in enumerate(zip(EXPECTED_TYPE.fields, row)):

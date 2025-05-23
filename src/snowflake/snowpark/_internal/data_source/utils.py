@@ -13,12 +13,14 @@ from snowflake.snowpark._internal.data_source.dbms_dialects import (
     OracledbDialect,
     SqlServerDialect,
     DatabricksDialect,
+    MysqlDialect,
 )
 from snowflake.snowpark._internal.data_source.drivers import (
     SqliteDriver,
     OracledbDriver,
     PyodbcDriver,
     DatabricksDriver,
+    PymysqlDriver,
 )
 import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
@@ -41,6 +43,7 @@ class DBMS_TYPE(Enum):
     ORACLE_DB = "ORACLE_DB"
     SQLITE_DB = "SQLITE3_DB"
     DATABRICKS_DB = "DATABRICKS_DB"
+    MYSQL_DB = "MYSQL_DB"
     UNKNOWN = "UNKNOWN"
 
 
@@ -49,6 +52,7 @@ class DRIVER_TYPE(str, Enum):
     ORACLEDB = "oracledb"
     SQLITE3 = "sqlite3"
     DATABRICKS = "databricks.sql.client"
+    PYMYSQL = "pymysql.connections"
     UNKNOWN = "unknown"
 
 
@@ -57,6 +61,7 @@ DBMS_MAP = {
     DBMS_TYPE.ORACLE_DB: OracledbDialect,
     DBMS_TYPE.SQLITE_DB: Sqlite3Dialect,
     DBMS_TYPE.DATABRICKS_DB: DatabricksDialect,
+    DBMS_TYPE.MYSQL_DB: MysqlDialect,
 }
 
 DRIVER_MAP = {
@@ -64,6 +69,7 @@ DRIVER_MAP = {
     DRIVER_TYPE.ORACLEDB: OracledbDriver,
     DRIVER_TYPE.SQLITE3: SqliteDriver,
     DRIVER_TYPE.DATABRICKS: DatabricksDriver,
+    DRIVER_TYPE.PYMYSQL: PymysqlDriver,
 }
 
 UDTF_PACKAGE_MAP = {
@@ -78,6 +84,7 @@ UDTF_PACKAGE_MAP = {
         "snowflake-snowpark-python",
         "databricks-sql-connector>=4.0.0,<5.0.0",
     ],
+    DBMS_TYPE.MYSQL_DB: ["pymysql>=1.0.0,<2.0.0", "snowflake-snowpark-python"],
 }
 
 
@@ -122,6 +129,7 @@ DBMS_MAPPING = {
     DRIVER_TYPE.ORACLEDB: lambda conn: DBMS_TYPE.ORACLE_DB,
     DRIVER_TYPE.SQLITE3: lambda conn: DBMS_TYPE.SQLITE_DB,
     DRIVER_TYPE.DATABRICKS: lambda conn: DBMS_TYPE.DATABRICKS_DB,
+    DRIVER_TYPE.PYMYSQL: lambda conn: DBMS_TYPE.MYSQL_DB,
 }
 
 
