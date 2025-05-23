@@ -19,6 +19,7 @@
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Allow setting and reading custom properties in `Session.conf`.
 
 ### Snowpark Local Testing Updates
 
