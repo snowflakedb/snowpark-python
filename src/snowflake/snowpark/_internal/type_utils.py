@@ -359,17 +359,6 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     bytes: BinaryType,
 }
 
-# Lazy load for Pandas and numpy types
-# if get_installed_pandas():
-#     from snowflake.connector.options import pandas
-#     PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
-#         {
-#             type(pandas().NaT): TimestampType,
-#             get_numpy().float64: DecimalType,
-#         }
-#     )
-
-
 # TODO: these tuples of types can be used with isinstance, but not as a type-hints
 VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
     *PYTHON_TO_SNOW_TYPE_MAPPINGS.keys(),

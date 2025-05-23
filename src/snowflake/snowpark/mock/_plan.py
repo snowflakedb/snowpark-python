@@ -146,7 +146,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, cast_column_to
-# from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,

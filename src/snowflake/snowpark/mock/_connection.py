@@ -36,7 +36,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
-# from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
