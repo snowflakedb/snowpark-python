@@ -169,6 +169,28 @@ def test_put_with_one_file(
     assert third_result.message == ""
 
 
+@pytest.mark.skipif(
+    "not config.getoption('local_testing_mode', default=False)",
+    reason="non local testing mode requires end-to-end test in snowfort",
+)
+def test_put_with_snowurl_one_file(
+    session, path1, temp_target_directory, local_testing_mode
+):
+    snowurl = f"snow://{temp_target_directory}"
+    result = session.file.put(
+        f"file://{path1}", snowurl, auto_compress=not local_testing_mode
+    )[0]
+    file_name = os.path.basename(path1)
+    assert result.source == file_name
+    assert result.target == f"{file_name}.gz" if not local_testing_mode else file_name
+    assert result.source_size in (10, 11)
+    assert result.target_size in (64, 96) if not local_testing_mode else (10,)
+    assert result.source_compression == "NONE"
+    assert result.target_compression == "GZIP" if not local_testing_mode else "NONE"
+    assert result.status == "UPLOADED"
+    assert result.message == ""
+
+
 def test_put_with_one_file_twice(session, temp_stage, path1, local_testing_mode):
     stage_prefix = f"prefix_{random_alphanumeric_name()}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
@@ -485,6 +507,27 @@ def test_get_one_file(
         assert results[0].message == results_with_statement_params[0].message == ""
     finally:
         os.remove(f"{temp_target_directory}/{file_name}")
+
+
+@pytest.mark.skipif(
+    "not config.getoption('local_testing_mode', default=False)",
+    reason="non local testing mode requires end-to-end test in snowfort",
+)
+def test_get_with_snowurl_one_file(
+    session, path1, temp_target_directory, temp_source_directory, local_testing_mode
+):
+    snowurl = f"snow://{temp_target_directory}"
+    session.file.put(f"file://{path1}", snowurl, auto_compress=not local_testing_mode)
+    file_name = os.path.basename(path1)
+    result = session.file.get(
+        snowurl,
+        str(temp_source_directory),
+    )[0]
+    assert result.file == file_name
+    assert result.size in ((54, 55) if not local_testing_mode else (10, 11))
+    assert result.target_size in (64, 96) if not local_testing_mode else (10,)
+    assert result.status == "DOWNLOADED"
+    assert result.message == ""
 
 
 def test_get_multiple_files(
