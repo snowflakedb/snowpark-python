@@ -3181,6 +3181,12 @@ class Session:
                 f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
             )
 
+        if hasattr(df, "columns") and len(df.columns) == 0:
+            raise ValueError(
+                "Cannot write an empty pandas DataFrame with no columns to Snowflake. "
+                "Please provide a DataFrame with at least column definitions."
+            )
+
         success = None  # forward declaration
         try:
             if quote_identifiers:

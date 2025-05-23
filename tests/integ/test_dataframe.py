@@ -5222,3 +5222,17 @@ def test_create_dataframe_file_type(session, resources_path):
     assert csv_row["CONTENT_TYPE"] == "text/csv"
     image_row = json.loads(result[1][0])
     assert image_row["CONTENT_TYPE"] == "image/jpeg"
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+def test_create_dataframe_empty_pandas_df(session):
+    pdf = pd.DataFrame([])
+    with pytest.raises(
+        ValueError,
+        match="Cannot write an empty pandas DataFrame with no columns to Snowflake",
+    ):
+        session.create_dataframe(pdf)
+
+    pdf = pd.DataFrame([], columns=["a"], dtype=int)
+    df = session.create_dataframe(pdf)
+    Utils.check_answer(df, [])
