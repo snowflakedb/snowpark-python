@@ -1315,6 +1315,7 @@ class DataFrameReader:
                 "Either 'table' or 'query' must be provided, but not both."
             )
         table_or_query = table or query
+        is_query = True if table is None else False
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         if session_init_statement and isinstance(session_init_statement, str):
@@ -1322,6 +1323,7 @@ class DataFrameReader:
         partitioner = DataSourcePartitioner(
             create_connection,
             table_or_query,
+            is_query,
             column,
             lower_bound,
             upper_bound,
@@ -1353,6 +1355,7 @@ class DataFrameReader:
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
+                _emit_ast=_emit_ast,
             )
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df

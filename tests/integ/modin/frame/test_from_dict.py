@@ -72,7 +72,7 @@ def test_from_dict_orient_tight():
     )
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=5)
 def test_from_dict_series_values():
     # TODO(SNOW-1857349): Proved a lazy implementation for this case
     data = {i: pd.Series(range(1)) for i in range(2)}

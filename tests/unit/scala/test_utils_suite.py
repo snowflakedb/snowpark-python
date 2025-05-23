@@ -319,6 +319,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_data_source_dir/",
                 "resources/test_data_source_dir/test_data_source_data.py",
                 "resources/test_data_source_dir/test_postgres_data.py",
+                "resources/test_data_source_dir/test_databricks_data.py",
+                "resources/test_data_source_dir/test_mysql_data.py",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
                 "resources/test_sp_dir/test_sp_mod3_file.py",

@@ -13,7 +13,7 @@ from snowflake.snowpark.types import StructType
 class PostgresDialect(BaseDialect):
     @staticmethod
     def generate_select_query(
-        table_or_query: str, schema: StructType, raw_schema: List[tuple]
+        table_or_query: str, schema: StructType, raw_schema: List[tuple], is_query: bool
     ) -> str:
         cols = []
         for _field, raw_field in zip(schema.fields, raw_schema):

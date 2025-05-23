@@ -391,7 +391,7 @@ def test_unit_generate_select_query():
 
     # Test with table name
     table_query = PostgresDialect.generate_select_query(
-        "test_table", schema, raw_schema
+        "test_table", schema, raw_schema, is_query=False
     )
     expected_table_query = (
         'SELECT TO_JSON("json_col")::TEXT AS json_col, '
@@ -406,7 +406,7 @@ def test_unit_generate_select_query():
 
     # Test with subquery
     subquery_query = PostgresDialect.generate_select_query(
-        "(SELECT * FROM test_table)", schema, raw_schema
+        "(SELECT * FROM test_table)", schema, raw_schema, is_query=True
     )
     expected_subquery_query = (
         'SELECT TO_JSON("json_col")::TEXT AS json_col, '
@@ -425,7 +425,7 @@ def test_unit_generate_select_query():
     ]
     jsonb_schema = StructType([StructField("jsonb_col", VariantType())])
     jsonb_query = PostgresDialect.generate_select_query(
-        "test_table", jsonb_schema, jsonb_raw_schema
+        "test_table", jsonb_schema, jsonb_raw_schema, is_query=False
     )
     expected_jsonb_query = (
         'SELECT TO_JSON("jsonb_col")::TEXT AS jsonb_col FROM test_table'
