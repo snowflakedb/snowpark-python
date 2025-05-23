@@ -22,7 +22,6 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.mock._functions import mock_to_char
-# from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import (
     ColumnEmulator,
     ColumnType,

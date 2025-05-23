@@ -24,7 +24,6 @@ import pytz
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
 from snowflake.snowpark._internal.utils import unalias_datetime_part
-# from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     _TIMESTAMP_TYPE_MAPPING,
     _TIMESTAMP_TYPE_TIMEZONE_MAPPING,

@@ -1,6 +1,6 @@
-
+#
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
-
+#
 
 import importlib
 
@@ -25,25 +25,3 @@ class MissingNumpy(MissingOptionalDependency):
         return cls.pandas
 
 numpy = MissingNumpy()
-
-
-# class MissingNumpy(MissingOptionalDependency):
-#     """The class is specifically for numpy optional dependency."""
-#
-#     _dep_name = "numpy"
-#
-#     try:
-#         import pandas
-#
-#         installed_pandas = True
-#     except ImportError:
-#         pandas = MissingPandas()
-#         installed_pandas = False
-#
-# numpy = MissingNumpy()
-# try:
-#     numpy = importlib.import_module("numpy")
-#     installed_numpy = True
-# except ImportError:
-#     numpy = MissingNumpy()
-#     installed_numpy = False

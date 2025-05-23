@@ -16,8 +16,6 @@ from typing import (
     Union,
 )
 
-# from snowflake.snowpark.mock._options import pandas
-
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.analyzer.expression import Attribute

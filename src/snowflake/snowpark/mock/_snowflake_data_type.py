@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from typing import Any, Dict, Iterable, NamedTuple, Optional, Union, TYPE_CHECKING
-# from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -36,9 +35,6 @@ if TYPE_CHECKING:
 
 # pandas is an optional requirement for local test, so make snowpark compatible with env where pandas
 # not installed, here we redefine the base class to avoid ImportError
-
-# PandasDataframeType = object if not installed_pandas else pd.DataFrame
-# PandasSeriesType = object if not installed_pandas else pd.Series
 
 # https://docs.snowflake.com/en/sql-reference/parameters#label-timestamp-type-mapping
 # SNOW-1630258 for local testing session parameters support

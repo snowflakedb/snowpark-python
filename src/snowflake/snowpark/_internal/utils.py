@@ -235,10 +235,6 @@ def install_pandas():
     return not isinstance(pandas, MissingOptionalDependency)
 
 
-# pandas = get_pandas()
-# installed_pandas = not isinstance(pandas, MissingOptionalDependency)
-
-
 class TempObjectType(Enum):
     TABLE = "TABLE"
     VIEW = "VIEW"

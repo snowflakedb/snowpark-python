@@ -11,7 +11,6 @@ from functools import cmp_to_key, partial
 from typing import Any, Callable, Iterable, Optional, Set, Tuple, Union, TYPE_CHECKING
 
 from snowflake.snowpark._internal.utils import parse_table_name, quote_name
-# from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.types import (
     ArrayType,

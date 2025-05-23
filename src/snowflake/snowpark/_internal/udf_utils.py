@@ -58,12 +58,6 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
 
-# if get_installed_pandas():
-#     snowpark_types= get_snowpark_types()
-#     PandasDataFrame = snowpark_types.PandasDataFrame
-#     PandasDataFrameType = snowpark_types.PandasDataFrameType
-#     PandasSeriesType = snowpark_types.PandasSeriesType
-
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
