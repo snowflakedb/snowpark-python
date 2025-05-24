@@ -6,8 +6,9 @@
 
 #### New Features
 
-- Added support for ingestion with Snowflake UDTF to databricks in `DataFrameReader.dbapi` (PrPr).
-- Added support for Mysql in `DataFrameWriter.dbapi` (PrPr).
+- Added support for MySQL in `DataFrameWriter.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
+- Added support for PostgreSQL in `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
+- Added support for Databricks in `DataFrameWriter.dbapi` (PrPr) for UDTF-based ingestion.
 
 #### Bug Fixes
 
