@@ -1449,6 +1449,7 @@ def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:  # pragma: no co
     if o is not None and o._ast is not None:
         stmt.expr.CopyFrom(o._ast)
         o._ast_stmt = stmt
+        o._ast_id = stmt.uid
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
