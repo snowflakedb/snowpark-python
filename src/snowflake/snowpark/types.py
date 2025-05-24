@@ -16,7 +16,6 @@ import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # Use correct version from here:
-from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
 
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
 # The core issue is that in the connector detection of both pandas/arrow are mixed, which is wrong.
@@ -1044,38 +1043,3 @@ class Timestamp(datetime.datetime, Generic[_T]):
     """The type hint for annotating ``TIMESTAMP_*`` data when registering UDFs."""
 
     pass
-
-
-if installed_pandas:  # pragma: no cover
-
-    class PandasSeries(pandas.Series, Generic[_T]):
-        """The type hint for annotating pandas Series data when registering UDFs."""
-
-        pass
-
-    from typing_extensions import TypeVarTuple
-
-    _TT = TypeVarTuple("_TT")
-
-    if sys.version_info >= (3, 11):
-        from typing import Unpack
-
-        class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
-            """
-            The type hint for annotating pandas DataFrame data when registering UDFs.
-            The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a pandas UDF.
-            """
-
-            pass
-
-    else:
-
-        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-            """
-            The type hint for annotating pandas DataFrame data when registering UDFs.
-            The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a pandas UDF.
-            """
-
-            pass

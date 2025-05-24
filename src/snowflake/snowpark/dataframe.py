@@ -28,8 +28,6 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas, pandas, pyarrow
-
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -121,6 +119,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.lazy_import_utils import get_installed_pandas, get_pandas, get_pyarrow
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     ResourceUsageCollector,
@@ -216,6 +215,7 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
+    from snowflake.connector.options import pandas, pyarrow
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
 
@@ -974,9 +974,8 @@ class DataFrame:
             _emit_ast=self._session.ast_enabled,
         )
 
-    if installed_pandas:
-        import pandas  # pragma: no cover
-
+    if get_installed_pandas():
+        from snowflake.connector.options import pandas # pragma: no cover
         @publicapi
         @overload
         def to_pandas(
@@ -986,7 +985,7 @@ class DataFrame:
             block: bool = True,
             _emit_ast: bool = True,
             **kwargs: Dict[str, Any],
-        ) -> pandas.DataFrame:
+        ) -> "pandas.DataFrame":
             ...  # pragma: no cover
 
     @publicapi
@@ -1073,9 +1072,8 @@ class DataFrame:
 
         return result
 
-    if installed_pandas:
-        import pandas
-
+    if get_installed_pandas():
+        from snowflake.connector.options import pandas
         @publicapi
         @overload
         def to_pandas_batches(
@@ -1085,7 +1083,7 @@ class DataFrame:
             block: bool = True,
             _emit_ast: bool = True,
             **kwargs: Dict[str, Any],
-        ) -> Iterator[pandas.DataFrame]:
+        ) -> Iterator["pandas.DataFrame"]:
             ...  # pragma: no cover
 
     @publicapi
@@ -1193,6 +1191,8 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        get_pyarrow()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -1235,6 +1235,8 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
+        get_pyarrow()
+
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -1391,9 +1393,7 @@ class DataFrame:
         # fmt: off
         import snowflake.snowpark.modin.plugin  # isort: skip  # noqa: F401
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
-        import modin.pandas as pd  # isort: skip
-        # fmt: on
-
+        import modin.pandas as pd  # isort: skip        # fmt: on
         # AST.
         stmt = None
         if _emit_ast:
@@ -6603,9 +6603,10 @@ def map(
     ]
 
     if vectorized:
+        from snowflake.connector.options import pandas
 
         def wrap_result(result):
-            if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
+            if isinstance(result, pandas().DataFrame) or isinstance(result, tuple):
                 return result
             return (result,)
 
