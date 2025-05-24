@@ -53,7 +53,7 @@ def test_query_over_clause(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST))'
-        in df2.queries["queries"][0]
+        in Utils.strip_tabs_and_new_lines(df2.queries["queries"][0])
     )
     assert df2.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -64,7 +64,7 @@ def test_query_over_clause(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST))'
-        in df3.queries["queries"][0]
+        in Utils.strip_tabs_and_new_lines(df3.queries["queries"][0])
     )
     assert df3.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -75,7 +75,7 @@ def test_query_over_clause(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST))'
-        in df4.queries["queries"][0]
+        in Utils.strip_tabs_and_new_lines(df4.queries["queries"][0])
     )
     assert df4.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -86,7 +86,7 @@ def test_query_over_clause(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST, "TEXT" ASC NULLS FIRST))'
-        in df5.queries["queries"][0]
+        in Utils.strip_tabs_and_new_lines(df5.queries["queries"][0])
     )
     assert df5.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -97,7 +97,7 @@ def test_query_over_clause(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" DESC NULLS LAST)'
-        in df6.queries["queries"][0]
+        in Utils.strip_tabs_and_new_lines(df6.queries["queries"][0])
     )
     assert df6.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -134,7 +134,7 @@ def test_call_table_function(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST))'
-        in df2.queries["queries"][0]
+        in Utils.strip_tabs_and_new_lines(df2.queries["queries"][0])
     )
     assert df2.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -145,7 +145,7 @@ def test_call_table_function(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST))'
-        in df2.queries["queries"][0]
+        in Utils.strip_tabs_and_new_lines(df2.queries["queries"][0])
     )
     assert df3.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -156,7 +156,7 @@ def test_call_table_function(session):
     )
     assert (
         'OVER (PARTITION BY "PARTITION"  ORDER BY "SEQ" ASC NULLS FIRST))'
-        in df2.queries["queries"][0]
+        in Utils.strip_tabs_and_new_lines(df2.queries["queries"][0])
     )
     assert df4.columns == ["TEXT", "PARTITION", "SEQ", "SEQ", "INDEX", "VALUE"]
 
@@ -167,7 +167,9 @@ def test_table_function(session):
         schema=["text", "partition", "seq"],
     )
     df1 = df.join_table_function(["test", "name"])
-    assert "JOIN  TABLE (test.name() )" in df1.queries["queries"][0]
+    assert "JOIN  TABLE (test.name() )" in Utils.strip_tabs_and_new_lines(
+        df1.queries["queries"][0]
+    )
 
 
 def test_table_function_negative(session):

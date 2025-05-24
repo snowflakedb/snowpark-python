@@ -335,7 +335,7 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ({inner_select_sql})"
+            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  * \n FROM (\n{inner_select_sql}\n)"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (

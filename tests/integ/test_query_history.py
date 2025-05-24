@@ -9,7 +9,7 @@ import pytest
 
 from snowflake.connector.errors import Error
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
-from tests.utils import IS_IN_STORED_PROC
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -147,7 +147,7 @@ def test_query_history_executemany(session, use_scoped_temp_objects):
             "INSERT  INTO" in queries[1].sql_text
             and "VALUES (?)" in queries[1].sql_text
         )
-        assert 'SELECT "A" FROM' in queries[2].sql_text
+        assert 'SELECT "A" FROM' in Utils.strip_tabs_and_new_lines(queries[2].sql_text)
         assert "DROP  TABLE  If  EXISTS" in queries[3].sql_text  # post action
     finally:
         session._use_scoped_temp_objects = origin_use_scoped_temp_objects_setting
