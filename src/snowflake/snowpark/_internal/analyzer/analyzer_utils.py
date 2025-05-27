@@ -8,7 +8,7 @@ import math
 import os
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
+from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence, TYPE_CHECKING
 
 from snowflake.connector import ProgrammingError
 from snowflake.connector.cursor import SnowflakeCursor
@@ -53,6 +53,9 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+if TYPE_CHECKING:
+    import pyarrow
 
 LEFT_PARENTHESIS = "("
 RIGHT_PARENTHESIS = ")"
