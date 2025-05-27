@@ -112,7 +112,6 @@ def _extract_inferable_attribute_names(
         elif isinstance(attr, (UnresolvedAttribute, UnresolvedAlias)):
             return None, None
         else:
-            # __import__('pdb').set_trace()
             raise ValueError(attr)
             return None, None
     return old_attributes, new_attributes
