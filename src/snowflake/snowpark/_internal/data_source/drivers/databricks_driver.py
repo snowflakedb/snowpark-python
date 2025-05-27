@@ -61,7 +61,9 @@ class DatabricksDriver(BaseDriver):
             all_columns.append(StructField(column_name, data_type, True))
         return StructType(all_columns)
 
-    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+    def udtf_class_builder(
+        self, fetch_size: int = 1000, schema: StructType = None
+    ) -> type:
         create_connection = self.create_connection
 
         class UDTFIngestion:
