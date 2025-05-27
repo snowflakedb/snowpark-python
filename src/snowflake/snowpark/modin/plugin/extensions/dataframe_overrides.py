@@ -79,6 +79,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     convert_index_to_qc,
     error_checking_for_init,
     is_repr_truncated,
+    MODIN_IS_AT_LEAST_0_33_0,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -110,7 +111,6 @@ from snowflake.snowpark.modin.utils import (
     hashable,
     validate_int_kwarg,
 )
-from snowflake.snowpark.modin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.udf import UserDefinedFunction
 
 

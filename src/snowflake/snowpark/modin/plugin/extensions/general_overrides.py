@@ -82,7 +82,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     pandas_module_level_function_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 
 if MODIN_IS_AT_LEAST_0_33_0:

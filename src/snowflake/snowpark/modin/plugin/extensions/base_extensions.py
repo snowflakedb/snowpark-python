@@ -9,7 +9,7 @@ File containing BasePandasDataset APIs defined in Snowpark pandas but not the Mo
 from .base_overrides import register_base_override
 
 
-@register_base_override(name="__array_function__")
+@register_base_override("__array_function__")
 def __array_function__(self, func: callable, types: tuple, args: tuple, kwargs: dict):
     """
     Apply the `func` to the `BasePandasDataset`.

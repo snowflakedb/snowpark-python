@@ -69,9 +69,10 @@ import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: sk
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
 
 if MODIN_IS_AT_LEAST_0_33_0:
-    # In modin 0.33.0, extensions for groupby objects are available.
     import snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides  # isort: skip  # noqa: E402,F401
     import snowflake.snowpark.modin.plugin.extensions.series_groupby_overrides  # isort: skip  # noqa: E402,F401
+else:
+    import snowflake.snowpark.modin.plugin.extensions.groupby_overrides  # isort: skip  # noqa: E402,F401
 
 # === INITIALIZE DOCSTRINGS ===
 # These imports also all need to occur after modin + pandas dependencies are validated.
@@ -149,7 +150,7 @@ from snowflake.snowpark.modin.plugin.io.factories import (  # isort: skip  # noq
 )
 
 if MODIN_IS_AT_LEAST_0_33_0:
-    modin_factories.SnowflakeOnSnowflakeFacotry = PandasOnSnowflakeFactory
+    modin_factories.SnowflakeOnSnowflakeFactory = PandasOnSnowflakeFactory
     Engine.add_option("Snowflake")
     Backend.register_backend(
         "Snowflake", Execution(engine="Snowflake", storage_format="Snowflake")
@@ -277,10 +278,13 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
     TELEMETRY_PRIVATE_METHODS,
     snowpark_pandas_telemetry_standalone_function_decorator,
     try_add_telemetry_to_attribute,
-    connect_modin_telemetry,
 )
 
 if MODIN_IS_AT_LEAST_0_33_0:
+    from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
+        connect_modin_telemetry,
+    )
+
     # Telemetry is currently not recorded for the ModinAPI accessor object, which contains methods such as
     # df.modin.to_pandas() that Snowpark pandas raises NotImplementedError for.
     from modin.pandas.base import BasePandasDataset  # isort: skip  # noqa: E402,F401
