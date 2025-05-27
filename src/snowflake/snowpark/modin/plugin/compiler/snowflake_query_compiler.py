@@ -30,7 +30,6 @@ from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeD
 import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
-from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -412,6 +411,9 @@ from snowflake.snowpark.types import (
 )
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.window import Window
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
 _logger = logging.getLogger(__name__)
 

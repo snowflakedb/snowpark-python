@@ -63,7 +63,7 @@ from pandas.util._validators import (
     validate_percentile,
 )
 
-from snowflake.snowpark.modin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
