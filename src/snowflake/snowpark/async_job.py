@@ -19,6 +19,7 @@ from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
+    from snowflake.connector.options import pandas
     import snowflake.snowpark.dataframe
     import snowflake.snowpark.session
 

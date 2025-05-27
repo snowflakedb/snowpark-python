@@ -221,6 +221,7 @@ from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
+    from snowflake.connector.options import pandas, pyarrow
     import modin.pandas  # pragma: no cover
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
