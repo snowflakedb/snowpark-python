@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import inspect
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -50,9 +50,6 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType
-
-if TYPE_CHECKING:
-    from snowflake.connector.options import pandas
 
 def _alias(expr: Expression) -> NamedExpression:
     if isinstance(expr, UnresolvedAttribute):

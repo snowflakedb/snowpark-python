@@ -119,7 +119,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.lazy_import_utils import get_installed_pandas, get_pandas, get_pyarrow
+from snowflake.snowpark._internal.lazy_import_utils import get_installed_pandas, get_pyarrow
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     ResourceUsageCollector,
@@ -975,7 +975,8 @@ class DataFrame:
         )
 
     if get_installed_pandas():
-        from snowflake.connector.options import pandas # pragma: no cover
+        from snowflake.connector.options import pandas  # pragma: no cover
+
         @publicapi
         @overload
         def to_pandas(
@@ -1074,6 +1075,7 @@ class DataFrame:
 
     if get_installed_pandas():
         from snowflake.connector.options import pandas
+
         @publicapi
         @overload
         def to_pandas_batches(

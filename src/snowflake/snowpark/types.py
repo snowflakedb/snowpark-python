@@ -10,7 +10,7 @@ import re
 import sys
 from enum import Enum
 from typing import Generic, List, Optional, Type, TypeVar, Union, Dict, Any
-
+from snowflake.snowpark._internal.utils import quote_name
 import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto

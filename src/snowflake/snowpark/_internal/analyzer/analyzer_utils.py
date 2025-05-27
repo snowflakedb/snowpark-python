@@ -55,7 +55,7 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
-    import pyarrow
+    from snowflake.connector.options import pyarrow
 
 LEFT_PARENTHESIS = "("
 RIGHT_PARENTHESIS = ")"
