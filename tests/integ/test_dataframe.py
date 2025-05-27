@@ -5228,7 +5228,7 @@ def test_create_dataframe_file_type(session, resources_path):
 def test_create_dataframe_empty_pandas_df(session):
     pdf = pd.DataFrame([])
     with pytest.raises(
-        ValueError,
+        ProgrammingError,
         match="The provided schema or inferred schema cannot be None or empty",
     ):
         session.create_dataframe(pdf)
