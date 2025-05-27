@@ -1325,49 +1325,6 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    # def find_table_function_in_sql_tree(self, plan: SnowflakePlan):
-    #     """This function is meant to find any table function call from a create dynamic table plan and
-    #     replace '*' with explicit identifier in the select of table function.
-    #     """
-    #     from snowflake.snowpark._internal.analyzer.select_statement import (
-    #         SelectTableFunction,
-    #         Selectable,
-    #     )
-    #
-    #     # the bug only happen when create dynamic table on top of a table function
-    #     # this is meant to decide whether the plan is select from a tale function
-    #     if isinstance(plan, SelectTableFunction) and isinstance(
-    #         plan.snowflake_plan.source_plan, TableFunctionJoin
-    #     ):
-    #         if (
-    #             plan.snowflake_plan.source_plan.right_cols == ["*"]
-    #             and len(plan.snowflake_plan.children_plan_nodes) == 1
-    #         ):
-    #             child_plan = plan.snowflake_plan.children_plan_nodes[0]
-    #             if isinstance(child_plan, Selectable):
-    #                 child_plan = child_plan.snowflake_plan
-    #             plan.snowflake_plan.source_plan.right_cols = (
-    #                 plan.snowflake_plan.quoted_identifiers[
-    #                     len(child_plan.quoted_identifiers):
-    #                 ]
-    #             )
-    #             new_plan = self.session._analyzer.resolve(
-    #                 plan.snowflake_plan.source_plan
-    #             )
-    #             plan._snowflake_plan = new_plan
-    #             return plan
-    #     plan_2_resolve = None
-    #     for node in plan.children_plan_nodes:
-    #         plan_2_resolve = (
-    #             self.find_table_function_in_sql_tree(node) or plan_2_resolve  # type: ignore
-    #         )
-    #     if plan_2_resolve:
-    #         return self.session._analyzer.resolve(
-    #             plan.snowflake_plan.source_plan  # type: ignore
-    #             if isinstance(plan, Selectable)
-    #             else plan.source_plan
-    #         )
-
     def find_table_function_in_sql_tree(self, plan: SnowflakePlan):
         """This function is meant to find any table function call from a create dynamic table plan and
         replace '*' with explicit identifier in the select of table function.
@@ -1384,6 +1341,9 @@ class SnowflakePlanBuilder:
             deepcopied_plan = queue.popleft()
             for node in deepcopied_plan.children_plan_nodes:
                 queue.append(node)
+
+            # the bug only happen when create dynamic table on top of a table function
+            # this is meant to decide whether the plan is select from a tale function
             if isinstance(deepcopied_plan, SelectTableFunction) and isinstance(
                 deepcopied_plan.snowflake_plan.source_plan, TableFunctionJoin
             ):
@@ -1403,11 +1363,14 @@ class SnowflakePlanBuilder:
                         deepcopied_plan.snowflake_plan.source_plan
                     )
                     deepcopied_plan._snowflake_plan = new_plan
+
+                    # resolve the plan to apply change
                     self.session._analyzer.resolve(
                         deepcopied_plan.snowflake_plan.source_plan  # type: ignore
                         if isinstance(deepcopied_plan, Selectable)
                         else deepcopied_plan.source_plan
                     )
+        # resolve the plan to apply our change
         return self.session._analyzer.resolve(
             deepcopied_plan.snowflake_plan.source_plan  # type: ignore
             if isinstance(deepcopied_plan, Selectable)
