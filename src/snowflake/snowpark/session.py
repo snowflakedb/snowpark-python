@@ -716,10 +716,6 @@ class Session:
             _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
         )
 
-        self._use_optimized_sql_features: bool = self.is_feature_enabled_for_version(
-            _PYTHON_SNOWPARK_USE_OPTIMIZED_SQL_FEATURES_VERSION
-        )
-
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
         )
@@ -740,7 +736,15 @@ class Session:
                 _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION
             )
         )
-        self._conf = self.RuntimeConfig(self, options or {})
+        options = options or {}
+        options.update(
+            {
+                "use_simplified_query_generation": self.is_feature_enabled_for_version(
+                    _PYTHON_SNOWPARK_USE_OPTIMIZED_SQL_FEATURES_VERSION
+                )
+            }
+        )
+        self._conf = self.RuntimeConfig(self, options)
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
