@@ -9,7 +9,7 @@ from typing import List, Any, Iterator, Type, Callable, Optional, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
-from snowflake.snowpark._internal.lazy_import_utils import lazy_import, get_pandas
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
 import logging
