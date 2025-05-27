@@ -25,6 +25,7 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from datetime import date, datetime, timedelta, tzinfo
+import functools
 from logging import getLogger
 from typing import Any, Literal, Union
 
@@ -33,7 +34,6 @@ import numpy as np
 import pandas
 import pandas.core.common as common
 from modin.pandas import DataFrame, Series
-from modin.pandas.api.extensions import register_pd_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas import IntervalIndex, NaT, Timedelta, Timestamp
@@ -82,7 +82,17 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     pandas_module_level_function_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.pandas.api.extensions import (
+        register_pd_accessor as _register_pd_accessor,
+    )
+
+    register_pd_accessor = functools.partial(_register_pd_accessor, backend="Snowflake")
+else:
+    from modin.pandas.api.extensions import register_pd_accessor
 
 # To prevent cross-reference warnings when building documentation and prevent erroneously
 # linking to `snowflake.snowpark.DataFrame`, we need to explicitly

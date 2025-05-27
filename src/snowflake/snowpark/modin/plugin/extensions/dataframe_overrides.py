@@ -10,6 +10,7 @@ pandas, such as `DataFrame.memory_usage`.
 from __future__ import annotations
 
 import collections
+import copy
 import datetime
 import functools
 import itertools
@@ -32,7 +33,6 @@ import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
 from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeDataframe
-from modin.pandas.api.extensions import register_dataframe_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
@@ -84,10 +84,6 @@ from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-    DataFrameGroupBy,
-    validate_groupby_args,
-)
 from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
@@ -114,7 +110,28 @@ from snowflake.snowpark.modin.utils import (
     hashable,
     validate_int_kwarg,
 )
+from snowflake.snowpark.modin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.udf import UserDefinedFunction
+
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.pandas.groupby import DataFrameGroupBy
+    from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
+        validate_groupby_args,
+    )
+    from modin.pandas.api.extensions import (
+        register_dataframe_accessor as _register_dataframe_accessor,
+    )
+
+    register_dataframe_accessor = functools.partial(
+        _register_dataframe_accessor, backend="Snowflake"
+    )
+else:
+    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+        DataFrameGroupBy,
+        validate_groupby_args,
+    )
+    from modin.pandas.api.extensions import register_dataframe_accessor
 
 
 def register_dataframe_not_implemented():
@@ -451,6 +468,11 @@ def __divmod__(self, other):
 
 @register_dataframe_not_implemented()
 def __rdivmod__(self, other):
+    pass  # pragma: no cover
+
+
+@register_dataframe_not_implemented()
+def update(self, other) -> None:  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -810,7 +832,7 @@ def _df_init_list_data_with_snowpark_pandas_values(
 def __dataframe__(
     self, nan_as_null: bool = False, allow_copy: bool = True
 ) -> InterchangeDataframe:
-    return self._query_compiler.to_dataframe(
+    return self._query_compiler.to_interchange_dataframe(
         nan_as_null=nan_as_null, allow_copy=allow_copy
     )
 
@@ -887,6 +909,21 @@ def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs)
         stacklevel=2,
     )
     return self.map(func, na_action=na_action, **kwargs)
+
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    # In older versions of Snowpark pandas, overrides to base methods would automatically override
+    # corresponding DataFrame/Series API definitions as well. For consistency between methods, this
+    # is no longer the case, and DataFrame/Series must separately apply this override.
+    def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+        # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+        # a column named "_attrs"
+        self._query_compiler._attrs = copy.deepcopy(value)
+
+    def _get_attrs(self) -> dict:  # noqa: RT01, D200
+        return self._query_compiler._attrs
+
+    register_dataframe_accessor("attrs")(property(_get_attrs, _set_attrs))
 
 
 # We need to override _get_columns to satisfy
@@ -1089,6 +1126,7 @@ def groupby(
         idx_name,
         observed=observed,
         dropna=dropna,
+        drop=False,  # TODO reconcile with OSS modin's drop flag
         return_tuple_when_iterating=return_tuple_when_iterating,
     )
 
