@@ -9,6 +9,6 @@ from snowflake.snowpark.types import StructType
 class BaseDialect:
     @staticmethod
     def generate_select_query(
-        table_or_query: str, schema: StructType, raw_schema: List[tuple]
+        table_or_query: str, schema: StructType, raw_schema: List[tuple], is_query: bool
     ) -> str:
         return f"SELECT * FROM {table_or_query}"

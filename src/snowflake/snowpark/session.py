@@ -4114,6 +4114,7 @@ class Session:
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
         log_on_exception: bool = False,
+        return_dataframe: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> Any:
         """Calls a stored procedure by name.
@@ -4124,6 +4125,8 @@ class Session:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
                 as a table return type.
+            return_dataframe: When set to True, the return value of this function is a DataFrame object.
+                This is useful when the given stored procedure's return type is a table.
 
         Example::
 
@@ -4163,6 +4166,7 @@ class Session:
             *args,
             statement_params=statement_params,
             log_on_exception=log_on_exception,
+            is_return_table=return_dataframe,
             _emit_ast=_emit_ast,
         )
 

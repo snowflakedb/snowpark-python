@@ -7,6 +7,8 @@ __all__ = [
     "SqlServerDialect",
     "OracledbDialect",
     "DatabricksDialect",
+    "PostgresDialect",
+    "MysqlDialect",
 ]
 
 from snowflake.snowpark._internal.data_source.dbms_dialects.base_dialect import (
@@ -23,4 +25,10 @@ from snowflake.snowpark._internal.data_source.dbms_dialects.sqlserver_dialect im
 )
 from snowflake.snowpark._internal.data_source.dbms_dialects.databricks_dialect import (
     DatabricksDialect,
+)
+from snowflake.snowpark._internal.data_source.dbms_dialects.postgresql_dialect import (
+    PostgresDialect,
+)
+from snowflake.snowpark._internal.data_source.dbms_dialects.mysql_dialect import (
+    MysqlDialect,
 )

@@ -547,7 +547,7 @@ def test_read_snowflake_row_access_policy_table(
         f"alter table {test_table_name} add row access policy no_access_policy on (col1)"
     ).collect()
 
-    expected_query_count = 4 if enforce_ordering else 2
+    expected_query_count = 3 if enforce_ordering else 1
     with SqlCounter(query_count=expected_query_count):
         df = read_snowflake_and_verify_snapshot_creation_if_any(
             session, test_table_name, as_query, True, enforce_ordering

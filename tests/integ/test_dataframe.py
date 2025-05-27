@@ -2933,9 +2933,21 @@ def test_describe(session):
         ],
     )
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         TestData.test_data2(session).describe("c")
-    assert "invalid identifier" in str(ex_info.value)
+
+    Utils.check_answer(
+        session.create_dataframe([str(e) for e in range(10)]).describe(
+            strings_include_math_stats=True,
+        ),
+        [
+            Row("count", "10"),
+            Row("min", "0"),
+            Row("stddev", "3.027650354"),
+            Row("mean", "4.5"),
+            Row("max", "9"),
+        ],
+    )
 
 
 def test_truncate_preserves_schema(session, local_testing_mode):

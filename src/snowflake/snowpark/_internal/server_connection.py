@@ -57,6 +57,7 @@ from snowflake.snowpark._internal.utils import (
     create_rlock,
     create_thread_local,
     escape_quotes,
+    is_ast_enabled,
     get_application_name,
     get_version,
     is_in_stored_procedure,
@@ -266,7 +267,6 @@ class ServerConnection:
         rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
-    @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(
             self._run_new_describe(self._cursor, query), self.max_string_size
@@ -430,7 +430,7 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
         notify_kwargs = {}
-        if DATAFRAME_AST_PARAMETER in kwargs:
+        if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
 
         try:

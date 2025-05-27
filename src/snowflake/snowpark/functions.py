@@ -12210,13 +12210,15 @@ def ai_classify(
 
         >>> # for text
         >>> session.range(1).select(ai_classify('One day I will see the world', ['travel', 'cooking']).alias("answer")).show()
-        -----------------------
-        |"ANSWER"             |
-        -----------------------
-        |{                    |
-        |  "label": "travel"  |
-        |}                    |
-        -----------------------
+        -----------------
+        |"ANSWER"       |
+        -----------------
+        |{              |
+        |  "labels": [  |
+        |    "travel"   |
+        |  ]            |
+        |}              |
+        -----------------
         <BLANKLINE>
         >>> df = session.create_dataframe([
         ...     ['France', ['North America', 'Europe', 'Asia']],
@@ -12224,7 +12226,7 @@ def ai_classify(
         ...     ['one day I will see the world', ['travel', 'cooking', 'dancing']],
         ...     ['my lobster bisque is second to none', ['travel', 'cooking', 'dancing']]
         ... ], schema=["data", "category"])
-        >>> df.select("data", ai_classify(col("data"), col("category"))["label"].alias("class")).sort("data").show()
+        >>> df.select("data", ai_classify(col("data"), col("category"))["labels"][0].alias("class")).sort("data").show()
         ---------------------------------------------------
         |"DATA"                               |"CLASS"    |
         ---------------------------------------------------
@@ -12244,15 +12246,16 @@ def ai_classify(
         ...     ).alias("classes")
         ... )
         >>> df.show()
-        ------------------------
-        |"CLASSES"             |
-        ------------------------
-        |{                     |
-        |  "label": "Cavapoo"  |
-        |}                     |
-        ------------------------
+        -----------------
+        |"CLASSES"      |
+        -----------------
+        |{              |
+        |  "labels": [  |
+        |    "Cavapoo"  |
+        |  ]            |
+        |}              |
+        -----------------
         <BLANKLINE>
-
     """
     sql_func_name = "ai_classify"
     ast = (

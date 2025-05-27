@@ -9,8 +9,8 @@
 set -euxo pipefail
 
 if [ "$#" -ne 1 ]; then
-    echo "Wrong number of parameters, usage: ./copy-remote-ast.sh <workspace id>"
-    exit 1
+  echo "Wrong number of parameters, usage: ./copy-remote-ast.sh <workspace id>"
+  exit 1
 fi
 
 MONOREPO_DIR=${MONOREPO_DIR:-$TMPDIR}
@@ -29,7 +29,7 @@ REMOTE_HOME=$(ssh $1 'echo "$HOME"')
 # Run bazel build remotely.
 # Adding _deploy to a bazel JVM target builds a fat jar,
 # For the unparser this target is //Snowpark/frontend/unparser:unparser_deploy.jar.
-ssh $1 'cd ~/Snowflake/trunk && bazel build //Snowpark/ast:ast_proto && bazel build //Snowpark/frontend/unparser:unparser_deploy.jar'
+sf ws ssh $1 --command 'cd ~/Snowflake/trunk && bazel build //Snowpark/ast:ast_proto && bazel build //Snowpark/frontend/unparser:unparser_deploy.jar'
 
 # (1) Copy over ast.proto file (required by python -x tox -e protoc).
 scp $1:"$REMOTE_HOME/Snowflake/trunk/bazel-bin/Snowpark/ast/ast.proto" $SNOWPARK_ROOT/src/snowflake/snowpark/_internal/proto/ast.proto

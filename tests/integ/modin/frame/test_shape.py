@@ -29,7 +29,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
         "timedelta",
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_dataframe_shape_param(dataframe_input):
     eval_snowpark_pandas_result(
         pd.DataFrame(dataframe_input),
@@ -39,7 +39,7 @@ def test_dataframe_shape_param(dataframe_input):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_dataframe_shape_index_empty(empty_index_native_pandas_dataframe):
     eval_snowpark_pandas_result(
         pd.DataFrame(empty_index_native_pandas_dataframe),
