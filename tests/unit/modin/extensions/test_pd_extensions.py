@@ -17,27 +17,31 @@
 
 import modin.pandas as pd
 from modin.pandas.api.extensions import register_pd_accessor
+from modin.core.storage_formats.pandas.query_compiler_caster import _GENERAL_EXTENSIONS
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+
+
+PD_EXTENSIONS = _GENERAL_EXTENSIONS["Snowflake"]
 
 
 def test_pd_extension_simple_method():
     expected_string_val = "Some string value"
     method_name = "new_method"
 
-    @register_pd_accessor(method_name)
+    @register_pd_accessor(method_name, backend="Snowflake")
     def my_method_implementation():
         return expected_string_val
 
-    assert method_name in pd._PD_EXTENSIONS_.keys()
-    assert pd._PD_EXTENSIONS_[method_name] is my_method_implementation
+    assert method_name in PD_EXTENSIONS.keys()
+    assert PD_EXTENSIONS[method_name] is my_method_implementation
     assert pd.new_method() == expected_string_val
 
 
 def test_pd_extension_non_method():
     expected_val = 4
     attribute_name = "four"
-    register_pd_accessor(attribute_name)(expected_val)
-    assert attribute_name in pd._PD_EXTENSIONS_.keys()
-    assert pd._PD_EXTENSIONS_[attribute_name] == 4
+    register_pd_accessor(attribute_name, backend="Snowflake")(expected_val)
+    assert attribute_name in PD_EXTENSIONS.keys()
+    assert PD_EXTENSIONS[attribute_name] == 4
     assert pd.four == expected_val
