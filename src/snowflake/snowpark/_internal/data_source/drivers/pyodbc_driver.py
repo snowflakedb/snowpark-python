@@ -4,8 +4,7 @@
 
 import datetime
 import decimal
-from enum import Enum
-from typing import List, Callable, Any
+from typing import List, Any
 import logging
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
@@ -40,11 +39,6 @@ BASE_PYODBC_TYPE_TO_SNOW_TYPE = {
 
 
 class PyodbcDriver(BaseDriver):
-    def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
-    ) -> None:
-        super().__init__(create_connection, dbms_type)
-
     def to_snow_type(self, schema: List[Any]) -> StructType:
         """
         SQLServer to Python datatype mapping
@@ -85,7 +79,9 @@ class PyodbcDriver(BaseDriver):
             fields.append(StructField(name, data_type, null_ok))
         return StructType(fields)
 
-    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+    def udtf_class_builder(
+        self, fetch_size: int = 1000, schema: StructType = None
+    ) -> type:
         create_connection = self.create_connection
 
         def binary_converter(value):
@@ -116,8 +112,8 @@ class PyodbcDriver(BaseDriver):
 
         return UDTFIngestion
 
+    @staticmethod
     def prepare_connection(
-        self,
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":

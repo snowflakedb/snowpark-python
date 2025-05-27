@@ -1,23 +1,24 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import json
 import logging
 from typing import List, Any, TYPE_CHECKING
 
+from snowflake.snowpark._internal.data_source.datasource_typing import (
+    Cursor,
+)
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
-from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.functions import column, to_variant, parse_json
 from snowflake.snowpark.types import (
     StructType,
     MapType,
     StructField,
     ArrayType,
     VariantType,
+    TimestampType,
+    TimestampTimeZone,
 )
-from snowflake.snowpark.functions import column, to_variant
-from snowflake.connector.options import pandas as pd
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
@@ -28,25 +29,16 @@ logger = logging.getLogger(__name__)
 
 
 class DatabricksDriver(BaseDriver):
-    def infer_schema_from_description(self, table_or_query: str) -> StructType:
-        conn = self.create_connection()
-        cursor = conn.cursor()
-        try:
-            # The following query gives a more detailed schema information than
-            # just running "SELECT * FROM {table_or_query} WHERE 1 = 0"
-            query = f"DESCRIBE QUERY SELECT * FROM ({table_or_query})"
-            logger.debug(f"trying to get schema using query: {query}")
-            raw_schema = cursor.execute(query).fetchall()
-            return self.to_snow_type(raw_schema)
-        except Exception as exc:
-            raise SnowparkDataframeReaderException(
-                f"Failed to infer Snowpark DataFrame schema from '{table_or_query}' due to {exc!r}.\n"
-                f"To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in `DataFrameReader.dbapi`.\n"
-                f"Please check the stack trace for more details."
-            ) from exc
-        finally:
-            cursor.close()
-            conn.close()
+    def infer_schema_from_description(
+        self, table_or_query: str, cursor: "Cursor", is_query: bool
+    ) -> StructType:
+        # The following query gives a more detailed schema information than
+        # just running "SELECT * FROM {table_or_query} WHERE 1 = 0"
+        query = f"DESCRIBE QUERY SELECT * FROM ({table_or_query})"
+        logger.debug(f"trying to get schema using query: {query}")
+        raw_schema = cursor.execute(query).fetchall()
+        self.raw_schema = raw_schema
+        return self.to_snow_type(raw_schema)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         # https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-query
@@ -63,29 +55,57 @@ class DatabricksDriver(BaseDriver):
         for column_name, column_type, _ in schema:
             column_type = convert_map_to_use.get(column_type, column_type)
             data_type = type_string_to_type_object(column_type)
+            if column_type.lower() == "timestamp":
+                # by default https://docs.databricks.com/aws/en/sql/language-manual/data-types/timestamp-type
+                data_type = TimestampType(TimestampTimeZone.LTZ)
             all_columns.append(StructField(column_name, data_type, True))
         return StructType(all_columns)
 
-    @staticmethod
-    def data_source_data_to_pandas_df(
-        data: List[Any], schema: StructType
-    ) -> "pd.DataFrame":
-        df = BaseDriver.data_source_data_to_pandas_df(data, schema)
-        # 1. Regular snowflake table (compared to Iceberg Table) does not support structured data
-        # type (array, map, struct), thus we store structured data as variant in regular table
-        # 2. map type needs special handling because:
-        #   i. databricks sql returned it as a list of tuples, which needs to be converted to a dict
-        #   ii. pandas parquet conversion does not support dict having int as key, we convert it to json string
-        map_type_indexes = [
-            i
-            for i, field in enumerate(schema.fields)
-            if isinstance(field.datatype, MapType)
-        ]
-        col_names = df.columns[map_type_indexes]
-        df[col_names] = BaseDriver.df_map_method(df[col_names])(
-            lambda x: json.dumps(dict(x), cls=PythonObjJSONEncoder)
-        )
-        return df
+    def udtf_class_builder(
+        self, fetch_size: int = 1000, schema: StructType = None
+    ) -> type:
+        create_connection = self.create_connection
+
+        class UDTFIngestion:
+            def process(self, query: str):
+                conn = create_connection()
+                cursor = conn.cursor()
+
+                # First get schema information
+                describe_query = f"DESCRIBE QUERY SELECT * FROM ({query})"
+                cursor.execute(describe_query)
+                schema_info = cursor.fetchall()
+
+                # Find which columns are array types based on column type description
+                # databricks-sql-connector does not provide built-in output handler nor databricks provide simple
+                # built-in function to do the transformation meeting our snowflake table requirement
+                # from nd.array to list
+                array_column_indices = []
+                for idx, (_, column_type, _) in enumerate(schema_info):
+                    if column_type.startswith("array<"):
+                        array_column_indices.append(idx)
+
+                # Execute the actual query
+                cursor.execute(query)
+                while True:
+                    rows = cursor.fetchmany(fetch_size)
+                    if not rows:
+                        break
+                    processed_rows = []
+                    for row in rows:
+                        processed_row = list(row)
+                        # Handle array columns - convert ndarray to list
+                        for idx in array_column_indices:
+                            if (
+                                idx < len(processed_row)
+                                and processed_row[idx] is not None
+                            ):
+                                processed_row[idx] = processed_row[idx].tolist()
+
+                        processed_rows.append(tuple(processed_row))
+                    yield from processed_rows
+
+        return UDTFIngestion
 
     @staticmethod
     def to_result_snowpark_df(
@@ -98,7 +118,25 @@ class DatabricksDriver(BaseDriver):
             ):
                 project_columns.append(to_variant(column(field.name)).as_(field.name))
             else:
-                project_columns.append(column(field.name))
+                project_columns.append(
+                    column(field.name).cast(field.datatype).alias(field.name)
+                )
         return session.table(table_name, _emit_ast=_emit_ast).select(
             project_columns, _emit_ast=_emit_ast
         )
+
+    @staticmethod
+    def to_result_snowpark_df_udtf(
+        res_df: "DataFrame",
+        schema: StructType,
+        _emit_ast: bool = True,
+    ):
+        cols = []
+        for field in schema.fields:
+            if isinstance(
+                field.datatype, (MapType, ArrayType, StructType, VariantType)
+            ):
+                cols.append(to_variant(parse_json(column(field.name))).as_(field.name))
+            else:
+                cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
+        return res_df.select(cols, _emit_ast=_emit_ast)
