@@ -280,7 +280,7 @@ def test_distinct(session, use_simplification, local_testing_mode):
     if not local_testing_mode:
         queries = df.distinct().queries["queries"]
         if use_simplification:
-            assert "SELECT \n     DISTINCT" in queries[0]
+            assert "SELECT  DISTINCT" in Utils.strip_tabs_and_new_lines(queries[0])
         else:
             assert "GROUP BY" in queries[0]
 
