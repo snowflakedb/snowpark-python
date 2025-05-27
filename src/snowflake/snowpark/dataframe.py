@@ -1074,7 +1074,6 @@ class DataFrame:
         return result
 
     if get_installed_pandas():
-        from snowflake.connector.options import pandas
 
         @publicapi
         @overload
