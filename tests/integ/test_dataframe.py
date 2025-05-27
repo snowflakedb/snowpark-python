@@ -5225,10 +5225,10 @@ def test_create_dataframe_file_type(session, resources_path):
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
-def test_create_dataframe_empty_pandas_df(session):
+def test_create_dataframe_empty_pandas_df(session, local_testing_mode):
     pdf = pd.DataFrame([])
     with pytest.raises(
-        ProgrammingError,
+        ValueError if local_testing_mode else ProgrammingError,
         match="The provided schema or inferred schema cannot be None or empty",
     ):
         session.create_dataframe(pdf)
