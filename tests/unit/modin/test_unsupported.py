@@ -14,6 +14,18 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 
 
+def setup_mock_qc() -> SnowflakeQueryCompiler:
+    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
+    mock_query_compiler.columnarize.return_value = mock_query_compiler
+
+    # Hybrid engine switching methods
+    mock_query_compiler.get_backend.return_value = "Snowflake"
+    mock_query_compiler.move_to_cost.return_value = 0
+    mock_query_compiler.move_to_me_cost.return_value = 0
+    mock_query_compiler.max_cost.return_value = 1000
+    return mock_query_compiler
+
+
 @pytest.mark.parametrize(
     "io_method, kwargs",
     [
@@ -113,9 +125,7 @@ def test_unsupported_general(general_method, kwargs):
     ],
 )
 def test_unsupported_df(df_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = DataFrame(query_compiler=mock_query_compiler)
+    mock_df = DataFrame(query_compiler=setup_mock_qc())
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, df_method)(**kwargs)
@@ -182,9 +192,7 @@ def test_unsupported_df(df_method, kwargs):
     ],
 )
 def test_unsupported_series(series_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = Series(query_compiler=mock_query_compiler)
+    mock_df = Series(query_compiler=setup_mock_qc())
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, series_method)(**kwargs)
