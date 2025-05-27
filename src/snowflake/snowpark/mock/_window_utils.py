@@ -16,7 +16,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 
 
 class EntireWindowIndexer(object):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         try:
             from pandas.api.indexers import BaseIndexer
             if BaseIndexer not in self.__class__.__bases__:
@@ -37,7 +37,7 @@ class EntireWindowIndexer(object):
 
 
 class RowFrameIndexer(object):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         try:
             from pandas.api.indexers import BaseIndexer
             if BaseIndexer not in self.__class__.__bases__:

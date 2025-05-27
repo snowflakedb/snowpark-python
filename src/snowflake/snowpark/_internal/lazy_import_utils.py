@@ -9,12 +9,12 @@ def lazy_import(module_name: str) -> Any:
 # Lazy import helper functions
 def get_installed_pandas() -> Any:
     mod = lazy_import("snowflake.connector.options")
-    return getattr(mod, "installed_pandas")
+    return mod.installed_pandas
 
 
 def get_pandas() -> Any:
     mod = lazy_import("snowflake.connector.options")
-    return getattr(mod, "pandas")
+    return mod.pandas
 
 
 def get_snowpark_types() -> Any:
@@ -27,7 +27,7 @@ def get_numpy() -> Any:
 
 def get_pyarrow() -> Any:
     mod = lazy_import("snowflake.connector.options")
-    return getattr(mod, "pyarrow")
+    return mod.pyarrow
 
 
 def get_write_pandas() -> Any:
