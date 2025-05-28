@@ -28,6 +28,7 @@ class CompilationStageTelemetryField(Enum):
     CAT_COMPILATION_STAGE_STATS = "query_compilation_stage_statistics"
     CAT_COMPILATION_STAGE_ERROR = "query_compilation_stage_error"
     CAT_SNOWFLAKE_PLAN_METRICS = "snowflake_plan_metrics"
+    CAT_OPTIMIZATION_STATE = "optimization_state"
 
     # keys
     KEY_REASON = "reason"
