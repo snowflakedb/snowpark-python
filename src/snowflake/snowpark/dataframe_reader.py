@@ -881,6 +881,8 @@ class DataFrameReader:
                 <abc:def><abc:xyz>0</abc:xyz></abc:def>
                 ```
                 the result column name is ``abc:xyz`` where ``abc`` is not stripped.
+
+              + ``attributePrefix``: The prefix to add to the attribute names. The default value is ``_``.
         """
         df = self._read_semi_structured_file(path, "XML")
 

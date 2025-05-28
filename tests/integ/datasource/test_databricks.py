@@ -169,9 +169,14 @@ def test_unit_udtf_ingestion():
     yield_data = list(udtf_ingestion_instance.process(dsp.partitions[0]))
     # databricks sort by returns the all None row as the last row regardless of NULLS FIRST/LAST
     # while in snowflake test data after default sort None is the first row
-    assert yield_data[-1] == EXPECTED_TEST_DATA[0]
+
+    # databricks sort by seems to be non-deterministic, we sort the data locally to stabilize the outpout
+    yield_data = sorted(
+        yield_data, key=lambda x: (x[0] is not None, x[0] if x[0] is not None else 0)
+    )
+
     for row, expected_row in zip(
-        yield_data[:-1], EXPECTED_TEST_DATA[1:]
+        yield_data, EXPECTED_TEST_DATA
     ):  # None data ordering is the same
         for index, (field, value) in enumerate(zip(EXPECTED_TYPE.fields, row)):
             if isinstance(field.datatype, VariantType):

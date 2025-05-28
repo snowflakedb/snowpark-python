@@ -46,11 +46,12 @@ def test_element_to_dict_text():
     assert result == "hello world"
 
 
-def test_element_to_dict_attributes():
+@pytest.mark.parametrize("attribute_prefix", ["_", ""])
+def test_element_to_dict_attributes(attribute_prefix):
     # Element with attributes only.
     element = ET.Element("person", attrib={"name": "Alice", "age": "30"})
-    result = element_to_dict(element)
-    expected = {"_name": "Alice", "_age": "30"}
+    result = element_to_dict(element, attribute_prefix=attribute_prefix)
+    expected = {f"{attribute_prefix}name": "Alice", f"{attribute_prefix}age": "30"}
     assert result == expected
 
 
