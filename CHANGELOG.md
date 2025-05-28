@@ -18,6 +18,7 @@
 #### Improvements
 
 - Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+- Added support for specifying the prefix for the attribute column in the result table when reading XML files using `rowTag` and  `attributePrefix` option.
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 
