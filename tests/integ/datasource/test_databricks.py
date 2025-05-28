@@ -65,14 +65,14 @@ def test_basic_databricks(session, input_type, input_value):
         input_type: input_value,
     }
     df = session.read.dbapi(create_databricks_connection, **input_dict).order_by(
-        "COL_BYTE"
+        "COL_BYTE", ascending=True
     )
     ret = df.collect()
     assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    df2 = session.table(table_name).order_by("COL_BYTE")
+    df2 = session.table(table_name).order_by("COL_BYTE", ascending=True)
     assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
 
 
@@ -146,7 +146,7 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
         udtf_configs={
             "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
         },
-    ).order_by("COL_BYTE")
+    ).order_by("COL_BYTE", ascending=True)
     ret = df.collect()
     assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 
