@@ -5,6 +5,8 @@
 import os
 import queue
 import traceback
+import multiprocessing as mp
+from io import BytesIO
 from enum import Enum
 from typing import Any, Tuple, Optional, Callable, Dict, Set
 import logging
@@ -141,6 +143,123 @@ DBMS_MAPPING = {
 }
 
 
+def _task_fetch_data_from_source_to_bytesio(
+    worker: DataSourceReader,
+    partition: str,
+    partition_idx: int,
+    parquet_queue: mp.Queue,
+):
+    """
+    Fetch data from source and convert to parquet BytesIO objects.
+    Put BytesIO objects into the multiprocessing queue.
+    """
+
+    def convert_to_parquet_bytesio(fetched_data, fetch_idx):
+        df = worker.data_source_data_to_pandas_df(fetched_data)
+        if df.empty:
+            logger.debug(
+                f"The DataFrame is empty, no parquet BytesIO is generated for partition {partition_idx} fetch {fetch_idx}."
+            )
+            return
+
+        # Create BytesIO object and write parquet data to it
+        parquet_buffer = BytesIO()
+        df.to_parquet(parquet_buffer, index=False)
+        parquet_buffer.seek(0)  # Reset position to beginning
+
+        # Create a unique identifier for this parquet data
+        parquet_id = f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
+
+        # Put the BytesIO object and its identifier into the queue
+        parquet_queue.put((parquet_id, parquet_buffer))
+        logger.debug(f"Added parquet BytesIO to queue: {parquet_id}")
+
+    try:
+        for i, result in enumerate(worker.read(partition)):
+            convert_to_parquet_bytesio(result, i)
+    except Exception as e:
+        # Put error information in queue to signal failure
+        parquet_queue.put(("ERROR", e))
+        raise
+    finally:
+        # Signal completion for this partition
+        parquet_queue.put((f"PARTITION_COMPLETE_{partition_idx}", None))
+
+
+def _task_fetch_data_from_source_to_bytesio_with_retry(
+    worker: DataSourceReader,
+    partition: str,
+    partition_idx: int,
+    parquet_queue: mp.Queue,
+):
+    return _retry_run(
+        _task_fetch_data_from_source_to_bytesio,
+        worker,
+        partition,
+        partition_idx,
+        parquet_queue,
+    )
+
+
+def _upload_and_copy_bytesio_into_table(
+    session: "snowflake.snowpark.Session",
+    parquet_id: str,
+    parquet_buffer: BytesIO,
+    snowflake_stage_name: str,
+    snowflake_table_name: Optional[str] = None,
+    on_error: Optional[str] = "abort_statement",
+    statements_params: Optional[Dict[str, str]] = None,
+):
+    """
+    Upload BytesIO parquet data to Snowflake stage and copy into table.
+    """
+    # Reset buffer position to beginning
+    parquet_buffer.seek(0)
+
+    # Upload BytesIO directly to stage using put_stream
+    stage_file_path = f"@{snowflake_stage_name}/{parquet_id}"
+    session.file.put_stream(
+        parquet_buffer,
+        stage_file_path,
+        overwrite=True,
+        auto_compress=False,  # Parquet is already compressed
+    )
+
+    # Copy into table
+    copy_into_table_query = f"""
+    COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{parquet_id}
+    FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
+    MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
+    PURGE=TRUE
+    ON_ERROR={on_error}
+    {DATA_SOURCE_SQL_COMMENT}
+    """
+    session.sql(copy_into_table_query).collect(statement_params=statements_params)
+    logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
+
+
+def _upload_and_copy_bytesio_into_table_with_retry(
+    session: "snowflake.snowpark.Session",
+    parquet_id: str,
+    parquet_buffer: BytesIO,
+    snowflake_stage_name: str,
+    snowflake_table_name: Optional[str] = None,
+    on_error: Optional[str] = "abort_statement",
+    statements_params: Optional[Dict[str, str]] = None,
+):
+    _retry_run(
+        _upload_and_copy_bytesio_into_table,
+        session,
+        parquet_id,
+        parquet_buffer,
+        snowflake_stage_name,
+        snowflake_table_name,
+        on_error,
+        statements_params,
+    )
+
+
+# Legacy file-based functions (keeping for backward compatibility)
 def _task_fetch_data_from_source(
     worker: DataSourceReader,
     partition: str,
@@ -169,7 +288,7 @@ def _task_fetch_data_from_source_with_retry(
     partition_idx: int,
     tmp_dir: str,
 ):
-    _retry_run(
+    return _retry_run(
         _task_fetch_data_from_source,
         worker,
         partition,
