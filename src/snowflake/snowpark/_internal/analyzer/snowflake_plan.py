@@ -1325,7 +1325,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def find_table_function_in_sql_tree(self, plan: SnowflakePlan):
+    def find_table_function_in_sql_tree(self, plan: SnowflakePlan) -> SnowflakePlan:
         """This function is meant to find any udtf function call from a create dynamic table plan and
         replace '*' with explicit column identifier in the select of table function. Since we cannot
         differentiate udtf call from other table functions, we apply this change to all table functions.
@@ -1348,6 +1348,8 @@ class SnowflakePlanBuilder:
             if isinstance(deepcopied_plan, SelectTableFunction) and isinstance(
                 deepcopied_plan.snowflake_plan.source_plan, TableFunctionJoin
             ):
+                # if clause used to decide that right column is '*' that we need to change and there is only 1 child
+                # plan to change, a table function can only be right joined, so we only care about right column here.
                 if (
                     deepcopied_plan.snowflake_plan.source_plan.right_cols == ["*"]
                     and len(deepcopied_plan.snowflake_plan.children_plan_nodes) == 1

@@ -3356,7 +3356,7 @@ def test_append_existing_table(session, local_testing_mode):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Dynamic table is a SQL feature",
     run=False,
