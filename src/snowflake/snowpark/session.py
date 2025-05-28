@@ -874,6 +874,9 @@ class Session:
         return self._conf
 
     def _send_optimization_state_telemetry(self) -> None:
+        """
+        Send telemetry for the list of optimizations that are enabled in the session at init.
+        """
         optimization_state_dict = {}
         optimization_state_dict[
             TelemetryField.SQL_SIMPLIFIER_ENABLED.value
