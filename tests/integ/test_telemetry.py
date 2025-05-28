@@ -1645,6 +1645,33 @@ def test_plan_metrics_telemetry(session):
     assert type_ == "snowpark_compilation_stage_statistics"
 
 
+def test_optimization_state_telemetry(session):
+    client = session._conn._telemetry_client
+    telemetry_tracker = TelemetryDataTracker(session)
+    telemetry_data = {
+        "sql_simplifier_enabled": True,
+        "cte_optimization_enabled": True,
+        "large_query_breakdown_enabled": False,
+        "reduce_describe_query_enabled": False,
+        "join_alias_fix_enabled": True,
+        "use_optimized_sql_features_enabled": False,
+    }
+
+    def send_telemetry():
+        client.send_optimization_state_telemetry(
+            session.session_id, data=telemetry_data
+        )
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    expected_data = {
+        "session_id": session.session_id,
+        "category": "optimization_state",
+        **telemetry_data,
+    }
+    assert data == expected_data
+    assert type_ == "snowpark_optimization_state"
+
+
 @pytest.mark.parametrize("enabled", [True, False])
 def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
