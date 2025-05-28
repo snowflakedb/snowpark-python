@@ -28,7 +28,6 @@ from snowflake.snowpark._internal.data_source.drivers import (
 )
 import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
-from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 
 
@@ -143,7 +142,7 @@ DBMS_MAPPING = {
 }
 
 
-def _task_fetch_data_from_source_to_bytesio(
+def _task_fetch_data_from_source(
     worker: DataSourceReader,
     partition: str,
     partition_idx: int,
@@ -174,26 +173,20 @@ def _task_fetch_data_from_source_to_bytesio(
         parquet_queue.put((parquet_id, parquet_buffer))
         logger.debug(f"Added parquet BytesIO to queue: {parquet_id}")
 
-    try:
-        for i, result in enumerate(worker.read(partition)):
-            convert_to_parquet_bytesio(result, i)
-    except Exception as e:
-        # Put error information in queue to signal failure
-        parquet_queue.put(("ERROR", e))
-        raise
-    finally:
-        # Signal completion for this partition
-        parquet_queue.put((f"PARTITION_COMPLETE_{partition_idx}", None))
+    for i, result in enumerate(worker.read(partition)):
+        convert_to_parquet_bytesio(result, i)
+
+    parquet_queue.put((f"PARTITION_COMPLETE_{partition_idx}", None))
 
 
-def _task_fetch_data_from_source_to_bytesio_with_retry(
+def _task_fetch_data_from_source_with_retry(
     worker: DataSourceReader,
     partition: str,
     partition_idx: int,
     parquet_queue: mp.Queue,
 ):
     return _retry_run(
-        _task_fetch_data_from_source_to_bytesio,
+        _task_fetch_data_from_source,
         worker,
         partition,
         partition_idx,
@@ -201,7 +194,7 @@ def _task_fetch_data_from_source_to_bytesio_with_retry(
     )
 
 
-def _upload_and_copy_bytesio_into_table(
+def _upload_and_copy_into_table(
     session: "snowflake.snowpark.Session",
     parquet_id: str,
     parquet_buffer: BytesIO,
@@ -222,7 +215,6 @@ def _upload_and_copy_bytesio_into_table(
         parquet_buffer,
         stage_file_path,
         overwrite=True,
-        auto_compress=False,  # Parquet is already compressed
     )
 
     # Copy into table
@@ -238,7 +230,7 @@ def _upload_and_copy_bytesio_into_table(
     logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
 
 
-def _upload_and_copy_bytesio_into_table_with_retry(
+def _upload_and_copy_into_table_with_retry(
     session: "snowflake.snowpark.Session",
     parquet_id: str,
     parquet_buffer: BytesIO,
@@ -248,93 +240,10 @@ def _upload_and_copy_bytesio_into_table_with_retry(
     statements_params: Optional[Dict[str, str]] = None,
 ):
     _retry_run(
-        _upload_and_copy_bytesio_into_table,
+        _upload_and_copy_into_table,
         session,
         parquet_id,
         parquet_buffer,
-        snowflake_stage_name,
-        snowflake_table_name,
-        on_error,
-        statements_params,
-    )
-
-
-# Legacy file-based functions (keeping for backward compatibility)
-def _task_fetch_data_from_source(
-    worker: DataSourceReader,
-    partition: str,
-    partition_idx: int,
-    tmp_dir: str,
-):
-    def convert_to_parquet(fetched_data, fetch_idx):
-        df = worker.data_source_data_to_pandas_df(fetched_data)
-        if df.empty:
-            logger.debug(
-                f"The DataFrame is empty, no parquet file is generated for partition {partition_idx} fetch {fetch_idx}."
-            )
-            return
-        path = os.path.join(
-            tmp_dir, f"data_partition{partition_idx}_fetch{fetch_idx}.parquet"
-        )
-        df.to_parquet(path)
-
-    for i, result in enumerate(worker.read(partition)):
-        convert_to_parquet(result, i)
-
-
-def _task_fetch_data_from_source_with_retry(
-    worker: DataSourceReader,
-    partition: str,
-    partition_idx: int,
-    tmp_dir: str,
-):
-    return _retry_run(
-        _task_fetch_data_from_source,
-        worker,
-        partition,
-        partition_idx,
-        tmp_dir,
-    )
-
-
-def _upload_and_copy_into_table(
-    session: "snowflake.snowpark.Session",
-    local_file: str,
-    snowflake_stage_name: str,
-    snowflake_table_name: Optional[str] = None,
-    on_error: Optional[str] = "abort_statement",
-    statements_params: Optional[Dict[str, str]] = None,
-):
-    file_name = os.path.basename(local_file)
-    session.file.put(
-        normalize_local_file(local_file),
-        f"{snowflake_stage_name}",
-        overwrite=True,
-        statement_params=statements_params,
-    )
-    copy_into_table_query = f"""
-    COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
-    FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
-    MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
-    PURGE=TRUE
-    ON_ERROR={on_error}
-    {DATA_SOURCE_SQL_COMMENT}
-    """
-    session.sql(copy_into_table_query).collect(statement_params=statements_params)
-
-
-def _upload_and_copy_into_table_with_retry(
-    session: "snowflake.snowpark.Session",
-    local_file: str,
-    snowflake_stage_name: str,
-    snowflake_table_name: Optional[str] = None,
-    on_error: Optional[str] = "abort_statement",
-    statements_params: Optional[Dict[str, str]] = None,
-):
-    _retry_run(
-        _upload_and_copy_into_table,
-        session,
-        local_file,
         snowflake_stage_name,
         snowflake_table_name,
         on_error,

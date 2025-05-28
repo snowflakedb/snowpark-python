@@ -35,8 +35,8 @@ from snowflake.snowpark._internal.data_source.datasource_partitioner import (
 )
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.utils import (
-    _task_fetch_data_from_source_to_bytesio_with_retry,
-    _upload_and_copy_bytesio_into_table_with_retry,
+    _task_fetch_data_from_source_with_retry,
+    _upload_and_copy_into_table_with_retry,
     STATEMENT_PARAMS_DATA_SOURCE,
     DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
@@ -108,6 +108,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+_MAX_RETRY_TIME = 3
 
 
 def _validate_stage_path(path: str) -> str:
@@ -1199,21 +1200,22 @@ class DataFrameReader:
         return df
 
     @staticmethod
-    # Worker function that processes multiple partitions
+    # DBAPI worker function that processes multiple partitions
     def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
         """Worker process that fetches data from multiple partitions"""
         while True:
             try:
-                partition_idx, query = partition_queue.get(timeout=1.0)
-                if partition_idx is None:  # Sentinel value
-                    break
+                partition_idx, query = partition_queue.get(block=False)
 
-                _task_fetch_data_from_source_to_bytesio_with_retry(
+                _task_fetch_data_from_source_with_retry(
                     reader,
                     query,
                     partition_idx,
                     parquet_queue,
                 )
+            except queue.Empty:
+                # No more work available, exit gracefully
+                break
             except Exception as e:
                 # Put error information in queue to signal failure
                 parquet_queue.put(("ERROR", e))
@@ -1407,19 +1409,12 @@ class DataFrameReader:
             # Determine the number of processes to use
             # Default to CPU count if max_workers is None, otherwise use max_workers
             # But limit the number of processes to the number of partitions
-            if max_workers is None:
-                num_processes = min(mp.cpu_count(), len(partitioned_queries))
-            else:
-                num_processes = min(max_workers, len(partitioned_queries))
+            num_processes = min(max_workers or mp.cpu_count(), len(partitioned_queries))
 
             # Create a queue of partitions to be processed
             partition_queue = mp.Queue()
             for partition_idx, query in enumerate(partitioned_queries):
                 partition_queue.put((partition_idx, query))
-
-            # Add sentinel values to signal workers to stop
-            for _ in range(num_processes):
-                partition_queue.put((None, None))
 
             # Start worker processes
             logger.debug(
@@ -1465,7 +1460,7 @@ class DataFrameReader:
                             f"Retrieved BytesIO parquet from queue: {parquet_id}"
                         )
                         thread_future = thread_executor.submit(
-                            _upload_and_copy_bytesio_into_table_with_retry,
+                            _upload_and_copy_into_table_with_retry,
                             self._session,
                             parquet_id,
                             parquet_buffer,

@@ -5,10 +5,13 @@ import decimal
 import functools
 import logging
 import math
+import multiprocessing
 import os
 import subprocess
 import tempfile
 import datetime
+import time
+from io import BytesIO
 from textwrap import dedent
 from unittest import mock
 from unittest.mock import patch, MagicMock, PropertyMock
@@ -26,9 +29,9 @@ from snowflake.snowpark._internal.data_source.drivers import (
     SqliteDriver,
 )
 from snowflake.snowpark._internal.data_source.utils import (
-    _task_fetch_data_from_source_with_retry,
-    _upload_and_copy_into_table_with_retry,
     _task_fetch_data_from_source,
+    _upload_and_copy_into_table_with_retry,
+    _task_fetch_data_from_source_with_retry,
     STATEMENT_PARAMS_DATA_SOURCE,
     DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
@@ -102,7 +105,7 @@ def test_dbapi_with_temp_table(session, caplog):
             sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, max_workers=4
         )
         # default fetch size is 1k, so we should only see 1 parquet file generated as the data is less than 1k
-        assert caplog.text.count("Retrieved file from parquet queue") == 1
+        assert caplog.text.count("Retrieved BytesIO parquet from queue") == 1
         assert df.collect() == sql_server_all_type_data
 
 
@@ -127,7 +130,7 @@ def test_dbapi_batch_fetch(
         )
         # we only expect math.ceil(len(expected_result) / fetch_size) parquet files to be generated
         # for example, 5 rows, fetch size 2, we expect 3 parquet files
-        assert caplog.text.count("Retrieved file from parquet queue") == math.ceil(
+        assert caplog.text.count("Retrieved BytesIO parquet from queue") == math.ceil(
             len(expected_result) / fetch_size
         )
         assert df.order_by("ID").collect() == expected_result
@@ -139,6 +142,7 @@ def test_dbapi_retry(session):
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
         mock_task.__name__ = "_task_fetch_from_data_source"
+        parquet_queue = multiprocessing.Queue()
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
@@ -151,7 +155,7 @@ def test_dbapi_retry(session):
                 ),
                 partition="SELECT * FROM test_table",
                 partition_idx=0,
-                tmp_dir="/tmp",
+                parquet_queue=parquet_queue,
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
 
@@ -165,7 +169,8 @@ def test_dbapi_retry(session):
         ):
             _upload_and_copy_into_table_with_retry(
                 session=session,
-                local_file="fake_file",
+                parquet_id="test.parquet",
+                parquet_buffer=BytesIO(b"test data"),
                 snowflake_stage_name="fake_stage",
                 snowflake_table_name="fake_table",
             )
@@ -340,7 +345,9 @@ def test_telemetry_tracking(caplog, session):
         nonlocal comment_showed
         statement_parameters = kwargs.get("_statement_params")
         query = args[0]
-        assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        if not query.lower().startswith("put"):
+            # put_stream does not accept statement_params
+            assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
         if "select" not in query.lower() and "put" not in query.lower():
             assert DATA_SOURCE_SQL_COMMENT in query
             comment_showed += 1
@@ -525,36 +532,74 @@ def test_task_fetch_from_data_source_with_fetch_size(
         else 1
     )
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
+    parquet_queue = multiprocessing.Queue()
 
-        params = {
-            "worker": DataSourceReader(
-                PyodbcDriver,
-                sql_server_create_connection_small_data,
-                schema=schema,
-                dbms_type=DBMS_TYPE.SQL_SERVER_DB,
-                fetch_size=fetch_size,
-            ),
-            "partition": "SELECT * FROM test_table",
-            "partition_idx": partition_idx,
-            "tmp_dir": tmp_dir,
-        }
+    params = {
+        "worker": DataSourceReader(
+            PyodbcDriver,
+            sql_server_create_connection_small_data,
+            schema=schema,
+            dbms_type=DBMS_TYPE.SQL_SERVER_DB,
+            fetch_size=fetch_size,
+        ),
+        "partition": "SELECT * FROM test_table",
+        "partition_idx": partition_idx,
+        "parquet_queue": parquet_queue,
+    }
 
-        if expected_error:
-            with pytest.raises(
-                ValueError,
-                match="fetch size cannot be smaller than 0",
-            ):
-                _task_fetch_data_from_source(**params)
-        else:
+    if expected_error:
+        with pytest.raises(
+            ValueError,
+            match="fetch size cannot be smaller than 0",
+        ):
             _task_fetch_data_from_source(**params)
+    else:
+        _task_fetch_data_from_source(**params)
+        time.sleep(0.01)  # Allow some time for the queue to be populated
 
-            files = sorted(os.listdir(tmp_dir))
-            for idx, file in enumerate(files):
-                assert (
-                    f"data_partition{partition_idx}_fetch{idx}.parquet" in file
-                ), f"file: {file} does not match"
-            assert len(files) == file_count
+        # Collect all parquet data from the queue
+        parquet_files = []
+        completion_signal_received = False
+
+        while not parquet_queue.empty():
+            parquet_id, parquet_buffer = parquet_queue.get()
+
+            # Check for completion signal
+            if parquet_id.startswith("PARTITION_COMPLETE_"):
+                completion_signal_received = True
+                continue
+
+            # Verify parquet file naming pattern
+            assert parquet_id.startswith(
+                f"data_partition{partition_idx}_fetch"
+            ), f"Unexpected parquet ID: {parquet_id}"
+            assert parquet_id.endswith(
+                ".parquet"
+            ), f"Parquet ID should end with .parquet: {parquet_id}"
+
+            # Verify parquet_buffer is a BytesIO object
+            assert isinstance(
+                parquet_buffer, BytesIO
+            ), f"Expected BytesIO, got {type(parquet_buffer)}"
+
+            parquet_files.append((parquet_id, parquet_buffer))
+
+        # Verify we received the completion signal
+        assert (
+            completion_signal_received
+        ), "Should have received partition completion signal"
+
+        # Verify the number of parquet files matches expected count
+        assert (
+            len(parquet_files) == file_count
+        ), f"Expected {file_count} parquet files, got {len(parquet_files)}"
+
+        # Verify the parquet files are named correctly in sequence
+        for idx, (parquet_id, _) in enumerate(parquet_files):
+            expected_name = f"data_partition{partition_idx}_fetch{idx}.parquet"
+            assert (
+                expected_name in parquet_id
+            ), f"Expected {expected_name} in {parquet_id}"
 
 
 def test_database_detector():
@@ -922,7 +967,7 @@ def test_fetch_merge_count_integ(session, caplog):
             )
             assert df.order_by("ID").collect() == assert_data
             # 2 batch + 2 fetch size = 2 parquet file
-            assert caplog.text.count("Retrieved file from parquet queue") == 2
+            assert caplog.text.count("Retrieved BytesIO parquet from queue") == 2
 
 
 def test_unicode_column_name_sql_server(session):
