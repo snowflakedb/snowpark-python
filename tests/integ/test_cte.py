@@ -672,17 +672,9 @@ def test_sql_simplifier(session):
     with SqlCounter(query_count=0, describe_count=0):
         # after applying sql simplifier, there is only one CTE (df1, df2, df3 have the same query)
         assert (
-            count_number_of_ctes(
-                Utils.strip_tabs_and_new_lines(df4.queries["queries"][-1])
-            )
-            == 1
+            count_number_of_ctes(Utils.normalize_sql(df4.queries["queries"][-1])) == 1
         )
-        assert (
-            Utils.strip_tabs_and_new_lines(df4.queries["queries"][-1]).count(
-                filter_clause
-            )
-            == 1
-        )
+        assert Utils.normalize_sql(df4.queries["queries"][-1]).count(filter_clause) == 1
 
     df5 = df1.join(df2).join(df3)
     check_result(
@@ -699,17 +691,9 @@ def test_sql_simplifier(session):
         # so df1, df2 and df3 have 3 different queries, and we can't convert them to a CTE
         # the only CTE is from df
         assert (
-            count_number_of_ctes(
-                Utils.strip_tabs_and_new_lines(df5.queries["queries"][-1])
-            )
-            == 1
+            count_number_of_ctes(Utils.normalize_sql(df5.queries["queries"][-1])) == 1
         )
-        assert (
-            Utils.strip_tabs_and_new_lines(df5.queries["queries"][-1]).count(
-                filter_clause
-            )
-            == 3
-        )
+        assert Utils.normalize_sql(df5.queries["queries"][-1]).count(filter_clause) == 3
 
     df6 = df1.join(df2, lsuffix="_xxx").join(df3, lsuffix="_yyy")
     check_result(
@@ -726,17 +710,9 @@ def test_sql_simplifier(session):
         # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
         # so we will get a common CTE with filter
         assert (
-            count_number_of_ctes(
-                Utils.strip_tabs_and_new_lines(df6.queries["queries"][-1])
-            )
-            == 2
+            count_number_of_ctes(Utils.normalize_sql(df6.queries["queries"][-1])) == 2
         )
-        assert (
-            Utils.strip_tabs_and_new_lines(df6.queries["queries"][-1]).count(
-                filter_clause
-            )
-            == 2
-        )
+        assert Utils.normalize_sql(df6.queries["queries"][-1]).count(filter_clause) == 2
 
     df7 = df1.with_column("c", lit(1))
     df8 = df1.with_column("c", lit(1)).with_column("d", lit(1))
@@ -755,17 +731,9 @@ def test_sql_simplifier(session):
         # so df1, df7 and df8 have different queries, and we can't convert them to a CTE
         # the only CTE is from df
         assert (
-            count_number_of_ctes(
-                Utils.strip_tabs_and_new_lines(df9.queries["queries"][-1])
-            )
-            == 1
+            count_number_of_ctes(Utils.normalize_sql(df9.queries["queries"][-1])) == 1
         )
-        assert (
-            Utils.strip_tabs_and_new_lines(df9.queries["queries"][-1]).count(
-                filter_clause
-            )
-            == 3
-        )
+        assert Utils.normalize_sql(df9.queries["queries"][-1]).count(filter_clause) == 3
 
 
 def test_table_function(session):

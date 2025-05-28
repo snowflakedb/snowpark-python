@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import Dict, List, NamedTuple, Optional, Union
 from threading import Thread
 from unittest import mock
+import re
 
 import pytest
 import pytz
@@ -485,8 +486,8 @@ class Utils:
         ), f"query tag '{query_tag}' not present in query history for given session"
 
     @staticmethod
-    def strip_tabs_and_new_lines(sql_query: str) -> str:
-        return sql_query.replace("\n", "").replace("    ", "")
+    def normalize_sql(sql_query: str) -> str:
+        return re.sub(r"\s+", " ", sql_query).strip()
 
 
 class TestData:

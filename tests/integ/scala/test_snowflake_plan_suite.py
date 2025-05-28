@@ -310,12 +310,12 @@ def test_create_scoped_temp_table(session):
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
         inner_select_sql = (
-            f" SELECT  *  FROM {table_name}"
+            f" SELECT * FROM {table_name}"
             if session._sql_simplifier_enabled
-            else f" SELECT  *  FROM ({table_name})"
+            else f" SELECT * FROM ({table_name})"
         )
         assert (
-            Utils.strip_tabs_and_new_lines(
+            Utils.normalize_sql(
                 session._plan_builder.save_as_table(
                     table_name=[temp_table_name],
                     column_names=None,
@@ -337,7 +337,7 @@ def test_create_scoped_temp_table(session):
                 .queries[0]
                 .sql
             )
-            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}AS  SELECT  *  FROM ({inner_select_sql})"
+            == f"CREATE TEMPORARY TABLE {temp_table_name} AS SELECT * FROM ({inner_select_sql} )"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (

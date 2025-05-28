@@ -123,7 +123,7 @@ def test_collect_stacktrace_in_query_tag(session):
         assert history.queries[1].sql_text.startswith(
             "INSERT  INTO SNOWPARK_TEMP_TABLE"
         )
-        assert Utils.strip_tabs_and_new_lines(history.queries[2].sql_text).startswith(
+        assert Utils.normalize_sql(history.queries[2].sql_text).startswith(
             'SELECT "A", "B" FROM'
         )
         assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
@@ -140,7 +140,7 @@ def test_collect_stacktrace_in_query_tag(session):
             "INSERT  INTO SNOWPARK_TEMP_TABLE"
         )
         assert history.queries[3].sql_text.startswith("alter session unset query_tag")
-        assert Utils.strip_tabs_and_new_lines(history.queries[4].sql_text).startswith(
+        assert Utils.normalize_sql(history.queries[4].sql_text).startswith(
             'SELECT "A", "B" FROM'
         )
         assert history.queries[5].sql_text.startswith("DROP  TABLE  If  EXISTS")
