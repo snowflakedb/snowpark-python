@@ -3,13 +3,8 @@
 #
 import multiprocessing as mp
 import os
-import queue
 import sys
 import time
-from concurrent.futures import (
-    ThreadPoolExecutor,
-    as_completed,
-)
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
@@ -35,8 +30,8 @@ from snowflake.snowpark._internal.data_source.datasource_partitioner import (
 )
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.utils import (
-    _task_fetch_data_from_source_with_retry,
-    _upload_and_copy_into_table_with_retry,
+    worker_process,
+    process_parquet_queue_with_threads,
     STATEMENT_PARAMS_DATA_SOURCE,
     DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
@@ -108,6 +103,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+
 _MAX_RETRY_TIME = 3
 
 
@@ -1201,28 +1197,6 @@ class DataFrameReader:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
 
-    @staticmethod
-    # DBAPI worker function that processes multiple partitions
-    def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
-        """Worker process that fetches data from multiple partitions"""
-        while True:
-            try:
-                partition_idx, query = partition_queue.get(block=False)
-
-                _task_fetch_data_from_source_with_retry(
-                    reader,
-                    query,
-                    partition_idx,
-                    parquet_queue,
-                )
-            except queue.Empty:
-                # No more work available, exit gracefully
-                break
-            except Exception as e:
-                # Put error information in queue to signal failure
-                parquet_queue.put(("ERROR", e))
-                break
-
     @private_preview(version="1.29.0")
     @publicapi
     def dbapi(
@@ -1355,6 +1329,7 @@ class DataFrameReader:
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
 
+        # udtf ingestion
         if udtf_configs is not None:
             if "external_access_integration" not in udtf_configs:
                 raise ValueError(
@@ -1377,7 +1352,7 @@ class DataFrameReader:
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
 
-        # create temp table
+        # parquet ingestion
         snowflake_table_type = "TEMPORARY"
         snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         create_table_sql = (
@@ -1409,8 +1384,6 @@ class DataFrameReader:
             processes = []
 
             # Determine the number of processes to use
-            # Default to CPU count if max_workers is None, otherwise use max_workers
-            # But limit the number of processes to the number of partitions
             num_processes = min(max_workers or mp.cpu_count(), len(partitioned_queries))
 
             # Create a queue of partitions to be processed
@@ -1424,79 +1397,24 @@ class DataFrameReader:
             )
             for _worker_id in range(num_processes):
                 process = mp.Process(
-                    target=self.worker_process,
+                    target=worker_process,
                     args=(partition_queue, parquet_queue, partitioner.reader()),
                 )
                 process.start()
                 processes.append(process)
 
-            # Process BytesIO objects from queue and upload them
-            completed_partitions = set()
-            total_partitions = len(partitioned_queries)
-
-            with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
-                thread_futures = []
-
-                while len(completed_partitions) < total_partitions:
-                    try:
-                        # Get item from queue with timeout
-                        item = parquet_queue.get(timeout=1.0)
-                        parquet_id, parquet_buffer = item
-
-                        # Check for completion signals
-                        if parquet_id.startswith("PARTITION_COMPLETE_"):
-                            partition_idx = int(parquet_id.split("_")[-1])
-                            completed_partitions.add(partition_idx)
-                            logger.debug(f"Partition {partition_idx} completed.")
-                            continue
-
-                        # Check for errors
-                        if parquet_id == "ERROR":
-                            logger.error(
-                                f"Error in data fetching process: {parquet_buffer}"
-                            )
-                            raise parquet_buffer
-
-                        # Process valid BytesIO parquet data
-                        logger.debug(
-                            f"Retrieved BytesIO parquet from queue: {parquet_id}"
-                        )
-                        thread_future = thread_executor.submit(
-                            _upload_and_copy_into_table_with_retry,
-                            self._session,
-                            parquet_id,
-                            parquet_buffer,
-                            snowflake_stage_name,
-                            snowflake_table_name,
-                            "abort_statement",
-                            statements_params_for_telemetry,
-                        )
-                        thread_futures.append(thread_future)
-                        logger.debug(
-                            f"Submitted BytesIO parquet {parquet_id} to thread executor for ingestion."
-                        )
-
-                    except queue.Empty:
-                        # Check if any processes have failed
-                        for i, process in enumerate(processes):
-                            if not process.is_alive() and process.exitcode != 0:
-                                raise RuntimeError(
-                                    f"Process {i} failed with exit code {process.exitcode}"
-                                )
-                        continue
-
-                # Wait for all upload threads to complete
-                for future in as_completed(thread_futures):
-                    future.result()  # Throw error if the thread failed
-                    logger.debug("A thread future completed successfully.")
-
-            # Wait for all processes to complete
-            for process in processes:
-                process.join()
-                if process.exitcode != 0:
-                    raise RuntimeError(
-                        f"Process failed with exit code {process.exitcode}"
-                    )
+            # Process BytesIO objects from queue and upload them using utility method
+            process_parquet_queue_with_threads(
+                session=self._session,
+                parquet_queue=parquet_queue,
+                processes=processes,
+                total_partitions=len(partitioned_queries),
+                snowflake_stage_name=snowflake_stage_name,
+                snowflake_table_name=snowflake_table_name,
+                max_workers=max_workers,
+                statements_params=statements_params_for_telemetry,
+                on_error="abort_statement",
+            )
 
         except BaseException:
             # Graceful shutdown - terminate all processes

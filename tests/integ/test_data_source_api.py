@@ -190,7 +190,7 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
         table_name, _, _, assert_data = sqlite3_db(dbpath)
 
         with mock.patch(
-            "snowflake.snowpark.dataframe_reader._upload_and_copy_into_table_with_retry",
+            "snowflake.snowpark._internal.data_source.utils._upload_and_copy_into_table_with_retry",
             wraps=_upload_and_copy_into_table_with_retry,
         ) as mock_upload_and_copy:
             df = session.read.dbapi(

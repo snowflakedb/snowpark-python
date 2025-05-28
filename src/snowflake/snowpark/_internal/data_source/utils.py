@@ -163,7 +163,7 @@ def _task_fetch_data_from_source(
 
         # Create BytesIO object and write parquet data to it
         parquet_buffer = BytesIO()
-        df.to_parquet(parquet_buffer, index=False)
+        df.to_parquet(parquet_buffer)
         parquet_buffer.seek(0)  # Reset position to beginning
 
         # Create a unique identifier for this parquet data
@@ -185,7 +185,7 @@ def _task_fetch_data_from_source_with_retry(
     partition_idx: int,
     parquet_queue: mp.Queue,
 ):
-    return _retry_run(
+    _retry_run(
         _task_fetch_data_from_source,
         worker,
         partition,
@@ -288,3 +288,124 @@ def add_unseen_files_to_process_queue(
     for file in unseen:
         queue.put(os.path.join(work_dir, file))
         set_of_files_already_added_in_queue.add(file)
+
+
+# DBAPI worker function that processes multiple partitions
+def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
+    """Worker process that fetches data from multiple partitions"""
+    while True:
+        try:
+            partition_idx, query = partition_queue.get(block=False)
+
+            _task_fetch_data_from_source_with_retry(
+                reader,
+                query,
+                partition_idx,
+                parquet_queue,
+            )
+        except queue.Empty:
+            # No more work available, exit gracefully
+            break
+        except Exception as e:
+            # Put error information in queue to signal failure
+            parquet_queue.put(("ERROR", e))
+            break
+
+
+def process_parquet_queue_with_threads(
+    session: "snowflake.snowpark.Session",
+    parquet_queue: mp.Queue,
+    processes: list,
+    total_partitions: int,
+    snowflake_stage_name: str,
+    snowflake_table_name: str,
+    max_workers: int,
+    statements_params: Optional[Dict[str, str]] = None,
+    on_error: str = "abort_statement",
+) -> None:
+    """
+    Process parquet data from a multiprocessing queue using a thread pool.
+
+    This utility method handles the common pattern of:
+    1. Reading parquet data from a multiprocessing queue
+    2. Uploading and copying the data to Snowflake using multiple threads
+    3. Tracking completion of partitions
+    4. Handling errors and process monitoring
+
+    Args:
+        session: Snowflake session for database operations
+        parquet_queue: Multiprocessing queue containing parquet data
+        processes: List of worker processes to monitor
+        total_partitions: Total number of partitions expected
+        snowflake_stage_name: Name of the Snowflake stage for uploads
+        snowflake_table_name: Name of the target Snowflake table
+        max_workers: Maximum number of threads for parallel uploads
+        statements_params: Optional parameters for SQL statements
+        on_error: Error handling strategy for COPY INTO operations
+
+    Raises:
+        RuntimeError: If any worker process fails
+        Exception: Any exception raised during parquet processing
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import queue
+
+    completed_partitions = set()
+
+    with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
+        thread_futures = []
+
+        while len(completed_partitions) < total_partitions:
+            try:
+                # Get item from queue with timeout
+                item = parquet_queue.get(timeout=1.0)
+                parquet_id, parquet_buffer = item
+
+                # Check for completion signals
+                if parquet_id.startswith("PARTITION_COMPLETE_"):
+                    partition_idx = int(parquet_id.split("_")[-1])
+                    completed_partitions.add(partition_idx)
+                    logger.debug(f"Partition {partition_idx} completed.")
+                    continue
+
+                # Check for errors
+                if parquet_id == "ERROR":
+                    logger.error(f"Error in data fetching process: {parquet_buffer}")
+                    raise parquet_buffer
+
+                # Process valid BytesIO parquet data
+                logger.debug(f"Retrieved BytesIO parquet from queue: {parquet_id}")
+                thread_future = thread_executor.submit(
+                    _upload_and_copy_into_table_with_retry,
+                    session,
+                    parquet_id,
+                    parquet_buffer,
+                    snowflake_stage_name,
+                    snowflake_table_name,
+                    on_error,
+                    statements_params,
+                )
+                thread_futures.append(thread_future)
+                logger.debug(
+                    f"Submitted BytesIO parquet {parquet_id} to thread executor for ingestion."
+                )
+
+            except queue.Empty:
+                # Check if any processes have failed
+                for i, process in enumerate(processes):
+                    if not process.is_alive() and process.exitcode != 0:
+                        raise RuntimeError(
+                            f"Process {i} failed with exit code {process.exitcode}"
+                        )
+                continue
+
+        # Wait for all upload threads to complete
+        for future in as_completed(thread_futures):
+            future.result()  # Throw error if the thread failed
+            logger.debug("A thread future completed successfully.")
+
+    # Wait for all processes to complete
+    for process in processes:
+        process.join()
+        if process.exitcode != 0:
+            raise RuntimeError(f"Process failed with exit code {process.exitcode}")
