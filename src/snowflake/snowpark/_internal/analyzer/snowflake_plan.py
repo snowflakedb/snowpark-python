@@ -1344,7 +1344,7 @@ class SnowflakePlanBuilder:
                 queue.append(node)
 
             # the bug only happen when create dynamic table on top of a table function
-            # this is meant to decide whether the plan is select from a tale function
+            # this is meant to decide whether the plan is select from a table function
             if isinstance(deepcopied_plan, SelectTableFunction) and isinstance(
                 deepcopied_plan.snowflake_plan.source_plan, TableFunctionJoin
             ):
