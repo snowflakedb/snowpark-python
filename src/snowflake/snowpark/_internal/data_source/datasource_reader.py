@@ -92,7 +92,7 @@ class DataSourceReader:
 
     def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
         # Ensure pandas is available before delegating
-        get_pandas() 
+        get_pandas()
         # self.driver is guaranteed to be initialized in self.read() which is called prior to this method
         assert self.driver is not None
         return self.driver.data_source_data_to_pandas_df(data, self.schema)

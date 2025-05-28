@@ -11,9 +11,10 @@ class MissingNumpy(MissingOptionalDependency):
     @classmethod
     def get_pandas(cls):
         # This only runs when called
-        if not hasattr(cls, '_pandas_checked'):
+        if not hasattr(cls, "_pandas_checked"):
             try:
                 import pandas
+
                 cls.pandas = pandas
                 cls.installed_pandas = True
             except ImportError:
@@ -21,5 +22,6 @@ class MissingNumpy(MissingOptionalDependency):
                 cls.installed_pandas = False
             cls._pandas_checked = True
         return cls.pandas
+
 
 numpy = MissingNumpy()

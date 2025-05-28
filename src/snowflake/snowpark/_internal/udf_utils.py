@@ -30,7 +30,11 @@ import cloudpickle
 import snowflake.snowpark
 from snowflake.snowpark._internal import code_generation, type_utils
 from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql, to_sql_no_cast
-from snowflake.snowpark._internal.lazy_import_utils import get_installed_pandas, get_snowpark_types, get_pandas
+from snowflake.snowpark._internal.lazy_import_utils import (
+    get_installed_pandas,
+    get_snowpark_types,
+    get_pandas,
+)
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     NoneType,

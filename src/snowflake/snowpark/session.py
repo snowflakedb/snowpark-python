@@ -74,8 +74,12 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.lazy_import_utils import get_write_pandas, get_installed_pandas, get_pandas, \
-    get_pyarrow
+from snowflake.snowpark._internal.lazy_import_utils import (
+    get_write_pandas,
+    get_installed_pandas,
+    get_pandas,
+    get_pyarrow,
+)
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,

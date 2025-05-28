@@ -74,6 +74,7 @@ from snowflake.snowpark.row import Row
 if TYPE_CHECKING:
     # Import pandas for type checking only
     from snowflake.connector.options import pandas
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
