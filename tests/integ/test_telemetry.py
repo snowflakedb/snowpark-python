@@ -1659,7 +1659,7 @@ def test_optimization_state_telemetry(session):
 
     def send_telemetry():
         client.send_optimization_state_telemetry(
-            session.session_id, data=telemetry_data
+            session.session_id, optimization_state_dict=telemetry_data
         )
 
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
@@ -1669,7 +1669,7 @@ def test_optimization_state_telemetry(session):
         **telemetry_data,
     }
     assert data == expected_data
-    assert type_ == "snowpark_optimization_state"
+    assert type_ == "snowpark_compilation_stage_statistics"
 
 
 @pytest.mark.parametrize("enabled", [True, False])
