@@ -705,13 +705,11 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                # TODO: figure out the correct telemetry type
-                "snowpark_optimization_state"
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
-                # TODO: figure out the correct category
-                TelemetryField.KEY_CATEGORY.value: "optimization_state",
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_OPTIMIZATION_STATE.value,
                 **optimization_state_dict,
             },
         }
