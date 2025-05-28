@@ -131,7 +131,9 @@ if MODIN_IS_AT_LEAST_0_33_0:
         # NOTE that to get an attribute, python calls __getattribute__() first and
         # then falls back to __getattr__() if the former raises an AttributeError.
         if key not in EXTENSION_NO_LOOKUP:
-            extension = self._getattr__from_extension_impl(key, Series._extensions)
+            extension = self._getattr__from_extension_impl(
+                key, set(), Series._extensions
+            )
             if extension is not sentinel:
                 return extension
         try:

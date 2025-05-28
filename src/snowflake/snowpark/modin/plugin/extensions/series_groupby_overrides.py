@@ -25,6 +25,7 @@ import functools
 from typing import Any, Literal, Optional
 
 import modin.pandas as pd
+from modin.pandas.groupby import SeriesGroupBy
 import numpy as np  # noqa: F401
 import pandas
 import pandas.core.groupby
@@ -49,25 +50,6 @@ from snowflake.snowpark.modin.utils import (
 register_ser_groupby_override = functools.partial(
     register_series_groupby_accessor, backend="Snowflake"
 )
-
-
-@register_ser_groupby_override("ndim")
-@property
-def ndim(self):
-    """
-    Return 1.
-
-    Returns
-    -------
-    int
-        Returns 1.
-
-    Notes
-    -----
-    Deprecated and removed in pandas and will be likely removed in Modin.
-    """
-    # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
-    return 1  # ndim is always 1 for Series
 
 
 @register_ser_groupby_override("_iter")
@@ -156,9 +138,12 @@ def aggregate(
     if is_dict_like(func):
         raise SpecificationError("nested renamer is not supported")
 
-    return super().aggregate(
+    return super(SeriesGroupBy, self).aggregate(
         func, *args, engine=engine, engine_kwargs=engine_kwargs, **kwargs
     )
+
+
+register_ser_groupby_override("agg")(aggregate)
 
 
 ###########################################################################
@@ -184,7 +169,7 @@ def is_monotonic_increasing(self):
     )
 
 
-@register_ser_groupby_override("first")
+@register_ser_groupby_override("nlargest")
 def nlargest(self, n=5, keep="first"):
     # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
     ErrorMessage.method_not_implemented_error(name="nlargest", class_="GroupBy")
@@ -207,7 +192,7 @@ def unique(self):
 @register_ser_groupby_override("size")
 def size(self):
     # TODO: Remove this once SNOW-1478924 is fixed
-    result = super().size()
+    result = super(SeriesGroupBy, self).size()
     if isinstance(result, Series):
         return result.rename(self._df.columns[-1])
     else:
