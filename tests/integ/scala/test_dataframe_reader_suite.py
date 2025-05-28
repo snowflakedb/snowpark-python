@@ -1935,6 +1935,10 @@ def test_read_multiple_csvs(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="sql not supported in local testing mode",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Temp file format with custom name is not supported in stored proc",
+)
 def test_read_file_with_enforced_existing_file_format(
     session, file_format_name, infer_schema
 ):
@@ -1969,6 +1973,10 @@ def test_read_file_with_enforced_existing_file_format(
     "config.getoption('local_testing_mode', default=False)",
     reason="sql not supported in local testing mode",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Temp file format with custom name is not supported in stored proc",
+)
 def test_enforce_existing_file_format_with_additional_format_type_options(session):
     file_format_name = "ABC"
 
@@ -1997,6 +2005,10 @@ def test_enforce_existing_file_format_with_additional_format_type_options(sessio
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="sql not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Temp file format with custom name is not supported in stored proc",
 )
 def test_enforce_existing_file_format_without_providing_format_name(session):
     file_format_name = "ABC"
