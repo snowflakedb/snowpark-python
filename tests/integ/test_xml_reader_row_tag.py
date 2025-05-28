@@ -278,5 +278,18 @@ def test_read_xml_attribute_prefix(session, attribute_prefix):
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
     result = df.collect()
-    print(result[0][f"'{attribute_prefix}id'"])
+    assert len(result[0]) == 7
     assert result[0][f"'{attribute_prefix}id'"] is not None
+
+
+def test_read_xml_exclude_attributes(session):
+    row_tag = "book"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("excludeAttributes", True)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    result = df.collect()
+    assert len(result[0]) == 6
+    with pytest.raises(KeyError):
+        _ = result[0]["'_id'"]
