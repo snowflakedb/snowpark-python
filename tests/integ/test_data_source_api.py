@@ -555,7 +555,7 @@ def test_task_fetch_from_data_source_with_fetch_size(
             _task_fetch_data_from_source(**params)
     else:
         _task_fetch_data_from_source(**params)
-        time.sleep(0.01)  # Allow some time for the queue to be populated
+        time.sleep(0.5)  # Allow some time for the queue to be populated
 
         # Collect all parquet data from the queue
         parquet_files = []
