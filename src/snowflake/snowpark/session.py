@@ -256,8 +256,8 @@ _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION = (
     "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION"
 )
-_PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED = (
-    "PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED"
+_PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_VERSION = (
+    "PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_VERSION"
 )
 _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION = (
     "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION"
@@ -286,6 +286,9 @@ _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION = (
 _PYTHON_SNOWPARK_CLIENT_AST_MODE = "PYTHON_SNOWPARK_CLIENT_AST_MODE"
 _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
     "PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST"
+)
+_PYTHON_SNOWPARK_USE_OPTIMIZED_SQL_FEATURES_VERSION = (
+    "PYTHON_SNOWPARK_USE_OPTIMIZED_SQL_FEATURES_VERSION"
 )
 
 # AST encoding.
@@ -644,10 +647,8 @@ class Session:
                 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
             )
         )
-        self._reduce_describe_query_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
-            )
+        self._reduce_describe_query_enabled: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_VERSION
         )
         self._query_compilation_stage_enabled: bool = (
             self._conn._get_client_side_session_parameter(
@@ -735,7 +736,15 @@ class Session:
                 _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION
             )
         )
-        self._conf = self.RuntimeConfig(self, options or {})
+        options = options or {}
+        options.update(
+            {
+                "use_simplified_query_generation": self.is_feature_enabled_for_version(
+                    _PYTHON_SNOWPARK_USE_OPTIMIZED_SQL_FEATURES_VERSION
+                )
+            }
+        )
+        self._conf = self.RuntimeConfig(self, options)
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
