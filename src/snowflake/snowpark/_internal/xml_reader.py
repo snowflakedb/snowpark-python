@@ -270,7 +270,7 @@ def strip_xml_namespaces(elem: ET.Element) -> ET.Element:
     return elem
 
 
-def element_to_dict(
+def element_to_dict_or_str(
     element: ET.Element, attribute_prefix: str = "_", exclude_attributes: bool = False
 ) -> Optional[Union[Dict[str, Any], str]]:
     """
@@ -289,7 +289,9 @@ def element_to_dict(
     if children:
         temp_dict: Dict[str, Any] = {}
         for child in children:
-            child_dict = element_to_dict(child, attribute_prefix, exclude_attributes)
+            child_dict = element_to_dict_or_str(
+                child, attribute_prefix, exclude_attributes
+            )
             tag = child.tag
             if tag in temp_dict:
                 if not isinstance(temp_dict[tag], list):
@@ -315,6 +317,7 @@ def process_xml_range(
     strip_namespaces: bool,
     attribute_prefix: str,
     exclude_attributes: bool,
+    value_tag: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -339,6 +342,7 @@ def process_xml_range(
         strip_namespaces (bool): Whether to strip namespaces from the XML element.
         attribute_prefix (str): The prefix to add to the attribute names.
         exclude_attributes (bool): Whether to exclude attributes from the XML element.
+        value_tag (str): The tag name for the value column.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -426,11 +430,15 @@ def process_xml_range(
                     element = ET.fromstring(record_str)
                 if strip_namespaces:
                     element = strip_xml_namespaces(element)
-                yield element_to_dict(
+                result = element_to_dict_or_str(
                     element,
                     attribute_prefix=attribute_prefix,
                     exclude_attributes=exclude_attributes,
                 )
+                if isinstance(result, dict):
+                    yield result
+                else:
+                    yield {value_tag: result}
             except ET.ParseError as e:
                 if mode == "PERMISSIVE":
                     yield {column_name_of_corrupt_record: record_str}
@@ -458,6 +466,7 @@ class XMLReader:
         strip_namespaces: bool,
         attribute_prefix: str,
         exclude_attributes: bool,
+        value_tag: str,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -475,6 +484,7 @@ class XMLReader:
             strip_namespaces (bool): Whether to strip namespaces from the XML element.
             attribute_prefix (str): The prefix to add to the attribute names.
             exclude_attributes (bool): Whether to exclude attributes from the XML element.
+            value_tag (str): The tag name for the value column.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -490,5 +500,6 @@ class XMLReader:
             strip_namespaces,
             attribute_prefix,
             exclude_attributes,
+            value_tag,
         ):
             yield (element,)
