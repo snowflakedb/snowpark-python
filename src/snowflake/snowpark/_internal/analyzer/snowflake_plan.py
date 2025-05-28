@@ -1326,8 +1326,9 @@ class SnowflakePlanBuilder:
         )
 
     def find_table_function_in_sql_tree(self, plan: SnowflakePlan):
-        """This function is meant to find any table function call from a create dynamic table plan and
-        replace '*' with explicit identifier in the select of table function.
+        """This function is meant to find any udtf function call from a create dynamic table plan and
+        replace '*' with explicit column identifier in the select of table function. Since we cannot
+        differentiate udtf call from other table functions, we apply this change to all table functions.
         """
         deepcopied_plan = copy.deepcopy(plan)
         queue = deque()
