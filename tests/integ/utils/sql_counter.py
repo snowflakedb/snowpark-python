@@ -297,7 +297,7 @@ class SqlCounter(QueryListener):
         tabs and new lines.
         """
         sql = sql.upper()
-        sql = re.sub(r"\s+", " ", sql).strip()
+        sql = re.sub(r"\s+", " ", sql)
         return sql
 
     def _get_actual_queries(self):
