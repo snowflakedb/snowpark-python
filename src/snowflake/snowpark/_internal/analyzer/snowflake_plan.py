@@ -1325,7 +1325,9 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def find_table_function_in_sql_tree(self, plan: SnowflakePlan) -> SnowflakePlan:
+    def find_table_function_in_sql_tree(
+        self, plan: SnowflakePlan
+    ) -> Optional[SnowflakePlan]:
         """This function is meant to find any udtf function call from a create dynamic table plan and
         replace '*' with explicit column identifier in the select of table function. Since we cannot
         differentiate udtf call from other table functions, we apply this change to all table functions.
@@ -1339,46 +1341,55 @@ class SnowflakePlanBuilder:
         )
 
         while queue:
-            deepcopied_plan = queue.popleft()
-            for node in deepcopied_plan.children_plan_nodes:
+            plan_of_child = queue.popleft()
+            for node in plan_of_child.children_plan_nodes:
                 queue.append(node)
 
             # the bug only happen when create dynamic table on top of a table function
             # this is meant to decide whether the plan is select from a table function
-            if isinstance(deepcopied_plan, SelectTableFunction) and isinstance(
-                deepcopied_plan.snowflake_plan.source_plan, TableFunctionJoin
+            if isinstance(plan_of_child, SelectTableFunction) and isinstance(
+                plan_of_child.snowflake_plan.source_plan, TableFunctionJoin
             ):
                 # if clause used to decide that right column is '*' that we need to change and there is only 1 child
                 # plan to change, a table function can only be right joined, so we only care about right column here.
                 if (
-                    deepcopied_plan.snowflake_plan.source_plan.right_cols == ["*"]
-                    and len(deepcopied_plan.snowflake_plan.children_plan_nodes) == 1
+                    plan_of_child.snowflake_plan.source_plan.right_cols == ["*"]
+                    and len(plan_of_child.snowflake_plan.children_plan_nodes) == 1
                 ):
-                    child_plan = deepcopied_plan.snowflake_plan.children_plan_nodes[0]
+                    child_plan = plan_of_child.snowflake_plan.children_plan_nodes[0]
                     if isinstance(child_plan, Selectable):
                         child_plan = child_plan.snowflake_plan
-                    deepcopied_plan.snowflake_plan.source_plan.right_cols = (
-                        deepcopied_plan.snowflake_plan.quoted_identifiers[
+                    plan_of_child.snowflake_plan.source_plan.right_cols = (
+                        plan_of_child.snowflake_plan.quoted_identifiers[
                             len(child_plan.quoted_identifiers) :
                         ]
                     )
                     new_plan = self.session._analyzer.resolve(
-                        deepcopied_plan.snowflake_plan.source_plan
+                        plan_of_child.snowflake_plan.source_plan
                     )
-                    deepcopied_plan._snowflake_plan = new_plan
+                    plan_of_child._snowflake_plan = new_plan
 
-                    # resolve the plan to apply change
-                    self.session._analyzer.resolve(
-                        deepcopied_plan.snowflake_plan.source_plan  # type: ignore
-                        if isinstance(deepcopied_plan, Selectable)
-                        else deepcopied_plan.source_plan
+                    plan_2_resolve = (
+                        plan_of_child.snowflake_plan.source_plan  # type: ignore
+                        if isinstance(plan_of_child, Selectable)
+                        else plan_of_child.source_plan
                     )
+                    # resolve the plan to apply change
+                    if plan_2_resolve is not None:
+                        self.session._analyzer.resolve(plan_2_resolve)
+                    else:
+                        return None
         # resolve the plan to apply our change
-        return self.session._analyzer.resolve(
+        plan_2_resolve = (
             deepcopied_plan.snowflake_plan.source_plan  # type: ignore
             if isinstance(deepcopied_plan, Selectable)
             else deepcopied_plan.source_plan
         )
+        # resolve the plan to apply change
+        if plan_2_resolve is not None:
+            return self.session._analyzer.resolve(plan_2_resolve)
+        else:
+            return None
 
     def create_or_replace_dynamic_table(
         self,
@@ -1398,7 +1409,9 @@ class SnowflakePlanBuilder:
         iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
 
-        child = self.find_table_function_in_sql_tree(child)
+        updated_child = self.find_table_function_in_sql_tree(child)
+        if updated_child is not None:
+            child = updated_child
 
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
