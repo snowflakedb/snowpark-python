@@ -15,6 +15,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
     SnowflakePlan,
+    QueryLineInterval,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
@@ -77,15 +78,23 @@ def test_multiple_queries(session):
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     queries = [
         Query(
-            f"create or replace temporary table {table_name1} as select * from values(1::INT, 'a'::STRING),(2::INT, 'b'::STRING) as T(A,B)"
+            f"create or replace temporary table {table_name1} as select * from values(1::INT, 'a'::STRING),(2::INT, 'b'::STRING) as T(A,B)",
+            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid", 0)],
         ),
-        Query(f"select * from {table_name1}"),
+        Query(
+            f"select * from {table_name1}",
+            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid", 1)],
+        ),
     ]
     attrs = [Attribute("A", IntegerType()), Attribute("B", IntegerType())]
 
     try:
         plan = SnowflakePlan(
-            queries, schema_value_statement(attrs), None, None, session=session
+            queries,
+            schema_value_statement(attrs),
+            None,
+            None,
+            session=session,
         )
         plan1 = session._plan_builder.project(["A"], plan, None)
 
@@ -106,15 +115,23 @@ def test_multiple_queries(session):
     table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     queries2 = [
         Query(
-            f"create or replace temporary table {table_name2} as select * from values(3::INT),(4::INT) as T(A)"
+            f"create or replace temporary table {table_name2} as select * from values(3::INT),(4::INT) as T(A)",
+            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid2", 0)],
         ),
-        Query(f"select * from {table_name2}"),
+        Query(
+            f"select * from {table_name2}",
+            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid2", 1)],
+        ),
     ]
     attrs2 = [Attribute("C", LongType())]
 
     try:
         plan2 = SnowflakePlan(
-            queries2, schema_value_statement(attrs2), None, None, session=session
+            queries2,
+            schema_value_statement(attrs2),
+            None,
+            None,
+            session=session,
         )
         plan3 = session._plan_builder.set_operator(plan1, plan2, "UNION ALL", None)
 
@@ -310,9 +327,9 @@ def test_create_scoped_temp_table(session):
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
         inner_select_sql = (
-            f" SELECT * FROM {table_name}"
+            f"SELECT * FROM {table_name}"
             if session._sql_simplifier_enabled
-            else f" SELECT * FROM ({table_name})"
+            else f"SELECT * FROM ({table_name})"
         )
         assert Utils.normalize_sql(
             session._plan_builder.save_as_table(

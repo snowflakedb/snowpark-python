@@ -129,6 +129,8 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     ExprAliasUpdateDict,
     UNQUOTED_CASE_INSENSITIVE,
+    remove_comments,
+    get_line_numbers,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -745,14 +747,15 @@ class SnowflakePlanBuilder:
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
-        queries = select_child.queries[:-1] + [
-            Query(
-                sql_generator(select_child.queries[-1].sql),
-                query_id_place_holder="",
-                is_ddl_on_temp_object=is_ddl_on_temp_object,
-                params=select_child.queries[-1].params,
-            )
-        ]
+        commented_sql = sql_generator(select_child.queries[-1].sql)
+        final_sql = remove_comments(commented_sql, [select_child.uuid])
+        new_query = Query(
+            final_sql,
+            query_id_place_holder="",
+            is_ddl_on_temp_object=is_ddl_on_temp_object,
+            params=select_child.queries[-1].params,
+        )
+        queries = select_child.queries[:-1] + [new_query]
 
         if self._skip_schema_query:
             new_schema_query = None
@@ -762,7 +765,7 @@ class SnowflakePlanBuilder:
             ), "No schema query is available in child SnowflakePlan"
             new_schema_query = schema_query or sql_generator(child.schema_query)
 
-        return SnowflakePlan(
+        new_plan = SnowflakePlan(
             queries,
             new_schema_query,
             select_child.post_actions,
@@ -774,6 +777,12 @@ class SnowflakePlanBuilder:
             session=self.session,
             referenced_ctes=child.referenced_ctes,
         )
+        child_uuids = [(select_child.uuid, len(queries) - 1)]
+        new_intervals = get_line_numbers(
+            commented_sql, child_uuids, new_plan.uuid, len(queries) - 1
+        )
+        new_plan.queries[-1].query_line_intervals = new_intervals
+        return new_plan
 
     @SnowflakePlan.Decorator.wrap_exception
     def build_binary(
@@ -835,19 +844,22 @@ class SnowflakePlanBuilder:
                 select_left.referenced_ctes, select_right.referenced_ctes
             )
 
-        queries = merged_queries + [
-            Query(
-                sql_generator(
-                    select_left.queries[-1].sql, select_right.queries[-1].sql
-                ),
-                params=[
-                    *select_left.queries[-1].params,
-                    *select_right.queries[-1].params,
-                ],
-            )
-        ]
+        commented_sql = sql_generator(
+            select_left.queries[-1].sql, select_right.queries[-1].sql
+        )
 
-        return SnowflakePlan(
+        final_sql = remove_comments(
+            commented_sql, [select_left.uuid, select_right.uuid]
+        )
+        new_query = Query(
+            final_sql,
+            params=[
+                *select_left.queries[-1].params,
+                *select_right.queries[-1].params,
+            ],
+        )
+        queries = merged_queries + [new_query]
+        new_plan = SnowflakePlan(
             queries,
             schema_query,
             post_actions,
@@ -857,6 +869,15 @@ class SnowflakePlanBuilder:
             session=self.session,
             referenced_ctes=referenced_ctes,
         )
+        child_uuids = [
+            (select_left.uuid, len(select_left.queries) - 1),
+            (select_right.uuid, len(select_right.queries) - 1),
+        ]
+        new_intervals = get_line_numbers(
+            commented_sql, child_uuids, new_plan.uuid, len(queries) - 1
+        )
+        new_plan.queries[-1].query_line_intervals = new_intervals
+        return new_plan
 
     def query(
         self,
@@ -866,13 +887,18 @@ class SnowflakePlanBuilder:
         params: Optional[Sequence[Any]] = None,
         schema_query: Optional[str] = None,
     ) -> SnowflakePlan:
-        return SnowflakePlan(
+        new_plan = SnowflakePlan(
             queries=[Query(sql, params=params)],
             schema_query=schema_query or sql,
             session=self.session,
             source_plan=source_plan,
             api_calls=api_calls,
         )
+        query_lines = new_plan.queries[-1].sql.count("\n")
+        new_plan.queries[-1].query_line_intervals = [
+            QueryLineInterval(0, query_lines, new_plan.uuid, 0)
+        ]
+        return new_plan
 
     def large_local_relation_plan(
         self,
@@ -921,7 +947,7 @@ class SnowflakePlanBuilder:
             BatchInsertQuery(insert_stmt, data),
             Query(select_stmt),
         ]
-        return SnowflakePlan(
+        new_plan = SnowflakePlan(
             queries=queries,
             schema_query=schema_query,
             post_actions=[
@@ -936,6 +962,11 @@ class SnowflakePlanBuilder:
             session=self.session,
             source_plan=source_plan,
         )
+        for i in range(len(queries)):
+            queries[i].query_line_intervals = [
+                QueryLineInterval(0, queries[i].sql.count("\n"), new_plan.uuid, i)
+            ]
+        return new_plan
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
         return self.query(project_statement([], table_name), source_plan)
@@ -956,7 +987,14 @@ class SnowflakePlanBuilder:
         is_distinct: bool = False,
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: project_statement(project_list, x, is_distinct=is_distinct),
+            lambda x: project_statement(
+                project_list,
+                x,
+                is_distinct=is_distinct,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
+            ),
             child,
             source_plan,
         )
@@ -969,7 +1007,14 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: aggregate_statement(grouping_exprs, aggregate_exprs, x),
+            lambda x: aggregate_statement(
+                grouping_exprs,
+                aggregate_exprs,
+                x,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
+            ),
             child,
             source_plan,
         )
@@ -980,7 +1025,17 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.build(lambda x: filter_statement(condition, x), child, source_plan)
+        return self.build(
+            lambda x: filter_statement(
+                condition,
+                x,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
+            ),
+            child,
+            source_plan,
+        )
 
     def sample(
         self,
@@ -992,7 +1047,12 @@ class SnowflakePlanBuilder:
         """Builds the sample part of the resultant sql statement"""
         return self.build(
             lambda x: sample_statement(
-                x, probability_fraction=probability_fraction, row_count=row_count
+                x,
+                probability_fraction=probability_fraction,
+                row_count=row_count,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
             ),
             child,
             source_plan,
@@ -1018,7 +1078,17 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.build(lambda x: sort_statement(order, x), child, source_plan)
+        return self.build(
+            lambda x: sort_statement(
+                order,
+                x,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
+            ),
+            child,
+            source_plan,
+        )
 
     def set_operator(
         self,
@@ -1052,6 +1122,12 @@ class SnowflakePlanBuilder:
                 join_condition,
                 match_condition,
                 use_constant_subquery_alias,
+                left_uuid=left.uuid
+                if self.session._generate_multiline_queries
+                else None,
+                right_uuid=right.uuid
+                if self.session._generate_multiline_queries
+                else None,
             ),
             left,
             right,
@@ -1277,7 +1353,15 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: limit_statement(limit_expr, offset_expr, x, on_top_of_oder_by),
+            lambda x: limit_statement(
+                limit_expr,
+                offset_expr,
+                x,
+                on_top_of_oder_by,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
+            ),
             child,
             source_plan,
         )
@@ -1300,6 +1384,9 @@ class SnowflakePlanBuilder:
                 default_on_null,
                 x,
                 should_alias_column_with_agg,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
             ),
             child,
             source_plan,
@@ -1316,7 +1403,14 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         return self.build(
             lambda x: unpivot_statement(
-                value_column, name_column, column_list, include_nulls, x
+                value_column,
+                name_column,
+                column_list,
+                include_nulls,
+                x,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
             ),
             child,
             source_plan,
@@ -2038,7 +2132,13 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: lateral_statement(table_function, x),
+            lambda x: lateral_statement(
+                table_function,
+                x,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
+            ),
             child,
             source_plan,
         )
@@ -2064,7 +2164,14 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         return self.build(
             lambda x: join_table_function_statement(
-                func, x, left_cols, right_cols, use_constant_subquery_alias
+                func,
+                x,
+                left_cols,
+                right_cols,
+                use_constant_subquery_alias,
+                child_uuid=child.uuid
+                if self.session._generate_multiline_queries
+                else None,
             ),
             child,
             source_plan,
@@ -2105,7 +2212,6 @@ class SnowflakePlanBuilder:
             raise ValueError(
                 "schema query for WithQueryBlock is currently not supported"
             )
-
         name = with_query_block.name
         new_query = project_statement([], name)
 
@@ -2138,6 +2244,17 @@ class PlanQueryType(Enum):
     POST_ACTIONS = "post_actions"
 
 
+class QueryLineInterval:
+    def __init__(self, start: int, end: int, uuid: str, query_idx: int) -> None:
+        self.start = start
+        self.end = end
+        self.uuid = uuid
+        self.query_idx = query_idx
+
+    def __repr__(self) -> str:
+        return f"QueryLineInterval(start={self.start}, end={self.end}, uuid={self.uuid}, query_idx={self.query_idx})"
+
+
 class Query:
     def __init__(
         self,
@@ -2147,6 +2264,7 @@ class Query:
         is_ddl_on_temp_object: bool = False,
         temp_obj_name_placeholder: Optional[Tuple[str, TempObjectType]] = None,
         params: Optional[Sequence[Any]] = None,
+        query_line_intervals: Optional[List[QueryLineInterval]] = None,
     ) -> None:
         self.sql = sql
         self.query_id_place_holder = (
@@ -2166,6 +2284,7 @@ class Query:
         self.temp_obj_name_placeholder = temp_obj_name_placeholder
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
+        self.query_line_intervals = query_line_intervals or []
 
     def __repr__(self) -> str:
         return (

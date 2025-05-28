@@ -60,7 +60,11 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+        SnowflakePlan,
+        QueryLineInterval,
+    )
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2

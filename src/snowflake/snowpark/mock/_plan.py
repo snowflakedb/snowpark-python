@@ -107,6 +107,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
     SnowflakePlan,
+    QueryLineInterval,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
@@ -198,8 +199,10 @@ class MockExecutionPlan(LogicalPlan):
         self.source_plan = source_plan
         self.session = session
         self.schema_query = None
+        self.uuid = "MOCK_UUID"
         mock_query = MagicMock()
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
+        mock_query.query_line_intervals = [QueryLineInterval(0, 0, self.uuid, 0)]
         self.queries = [mock_query]
         self.child = child
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}

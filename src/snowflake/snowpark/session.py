@@ -793,6 +793,7 @@ class Session:
         self._generate_multiline_queries = True
         analyzer_utils.NEW_LINE = "\n"
         analyzer_utils.TAB = "    "
+        analyzer_utils.UUID_FORMAT = "-- {}\n"
 
     def _disable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
@@ -800,6 +801,7 @@ class Session:
         self._generate_multiline_queries = False
         analyzer_utils.NEW_LINE = ""
         analyzer_utils.TAB = ""
+        analyzer_utils.UUID_FORMAT = ""
 
     def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
         """

@@ -135,10 +135,10 @@ def test_set_same_operator(session, set_operator):
         result1 = df1.intersect(df2).intersect(df3.intersect(df4))
         Utils.check_answer(result1, [], sort=False)
 
-    query1 = result1._plan.queries[-1].sql
+    query1 = Utils.normalize_sql(result1._plan.queries[-1].sql)
     assert (
         query1
-        == f"(SELECT 1 as a, 2 as b){set_operator}(SELECT 2 as a, 2 as b){set_operator}((SELECT 3 as a, 2 as b){set_operator}(SELECT 4 as a, 2 as b))"
+        == f"( SELECT 1 as a, 2 as b ){set_operator}( SELECT 2 as a, 2 as b ){set_operator}( ( SELECT 3 as a, 2 as b ){set_operator}( SELECT 4 as a, 2 as b ) )"
     )
 
 
@@ -171,7 +171,7 @@ def test_distinct_set_operator(session, distinct_table, action, operator):
         df = action(df1, df2).distinct()
         assert (
             Utils.normalize_sql(df.queries["queries"][0])
-            == f"""SELECT DISTINCT * FROM (( SELECT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table}))"""
+            == f"""SELECT DISTINCT * FROM ( ( SELECT * FROM {distinct_table} ){operator}( SELECT * FROM {distinct_table} ) )"""
         )
 
         df = action(df1, df2.distinct()).distinct()
@@ -202,35 +202,35 @@ def test_union_and_other_operators(session, set_operator):
         result1 = df1.union(df2).union_all(df3)
         result2 = df1.union(df2.union_all(df3))
         assert (
-            result1._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION (SELECT 2 as a){set_operator}((SELECT 3 as a))"
+            Utils.normalize_sql(result1._plan.queries[-1].sql)
+            == f"( SELECT 1 as a ) UNION ( SELECT 2 as a ){set_operator}( ( SELECT 3 as a ) )"
         )
         assert (
-            result2._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION ((SELECT 2 as a){set_operator}(SELECT 3 as a))"
+            Utils.normalize_sql(result2._plan.queries[-1].sql)
+            == f"( SELECT 1 as a ) UNION ( ( SELECT 2 as a ){set_operator}( SELECT 3 as a ) )"
         )
     elif SET_EXCEPT == set_operator:
         result1 = df1.union(df2).except_(df3)
         result2 = df1.union(df2.except_(df3))
         assert (
-            result1._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION (SELECT 2 as a){set_operator}((SELECT 3 as a))"
+            Utils.normalize_sql(result1._plan.queries[-1].sql)
+            == f"( SELECT 1 as a ) UNION ( SELECT 2 as a ){set_operator}( ( SELECT 3 as a ) )"
         )
         assert (
-            result2._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION ((SELECT 2 as a){set_operator}(SELECT 3 as a))"
+            Utils.normalize_sql(result2._plan.queries[-1].sql)
+            == f"( SELECT 1 as a ) UNION ( ( SELECT 2 as a ){set_operator}( SELECT 3 as a ) )"
         )
     else:  # intersect
         # intersect has higher precedence than union and other set operators
         result1 = df1.union(df2).intersect(df3)
         result2 = df1.union(df2.intersect(df3))
         assert (
-            result1._plan.queries[-1].sql
-            == f"((SELECT 1 as a) UNION (SELECT 2 as a)){set_operator}((SELECT 3 as a))"
+            Utils.normalize_sql(result1._plan.queries[-1].sql)
+            == f"( ( SELECT 1 as a ) UNION ( SELECT 2 as a ) ){set_operator}( ( SELECT 3 as a ) )"
         )
         assert (
-            result2._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION ((SELECT 2 as a){set_operator}(SELECT 3 as a))"
+            Utils.normalize_sql(result2._plan.queries[-1].sql)
+            == f"( SELECT 1 as a ) UNION ( ( SELECT 2 as a ){set_operator}( SELECT 3 as a ) )"
         )
 
 
