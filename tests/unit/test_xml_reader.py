@@ -55,6 +55,14 @@ def test_element_to_dict_attributes(attribute_prefix):
     assert result == expected
 
 
+def test_element_to_dict_exclude_attributes():
+    # Element with attributes only.
+    element = ET.Element("person", attrib={"name": "Alice", "age": "30"})
+    result = element_to_dict(element, attribute_prefix="_", exclude_attributes=True)
+    expected = {}
+    assert result == expected
+
+
 def test_element_to_dict_children():
     # Element with children including repeated tags.
     root = ET.Element("data")
