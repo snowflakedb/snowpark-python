@@ -85,7 +85,7 @@ def infer_quoted_identifiers_from_expressions(
 
 def _extract_inferable_attribute_names(
     attributes: Optional[List[Expression]],
-) -> tuple[List[Expression], List[Expression]]:
+) -> tuple[Optional[List[Attribute]], Optional[List[Attribute]]]:
     """
     Returns a list of attribute names that can be infered from a list of Expressions.
     Returns None if one or more attributes cannot be infered.
@@ -112,7 +112,8 @@ def _extract_inferable_attribute_names(
         elif isinstance(attr, (UnresolvedAttribute, UnresolvedAlias)):
             return None, None
         else:
-            raise ValueError(attr)
+            # This should not be reached, but if it is it means 
+            # that we don't know how to process the attribute yet.
             return None, None
     return old_attributes, new_attributes
 
@@ -208,9 +209,9 @@ def infer_metadata(
                 attributes = source_plan.attributes
         elif isinstance(source_plan, SelectStatement):
 
-            def extract_attributes(current_plan):
+            def extract_attributes(current_plan: LogicalPlan) -> Optional[List[Expression]]:
                 # When attributes is cached on source_plan, just use it
-                attributes = None
+                attributes: Optional[List[Expression]] = None
                 if isinstance(current_plan, SelectStatement):
                     if current_plan.attributes is not None:
                         attributes = current_plan.attributes
@@ -220,13 +221,13 @@ def infer_metadata(
                             expected_attributes,
                             new_attributes,
                         ) = _extract_inferable_attribute_names(current_plan.projection)
-                        if from_attributes is not None and new_attributes is not None:
+                        if from_attributes is not None and expected_attributes is not None and new_attributes is not None:
                             missing_attrs = {
                                 attr.name for attr in expected_attributes
                             } - {attr.name for attr in from_attributes}
                             if not missing_attrs and all(
-                                type(attr.datatype) != DataType
-                                for attr in current_plan.projection
+                                isinstance(attr, (Attribute, Alias)) and type(attr.datatype) != DataType
+                                for attr in current_plan.projection or []
                             ):
                                 attributes = current_plan.projection
                 elif isinstance(
@@ -245,7 +246,8 @@ def infer_metadata(
                     # Union usues the schema from the first child
                     attributes = extract_attributes(current_plan._nodes[0])
                 else:
-                    raise ValueError(current_plan)
+                    # This should only be reached if new plan types are added to the analyzer.
+                    return None
                 return attributes
 
             attributes = extract_attributes(source_plan)
