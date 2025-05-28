@@ -33,7 +33,7 @@ SELECT = "SELECT "
 INSERT = "INSERT "
 WITH = "WITH "
 CREATE_TEMP_TABLE = "CREATE  TEMPORARY  TABLE"
-UNION = "UNION"
+UNION = " UNION "
 WINDOW = " OVER "
 WITH_SNOWPARK_TEMP_CTE = "WITH SNOWPARK_TEMP_CTE_"
 
@@ -298,6 +298,8 @@ class SqlCounter(QueryListener):
         """
         sql = sql.upper()
         sql = re.sub(r"\s+", " ", sql)
+        sql = re.sub(r"\(\s+", "(", sql)
+        sql = re.sub(r"\s+\)", ")", sql)
         return sql
 
     def _get_actual_queries(self):

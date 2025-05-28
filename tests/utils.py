@@ -487,7 +487,10 @@ class Utils:
 
     @staticmethod
     def normalize_sql(sql_query: str) -> str:
-        return re.sub(r"\s+", " ", sql_query).strip()
+        normalized = re.sub(r"\s+", " ", sql_query).strip()
+        normalized = re.sub(r"\(\s+", "(", normalized)
+        normalized = re.sub(r"\s+\)", ")", normalized)
+        return normalized
 
 
 class TestData:
