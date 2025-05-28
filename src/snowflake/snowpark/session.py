@@ -663,7 +663,7 @@ class Session:
             )
         )
         if self._generate_multiline_queries:
-            self.enable_multiline__queries()
+            self._enable_multiline__queries()
 
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
@@ -785,13 +785,13 @@ class Session:
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
         )
 
-    def enable_multiline__queries(self):
+    def _enable_multiline__queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
         analyzer_utils.NEW_LINE = "\n"
         analyzer_utils.TAB = "    "
 
-    def disable_multiline_queries(self):
+    def _disable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
         analyzer_utils.NEW_LINE = ""
