@@ -312,6 +312,7 @@ def process_xml_range(
     mode: str,
     column_name_of_corrupt_record: str,
     strip_namespaces: bool,
+    attribute_prefix: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -334,6 +335,7 @@ def process_xml_range(
             "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
         column_name_of_corrupt_record (str): The name of the column for corrupt records.
         strip_namespaces (bool): Whether to strip namespaces from the XML element.
+        attribute_prefix (str): The prefix to add to the attribute names.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -421,7 +423,7 @@ def process_xml_range(
                     element = ET.fromstring(record_str)
                 if strip_namespaces:
                     element = strip_xml_namespaces(element)
-                yield element_to_dict(element)
+                yield element_to_dict(element, attribute_prefix=attribute_prefix)
             except ET.ParseError as e:
                 if mode == "PERMISSIVE":
                     yield {column_name_of_corrupt_record: record_str}
@@ -447,6 +449,7 @@ class XMLReader:
         mode: str,
         column_name_of_corrupt_record: str,
         strip_namespaces: bool,
+        attribute_prefix: str,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -462,6 +465,7 @@ class XMLReader:
                 "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
             column_name_of_corrupt_record (str): The name of the column for corrupt records.
             strip_namespaces (bool): Whether to strip namespaces from the XML element.
+            attribute_prefix (str): The prefix to add to the attribute names.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -475,5 +479,6 @@ class XMLReader:
             mode,
             column_name_of_corrupt_record,
             strip_namespaces,
+            attribute_prefix,
         ):
             yield (element,)

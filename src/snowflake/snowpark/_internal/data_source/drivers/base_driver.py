@@ -51,8 +51,8 @@ class BaseDriver:
             f"{self.__class__.__name__} has not implemented to_snow_type function"
         )
 
+    @staticmethod
     def prepare_connection(
-        self,
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
@@ -100,7 +100,7 @@ class BaseDriver:
         udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
         start = time.time()
         session.udtf.register(
-            self.udtf_class_builder(fetch_size=fetch_size),
+            self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
             name=udtf_name,
             output_schema=StructType(
                 [
@@ -119,7 +119,9 @@ class BaseDriver:
         res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
         return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
 
-    def udtf_class_builder(self, fetch_size: int = 1000) -> type:
+    def udtf_class_builder(
+        self, fetch_size: int = 1000, schema: StructType = None
+    ) -> type:
         create_connection = self.create_connection
 
         class UDTFIngestion:
@@ -190,7 +192,7 @@ class BaseDriver:
 
     @staticmethod
     def to_result_snowpark_df(
-        session: "Session", table_name, schema, _emit_ast: bool = True
+        session: "Session", table_name: str, schema: StructType, _emit_ast: bool = True
     ) -> "DataFrame":
         return session.table(table_name, _emit_ast=_emit_ast)
 

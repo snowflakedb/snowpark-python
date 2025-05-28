@@ -3190,6 +3190,11 @@ class Session:
                 f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
             )
 
+        if hasattr(df, "columns") and len(df.columns) == 0:
+            raise ProgrammingError(
+                "The provided schema or inferred schema cannot be None or empty"
+            )
+
         success = None  # forward declaration
         try:
             if quote_identifiers:

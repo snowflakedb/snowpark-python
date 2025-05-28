@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.data_source.dbms_dialects import (
     OracledbDialect,
     SqlServerDialect,
     DatabricksDialect,
+    PostgresDialect,
     MysqlDialect,
 )
 from snowflake.snowpark._internal.data_source.drivers import (
@@ -20,6 +21,7 @@ from snowflake.snowpark._internal.data_source.drivers import (
     OracledbDriver,
     PyodbcDriver,
     DatabricksDriver,
+    Psycopg2Driver,
     PymysqlDriver,
 )
 import snowflake
@@ -43,6 +45,7 @@ class DBMS_TYPE(Enum):
     ORACLE_DB = "ORACLE_DB"
     SQLITE_DB = "SQLITE3_DB"
     DATABRICKS_DB = "DATABRICKS_DB"
+    POSTGRES_DB = "POSTGRES_DB"
     MYSQL_DB = "MYSQL_DB"
     UNKNOWN = "UNKNOWN"
 
@@ -52,6 +55,7 @@ class DRIVER_TYPE(str, Enum):
     ORACLEDB = "oracledb"
     SQLITE3 = "sqlite3"
     DATABRICKS = "databricks.sql.client"
+    PSYCOPG2 = "psycopg2.extensions"
     PYMYSQL = "pymysql.connections"
     UNKNOWN = "unknown"
 
@@ -61,6 +65,7 @@ DBMS_MAP = {
     DBMS_TYPE.ORACLE_DB: OracledbDialect,
     DBMS_TYPE.SQLITE_DB: Sqlite3Dialect,
     DBMS_TYPE.DATABRICKS_DB: DatabricksDialect,
+    DBMS_TYPE.POSTGRES_DB: PostgresDialect,
     DBMS_TYPE.MYSQL_DB: MysqlDialect,
 }
 
@@ -69,16 +74,22 @@ DRIVER_MAP = {
     DRIVER_TYPE.ORACLEDB: OracledbDriver,
     DRIVER_TYPE.SQLITE3: SqliteDriver,
     DRIVER_TYPE.DATABRICKS: DatabricksDriver,
+    DRIVER_TYPE.PSYCOPG2: Psycopg2Driver,
     DRIVER_TYPE.PYMYSQL: PymysqlDriver,
 }
 
 UDTF_PACKAGE_MAP = {
-    DBMS_TYPE.ORACLE_DB: ["oracledb", "snowflake-snowpark-python"],
+    DBMS_TYPE.ORACLE_DB: ["oracledb>=2.0.0,<4.0.0", "snowflake-snowpark-python"],
     DBMS_TYPE.SQLITE_DB: ["snowflake-snowpark-python"],
     DBMS_TYPE.SQL_SERVER_DB: [
-        "pyodbc>=4.0.26",
+        "pyodbc>=4.0.26,<6.0.0",
         "msodbcsql",
         "snowflake-snowpark-python",
+    ],
+    DBMS_TYPE.POSTGRES_DB: ["psycopg2>=2.0.0,<3.0.0", "snowflake-snowpark-python"],
+    DBMS_TYPE.DATABRICKS_DB: [
+        "snowflake-snowpark-python",
+        "databricks-sql-connector>=4.0.0,<5.0.0",
     ],
     DBMS_TYPE.MYSQL_DB: ["pymysql>=1.0.0,<2.0.0", "snowflake-snowpark-python"],
 }
@@ -125,6 +136,7 @@ DBMS_MAPPING = {
     DRIVER_TYPE.ORACLEDB: lambda conn: DBMS_TYPE.ORACLE_DB,
     DRIVER_TYPE.SQLITE3: lambda conn: DBMS_TYPE.SQLITE_DB,
     DRIVER_TYPE.DATABRICKS: lambda conn: DBMS_TYPE.DATABRICKS_DB,
+    DRIVER_TYPE.PSYCOPG2: lambda conn: DBMS_TYPE.POSTGRES_DB,
     DRIVER_TYPE.PYMYSQL: lambda conn: DBMS_TYPE.MYSQL_DB,
 }
 
