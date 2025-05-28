@@ -741,7 +741,9 @@ class Session:
             )
         )
         options = options or {}
-        options.update({"use_simplified_query_generation": self._use_optimized_sql_features})
+        options.update(
+            {"use_simplified_query_generation": self._use_optimized_sql_features}
+        )
         self._conf = self.RuntimeConfig(self, options)
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
