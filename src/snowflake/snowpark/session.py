@@ -91,7 +91,7 @@ from snowflake.snowpark._internal.packaging_utils import (
     zip_directory_contents,
 )
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.telemetry import set_api_call_source
+from snowflake.snowpark._internal.telemetry import TelemetryField, set_api_call_source
 from snowflake.snowpark._internal.temp_table_auto_cleaner import TempTableAutoCleaner
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
@@ -744,6 +744,7 @@ class Session:
         self._ast_batch = AstBatch(self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
+        self._send_optimization_state_telemetry()
 
         # Register self._close_at_exit so it will be called at interpreter shutdown
         atexit.register(self._close_at_exit)
@@ -862,6 +863,36 @@ class Session:
     @property
     def conf(self) -> RuntimeConfig:
         return self._conf
+
+    def _send_optimization_state_telemetry(self) -> None:
+        optimization_state_dict = {}
+        optimization_state_dict[
+            TelemetryField.SQL_SIMPLIFIER_ENABLED.value
+        ] = self._sql_simplifier_enabled
+        optimization_state_dict[
+            TelemetryField.CTE_OPTIMIZATION_ENABLED.value
+        ] = self._cte_optimization_enabled
+        optimization_state_dict[
+            TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value
+        ] = self._large_query_breakdown_enabled
+        optimization_state_dict[
+            TelemetryField.REDUCE_DESCRIBE_QUERY_ENABLED.value
+        ] = self._reduce_describe_query_enabled
+        optimization_state_dict[
+            TelemetryField.JOIN_ALIAS_FIX_ENABLED.value
+        ] = self._join_alias_fix
+        optimization_state_dict[
+            TelemetryField.USE_OPTIMIZED_SQL_FEATURES_ENABLED.value
+        ] = self._use_optimized_sql_features
+        optimization_state_dict[
+            TelemetryField.QUERY_COMPILATION_STAGE_ENABLED.value
+        ] = self._query_compilation_stage_enabled
+        optimization_state_dict[
+            TelemetryField.TEMP_TABLE_CLEANER_ENABLED.value
+        ] = self._auto_clean_up_temp_table_enabled
+        self._conn._telemetry_client.send_optimization_state_telemetry(
+            self._session_id, optimization_state_dict
+        )
 
     @property
     def sql_simplifier_enabled(self) -> bool:
