@@ -58,6 +58,7 @@ from snowflake.snowpark.types import (
 
 if TYPE_CHECKING:
     import pandas
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:

@@ -15,10 +15,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 
 
-class EntireWindowIndexer(object):
+class EntireWindowIndexer:
     def __init__(self, *args, **kwargs) -> None:
         try:
             from pandas.api.indexers import BaseIndexer
+
             if BaseIndexer not in self.__class__.__bases__:
                 self.__class__.__bases__ = (BaseIndexer,)
         except ImportError:
@@ -27,6 +28,7 @@ class EntireWindowIndexer(object):
 
     def get_window_bounds(self, num_values, min_periods, center, closed, step):
         import numpy as np
+
         start = np.empty(num_values, dtype=np.int64)
         end = np.empty(num_values, dtype=np.int64)
         for i in range(num_values):
@@ -36,10 +38,11 @@ class EntireWindowIndexer(object):
         return start, end
 
 
-class RowFrameIndexer(object):
+class RowFrameIndexer:
     def __init__(self, *args, **kwargs) -> None:
         try:
             from pandas.api.indexers import BaseIndexer
+
             if BaseIndexer not in self.__class__.__bases__:
                 self.__class__.__bases__ = (BaseIndexer,)
         except ImportError:
@@ -48,6 +51,7 @@ class RowFrameIndexer(object):
 
     def get_window_bounds(self, num_values, min_periods, center, closed, step):
         import numpy as np
+
         start = np.empty(num_values, dtype=np.int64)
         end = np.empty(num_values, dtype=np.int64)
 

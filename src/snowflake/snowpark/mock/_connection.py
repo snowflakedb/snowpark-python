@@ -11,7 +11,18 @@ import uuid
 from copy import copy
 from decimal import Decimal
 from logging import getLogger
-from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import (
+    IO,
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+)
 from unittest.mock import Mock
 
 import snowflake.snowpark.mock._constants
@@ -147,6 +158,7 @@ class MockServerConnection:
             column_names: Optional[List[str]] = None,
         ) -> List[Row]:
             import pandas
+
             with self._lock:
                 for column in table.columns:
                     if (
@@ -707,6 +719,7 @@ class MockServerConnection:
 
         if to_pandas:
             import pandas
+
             pandas_df = pandas.DataFrame()
             for col_name in res.columns:
                 pandas_df[unquote_if_quoted(col_name)] = res[col_name].tolist()
@@ -813,6 +826,7 @@ class MockServerConnection:
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
     import pandas
+
     pd_df = pandas.DataFrame()
     for col_name in table_res.columns:
         col_sf_type = table_res.sf_types[col_name]

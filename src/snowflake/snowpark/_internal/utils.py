@@ -230,6 +230,7 @@ def pandas():  # noqa: E302
         pass  # pragma: no cover
     return pandas
 
+
 def installed_pandas():
     return not isinstance(pandas, MissingOptionalDependency)
 

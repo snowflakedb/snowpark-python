@@ -185,6 +185,7 @@ from snowflake.snowpark.types import (
 if TYPE_CHECKING:
     import pandas as pd
 
+
 class MockExecutionPlan(LogicalPlan):
     def __init__(
         self,
@@ -423,6 +424,7 @@ def handle_range_frame_indexing(
 
     if order_spec:
         import pandas as pd
+
         ordered_windows = [
             handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
             for win in res.rolling(EntireWindowIndexer())
@@ -825,6 +827,7 @@ def handle_udtf_expression(
 
     # TODO: handle and support imports + other udtf attributes.
     import pandas as pd
+
     udtf_registry = analyzer.session.udtf
     udtf_name = exp.func_name
     udtf = udtf_registry.get_udtf(udtf_name)
@@ -1017,6 +1020,7 @@ def execute_mock_plan(
 ) -> Union[TableEmulator, List[Row]]:
     import numpy as np
     import pandas as pd
+
     if expr_to_alias is None:
         expr_to_alias = plan.expr_to_alias
 
@@ -2197,6 +2201,7 @@ def calculate_expression(
     """
     import numpy as np
     import pandas as pd
+
     registry = MockedFunctionRegistry.get_or_create()
 
     if isinstance(exp, Attribute):

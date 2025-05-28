@@ -29,6 +29,7 @@ from snowflake.snowpark.types import (
 if TYPE_CHECKING:
     import snowflake.connector.options.installed_pandas as installed_pandas
     import pandas as pd
+
     PandasDataframeType = object if not installed_pandas else pd.DataFrame
     PandasSeriesType = object if not installed_pandas else pd.Series
 
@@ -168,6 +169,7 @@ def isna_helper(obj: Any) -> bool:
     """Small helper function to detect whether object is considered NULL. Needed because for
     lists, tuples, ... pandas isna() does not handle correctly."""
     import pandas as pd
+
     if isinstance(obj, Iterable):
         return False
     return pd.isna(obj)
@@ -384,8 +386,8 @@ def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
 
 class LazyPandasMeta(type):
     def __new__(mcs, name, bases, namespace, pandas_type=None):
-        namespace['_pandas_type'] = pandas_type
-        namespace['_real_base'] = None
+        namespace["_pandas_type"] = pandas_type
+        namespace["_real_base"] = None
         return super().__new__(mcs, name, bases, namespace)
 
     def __call__(cls, *args, **kwargs):
@@ -394,9 +396,10 @@ class LazyPandasMeta(type):
 
             if installed_pandas and cls._pandas_type:
                 import pandas as pd
-                if cls._pandas_type == 'DataFrame':
+
+                if cls._pandas_type == "DataFrame":
                     cls._real_base = pd.DataFrame
-                elif cls._pandas_type == 'Series':
+                elif cls._pandas_type == "Series":
                     cls._real_base = pd.Series
             else:
                 cls._real_base = object
@@ -405,7 +408,7 @@ class LazyPandasMeta(type):
         return super().__call__(*args, **kwargs)
 
 
-class TableEmulator(metaclass=LazyPandasMeta, pandas_type='DataFrame'):
+class TableEmulator(metaclass=LazyPandasMeta, pandas_type="DataFrame"):
     _metadata = [
         "sf_types",
         "sf_types_by_col_index",
@@ -495,6 +498,7 @@ def add_date_and_number(
     col1: "ColumnEmulator", col2: "ColumnEmulator"
 ) -> Optional["ColumnEmulator"]:
     import pandas as pd
+
     """If one column is DateType and another column is numeric, round and add the numeric to days"""
     if isinstance(col2.sf_type.datatype, DateType):
         col1, col2 = col2, col1
@@ -520,7 +524,8 @@ def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
     # Create Series with length len.
     return ColumnEmulator([value] * len)
 
-class ColumnEmulator(metaclass=LazyPandasMeta, pandas_type='Series'):
+
+class ColumnEmulator(metaclass=LazyPandasMeta, pandas_type="Series"):
     _metadata = ["sf_type", "_null_rows_idxs"]
 
     @property

@@ -51,6 +51,7 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType
 
+
 def _alias(expr: Expression) -> NamedExpression:
     if isinstance(expr, UnresolvedAttribute):
         return UnresolvedAlias(expr)

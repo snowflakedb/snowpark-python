@@ -8,7 +8,17 @@ import math
 import os
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence, TYPE_CHECKING
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    Literal,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 from snowflake.connector import ProgrammingError
 from snowflake.connector.cursor import SnowflakeCursor
