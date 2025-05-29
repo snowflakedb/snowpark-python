@@ -84,7 +84,7 @@ def test_snowpark_pandas_telemetry_standalone_function_decorator(
     send_telemetry_mock.assert_not_called()
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_standalone_api_telemetry():
     df = pd.Series(["1", "2", "3"])
     newdf = pd.to_numeric(df)
@@ -199,7 +199,7 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_not_equal_to_default():
     # Test DataFrame type
     df_none = pd.DataFrame()
@@ -224,7 +224,7 @@ def test_not_equal_to_default():
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_telemetry_args():
     def sample_function(
         arg1_no_default_int: int,
@@ -331,7 +331,7 @@ def test_property_methods_telemetry():
     assert api_call["name"] == "Series.<property fget:date>"
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_telemetry_with_update_inplace():
     # verify api_calls have been collected correctly for APIs using _update_inplace() in base.py
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
@@ -340,7 +340,7 @@ def test_telemetry_with_update_inplace():
     assert df._query_compiler.snowpark_pandas_api_calls[0]["name"] == "DataFrame.insert"
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_telemetry_with_resample():
     # verify api_calls have been collected correctly for Resample APIs
     index = pandas.date_range("1/1/2000", periods=9, freq="min")
@@ -359,7 +359,7 @@ def test_telemetry_with_resample():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_telemetry_with_groupby():
     # verify api_calls have been collected correctly for GroupBy APIs
     df = pd.DataFrame(
@@ -373,11 +373,11 @@ def test_telemetry_with_groupby():
     assert len(results._query_compiler.snowpark_pandas_api_calls) == 1
     assert (
         results._query_compiler.snowpark_pandas_api_calls[0]["name"]
-        == "DataFrameGroupBy.DataFrameGroupBy.mean"
+        == "DataFrameGroupBy.mean"
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_telemetry_with_rolling():
     # verify api_calls have been collected correctly for Rolling APIs
     df = pd.DataFrame({"A": ["h", "e", "l", "l", "o"], "B": [0, -1, 2.5, np.nan, 4]})
@@ -390,7 +390,7 @@ def test_telemetry_with_rolling():
     )
 
 
-@sql_count_checker(query_count=4, join_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_telemetry_getitem_setitem():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     s = df["a"]
@@ -457,7 +457,7 @@ def test_telemetry_private_method(
     assert data["api_calls"] == [{"name": expected_func_name}]
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_telemetry_property_index():
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df._query_compiler.snowpark_pandas_api_calls.clear()
@@ -485,7 +485,7 @@ def test_telemetry_property_index():
     "name, method, expected_query_count, expected_join_count",
     [
         ["iloc", lambda df: df.iloc[0, 0], 1, 0],
-        ["loc", lambda df: df.loc[0, "a"], 3, 2],
+        ["loc", lambda df: df.loc[0, "a"], 2, 2],
     ],
 )
 def test_telemetry_property_iloc(
@@ -547,7 +547,7 @@ def test_telemetry_property_missing_methods(method_verb, name, method, method_no
     ]
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_telemetry_repr():
     s = pd.Series([1, 2, 3, 4])
     s.__repr__()
@@ -561,12 +561,7 @@ def test_telemetry_repr():
     ]
 
 
-@pytest.mark.xfail(
-    AssertionError,
-    strict=True,
-    reason="TODO hybrid figure out why assert len(telemetry_data) == 6 fails",
-)
-@sql_count_checker(query_count=7, join_count=4)
+@sql_count_checker(query_count=6, join_count=4)
 def test_telemetry_interchange_call_count():
     s = pd.DataFrame([1, 2, 3, 4])
     t = pd.DataFrame([5])
@@ -607,18 +602,13 @@ def test_telemetry_interchange_call_count():
     assert telemetry_data[5]["call_count"] == 2
 
 
-@pytest.mark.xfail(
-    IndexError,
-    strict=True,
-    reason="TODO hybrid when run as part of the whole file, telemetry_data is missing elements",
-)
 def test_telemetry_func_call_count(session):
     # TODO (SNOW-1893699): test failing on github with sql simplifier disabled.
     #   Turn this back on once fixed.
     if session.sql_simplifier_enabled is False:
         return
 
-    with SqlCounter(query_count=6):
+    with SqlCounter(query_count=4):
         s = pd.DataFrame([1, 2, np.nan, 4])
         t = pd.DataFrame([5])
 
@@ -651,7 +641,7 @@ def test_telemetry_func_call_count(session):
         assert telemetry_data[-1]["call_count"] == 1
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_telemetry_multiple_func_call_count():
     s = pd.DataFrame([1, 2, np.nan, 4])
 
@@ -689,7 +679,7 @@ def test_telemetry_multiple_func_call_count():
     assert dataframe_telemetry_data[-1]["call_count"] == 1
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_telemetry_copy():
     # copy() is defined in upstream Modin's BasePandasDataset class, and not overridden by any
     # child class or the extensions module.
@@ -711,7 +701,7 @@ def test_telemetry_copy():
     ]
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_telemetry_series_describe():
     # describe() is defined in upstream Modin's Series class, and calls super().describe().
     # Snowpark pandas overrides the BasePandasDataset superclass implementation, but telemetry on it
@@ -724,7 +714,7 @@ def test_telemetry_series_describe():
     ]
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_telemetry_series_isin():
     # isin is overridden in both series_overrides.py and base_overrides.py
     # This test ensures we only report telemetry for one
@@ -736,7 +726,7 @@ def test_telemetry_series_isin():
     ]
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_telemetry_quantile():
     # quantile is overridden in base_overrides.py
     s = pd.Series([1, 2, 3, 4])
@@ -752,7 +742,7 @@ def test_telemetry_quantile():
     ]
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_telemetry_cache_result():
     # cache_result exists only in Snowpark pandas
     s = pd.Series([1, 2, 3, 4])

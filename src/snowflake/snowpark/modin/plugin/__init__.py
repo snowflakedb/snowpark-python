@@ -257,11 +257,17 @@ modin.pandas.base._ATTRS_NO_LOOKUP.update(_ATTRS_NO_LOOKUP)
 # df.modin.to_pandas() that Snowpark pandas raises NotImplementedError for.
 from modin.pandas import DataFrame, Series  # isort: skip  # noqa: E402,F401
 from modin.pandas.base import BasePandasDataset  # isort: skip  # noqa: E402,F401
+from modin.pandas.groupby import (  # isort: skip  # noqa: E402,F401
+    DataFrameGroupBy,
+    SeriesGroupBy,
+)
 from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
     register_pd_accessor,
     register_series_accessor,
     register_dataframe_accessor,
     register_base_accessor,
+    register_dataframe_groupby_accessor,
+    register_series_groupby_accessor,
 )
 from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
 
@@ -274,7 +280,7 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
 
 
 def _maybe_apply_telemetry(
-    cls: Union[DataFrame, Series, BasePandasDataset],
+    cls: Union[DataFrame, Series, DataFrameGroupBy, SeriesGroupBy, BasePandasDataset],
     register_method: Callable,
     attr_name: str,
 ) -> Any:
@@ -326,6 +332,13 @@ for attr_name in BasePandasDataset.__dict__:
     ):
         _maybe_apply_telemetry(BasePandasDataset, register_base_accessor, attr_name)
 
+for attr_name in DataFrameGroupBy.__dict__:
+    _maybe_apply_telemetry(
+        DataFrameGroupBy, register_dataframe_groupby_accessor, attr_name
+    )
+
+for attr_name in SeriesGroupBy.__dict__:
+    _maybe_apply_telemetry(SeriesGroupBy, register_series_groupby_accessor, attr_name)
 
 # Apply telemetry to top-level functions in the pd namespace.
 
