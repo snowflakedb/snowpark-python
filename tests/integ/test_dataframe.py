@@ -3410,29 +3410,29 @@ def test_dynamic_table_join_table_function(session):
                 cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
             ).over(partition_by=iter(["SITEID"]))
         )
+
+        df_t.create_or_replace_dynamic_table(
+            table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1 minute",
+            is_transient=True,
+        )
+        Utils.check_answer(
+            df_t,
+            [
+                Row(
+                    SITEID=100002,
+                    COMPETITOR_ID=100316,
+                    GRADEID=9,
+                    OBSERVATION_DATE="2025-02-03",
+                    OBSERVED_PRICE=3.932,
+                    LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                    DUMMY=1,
+                )
+            ],
+        )
     finally:
         session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
-
-    df_t.create_or_replace_dynamic_table(
-        table_name,
-        warehouse=session.get_current_warehouse(),
-        lag="1 minute",
-        is_transient=True,
-    )
-    Utils.check_answer(
-        df_t,
-        [
-            Row(
-                SITEID=100002,
-                COMPETITOR_ID=100316,
-                GRADEID=9,
-                OBSERVATION_DATE="2025-02-03",
-                OBSERVED_PRICE=3.932,
-                LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
-                DUMMY=1,
-            )
-        ],
-    )
 
 
 @pytest.mark.skipif(
