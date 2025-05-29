@@ -3359,7 +3359,6 @@ def test_append_existing_table(session, local_testing_mode):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Dynamic table is a SQL feature",
-    run=False,
 )
 def test_dynamic_table_join_table_function(session):
     class TestVolumeModels:
@@ -3490,8 +3489,6 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
         )
 
         df_t = df_t.with_column("COL1", lit(1)).distinct()
-        df_t.show()
-
         df_t.create_or_replace_dynamic_table(
             table_name,
             warehouse=session.get_current_warehouse(),
@@ -3516,10 +3513,9 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
         session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
 
 
-@pytest.mark.xfail(
+@pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Dynamic table is a SQL feature",
-    run=False,
 )
 def test_dynamic_table_join_table_function_nested(session):
     class TestVolumeModels:

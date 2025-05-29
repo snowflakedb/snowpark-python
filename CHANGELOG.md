@@ -14,7 +14,7 @@
 
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where databricks `TIMESTAMP` type was converted to Snowflake `TIMESTAMP_NTZ` type which should be `TIMESTAMP_LTZ` type.
-- Fixed a bug when create dynamic table on a table function cause error because '*' is not allowed in table function select.
+- Fixed a bug in `DataFrame.create_or_replace_dynamic_table` when the dataframe contains a table function and raises error due to `SELECT *` not being parsed correct in case of UDTF.
 
 #### Improvements
 
