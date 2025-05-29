@@ -1442,6 +1442,8 @@ class SnowflakePlanBuilder:
         )
         strip_namespaces = options.get("STRIPNAMESPACES", True)
         attribute_prefix = options.get("ATTRIBUTEPREFIX", "_")
+        exclude_attributes = options.get("EXCLUDEATTRIBUTES", False)
+        value_tag = options.get("VALUETAG", "_VALUE")
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1473,6 +1475,8 @@ class SnowflakePlanBuilder:
                 lit(column_name_of_corrupt_record),
                 lit(strip_namespaces),
                 lit(attribute_prefix),
+                lit(exclude_attributes),
+                lit(value_tag),
             ),
         )
 
