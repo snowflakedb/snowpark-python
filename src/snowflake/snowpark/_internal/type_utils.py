@@ -91,9 +91,13 @@ except ImportError:
 
 def get_pandas_types():
     if get_installed_pandas():
+        from snowflake.snowpark.types import get_pandas_dataframe_class
+
         snowflake_snowpark_types = get_snowpark_types()
+        pandas_dataframe_class = get_pandas_dataframe_class()
+
         return (
-            snowflake_snowpark_types.PandasDataFrame,
+            pandas_dataframe_class,
             snowflake_snowpark_types.PandasDataFrameType,
             snowflake_snowpark_types.PandasSeries,
             snowflake_snowpark_types.PandasSeriesType,
