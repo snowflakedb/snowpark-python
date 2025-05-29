@@ -3506,6 +3506,7 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
                     OBSERVED_PRICE=3.932,
                     LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
                     DUMMY=1,
+                    COL1=1,
                 )
             ],
         )
