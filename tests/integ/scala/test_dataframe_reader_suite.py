@@ -2,9 +2,12 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import csv
+import os
 import datetime
 import logging
 import random
+import tempfile
 from decimal import Decimal
 from unittest import mock
 
@@ -1658,6 +1661,60 @@ def test_pattern(session, mode):
         .count()
         == 4
     )
+
+
+# @pytest.mark.parametrize("mode", ["select", "copy"])
+@pytest.mark.parametrize("mode", ["select"])
+def test_pattern_with_infer(session, mode):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    expected_schema = StructType(
+        [
+            StructField("col1", LongType(), True),
+            StructField("col2", StringType(), True),
+            StructField("col3", DecimalType(2, 1), True),
+        ]
+    )
+    example_data = [expected_schema.names] + [(1, "A", 2.3), (2, "B", 3.4)]
+    incompatible_data = ["A", "B", "C", "D"]
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i in range(3):
+                good_file_path = os.path.join(temp_dir, f"good{i}.csv")
+                bad_file_path = os.path.join(temp_dir, f"bad{i}.csv")
+
+                with open(good_file_path, "w+") as ofile:
+                    csv_writer = csv.writer(ofile)
+                    csv_writer.writerows(example_data)
+
+                with open(bad_file_path, "w+") as ofile:
+                    csv_writer = csv.writer(ofile)
+                    csv_writer.writerows(incompatible_data)
+
+                session.file.put(good_file_path, f"@{stage_name}")
+                session.file.put(bad_file_path, f"@{stage_name}")
+
+        df = (
+            get_reader(session, mode)
+            .option("INFER_SCHEMA", True)
+            .option("INFER_SCHEMA_OPTIONS", {"MAX_RECORDS_PER_FILE": 10000})
+            .option("PARSE_HEADER", True)
+            .option("PATTERN", ".*good.*")
+            .csv(f"@{stage_name}")
+        )
+        assert df.schema == expected_schema
+        Utils.check_answer(
+            df,
+            [
+                Row(1, "A", 2.3),
+                Row(2, "B", 3.4),
+            ]
+            * 3,
+        )
+
+    finally:
+        Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.xfail(
