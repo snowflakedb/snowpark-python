@@ -8,12 +8,14 @@ from snowflake.snowpark._internal.utils import normalize_local_file
 
 
 def test_get_and_put_snowurl(session):
+    test_file = f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+    with open(test_file, "rb") as f:
+        test_content = f.read()
+
     with tempfile.TemporaryDirectory() as temp_dir:
         snowurl = f"snow://{temp_dir}"
         put_results = session.file.put(
-            normalize_local_file(
-                f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
-            ),
+            normalize_local_file(test_file),
             snowurl,
             auto_compress=False,
         )
@@ -38,14 +40,12 @@ def test_get_and_put_snowurl(session):
             assert os.path.isfile(os.path.join(temp_dir, "test_file_1"))
             with open(os.path.join(temp_dir, "test_file_1"), "rb") as f:
                 content = f.read()
-                assert content == b"test data 1\n"
+                assert content == test_content
 
     # Test put with a directory that hasn't been created
     snowurl = "snow://test_file_1"
     put_results = session.file.put(
-        normalize_local_file(
-            f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
-        ),
+        normalize_local_file(test_file),
         snowurl,
         auto_compress=False,
     )
@@ -69,4 +69,4 @@ def test_get_and_put_snowurl(session):
         assert os.path.isfile(os.path.join(temp_dir, "test_file_1"))
         with open(os.path.join(temp_dir, "test_file_1"), "rb") as f:
             content = f.read()
-            assert content == b"test data 1\n"
+            assert content == test_content
