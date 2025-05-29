@@ -22,7 +22,7 @@
 - Added support for excluding attributes from the XML element when reading XML files using `rowTag` and `excludeAttributes` option.
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
-- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leads to a `SnowparkSQLException`. Enable it using `snowflake.snowpark.context.configure_development_features()`.
+- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leads to a `SnowparkSQLException`. Enable it using `snowflake.snowpark.context.configure_development_features()`. This also requires AST collection enabled in the session.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
 
 ### Snowpark Local Testing Updates
