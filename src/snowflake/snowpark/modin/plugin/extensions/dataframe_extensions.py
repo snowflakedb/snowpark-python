@@ -80,6 +80,13 @@ def to_snowflake(
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
 
 
+_register_dataframe_accessor(name="to_snowflake", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowflake(
+        *args, **kwargs
+    )
+)
+
+
 @register_dataframe_accessor("to_snowpark")
 def to_snowpark(
     self, index: bool = True, index_label: Optional[IndexLabel] = None
@@ -210,6 +217,11 @@ def to_snowpark(
         <BLANKLINE>
     """
     return self._query_compiler.to_snowpark(index, index_label)
+
+
+_register_dataframe_accessor(name="to_snowpark", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowpark(*args, **kwargs)
+)
 
 
 @register_dataframe_accessor("to_pandas")
