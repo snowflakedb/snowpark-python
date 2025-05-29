@@ -201,19 +201,24 @@ def test_to_pandas_non_select(session):
         PandasDF,
     )
 
-    # non SELECT statements will fail
     def check_fetch_data_exception(query: str):
-        result = session.sql(query).to_pandas()
-        isinstance(result, PandasDF)
+        df = session.sql(query)
+        result = df.to_pandas()
+        assert df.columns == result.columns.to_list()
+        assert isinstance(result, PandasDF)
         return result
 
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     check_fetch_data_exception("show tables")
     res = check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
-    expected_res = pd.DataFrame([(f"Table {temp_table_name} successfully created.",)])
+    expected_res = pd.DataFrame(
+        [(f"Table {temp_table_name} successfully created.",)], columns=['"status"']
+    )
     assert expected_res.equals(res)
     res = check_fetch_data_exception(f"drop table if exists {temp_table_name}")
-    expected_res = pd.DataFrame([(f"{temp_table_name} successfully dropped.",)])
+    expected_res = pd.DataFrame(
+        [(f"{temp_table_name} successfully dropped.",)], columns=['"status"']
+    )
     assert expected_res.equals(res)
 
     # to_pandas should work for the large dataframe
