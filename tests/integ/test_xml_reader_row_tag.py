@@ -13,6 +13,15 @@ from snowflake.snowpark.exceptions import (
 from snowflake.snowpark.functions import col, lit
 from tests.utils import TestFiles, Utils
 
+
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="xml not supported in local testing mode",
+    ),
+]
+
+
 # XML test file constants
 test_file_books_xml = "books.xml"
 test_file_books2_xml = "books2.xml"
@@ -92,10 +101,6 @@ def setup(session, resources_path, local_testing_mode):
         session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name}").collect()
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
 @pytest.mark.parametrize(
     "file,row_tag,expected_row_count,expected_column_count",
     [
@@ -114,10 +119,6 @@ def test_read_xml_row_tag(
     assert len(result[0]) == expected_column_count
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
     stage_file_path = f"@{tmp_stage_name}/{test_file_xxe_xml}"
@@ -125,10 +126,6 @@ def test_read_xml_no_xxe(session):
     Utils.check_answer(df, [Row("null")])
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
 def test_read_xml_query_nested_data(session):
     row_tag = "tag"
     df = session.read.option("rowTag", row_tag).xml(
@@ -143,10 +140,6 @@ def test_read_xml_query_nested_data(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
 def test_read_xml_non_existing_file(session):
     row_tag = "tag"
     with pytest.raises(ValueError, match="does not exist"):
@@ -155,10 +148,6 @@ def test_read_xml_non_existing_file(session):
         )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
 @pytest.mark.parametrize(
     "file",
     (
@@ -203,10 +192,6 @@ def test_read_malformed_xml(session, file):
         df.collect()
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
 def test_read_xml_row_tag_not_found(session):
     row_tag = "non-existing-tag"
     df = session.read.option("rowTag", row_tag).xml(
@@ -225,10 +210,6 @@ def test_read_xml_row_tag_not_found(session):
         df.filter(lit(True)).collect()
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
 def test_read_xml_declared_namespace(session):
     row_tag = "px:root"
     expected_items = [
@@ -272,10 +253,6 @@ def test_read_xml_declared_namespace(session):
     assert result[0]["'{http://example.com/px}item'"] == expected_data
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="xml not supported in local testing mode",
-)
 @pytest.mark.parametrize("strip_namespaces", [True, False])
 def test_read_xml_undeclared_namespace(session, strip_namespaces):
     # Read with undeclared namespace, stripNamespaces=true and false should have the same result
@@ -290,3 +267,42 @@ def test_read_xml_undeclared_namespace(session, strip_namespaces):
     assert len(result) == 2
     assert result[0]["'px:name'"] in ['"Item One"', '"Item Two"']
     assert result[1]["'px:value'"] in ['"100"', '"200"']
+
+
+@pytest.mark.parametrize("attribute_prefix", ["_", ""])
+def test_read_xml_attribute_prefix(session, attribute_prefix):
+    row_tag = "book"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("attributePrefix", attribute_prefix)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    result = df.collect()
+    assert len(result[0]) == 7
+    assert result[0][f"'{attribute_prefix}id'"] is not None
+
+
+def test_read_xml_exclude_attributes(session):
+    row_tag = "book"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("excludeAttributes", True)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    result = df.collect()
+    assert len(result[0]) == 6
+    with pytest.raises(KeyError):
+        _ = result[0]["'_id'"]
+
+
+def test_read_xml_value_tag(session):
+    row_tag = "author"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("valueTag", "value")
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 12
+    assert len(result[0]) == 1
+    assert result[0]["'value'"] is not None

@@ -10,7 +10,7 @@ import pytest
 
 from snowflake.snowpark._internal.xml_reader import (
     replace_entity,
-    element_to_dict,
+    element_to_dict_or_str,
     strip_xml_namespaces,
     find_next_closing_tag_pos,
     find_next_opening_tag_pos,
@@ -38,23 +38,34 @@ def test_replace_entity_unknown():
     assert replace_entity(match) == "&foo;"
 
 
-def test_element_to_dict_text():
+def test_element_to_dict_or_str_text():
     # Element with only text.
     element = ET.Element("greeting")
     element.text = "  hello world  "
-    result = element_to_dict(element)
+    result = element_to_dict_or_str(element)
     assert result == "hello world"
 
 
-def test_element_to_dict_attributes():
+@pytest.mark.parametrize("attribute_prefix", ["_", ""])
+def test_element_to_dict_or_str_attributes(attribute_prefix):
     # Element with attributes only.
     element = ET.Element("person", attrib={"name": "Alice", "age": "30"})
-    result = element_to_dict(element)
-    expected = {"_name": "Alice", "_age": "30"}
+    result = element_to_dict_or_str(element, attribute_prefix=attribute_prefix)
+    expected = {f"{attribute_prefix}name": "Alice", f"{attribute_prefix}age": "30"}
     assert result == expected
 
 
-def test_element_to_dict_children():
+def test_element_to_dict_or_str_exclude_attributes():
+    # Element with attributes only.
+    element = ET.Element("person", attrib={"name": "Alice", "age": "30"})
+    result = element_to_dict_or_str(
+        element, attribute_prefix="_", exclude_attributes=True
+    )
+    expected = {}
+    assert result == expected
+
+
+def test_element_to_dict_or_str_children():
     # Element with children including repeated tags.
     root = ET.Element("data")
     child1 = ET.SubElement(root, "item")
@@ -63,7 +74,7 @@ def test_element_to_dict_children():
     child2.text = "value2"
     child3 = ET.SubElement(root, "note")
     child3.text = "note1"
-    result = element_to_dict(root)
+    result = element_to_dict_or_str(root)
     expected = {"item": ["value1", "value2"], "note": "note1"}
     assert result == expected
 
