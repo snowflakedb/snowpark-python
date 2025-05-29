@@ -158,7 +158,7 @@ class SnowflakePlan(LogicalPlan):
 
             def wrap(*args, **kwargs):
                 from snowflake.snowpark.context import (
-                    _extract_debug_trace_from_ast_enabled,
+                    _enable_dataframe_trace_on_error,
                 )
 
                 try:
@@ -182,7 +182,7 @@ class SnowflakePlan(LogicalPlan):
                     df_transform_debug_trace = None
                     try:
                         if (
-                            _extract_debug_trace_from_ast_enabled
+                            _enable_dataframe_trace_on_error
                             and df_ast_id is not None
                             and stmt_cache is not None
                         ):

@@ -30,12 +30,12 @@ pytestmark = [
 @pytest.fixture(autouse=True)
 def setup(request, session):
     original = session.ast_enabled
-    context.enable_extract_debug_trace()
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
     set_ast_state(AstFlagSource.TEST, True)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
     yield
-    context.disable_extract_debug_trace()
+    context.configure_development_features(enable_dataframe_trace_on_error=False)
     set_ast_state(AstFlagSource.TEST, original)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
@@ -274,12 +274,12 @@ def test_error_in_lineage_extraction_is_safe(session):
 
 
 def test_enable_and_disable_extract_debug_trace(session):
-    context.enable_extract_debug_trace()
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
     with pytest.raises(SnowparkSQLException) as exc_info:
         DataFrameGenerator1(session).simple_dataframe().select("does_not_exist").show()
     assert "--- Additional Debug Information ---" in str(exc_info.value)
 
-    context.disable_extract_debug_trace()
+    context.configure_development_features(enable_dataframe_trace_on_error=False)
     with pytest.raises(SnowparkSQLException) as exc_info:
         DataFrameGenerator1(session).simple_dataframe().select("does_not_exist").show()
     assert "--- Additional Debug Information ---" not in str(exc_info.value)
