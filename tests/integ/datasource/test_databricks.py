@@ -53,7 +53,9 @@ pytestmark = [
 def create_databricks_connection():
     import databricks.sql
 
-    return databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
+    conn = databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
+    conn.cursor().execute("set statement_timeout = 60")
+    return conn
 
 
 @pytest.mark.parametrize(
