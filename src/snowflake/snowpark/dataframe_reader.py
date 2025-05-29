@@ -1062,9 +1062,10 @@ class DataFrameReader:
             identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
             schema_to_cast.append((identifier, field._name))
             transformations.append(sql_expr(identifier))
-        self._user_schema = StructType._from_attributes(new_schema)
         self._infer_schema_transformations = transformations
-        self._infer_schema_target_columns = self._user_schema.names
+        self._infer_schema_target_columns = StructType._from_attributes(
+            new_schema
+        ).names
         read_file_transformations = [t._expression.sql for t in transformations]
         return new_schema, schema_to_cast, read_file_transformations
 
