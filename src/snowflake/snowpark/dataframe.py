@@ -119,7 +119,11 @@ from snowflake.snowpark._internal.ast.utils import (
     build_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.lazy_import_utils import get_installed_pandas, get_pyarrow
+from snowflake.snowpark._internal.lazy_import_utils import (
+    get_installed_pandas,
+    get_pyarrow,
+    get_pandas,
+)
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
     ResourceUsageCollector,
@@ -975,7 +979,7 @@ class DataFrame:
         )
 
     if get_installed_pandas():
-        from snowflake.connector.options import pandas  # pragma: no cover
+        pandas = get_pandas()  # pragma: no cover
 
         @publicapi
         @overload
@@ -1074,6 +1078,7 @@ class DataFrame:
         return result
 
     if get_installed_pandas():
+        pandas = get_pandas()
 
         @publicapi
         @overload
@@ -1394,7 +1399,9 @@ class DataFrame:
         # fmt: off
         import snowflake.snowpark.modin.plugin  # isort: skip  # noqa: F401
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
-        import modin.pandas as pd  # isort: skip        # fmt: on
+        import modin.pandas as pd  # isort: skip
+        # fmt: on
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -6592,6 +6599,7 @@ def map(
         # If the map is vectorized, we need to add pandas to packages if not
         # already added. Also update the input_types and output_schema to
         # be PandasDataFrameType.
+        pandas = get_pandas()
         packages = add_package_to_existing_packages(packages, pandas)
         input_types = [PandasDataFrameType(input_types)]
         output_schema = PandasDataFrameType(output_types, udtf_output_cols)
@@ -6604,7 +6612,7 @@ def map(
     ]
 
     if vectorized:
-        from snowflake.connector.options import pandas
+        pandas = get_pandas()
 
         def wrap_result(result):
             if isinstance(result, pandas().DataFrame) or isinstance(result, tuple):
