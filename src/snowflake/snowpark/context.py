@@ -4,6 +4,7 @@
 #
 
 """Context module for Snowpark."""
+from logging import warning
 from typing import Callable, Optional
 
 import snowflake.snowpark
@@ -35,8 +36,12 @@ _enable_dataframe_trace_on_error = False
 
 def configure_development_features(
     *,
-    enable_dataframe_trace_on_error: bool = False,
+    enable_dataframe_trace_on_error: bool = True,
 ):
+    warning(
+        "configure_development_features",
+        "This feature is experimental since 1.33.0. Do not use it in production.",
+    )
     global _enable_dataframe_trace_on_error
     _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
 
