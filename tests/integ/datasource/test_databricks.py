@@ -67,7 +67,7 @@ def test_blank_databricks(session):
 
 @pytest.mark.parametrize(
     "input_type, input_value",
-    #[("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
+    # [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
     [("table", TEST_TABLE_NAME)],
 )
 def test_basic_databricks(session, input_type, input_value):
