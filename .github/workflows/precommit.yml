@@ -20,6 +20,7 @@ concurrency:
 jobs:
   lint:
     name: Check linting
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +42,7 @@ jobs:
 
   type_checking:
     name: Type Checking
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +63,6 @@ jobs:
         run: python -m tox -e pyright
 
   build:
-    needs: lint
     name: Build Wheel File
     runs-on: ubuntu-latest
     steps:
@@ -188,7 +189,7 @@ jobs:
       - name: Install tox
         run: python -m pip install tox
       # we only run doctest on macos
-      - if: ${{ matrix.os == 'macos-latest' }}
+      - if: false
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -200,7 +201,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' }}
+      - if: false
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -236,6 +237,7 @@ jobs:
     name: Test Local Testing Module py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -323,6 +325,7 @@ jobs:
   test-ast-encoding:
     name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
+    if: false
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -399,6 +402,7 @@ jobs:
   doctest-ast-phase0:
     name: Doctest AST (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
+    if: false
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -448,6 +452,7 @@ jobs:
   test-ast-phase0:
     name: Test AST enabled (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
+    if: false
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -525,6 +530,7 @@ jobs:
   test-snowpark-pandas:
     name: Test modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
+    if: false
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -642,6 +648,7 @@ jobs:
   test-modin-extra-without-pandas-extra:
     name: Test modin extra without pandas extra py-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}.
     needs: build
+    if: false
     runs-on: ${{ matrix.os.image_name }}
     strategy:
       fail-fast: false

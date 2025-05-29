@@ -48,7 +48,7 @@ class DataSourceReader:
             cloudpickle.loads(self.pickled_create_connection_callback),
             self.dbms_type,
         )
-
+        logging.warning("Preparing connection")
         conn = self.driver.prepare_connection(
             self.driver.create_connection(), self.query_timeout
         )
@@ -63,15 +63,19 @@ class DataSourceReader:
                             f"Failed to execute session init statement: '{statement}' due to exception '{exc!r}'"
                         )
             if self.fetch_size == 0:
+                logging.warning(f"Executing partition: {partition}")
                 cursor.execute(partition)
                 result = cursor.fetchall()
+                logging.warning(f"Yielding result: {result}")
                 yield result
             elif self.fetch_size > 0:
                 cap_size = self.fetch_merge_count * self.fetch_size
                 cursor.execute(partition)
                 batch = []
                 while True:
+                    logging.warning("Fetching rows")
                     rows = cursor.fetchmany(self.fetch_size)
+                    logging.warning(f"Fetched {len(rows)} rows")
                     if not rows:
                         if batch:
                             yield batch
