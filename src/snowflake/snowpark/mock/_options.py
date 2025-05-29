@@ -2,26 +2,67 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import importlib
 from snowflake.connector.options import MissingOptionalDependency, MissingPandas
 
 
+class _LazyPandasProxy:
+    def __init__(self) -> None:  # noqa: FIR100
+        self._pandas = None
+        self._is_checked = False
+        self._is_installed = None
+
+    def _ensure_checked(self):
+        if not self._is_checked:
+            try:
+                self._pandas = importlib.import_module("pandas")
+                self._is_installed = True
+            except ImportError:
+                self._pandas = MissingPandas()
+                self._is_installed = False
+            self._is_checked = True
+
+    def __getattr__(self, name):
+        self._ensure_checked()
+        return getattr(self._pandas, name)
+
+    def __bool__(self):
+        self._ensure_checked()
+        return self._is_installed
+
+    def __repr__(self):
+        self._ensure_checked()
+        return repr(self._pandas)
+
+
+class _LazyInstalledPandas:
+    def __init__(self, pandas_proxy) -> None:  # noqa: FIR100
+        self._pandas_proxy = pandas_proxy
+
+    def __bool__(self):
+        self._pandas_proxy._ensure_checked()
+        return self._pandas_proxy._is_installed
+
+    def __eq__(self, other):
+        return bool(self) == other
+
+    def __repr__(self):
+        return str(bool(self))
+
+
+pandas = _LazyPandasProxy()
+installed_pandas = _LazyInstalledPandas(pandas)
+
+
 class MissingNumpy(MissingOptionalDependency):
+    """The class is specifically for numpy optional dependency."""
+
     _dep_name = "numpy"
 
-    @classmethod
-    def get_pandas(cls):
-        # This only runs when called
-        if not hasattr(cls, "_pandas_checked"):
-            try:
-                import pandas
 
-                cls.pandas = pandas
-                cls.installed_pandas = True
-            except ImportError:
-                cls.pandas = MissingPandas()
-                cls.installed_pandas = False
-            cls._pandas_checked = True
-        return cls.pandas
-
-
-numpy = MissingNumpy()
+try:
+    numpy = importlib.import_module("numpy")
+    installed_numpy = True
+except ImportError:
+    numpy = MissingNumpy()
+    installed_numpy = False
