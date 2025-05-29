@@ -362,6 +362,7 @@ def _telemetry_helper(
         raise e
 
     # Not inplace lazy APIs: add curr_api_call to the result
+    # In hybrid execution modin, the result may be a NativeQueryCompiler, so we need to check for snowpark_pandas_api_calls.
     if is_snowpark_pandas_dataframe_or_series_type(result) and hasattr(
         result._query_compiler, "snowpark_pandas_api_calls"
     ):
