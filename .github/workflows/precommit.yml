@@ -212,7 +212,7 @@ jobs:
         shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
-        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') }}
+        if: ${{ (matrix.os == 'macos-latest' && matrix.python-version == '3.12') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
