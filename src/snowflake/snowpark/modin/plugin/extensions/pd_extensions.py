@@ -64,7 +64,8 @@ def explain(last=20) -> native_pd.DataFrame:
     )
     stats = stats.set_index(["source", "decision", "api", "index"])
     stats = stats.sort_index(level="index")
-    stats["value"] = stats["value"].astype(int)
+    # Do not astype the "value" column to int because impossible switches will have a
+    # cost value that is too large to fit in a C long.
     stats.reset_index().drop(columns="index").set_index(["source", "decision", "api"])
     return stats.tail(last)
 
