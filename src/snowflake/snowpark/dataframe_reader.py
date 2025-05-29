@@ -890,6 +890,8 @@ class DataFrameReader:
                 the result column name is ``abc:xyz`` where ``abc`` is not stripped.
 
               + ``attributePrefix``: The prefix to add to the attribute names. The default value is ``_``.
+
+              + ``excludeAttributes``: Whether to exclude attributes from the XML element. The default value is ``False``.
         """
         df = self._read_semi_structured_file(path, "XML")
 
