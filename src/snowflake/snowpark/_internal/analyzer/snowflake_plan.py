@@ -1378,7 +1378,7 @@ class SnowflakePlanBuilder:
                     assert isinstance(child_plan, SnowflakePlan)
 
                     new_plan = copy.deepcopy(node)
-                    new_plan.snowflake_plan.source_plan.right_cols = (
+                    new_plan.snowflake_plan.source_plan.right_cols = (  # type: ignore
                         node.snowflake_plan.quoted_identifiers[
                             len(child_plan.quoted_identifiers) :
                         ]
@@ -1409,7 +1409,7 @@ class SnowflakePlanBuilder:
         iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
 
-        child = self.find_and_update_table_function_plan(child)
+        child = self.find_and_update_table_function_plan(child)  # type: ignore
 
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
