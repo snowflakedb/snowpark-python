@@ -10,6 +10,7 @@ import re
 import sys
 from enum import Enum
 from typing import Generic, List, Optional, Type, TypeVar, Union, Dict, Any
+
 from snowflake.snowpark._internal.utils import quote_name
 import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.analyzer.expression as expression
@@ -1043,3 +1044,35 @@ class Timestamp(datetime.datetime, Generic[_T]):
     """The type hint for annotating ``TIMESTAMP_*`` data when registering UDFs."""
 
     pass
+
+
+def get_pandas_dataframe_class():
+    """Get PandasDataFrame class lazily when needed."""
+    import sys
+    from typing import Generic
+    from snowflake.snowpark._internal.lazy_import_utils import (
+        get_installed_pandas,
+        get_pandas,
+    )
+
+    if not get_installed_pandas():
+        return None
+
+    pandas = get_pandas()
+
+    from typing_extensions import TypeVarTuple
+
+    _TT = TypeVarTuple("_TT")
+
+    if sys.version_info >= (3, 11):
+        from typing import Unpack
+
+        class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
+            pass
+
+    else:
+
+        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+            pass
+
+    return PandasDataFrame

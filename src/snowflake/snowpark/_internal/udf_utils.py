@@ -59,7 +59,12 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
 )
-from snowflake.snowpark.types import DataType, StructField, StructType
+from snowflake.snowpark.types import (
+    DataType,
+    StructField,
+    StructType,
+    get_pandas_dataframe_class,
+)
 from snowflake.snowpark.version import VERSION
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -199,8 +204,8 @@ def extract_return_type_from_udtf_type_hints(
 
     global PandasDataFrameType, PandasDataFrame
     if get_installed_pandas():
+        PandasDataFrame = get_pandas_dataframe_class()
         snowpark_types = get_snowpark_types()
-        PandasDataFrame = snowpark_types.PandasDataFrame
         PandasDataFrameType = snowpark_types.PandasDataFrameType
 
     if return_type_hint is None and output_schema is not None:
