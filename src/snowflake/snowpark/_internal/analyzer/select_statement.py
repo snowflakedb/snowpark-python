@@ -561,6 +561,13 @@ class SelectableEntity(Selectable):
             self._schema_query = analyzer_utils.schema_value_statement(value)
 
 
+@SnowflakePlan.Decorator.wrap_exception
+def _analyze_attributes(
+    sql: str, session: "snowflake.snowpark.session.Session"  # type: ignore
+) -> List[Attribute]:
+    return analyze_attributes(sql, session)
+
+
 class SelectSQL(Selectable):
     """Query from a SQL. Mainly used by session.sql()"""
 
@@ -587,7 +594,7 @@ class SelectSQL(Selectable):
                 self.pre_actions[0].query_id_place_holder
             )
             self._schema_query = analyzer_utils.schema_value_statement(
-                analyze_attributes(sql, self._session)
+                _analyze_attributes(sql, self._session)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
             self._query_param = None
         else:
