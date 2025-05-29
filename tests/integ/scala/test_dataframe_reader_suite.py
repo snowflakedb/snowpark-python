@@ -1183,16 +1183,19 @@ def test_read_json_with_infer_schema(session, mode):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing does not support loading json with user specified schema.",
+)
 def test_read_json_quoted_names(session):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     quoted_column_data = {'"A"': 1, '"B"': "2"}
-
     schema = StructType(
         [
             StructField('"A"', LongType(), True),
             StructField('"B"', StringType(), False),
         ]
     )
-
     parsed_schema = StructType(
         [
             StructField('"""A"""', LongType(), True),
@@ -1204,10 +1207,8 @@ def test_read_json_quoted_names(session):
         file.write(json.dumps(quoted_column_data))
         file_path = file.name
         file.flush()
-
         try:
-            stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-            session.sql(f"create or replace temp stage {stage_name}").collect()
+            Utils.create_stage(session, stage_name, is_temporary=True)
             put_result = session.file.put(
                 file_path, f"@{stage_name}", auto_compress=False, overwrite=True
             )
