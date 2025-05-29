@@ -10,7 +10,6 @@ import os
 import subprocess
 import tempfile
 import datetime
-import time
 from io import BytesIO
 from textwrap import dedent
 from unittest import mock
@@ -555,34 +554,43 @@ def test_task_fetch_from_data_source_with_fetch_size(
             _task_fetch_data_from_source(**params)
     else:
         _task_fetch_data_from_source(**params)
-        time.sleep(0.5)  # Allow some time for the queue to be populated
 
         # Collect all parquet data from the queue
         parquet_files = []
         completion_signal_received = False
+        timeout = 5.0  # 5 second timeout
 
-        while not parquet_queue.empty():
-            parquet_id, parquet_buffer = parquet_queue.get()
+        import queue
 
-            # Check for completion signal
-            if parquet_id.startswith("PARTITION_COMPLETE_"):
-                completion_signal_received = True
-                continue
+        # Keep draining the queue until we get the completion signal or timeout
+        while not completion_signal_received:
+            try:
+                parquet_id, parquet_buffer = parquet_queue.get(timeout=timeout)
 
-            # Verify parquet file naming pattern
-            assert parquet_id.startswith(
-                f"data_partition{partition_idx}_fetch"
-            ), f"Unexpected parquet ID: {parquet_id}"
-            assert parquet_id.endswith(
-                ".parquet"
-            ), f"Parquet ID should end with .parquet: {parquet_id}"
+                # Check for completion signal
+                if parquet_id.startswith("PARTITION_COMPLETE_"):
+                    completion_signal_received = True
+                    continue
 
-            # Verify parquet_buffer is a BytesIO object
-            assert isinstance(
-                parquet_buffer, BytesIO
-            ), f"Expected BytesIO, got {type(parquet_buffer)}"
+                # Verify parquet file naming pattern
+                assert parquet_id.startswith(
+                    f"data_partition{partition_idx}_fetch"
+                ), f"Unexpected parquet ID: {parquet_id}"
+                assert parquet_id.endswith(
+                    ".parquet"
+                ), f"Parquet ID should end with .parquet: {parquet_id}"
 
-            parquet_files.append((parquet_id, parquet_buffer))
+                # Verify parquet_buffer is a BytesIO object
+                assert isinstance(
+                    parquet_buffer, BytesIO
+                ), f"Expected BytesIO, got {type(parquet_buffer)}"
+
+                parquet_files.append((parquet_id, parquet_buffer))
+
+            except queue.Empty:
+                pytest.fail(
+                    f"Timeout waiting for completion signal after {timeout} seconds"
+                )
 
         # Verify we received the completion signal
         assert (

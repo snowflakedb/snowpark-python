@@ -2,13 +2,12 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import os
 import queue
 import traceback
 import multiprocessing as mp
 from io import BytesIO
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict, Set
+from typing import Any, Tuple, Optional, Callable, Dict
 import logging
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
@@ -276,18 +275,6 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
     )
     final_error = SnowparkDataframeReaderException(message=error_message)
     raise final_error
-
-
-def add_unseen_files_to_process_queue(
-    work_dir: str, set_of_files_already_added_in_queue: Set[str], queue: queue.Queue
-):
-    """Add unseen files in the work_dir to the queue for processing."""
-    # all files in the work_dir are parquet files, no subdirectory
-    all_files = set(os.listdir(work_dir))
-    unseen = all_files - set_of_files_already_added_in_queue
-    for file in unseen:
-        queue.put(os.path.join(work_dir, file))
-        set_of_files_already_added_in_queue.add(file)
 
 
 # DBAPI worker function that processes multiple partitions
