@@ -1663,8 +1663,7 @@ def test_pattern(session, mode):
     )
 
 
-# @pytest.mark.parametrize("mode", ["select", "copy"])
-@pytest.mark.parametrize("mode", ["select"])
+@pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern_with_infer(session, mode):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     expected_schema = StructType(
@@ -1676,6 +1675,10 @@ def test_pattern_with_infer(session, mode):
     )
     example_data = [expected_schema.names] + [(1, "A", 2.3), (2, "B", 3.4)]
     incompatible_data = ["A", "B", "C", "D"]
+    expected_rows = [
+        Row(1, "A", 2.3),
+        Row(2, "B", 3.4),
+    ]
 
     try:
         Utils.create_stage(session, stage_name, is_temporary=True)
@@ -1692,26 +1695,31 @@ def test_pattern_with_infer(session, mode):
                     csv_writer = csv.writer(ofile)
                     csv_writer.writerows(incompatible_data)
 
-                session.file.put(good_file_path, f"@{stage_name}")
-                session.file.put(bad_file_path, f"@{stage_name}")
+                session.file.put(good_file_path, f"@{stage_name}/path")
+                session.file.put(bad_file_path, f"@{stage_name}/path")
 
-        df = (
+        reader = (
             get_reader(session, mode)
             .option("INFER_SCHEMA", True)
             .option("INFER_SCHEMA_OPTIONS", {"MAX_RECORDS_PER_FILE": 10000})
             .option("PARSE_HEADER", True)
-            .option("PATTERN", ".*good.*")
-            .csv(f"@{stage_name}")
         )
+
+        single_file_df = reader.csv(f"@{stage_name}/path/good1.csv")
+        Utils.check_answer(single_file_df, expected_rows)
+
+        reader = reader.option("PATTERN", ".*good.*")
+        single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
+        Utils.check_answer(single_file_with_pattern_df, expected_rows)
+
+        reader = reader.option("INFER_SCHEMA_OPTIONS", {"FILES": ["good1.csv"]})
+        file_override_df = reader.csv(f"@{stage_name}/path")
+        Utils.check_answer(file_override_df, expected_rows * 3)
+
+        reader = reader.option("INFER_SCHEMA_OPTIONS", {"MAX_RECORDS_PER_FILE": 10000})
+        df = reader.csv(f"@{stage_name}/path")
         assert df.schema == expected_schema
-        Utils.check_answer(
-            df,
-            [
-                Row(1, "A", 2.3),
-                Row(2, "B", 3.4),
-            ]
-            * 3,
-        )
+        Utils.check_answer(df, expected_rows * 3)
 
     finally:
         Utils.drop_stage(session, stage_name)

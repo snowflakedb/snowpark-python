@@ -3,6 +3,7 @@
 #
 import functools
 import os
+import pathlib
 import tempfile
 import time
 from concurrent.futures import (
@@ -971,18 +972,28 @@ class DataFrameReader:
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
         infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", {})
 
+        # Client side has no context for if the path is a directory or a file
+        # It should be safe to assume it is a file if there is a parent directory which means that it's
+        # not the top level stage and there's a suffix which means it has a file extension.
+        parsed_path = pathlib.Path(path)
+        path_is_file = parsed_path.parent and parsed_path.suffix
+
         # When pattern is set we should only consider files that match the pattern during schema inference
         # If no files match fallback to trying to read all files.
         if (
-            pattern := self._cur_options.get("PATTERN", None)
-        ) and "FILES" not in infer_schema_options:
+            (pattern := self._cur_options.get("PATTERN", None))
+            and "FILES" not in infer_schema_options
+            and not path_is_file
+        ):
+            # matches has schema (name, size, md5, last_modified)
+            # Name is fully qualified with stage path
             matches = self._session._conn.run_query(
                 f"list {path} pattern = '{pattern}'"
             )["data"]
+
             if len(matches):
-                infer_schema_options["FILES"] = tuple(
-                    m[0].split("/")[-1] for m in matches
-                )
+                files = [m[0].split("/")[-1] for m in matches]
+                infer_schema_options["FILES"] = files
 
         infer_schema_query = infer_schema_statement(
             path, file_format_name, infer_schema_options or None

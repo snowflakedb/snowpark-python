@@ -1038,7 +1038,10 @@ def infer_schema_statement(
         + file_format_name
         + SINGLE_QUOTE
         + (
-            ", " + ", ".join(f"{k} => {v}" for k, v in options.items())
+            ", "
+            + ", ".join(
+                f"{k} => {convert_value_to_sql_option(v)}" for k, v in options.items()
+            )
             if options
             else ""
         )
@@ -1067,9 +1070,9 @@ def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -
             )  # escape single quotes before adding a pair of quotes
             return f"'{value}'"
     else:
-        if isinstance(value, list):
+        if isinstance(value, (list, tuple)):
             # Snowflake sql uses round brackets for options that are lists
-            return str(tuple(value))
+            return f"({', '.join(convert_value_to_sql_option(val) for val in value)})"
         return str(value)
 
 
