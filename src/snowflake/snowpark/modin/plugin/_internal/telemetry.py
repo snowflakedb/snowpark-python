@@ -10,7 +10,6 @@ from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast, List
 
-from cachetools import cached  # type: ignore[import]
 from typing_extensions import ParamSpec
 
 from modin.config import MetricsMode
@@ -622,7 +621,7 @@ def snowpark_pandas_api_watcher(api_name: str, _time: Union[int, float]) -> None
 hybrid_switch_log = native_pd.DataFrame({})
 
 
-@cached(cache={})
+@functools.cache
 def get_user_source_location(group: str) -> dict[str, str]:
     import inspect
 
