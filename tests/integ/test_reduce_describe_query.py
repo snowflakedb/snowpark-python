@@ -26,7 +26,7 @@ from snowflake.snowpark.functions import (
     table_function,
 )
 from snowflake.snowpark.session import (
-    _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
+    _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_VERSION,
     Session,
 )
 from snowflake.snowpark.types import LongType, StructField, StructType
@@ -416,9 +416,14 @@ def test_reduce_describe_query_enabled_on_session(db_parameters):
         assert new_session.reduce_describe_query_enabled is default_value
 
         parameters = db_parameters.copy()
-        parameters["session_parameters"] = {
-            _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED: not default_value
-        }
+        if default_value is True:
+            parameters["session_parameters"] = {
+                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_VERSION: ""
+            }
+        else:
+            parameters["session_parameters"] = {
+                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_VERSION: "1.0.0"
+            }
         with Session.builder.configs(parameters).create() as new_session2:
             assert new_session2.reduce_describe_query_enabled is not default_value
 
