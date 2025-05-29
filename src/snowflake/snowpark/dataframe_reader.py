@@ -888,6 +888,10 @@ class DataFrameReader:
                 <abc:def><abc:xyz>0</abc:xyz></abc:def>
                 ```
                 the result column name is ``abc:xyz`` where ``abc`` is not stripped.
+
+              + ``attributePrefix``: The prefix to add to the attribute names. The default value is ``_``.
+
+              + ``excludeAttributes``: Whether to exclude attributes from the XML element. The default value is ``False``.
         """
         df = self._read_semi_structured_file(path, "XML")
 
@@ -1355,6 +1359,7 @@ class DataFrameReader:
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
+                _emit_ast=_emit_ast,
             )
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
