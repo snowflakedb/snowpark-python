@@ -36,6 +36,9 @@ from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
 from modin.pandas.groupby import DataFrameGroupBy
+from modin.pandas.api.extensions import (
+    register_dataframe_accessor as _register_dataframe_accessor,
+)
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -115,7 +118,11 @@ from snowflake.snowpark.modin.utils import (
     validate_int_kwarg,
 )
 from snowflake.snowpark.udf import UserDefinedFunction
-from .dataframe_extensions import register_dataframe_accessor
+
+
+register_dataframe_accessor = functools.partial(
+    _register_dataframe_accessor, backend="Snowflake"
+)
 
 
 def register_dataframe_not_implemented():

@@ -10,6 +10,7 @@ pandas, such as `Series.memory_usage`.
 from __future__ import annotations
 
 import copy
+import functools
 from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
 from modin.config import context as config_context
@@ -28,6 +29,9 @@ from modin.core.storage_formats.pandas.query_compiler_caster import (
 )
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
+from modin.pandas.api.extensions import (
+    register_series_accessor as _register_series_accessor,
+)
 from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
     AggFuncType,
@@ -78,7 +82,10 @@ from snowflake.snowpark.modin.utils import (
     _inherit_docstrings,
     validate_int_kwarg,
 )
-from .series_extensions import register_series_accessor
+
+register_series_accessor = functools.partial(
+    _register_series_accessor, backend="Snowflake"
+)
 
 
 def register_series_not_implemented():
@@ -121,7 +128,7 @@ def _getattr_impl(self, key):
     # NOTE that to get an attribute, python calls __getattribute__() first and
     # then falls back to __getattr__() if the former raises an AttributeError.
     if key not in EXTENSION_NO_LOOKUP:
-        extension = self._getattr__from_extension_impl(key, Series._extensions)
+        extension = self._getattr__from_extension_impl(key, set(), Series._extensions)
         if extension is not sentinel:
             return extension
     try:

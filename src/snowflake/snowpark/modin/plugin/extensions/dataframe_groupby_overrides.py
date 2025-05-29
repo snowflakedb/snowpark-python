@@ -32,9 +32,6 @@ import numpy as np  # noqa: F401
 import numpy.typing as npt
 import pandas
 import pandas.core.groupby
-from modin.pandas.api.extensions import (
-    register_dataframe_groupby_accessor,
-)
 from modin.pandas import Series
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
@@ -70,6 +67,9 @@ from snowflake.snowpark.modin.utils import (
     _inherit_docstrings,
     hashable,
     validate_int_kwarg,
+)
+from modin.pandas.api.extensions import (
+    register_dataframe_groupby_accessor,
 )
 
 register_df_groupby_override = functools.partial(
@@ -160,12 +160,6 @@ def ngroups(self):
 ###########################################################################
 
 
-@register_df_groupby_override("__iter__")
-def __iter__(self):
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    return self._iter.__iter__()
-
-
 @register_df_groupby_override("groups")
 @cached_property
 def groups(self) -> PrettyDict[Hashable, "pd.Index"]:
@@ -195,18 +189,6 @@ def indices(self) -> dict[Hashable, npt.NDArray[np.intp]]:
             k: True if k == "as_index" else v
             for k, v in self._kwargs.items()
         },
-    )
-
-
-@register_df_groupby_override("get_group")
-def get_group(self, name, obj=None):
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    work_object = self._override(df=obj if obj is not None else self._df, as_index=True)
-
-    return work_object._wrap_aggregation(
-        qc_method=type(work_object._query_compiler).groupby_get_group,
-        numeric_only=False,
-        agg_kwargs=dict(name=name),
     )
 
 
@@ -320,6 +302,9 @@ def aggregate(
     return result
 
 
+register_df_groupby_override("agg")(aggregate)
+
+
 @register_df_groupby_override("transform")
 def transform(
     self,
@@ -410,26 +395,6 @@ def filter(self, func, dropna=True, *args, **kwargs):
 ###########################################################################
 # Computations / descriptive stats
 ###########################################################################
-
-
-@register_df_groupby_override("all")
-def all(self, skipna: bool = True):
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    return self._wrap_aggregation(
-        type(self._query_compiler).groupby_all,
-        numeric_only=False,
-        agg_kwargs=dict(skipna=skipna),
-    )
-
-
-@register_df_groupby_override("any")
-def any(self, skipna: bool = True):
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    return self._wrap_aggregation(
-        type(self._query_compiler).groupby_any,
-        numeric_only=False,
-        agg_kwargs=dict(skipna=skipna),
-    )
 
 
 @register_df_groupby_override("bfill")
@@ -601,15 +566,6 @@ def fillna(
     )
 
 
-@register_df_groupby_override("first")
-def first(self, numeric_only=False, min_count=-1, skipna=True):
-    return self._wrap_aggregation(
-        type(self._query_compiler).groupby_first,
-        agg_kwargs=dict(min_count=min_count, skipna=skipna),
-        numeric_only=numeric_only,
-    )
-
-
 @register_df_groupby_override("head")
 def head(self, n=5):
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -683,15 +639,6 @@ def idxmin(
             agg_kwargs=dict(skipna=skipna, axis=0),
         )
     return result
-
-
-@register_df_groupby_override("last")
-def last(self, numeric_only=False, min_count=-1, skipna=True):
-    return self._wrap_aggregation(
-        type(self._query_compiler).groupby_last,
-        agg_kwargs=dict(min_count=min_count, skipna=skipna),
-        numeric_only=numeric_only,
-    )
 
 
 @register_df_groupby_override("max")
@@ -1192,25 +1139,6 @@ def __bytes__(self):
     ErrorMessage.method_not_implemented_error(name="__bytes__", class_="GroupBy")
 
 
-@register_df_groupby_override("ndim")
-@property
-def ndim(self):
-    """
-    Return 2.
-
-    Returns
-    -------
-    int
-        Returns 2.
-
-    Notes
-    -----
-    Deprecated and removed in pandas and will be likely removed in Modin.
-    """
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    return 2  # ndim is always 2 for DataFrames
-
-
 @register_df_groupby_override("dtypes")
 @property
 def dtypes(self):
@@ -1339,51 +1267,6 @@ def __len__(self):
 def expanding(self, *args, **kwargs):
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
     ErrorMessage.method_not_implemented_error(name="expanding", class_="GroupBy")
-
-
-@register_df_groupby_override("_index")
-@property
-def _index(self):
-    """
-    Get index value.
-
-    Returns
-    -------
-    pandas.Index
-        Index value.
-    """
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    return self._query_compiler.index
-
-
-@register_df_groupby_override("_sort")
-@property
-def _sort(self):
-    """
-    Get sort parameter value.
-
-    Returns
-    -------
-    bool
-        Value of sort parameter used to create DataFrameGroupBy object.
-    """
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    return self._kwargs.get("sort")
-
-
-@register_df_groupby_override("_as_index")
-@property
-def _as_index(self):
-    """
-    Get as_index parameter value.
-
-    Returns
-    -------
-    bool
-        Value of as_index parameter used to create DataFrameGroupBy object.
-    """
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    return self._kwargs.get("as_index")
 
 
 @register_df_groupby_override("_iter")
@@ -1530,6 +1413,7 @@ def _check_index_name(self, result):
     return result
 
 
+# NOT AN OVERRIDE
 def validate_groupby_args(
     by: Any,
     level: Optional[IndexLabel],

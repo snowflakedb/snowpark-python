@@ -1187,8 +1187,6 @@ def create_ordered_dataframe_from_pandas(
             ]
         ),
     )
-    # TODO hybrid wraps this in cache_result, but this messes with query counts everywhere
-    # temporarily remove this for the sake of testing
     ordered_df = OrderedDataFrame(
         DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
         projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,

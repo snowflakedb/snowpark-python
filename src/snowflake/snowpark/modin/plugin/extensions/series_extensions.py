@@ -8,13 +8,9 @@ as `Series.to_snowflake`.
 """
 
 from collections.abc import Iterable
-import functools
 from typing import Any, List, Literal, Optional, Union
 
 import modin.pandas as pd
-from modin.pandas.api.extensions import (
-    register_series_accessor as _register_series_accessor,
-)
 import pandas
 from pandas._typing import Axis, IndexLabel
 
@@ -27,10 +23,7 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 )
 from snowflake.snowpark.row import Row
 
-
-register_series_accessor = functools.partial(
-    _register_series_accessor, backend="Snowflake"
-)
+from .series_overrides import register_series_accessor
 
 
 @register_series_accessor("_set_axis_name")

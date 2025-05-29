@@ -43,8 +43,8 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     ### For private customer releases  # noqa: E266
-    # "modin @ git+https://github.com/sfc-gh-joshi/modin.git@joshi/hybrid-do-not-release",  # TODO point at main
-    "modin @ git+https://github.com/modin-project/modin.git@main",
+    # "modin @ git+https://github.com/sfc-gh-joshi/modin.git@joshi/hybrid-do-not-release",
+    "modin==0.33.1",
     "tqdm",
 ]
 DEVELOPMENT_REQUIREMENTS = [

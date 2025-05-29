@@ -26,9 +26,6 @@
 from typing import Any, Callable, Optional, Union
 
 import modin.pandas as pd
-from snowflake.snowpark.modin.plugin.extensions.series_overrides import (
-    register_series_accessor,
-)
 import pandas
 import pandas.core.groupby
 from pandas._libs import lib
@@ -44,6 +41,9 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     _inherit_docstrings,
     doc_replace_dataframe_with_link,
+)
+from .series_overrides import (
+    register_series_accessor,
 )
 
 
