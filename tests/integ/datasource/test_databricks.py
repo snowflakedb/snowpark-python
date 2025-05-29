@@ -148,8 +148,8 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
             "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
         },
     ).order_by("COL_BYTE", ascending=True)
-    ret = df.collect()
-    assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
+    Utils.check_answer(df, EXPECTED_TEST_DATA)
+    assert df.schema == EXPECTED_TYPE
 
     assert (
         "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
