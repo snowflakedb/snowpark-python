@@ -33,7 +33,7 @@ from tests.resources.test_data_source_dir.test_databricks_data import (
     TEST_TABLE_NAME,
     DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION,
 )
-from tests.utils import IS_IN_STORED_PROC
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
@@ -65,15 +65,16 @@ def test_basic_databricks(session, input_type, input_value):
         input_type: input_value,
     }
     df = session.read.dbapi(create_databricks_connection, **input_dict).order_by(
-        "COL_BYTE"
+        "COL_BYTE", ascending=True
     )
-    ret = df.collect()
-    assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
+    Utils.check_answer(df, EXPECTED_TEST_DATA)
+    assert df.schema == EXPECTED_TYPE
 
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    df2 = session.table(table_name).order_by("COL_BYTE")
-    assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
+    df2 = session.table(table_name).order_by("COL_BYTE", ascending=True)
+    Utils.check_answer(df2, EXPECTED_TEST_DATA)
+    assert df2.schema == EXPECTED_TYPE
 
 
 @pytest.mark.parametrize(
@@ -146,9 +147,9 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
         udtf_configs={
             "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
         },
-    ).order_by("COL_BYTE")
-    ret = df.collect()
-    assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
+    ).order_by("COL_BYTE", ascending=True)
+    Utils.check_answer(df, EXPECTED_TEST_DATA)
+    assert df.schema == EXPECTED_TYPE
 
     assert (
         "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
