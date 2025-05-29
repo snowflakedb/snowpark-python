@@ -345,7 +345,7 @@ def process_parquet_queue_with_threads(
         while len(completed_partitions) < total_partitions:
             try:
                 # Get item from queue with timeout
-                item = parquet_queue.get(timeout=1.0)
+                item = parquet_queue.get(block=False)
                 parquet_id, parquet_buffer = item
 
                 # Check for completion signals
