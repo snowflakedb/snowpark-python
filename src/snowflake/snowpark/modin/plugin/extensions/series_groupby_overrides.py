@@ -22,16 +22,13 @@
 """Implement GroupBy public API as pandas does."""
 
 import functools
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Callable
 
 import modin.pandas as pd
 from modin.pandas.groupby import SeriesGroupBy
 import numpy as np  # noqa: F401
 import pandas
 import pandas.core.groupby
-from modin.pandas.api.extensions import (
-    register_series_groupby_accessor,
-)
 from modin.pandas import Series
 from pandas._typing import (
     AggFuncType,
@@ -39,7 +36,10 @@ from pandas._typing import (
 from pandas.core.dtypes.common import is_dict_like
 from pandas.errors import SpecificationError
 
-from snowflake.snowpark.modin.plugin._internal.utils import INDEX_LABEL
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    INDEX_LABEL,
+    MODIN_IS_AT_LEAST_0_33_0,
+)
 
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.utils import (
@@ -47,9 +47,22 @@ from snowflake.snowpark.modin.utils import (
 )
 
 
-register_ser_groupby_override = functools.partial(
-    register_series_groupby_accessor, backend="Snowflake"
-)
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.pandas.api.extensions import (
+        register_series_groupby_accessor,
+    )
+
+    register_ser_groupby_override = functools.partial(
+        register_series_groupby_accessor, backend="Snowflake"
+    )
+else:
+    # This code path should only be hit in doctests. For modin<0.33.0, groupby overrides are
+    # handled independently in groupby_overrides.py, so we should not register anything.
+    def register_ser_groupby_override(method_name: str):
+        def wrapper(method: Callable):
+            return method
+
+        return wrapper
 
 
 @register_ser_groupby_override("_iter")

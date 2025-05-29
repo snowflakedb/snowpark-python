@@ -17,12 +17,19 @@
 
 import modin.pandas as pd
 from modin.pandas.api.extensions import register_pd_accessor
-from modin.core.storage_formats.pandas.query_compiler_caster import _GENERAL_EXTENSIONS
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 
-PD_EXTENSIONS = _GENERAL_EXTENSIONS["Snowflake"]
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.core.storage_formats.pandas.query_compiler_caster import (
+        _GENERAL_EXTENSIONS,
+    )
+
+    PD_EXTENSIONS = _GENERAL_EXTENSIONS["Snowflake"]
+else:
+    PD_EXTENSIONS = pd._PD_EXTENSIONS_
 
 
 def test_pd_extension_simple_method():

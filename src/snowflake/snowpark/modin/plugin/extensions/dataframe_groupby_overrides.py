@@ -32,9 +32,6 @@ import numpy as np  # noqa: F401
 import numpy.typing as npt
 import pandas
 import pandas.core.groupby
-from modin.pandas.api.extensions import (
-    register_dataframe_groupby_accessor,
-)
 from modin.pandas import Series
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
@@ -52,6 +49,9 @@ from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     create_groupby_transform_func,
+)
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    MODIN_IS_AT_LEAST_0_33_0,
 )
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
@@ -72,9 +72,23 @@ from snowflake.snowpark.modin.utils import (
     validate_int_kwarg,
 )
 
-register_df_groupby_override = functools.partial(
-    register_dataframe_groupby_accessor, backend="Snowflake"
-)
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.pandas.api.extensions import (
+        register_dataframe_groupby_accessor,
+    )
+
+    register_df_groupby_override = functools.partial(
+        register_dataframe_groupby_accessor, backend="Snowflake"
+    )
+else:
+    # This code path should only be hit in doctests. For modin<0.33.0, groupby overrides are
+    # handled independently in groupby_overrides.py, so we should not register anything.
+    def register_df_groupby_override(method_name: str):
+        def wrapper(method: Callable):
+            return method
+
+        return wrapper
 
 
 @register_df_groupby_override("__init__")

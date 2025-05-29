@@ -1546,6 +1546,7 @@ def groupby(
         )
     else:
         from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+            SeriesGroupBy,
             validate_groupby_args,
         )
 
