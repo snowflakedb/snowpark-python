@@ -38,6 +38,8 @@ DATA_SOURCE_DBAPI_SIGNATURE = "DataFrameReader.dbapi"
 DATA_SOURCE_SQL_COMMENT = (
     f"/* Python:snowflake.snowpark.{DATA_SOURCE_DBAPI_SIGNATURE} */"
 )
+PARTITION_TASK_COMPLETE_SIGNAL_PREFIX = "PARTITION_COMPLETE_"
+PARTITION_TASK_ERROR_SIGNAL = "ERROR"
 
 
 class DBMS_TYPE(Enum):
@@ -175,7 +177,7 @@ def _task_fetch_data_from_source(
     for i, result in enumerate(worker.read(partition)):
         convert_to_parquet_bytesio(result, i)
 
-    parquet_queue.put((f"PARTITION_COMPLETE_{partition_idx}", None))
+    parquet_queue.put((f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}{partition_idx}", None))
 
 
 def _task_fetch_data_from_source_with_retry(
@@ -282,7 +284,8 @@ def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
     """Worker process that fetches data from multiple partitions"""
     while True:
         try:
-            partition_idx, query = partition_queue.get(block=False)
+            # Get item from queue with timeout
+            partition_idx, query = partition_queue.get(timeout=1.0)
 
             _task_fetch_data_from_source_with_retry(
                 reader,
@@ -295,7 +298,7 @@ def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
             break
         except Exception as e:
             # Put error information in queue to signal failure
-            parquet_queue.put(("ERROR", e))
+            parquet_queue.put((PARTITION_TASK_ERROR_SIGNAL, e))
             break
 
 
@@ -345,18 +348,18 @@ def process_parquet_queue_with_threads(
         while len(completed_partitions) < total_partitions:
             try:
                 # Get item from queue with timeout
-                item = parquet_queue.get(block=False)
+                item = parquet_queue.get(timeout=1.0)
                 parquet_id, parquet_buffer = item
 
                 # Check for completion signals
-                if parquet_id.startswith("PARTITION_COMPLETE_"):
+                if parquet_id.startswith(PARTITION_TASK_COMPLETE_SIGNAL_PREFIX):
                     partition_idx = int(parquet_id.split("_")[-1])
                     completed_partitions.add(partition_idx)
                     logger.debug(f"Partition {partition_idx} completed.")
                     continue
 
                 # Check for errors
-                if parquet_id == "ERROR":
+                if parquet_id == PARTITION_TASK_ERROR_SIGNAL:
                     logger.error(f"Error in data fetching process: {parquet_buffer}")
                     raise parquet_buffer
 
