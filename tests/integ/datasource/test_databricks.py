@@ -58,6 +58,11 @@ def create_databricks_connection():
     return conn
 
 
+def test_blank_databricks(session):
+    conn = create_databricks_connection()
+    print(conn.cursor().execute(f"SELECT * FROM {TEST_TABLE_NAME}").fetchall())
+
+
 @pytest.mark.parametrize(
     "input_type, input_value",
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
