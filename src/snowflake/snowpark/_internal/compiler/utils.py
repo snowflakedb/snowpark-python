@@ -4,7 +4,7 @@
 #
 import copy
 import tempfile
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -389,6 +389,31 @@ def is_with_query_block(node: LogicalPlan) -> bool:
         return is_with_query_block(node.snowflake_plan)
 
     return False
+
+
+def replace_child_and_update_ancestors(
+    child: LogicalPlan,
+    new_child: LogicalPlan,
+    parent_map: Dict[LogicalPlan, Set[TreeNode]],
+    query_generator: QueryGenerator,
+):
+    """
+    For the given child, this helper function updates all its parents with the new
+    child provided and updates all the ancestor nodes.
+    """
+    parents = parent_map[child]
+
+    for parent in parents:
+        replace_child(parent, child, new_child, query_generator)
+
+    nodes_to_reset = list(parents)
+    while nodes_to_reset:
+        node = nodes_to_reset.pop()
+
+        update_resolvable_node(node, query_generator)
+
+        parents = parent_map[node]
+        nodes_to_reset.extend(parents)
 
 
 def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
