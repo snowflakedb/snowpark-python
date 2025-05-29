@@ -7,6 +7,7 @@ import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.session import _add_session, _remove_session
 
 
 @pytest.fixture(scope="function")
@@ -19,7 +20,9 @@ def mock_server_connection():
 @pytest.fixture(scope="function")
 def session(mock_server_connection):
     with Session(mock_server_connection) as s:
+        _add_session(s)
         yield s
+        _remove_session(s)
 
 
 def pytest_sessionstart(session):
