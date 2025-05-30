@@ -43,12 +43,15 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_msg
     )  # pragma: no cover
 
-supported_modin_versions = [version.parse("0.32.0"), version.parse("0.33.0")]
+modin_min_supported_version = version.parse("0.32.0")
+modin_max_supported_version = version.parse("0.34.0")  # non-inclusive
 actual_modin_version = version.parse(modin.__version__)
-if actual_modin_version not in supported_modin_versions:
+if not (
+    modin_min_supported_version <= actual_modin_version < modin_max_supported_version
+):
     raise ImportError(
-        f"The Modin version installed ({modin.__version__}) does not match one of the currently supported Modin versions in"
-        + f" Snowpark pandas ({', '.join(map(str, supported_modin_versions))}). "
+        f"The Modin version installed ({modin.__version__}) does not match the currently supported Modin versions in"
+        + f" Snowpark pandas (modin >= {modin_min_supported_version}, < {modin_max_supported_version})."
         + install_msg
     )  # pragma: no cover
 
@@ -81,20 +84,8 @@ from snowflake.snowpark.modin.plugin import docstrings  # isort: skip  # noqa: E
 
 DocModule.put(docstrings.__name__)
 
-# We cannot call ModinDocModule.put directly because it will produce a call to `importlib.reload`
-# that will overwrite our extensions. We instead directly call the _inherit_docstrings annotation
-# See https://github.com/modin-project/modin/issues/7122
-import modin.utils  # type: ignore[import]  # isort: skip  # noqa: E402
 import modin.pandas.series_utils  # type: ignore[import]  # isort: skip  # noqa: E402
-
-if MODIN_IS_AT_LEAST_0_33_0:
-    # Hybrid execution is available after modin 0.33.0.
-    from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402
-        _GENERAL_EXTENSIONS,
-        _NON_EXTENDABLE_ATTRIBUTES,
-        register_function_for_post_op_switch,
-        register_function_for_pre_op_switch,
-    )
+import modin.pandas.groupby  # isort: skip  # noqa: E402
 
 # TODO: SNOW-1643979 pull in fixes for
 # https://github.com/modin-project/modin/issues/7113 and https://github.com/modin-project/modin/issues/7134
@@ -110,17 +101,32 @@ inherit_modules = [
         docstrings.series_utils.CombinedDatetimelikeProperties,
         modin.pandas.series_utils.DatetimeProperties,
     ),
+    (
+        docstrings.groupby.DataFrameGroupBy,
+        modin.pandas.groupby.DataFrameGroupBy,
+    ),
+    (
+        docstrings.groupby.SeriesGroupBy,
+        modin.pandas.groupby.SeriesGroupBy,
+    ),
 ]
 
 for (doc_module, target_object) in inherit_modules:
     _inherit_docstrings(doc_module, overwrite_existing=True)(target_object)
 
 # _inherit_docstrings needs a function or class as argument, so we must explicitly iterate over
-# all members of io and general
-function_inherit_modules = [
-    (docstrings.io, modin.pandas.io),
-    (docstrings.general, modin.pandas.general),
-]
+# all members of io and general. Their override targets must be in the top-level pandas namespace
+# to resolve properly with the extensions system.
+if MODIN_IS_AT_LEAST_0_33_0:
+    function_inherit_modules = [
+        (docstrings.io, modin.pandas),
+        (docstrings.general, modin.pandas),
+    ]
+else:
+    function_inherit_modules = [
+        (docstrings.io, modin.pandas.io),
+        (docstrings.general, modin.pandas.general),
+    ]
 
 for (doc_module, target_module) in function_inherit_modules:
     for name in dir(target_module):
@@ -156,6 +162,13 @@ if MODIN_IS_AT_LEAST_0_33_0:
         "Snowflake", Execution(engine="Snowflake", storage_format="Snowflake")
     )
     Backend.put("snowflake")
+
+    from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402
+        _GENERAL_EXTENSIONS,
+        _NON_EXTENDABLE_ATTRIBUTES,
+        register_function_for_post_op_switch,
+        register_function_for_pre_op_switch,
+    )
 
     # Hybrid Mode Registration
     pre_op_switch_points: list[dict[str, Union[str, None]]] = [
