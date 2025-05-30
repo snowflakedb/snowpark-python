@@ -3,6 +3,7 @@
 #
 
 import json
+import sys
 
 import pytest
 
@@ -33,7 +34,7 @@ from tests.resources.test_data_source_dir.test_databricks_data import (
     TEST_TABLE_NAME,
     DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION,
 )
-from tests.utils import IS_IN_STORED_PROC, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_MACOS, Utils
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
@@ -47,6 +48,10 @@ except ImportError:
 pytestmark = [
     pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'"),
     pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration"),
+    pytest.mark.skipif(
+        IS_MACOS and sys.version_info[:2] == (3, 12),
+        reason="SNOW-2128983: databricks connector unable to fetch data on macOS with Python 3.12, skipping first",
+    ),
 ]
 
 
