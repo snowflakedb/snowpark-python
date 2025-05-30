@@ -1421,7 +1421,7 @@ class DataFrameReader:
                 on_error="abort_statement",
             )
 
-        except BaseException:
+        except BaseException as exc:
             # Graceful shutdown - terminate all processes
             for process in processes:
                 if process.is_alive():
@@ -1430,7 +1430,13 @@ class DataFrameReader:
                     if process.is_alive():
                         process.kill()
                         process.join()
-            raise
+
+            if isinstance(exc, SnowparkDataframeReaderException):
+                raise exc
+
+            raise SnowparkDataframeReaderException(
+                f"Error occurred while ingesting data from the data source: {exc!r}"
+            )
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(

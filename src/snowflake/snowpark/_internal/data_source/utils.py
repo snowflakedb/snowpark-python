@@ -210,25 +210,29 @@ def _upload_and_copy_into_table(
     # Reset buffer position to beginning
     parquet_buffer.seek(0)
 
-    # Upload BytesIO directly to stage using put_stream
-    stage_file_path = f"@{snowflake_stage_name}/{parquet_id}"
-    session.file.put_stream(
-        parquet_buffer,
-        stage_file_path,
-        overwrite=True,
-    )
+    try:
+        # Upload BytesIO directly to stage using put_stream
+        stage_file_path = f"@{snowflake_stage_name}/{parquet_id}"
+        session.file.put_stream(
+            parquet_buffer,
+            stage_file_path,
+            overwrite=True,
+        )
 
-    # Copy into table
-    copy_into_table_query = f"""
-    COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{parquet_id}
-    FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
-    MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
-    PURGE=TRUE
-    ON_ERROR={on_error}
-    {DATA_SOURCE_SQL_COMMENT}
-    """
-    session.sql(copy_into_table_query).collect(statement_params=statements_params)
-    logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
+        # Copy into table
+        copy_into_table_query = f"""
+        COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{parquet_id}
+        FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
+        MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
+        PURGE=TRUE
+        ON_ERROR={on_error}
+        {DATA_SOURCE_SQL_COMMENT}
+        """
+        session.sql(copy_into_table_query).collect(statement_params=statements_params)
+        logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
+    finally:
+        # proactively close the buffer to release memory
+        parquet_buffer.close()
 
 
 def _upload_and_copy_into_table_with_retry(
@@ -334,8 +338,7 @@ def process_parquet_queue_with_threads(
         on_error: Error handling strategy for COPY INTO operations
 
     Raises:
-        RuntimeError: If any worker process fails
-        Exception: Any exception raised during parquet processing
+        SnowparkDataframeReaderException: If any worker process fails
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import queue
@@ -347,9 +350,7 @@ def process_parquet_queue_with_threads(
 
         while len(completed_partitions) < total_partitions:
             try:
-                # Get item from queue with timeout
-                item = parquet_queue.get(timeout=1.0)
-                parquet_id, parquet_buffer = item
+                parquet_id, parquet_buffer = parquet_queue.get(timeout=1.0)
 
                 # Check for completion signals
                 if parquet_id.startswith(PARTITION_TASK_COMPLETE_SIGNAL_PREFIX):
@@ -384,7 +385,7 @@ def process_parquet_queue_with_threads(
                 # Check if any processes have failed
                 for i, process in enumerate(processes):
                     if not process.is_alive() and process.exitcode != 0:
-                        raise RuntimeError(
+                        raise SnowparkDataframeReaderException(
                             f"Process {i} failed with exit code {process.exitcode}"
                         )
                 continue
@@ -398,4 +399,6 @@ def process_parquet_queue_with_threads(
     for process in processes:
         process.join()
         if process.exitcode != 0:
-            raise RuntimeError(f"Process failed with exit code {process.exitcode}")
+            raise SnowparkDataframeReaderException(
+                f"Process failed with exit code {process.exitcode}"
+            )

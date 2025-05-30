@@ -1127,7 +1127,8 @@ def test_graceful_shutdown_on_worker_process_error(session):
 
             # This should trigger the graceful shutdown
             with pytest.raises(
-                RuntimeError, match="Simulated error in queue processing"
+                SnowparkDataframeReaderException,
+                match="Simulated error in queue processing",
             ):
                 session.read.dbapi(
                     functools.partial(create_connection_to_sqlite3_db, dbpath),
