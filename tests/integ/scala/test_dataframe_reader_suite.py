@@ -1203,7 +1203,7 @@ def test_read_json_quoted_names(session):
         ]
     )
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json") as file:
+    with tempfile.NamedTemporaryFile(mode="w+", suffix=".json") as file:
         file.write(json.dumps(quoted_column_data))
         file_path = file.name
         file.flush()
