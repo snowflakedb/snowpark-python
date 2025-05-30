@@ -44,6 +44,7 @@ class DataSourceReader:
         self.fetch_merge_count = fetch_merge_count
 
     def read(self, partition: str) -> Iterator[List[Any]]:
+        logger.debug("Start reading data from partition: %s", partition)
         self.driver = self.driver_class(
             cloudpickle.loads(self.pickled_create_connection_callback),
             self.dbms_type,
