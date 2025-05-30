@@ -1663,6 +1663,10 @@ def test_pattern(session, mode):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing does not support file.put",
+)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern_with_infer(session, mode):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
