@@ -2145,3 +2145,81 @@ $$;
     session.sql(sql).collect()
     df = session.call(temp_sp_name, 1, return_dataframe=True)
     Utils.check_answer(df, [Row(COL1=1, COL2="snowflake")])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="data source is not supported in local testing",
+    run=False,
+)
+def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
+    def core_ingestion_logic(session_):
+        from snowflake.snowpark._internal.utils import (
+            random_name_for_temp_object,
+            TempObjectType,
+        )
+        import multiprocessing as mp
+        from io import BytesIO
+        import pandas as pd
+
+        queue = mp.Queue()
+
+        def worker_process(parquet_queue):
+
+            # Create a sample DataFrame
+            data = {
+                "id": [1, 2, 3, 4, 5],
+                "name": ["Alice", "Bob", "Charlie", "David", "Eve"],
+                "value": [100, 200, 300, 400, 500],
+            }
+            parquet_buffer = BytesIO()
+            df = pd.DataFrame(data)
+            df.to_parquet(parquet_buffer)
+            parquet_buffer.seek(0)
+            parquet_queue.put(parquet_buffer)
+
+        process = mp.Process(target=worker_process, args=(queue,))
+        process.start()
+
+        # Wait for the process to complete
+        process.join()
+        if process.exitcode != 0 or process.is_alive():
+            return "failure"
+
+        # Get the parquet buffer from the queue
+        parquet_buffer = queue.get()
+        parquet_buffer.seek(0)
+
+        # Create a temporary stage
+        stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+        session_.sql(f"CREATE TEMPORARY STAGE {stage_name}").collect()
+
+        # Create a temporary table
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        session_.sql(
+            f"CREATE TEMPORARY TABLE {table_name} (id INT, name STRING, value INT)"
+        ).collect()
+
+        session_.file.put_stream(
+            parquet_buffer, f"@{stage_name}/data.parquet", overwrite=True
+        )
+
+        # Copy the parquet buffer into the temporary table
+        session_.sql(
+            f"COPY INTO {table_name} FROM @{stage_name}/data.parquet FILE_FORMAT = (TYPE = PARQUET) MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE"
+        ).collect()
+
+        # Check the results
+        df = session_.table(table_name).collect()
+        if df != [
+            (1, "Alice", 100),
+            (2, "Bob", 200),
+            (3, "Charlie", 300),
+            (4, "David", 400),
+            (5, "Eve", 500),
+        ]:
+            return "failure"
+        return "success"
+
+    ingestion = sproc(core_ingestion_logic, return_type=StringType())
+    assert ingestion() == "success"

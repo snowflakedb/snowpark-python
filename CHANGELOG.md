@@ -26,6 +26,7 @@
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
+- Improved `DataFrameReader.dbapi` (PrPr) to use in-memory Parquet-based ingestion for better performance and security.
 
 ### Snowpark Local Testing Updates
 

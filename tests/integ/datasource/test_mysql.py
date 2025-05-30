@@ -113,7 +113,7 @@ def test_dbapi_batch_fetch(
         )
         # we only expect math.ceil(len(expected_result) / fetch_size) parquet files to be generated
         # for example, 5 rows, fetch size 2, we expect 3 parquet files
-        assert caplog.text.count("Retrieved file from parquet queue") == math.ceil(
+        assert caplog.text.count("Retrieved BytesIO parquet from queue") == math.ceil(
             len(expected_result) / fetch_size
         )
         assert df.order_by("ID").collect() == expected_result
