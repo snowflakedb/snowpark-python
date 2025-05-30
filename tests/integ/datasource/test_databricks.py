@@ -47,6 +47,9 @@ except ImportError:
 pytestmark = [
     pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'"),
     pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration"),
+    pytest.mark.xdist_group(
+        name="dbapi-databricks-serial-group"
+    ),  # Run all databricks tests in serial
 ]
 
 
