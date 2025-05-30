@@ -1710,7 +1710,10 @@ def test_pattern_with_infer(session, mode):
         )
 
         single_file_df = reader.csv(f"@{stage_name}/path/good1.csv")
-        Utils.check_answer(single_file_df, expected_rows)
+        try:
+            Utils.check_answer(single_file_df, expected_rows)
+        except Exception:
+            raise ValueError(single_file_df.collect())
 
         reader = reader.option("PATTERN", ".*good.*")
         single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
