@@ -10,6 +10,7 @@ import os
 import subprocess
 import tempfile
 import datetime
+import queue
 from io import BytesIO
 from textwrap import dedent
 from unittest import mock
@@ -37,6 +38,8 @@ from snowflake.snowpark._internal.data_source.utils import (
     detect_dbms,
     DBMS_TYPE,
     DRIVER_TYPE,
+    worker_process,
+    PARTITION_TASK_COMPLETE_SIGNAL_PREFIX,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -560,15 +563,13 @@ def test_task_fetch_from_data_source_with_fetch_size(
         completion_signal_received = False
         timeout = 5.0  # 5 second timeout
 
-        import queue
-
         # Keep draining the queue until we get the completion signal or timeout
         while not completion_signal_received:
             try:
                 parquet_id, parquet_buffer = parquet_queue.get(timeout=timeout)
 
                 # Check for completion signal
-                if parquet_id.startswith("PARTITION_COMPLETE_"):
+                if parquet_id.startswith(PARTITION_TASK_COMPLETE_SIGNAL_PREFIX):
                     completion_signal_received = True
                     continue
 
@@ -1036,3 +1037,113 @@ def test_local_create_connection_function(session, db_parameters):
         )
         result = subprocess.run(["python", "-c", code], capture_output=True, text=True)
         assert "successful ingestion" in result.stdout
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_worker_process_unit():
+    """Test worker_process function with sqlite3 database."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, columns, example_data, _ = sqlite3_db(dbpath)
+
+        # Create DataSourceReader for sqlite3
+        reader = DataSourceReader(
+            SqliteDriver,
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
+            dbms_type=DBMS_TYPE.SQLITE_DB,
+            fetch_size=2,
+        )
+
+        partition_queue = multiprocessing.Queue()
+        parquet_queue = multiprocessing.Queue()
+
+        # Set up partition_queue to return test data, then raise queue.Empty
+        partition_queue.put((0, f"SELECT * FROM {table_name} WHERE id <= 3"))
+        partition_queue.put((1, f"SELECT * FROM {table_name} WHERE id > 3"))
+
+        # Call the worker_process function directly (using real sqlite3 operations)
+        worker_process(partition_queue, parquet_queue, reader)
+
+        expected_order = [
+            "data_partition0_fetch0.parquet",
+            "data_partition0_fetch1.parquet",
+            f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}0",
+            "data_partition1_fetch0.parquet",
+            "data_partition1_fetch1.parquet",
+            f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}1",
+        ]
+
+        parquet_ids = []
+        done_job = set()
+        while len(done_job) < 2:
+            try:
+                parquet_id, parquet_buffer = parquet_queue.get(timeout=1)
+                parquet_ids.append(parquet_id)
+                if parquet_id.startswith("PARTITION_COMPLETE_"):
+                    done_job.add(int(parquet_id.split("_")[-1]))
+            except queue.Empty:
+                break
+        assert parquet_ids == expected_order, f"Order mismatch: {parquet_ids}"
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_graceful_shutdown_on_worker_process_error(session):
+    """Test graceful shutdown when worker_process raises an exception."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, _ = sqlite3_db(dbpath)
+
+        # Track created processes by patching the Process.__init__ method
+        created_processes = []
+        original_init = multiprocessing.Process.__init__
+
+        def track_process_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            created_processes.append(self)
+
+        with mock.patch.object(
+            multiprocessing.Process, "__init__", track_process_init
+        ), mock.patch(
+            "snowflake.snowpark.dataframe_reader.process_parquet_queue_with_threads",
+            side_effect=RuntimeError("Simulated error in queue processing"),
+        ):
+
+            # This should trigger the graceful shutdown
+            with pytest.raises(
+                RuntimeError, match="Simulated error in queue processing"
+            ):
+                session.read.dbapi(
+                    functools.partial(create_connection_to_sqlite3_db, dbpath),
+                    table=table_name,
+                    column="id",
+                    upper_bound=10,
+                    lower_bound=0,
+                    num_partitions=2,
+                    max_workers=2,
+                    custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                )
+
+            # Verify that processes were created
+            assert len(created_processes) == 2, "Should have created 2 processes"
+
+            # Give a moment for processes to be terminated
+            import time
+
+            time.sleep(0.1)
+
+            # Verify that all processes have been terminated
+            for i, process in enumerate(created_processes):
+                assert (
+                    not process.is_alive()
+                ), f"Process {i} should not be alive after shutdown"
+                # Check that exitcode indicates termination (not successful completion)
+                assert (
+                    process.exitcode != 0
+                ), f"Process {i} should have non-zero exit code after termination"
