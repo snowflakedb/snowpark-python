@@ -38,6 +38,7 @@ from snowflake.connector.cursor import ResultMetadata
 from snowflake.snowpark._internal.lazy_import_utils import (
     get_installed_pandas,
     get_snowpark_types,
+    get_pandas,
 )
 from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.row import Row
@@ -91,13 +92,10 @@ except ImportError:
 
 def get_pandas_types():
     if get_installed_pandas():
-        from snowflake.snowpark.types import get_pandas_dataframe_class
-
         snowflake_snowpark_types = get_snowpark_types()
-        pandas_dataframe_class = get_pandas_dataframe_class()
 
         return (
-            pandas_dataframe_class,
+            snowflake_snowpark_types.PandasDataFrame,
             snowflake_snowpark_types.PandasDataFrameType,
             snowflake_snowpark_types.PandasSeries,
             snowflake_snowpark_types.PandasSeriesType,
@@ -107,9 +105,6 @@ def get_pandas_types():
 
 if TYPE_CHECKING:
     import snowflake.snowpark.column
-
-    # Import pandas for type checking only
-    from snowflake.connector.options import pandas
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -620,6 +615,7 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
 def python_type_str_to_object(
     tp_str: str, is_return_type_for_sproc: bool = False
 ) -> Type:
+    pandas = get_pandas()
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -705,6 +701,7 @@ def python_type_to_snow_type(
 
     if get_installed_pandas():
         pandas_types = get_pandas_types()
+        pandas = get_pandas()
         if pandas_types:
             (
                 PandasDataFrame,
