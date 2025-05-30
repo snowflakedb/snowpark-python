@@ -23,6 +23,7 @@ def setup_mock_qc() -> SnowflakeQueryCompiler:
     mock_query_compiler.move_to_cost.return_value = 0
     mock_query_compiler.move_to_me_cost.return_value = 0
     mock_query_compiler.max_cost.return_value = 1000
+    mock_query_compiler._max_shape.return_value = (10, 10)
     return mock_query_compiler
 
 
