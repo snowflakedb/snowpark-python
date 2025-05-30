@@ -1046,33 +1046,59 @@ class Timestamp(datetime.datetime, Generic[_T]):
     pass
 
 
-def get_pandas_dataframe_class():
-    """Get PandasDataFrame class lazily when needed."""
-    import sys
-    from typing import Generic
-    from snowflake.snowpark._internal.lazy_import_utils import (
-        get_installed_pandas,
-        get_pandas,
-    )
+PandasDataFrameShadow = None
 
-    if not get_installed_pandas():
-        return None
 
-    pandas = get_pandas()
-
+def __getattr__(name: str):
+    from snowflake.snowpark._internal.utils import installed_pandas, pandas
     from typing_extensions import TypeVarTuple
 
     _TT = TypeVarTuple("_TT")
+    if name == "PandasSeries":
+        if installed_pandas:
 
-    if sys.version_info >= (3, 11):
-        from typing import Unpack
+            class PandasSeries(pandas.Series, Generic[_T]):
+                """The type hint for annotating pandas Series data when registering UDFs."""
 
-        class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
-            pass
+                pass
 
-    else:
+            return PandasSeries
+        else:
+            raise AttributeError(f"pandas not installed, {name} not available")
+    elif name == "PandasDataFrame":
+        if installed_pandas:
+            global PandasDataFrameShadow
+            # Return cached class if it exists
+            if PandasDataFrameShadow is not None:
+                return PandasDataFrameShadow
 
-        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-            pass
+            # Create the class only once
+            if sys.version_info >= (3, 11):
+                from typing import Unpack
 
-    return PandasDataFrame
+                class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
+                    """
+                    The type hint for annotating pandas DataFrame data when registering UDFs.
+                    The input should be a list of data types for all columns in order.
+                    It cannot be used to annotate the return value of a pandas UDF.
+                    """
+
+                    pass
+
+            else:
+
+                class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+                    """
+                    The type hint for annotating pandas DataFrame data when registering UDFs.
+                    The input should be a list of data types for all columns in order.
+                    It cannot be used to annotate the return value of a pandas UDF.
+                    """
+
+                    pass
+
+            # Cache and return the class
+            PandasDataFrameShadow = PandasDataFrame
+            return PandasDataFrameShadow
+        else:
+            raise AttributeError(f"pandas not installed, {name} not available")
+    raise AttributeError(f"module has no attribute '{name}'")

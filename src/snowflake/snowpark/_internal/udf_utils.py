@@ -63,7 +63,6 @@ from snowflake.snowpark.types import (
     DataType,
     StructField,
     StructType,
-    get_pandas_dataframe_class,
 )
 from snowflake.snowpark.version import VERSION
 
@@ -204,8 +203,8 @@ def extract_return_type_from_udtf_type_hints(
 
     global PandasDataFrameType, PandasDataFrame
     if get_installed_pandas():
-        PandasDataFrame = get_pandas_dataframe_class()
         snowpark_types = get_snowpark_types()
+        PandasDataFrame = snowpark_types.PandasDataFrame
         PandasDataFrameType = snowpark_types.PandasDataFrameType
 
     if return_type_hint is None and output_schema is not None:
@@ -255,7 +254,14 @@ def extract_return_type_from_udtf_type_hints(
         return None
     else:
         if get_installed_pandas():  # Vectorized UDTF
-            if typing.get_origin(return_type_hint) == PandasDataFrame:
+            origin = typing.get_origin(return_type_hint)
+            # Check if it's a PandasDataFrame type (dynamically created by __getattr__)
+            if (
+                origin is not None
+                and getattr(origin, "__name__", "") == "PandasDataFrame"
+                and hasattr(origin, "__bases__")
+                and any(base.__name__ == "DataFrame" for base in origin.__bases__)
+            ):
                 return PandasDataFrameType(
                     col_types=[
                         python_type_to_snow_type(x)[0]
