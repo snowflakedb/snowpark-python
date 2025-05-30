@@ -159,8 +159,14 @@ def _task_fetch_data_from_source(
         )
         df.to_parquet(path)
 
+    logger.warning(
+        "Starting to fetch data from the source for partition: %s", partition
+    )
     for i, result in enumerate(worker.read(partition)):
         convert_to_parquet(result, i)
+    logger.warning(
+        "Finished fetching data from the source for partition: %s", partition
+    )
 
 
 def _task_fetch_data_from_source_with_retry(
