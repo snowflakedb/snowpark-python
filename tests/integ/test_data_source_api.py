@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.data_source.utils import (
     DRIVER_TYPE,
     worker_process,
     PARTITION_TASK_COMPLETE_SIGNAL_PREFIX,
+    PARTITION_TASK_ERROR_SIGNAL,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -1088,6 +1089,15 @@ def test_worker_process_unit():
             except queue.Empty:
                 break
         assert parquet_ids == expected_order, f"Order mismatch: {parquet_ids}"
+
+        # check error handling
+        partition_queue.put((0, "SELECT * FROM NON_EXISTING_TABLE"))
+        worker_process(partition_queue, parquet_queue, reader)
+        error_signal, error_instance = parquet_queue.get()
+        assert error_signal == PARTITION_TASK_ERROR_SIGNAL
+        assert isinstance(
+            error_instance, SnowparkDataframeReaderException
+        ) and "no such table: NON_EXISTING_TABLE" in str(error_instance)
 
 
 @pytest.mark.skipif(
