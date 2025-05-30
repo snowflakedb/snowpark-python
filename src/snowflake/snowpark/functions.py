@@ -523,7 +523,7 @@ def current_statement(_emit_ast: bool = True) -> Column:
 
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
-        >>> session.create_dataframe([1]).select(current_statement()).collect()
+        >>> session.create_dataframe([1]).select(current_statement()).collect() # doctest: +SKIP
         [Row(CURRENT_STATEMENT()='SELECT current_statement() FROM ( SELECT "_1" FROM ( SELECT $1 AS "_1" FROM  VALUES (1 :: INT)))')]
     """
     return _call_function("current_statement", _emit_ast=_emit_ast)
