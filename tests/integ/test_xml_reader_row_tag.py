@@ -293,3 +293,16 @@ def test_read_xml_exclude_attributes(session):
     assert len(result[0]) == 6
     with pytest.raises(KeyError):
         _ = result[0]["'_id'"]
+
+
+def test_read_xml_value_tag(session):
+    row_tag = "author"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("valueTag", "value")
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 12
+    assert len(result[0]) == 1
+    assert result[0]["'value'"] is not None

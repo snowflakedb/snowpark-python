@@ -881,6 +881,9 @@ class DataFrameReader:
               + ``attributePrefix``: The prefix to add to the attribute names. The default value is ``_``.
 
               + ``excludeAttributes``: Whether to exclude attributes from the XML element. The default value is ``False``.
+
+              + ``valueTag``: The column name used for the value when there are attributes in an element that has no child elements.
+                The default value is ``_VALUE``.
         """
         df = self._read_semi_structured_file(path, "XML")
 
