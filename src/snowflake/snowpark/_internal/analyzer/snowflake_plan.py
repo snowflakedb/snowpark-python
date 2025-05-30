@@ -7,7 +7,7 @@ import difflib
 import re
 import sys
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
 from enum import Enum
 from functools import cached_property
 from typing import (
@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
+    TableFunctionJoin,
 )
 
 if TYPE_CHECKING:
@@ -1324,6 +1325,72 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
+    def find_and_update_table_function_plan(
+        self, plan: SnowflakePlan
+    ) -> Optional[SnowflakePlan]:
+        """This function is meant to find any udtf function call from a create dynamic table plan and
+        replace '*' with explicit column identifier in the select of table function. Since we cannot
+        differentiate udtf call from other table functions, we apply this change to all table functions.
+        """
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectTableFunction,
+            Selectable,
+        )
+        from snowflake.snowpark._internal.compiler.utils import (
+            create_query_generator,
+            update_resolvable_node,
+            replace_child_and_update_ancestors,
+        )
+
+        visited = set()
+        node_parents_map = defaultdict(set)
+        deepcopied_plan = copy.deepcopy(plan)
+        query_generator = create_query_generator(plan)
+        queue = deque()
+
+        queue.append(deepcopied_plan)
+        visited.add(deepcopied_plan)
+
+        while queue:
+            node = queue.popleft()
+            visited.add(node)
+            for child_node in reversed(node.children_plan_nodes):
+                node_parents_map[child_node].add(node)
+                if child_node not in visited:
+                    queue.append(child_node)
+
+            # the bug only happen when create dynamic table on top of a table function
+            # this is meant to decide whether the plan is select from a table function
+            if isinstance(node, SelectTableFunction) and isinstance(
+                node.snowflake_plan.source_plan, TableFunctionJoin
+            ):
+                table_function_join_node = node.snowflake_plan.source_plan
+                # if the plan has only 1 child and the source_plan.right_cols == '*', then we need to update the
+                # plan with the output column identifiers.
+                if len(
+                    node.snowflake_plan.children_plan_nodes
+                ) == 1 and table_function_join_node.right_cols == ["*"]:
+                    child_plan: Union[
+                        SnowflakePlan, Selectable
+                    ] = node.snowflake_plan.children_plan_nodes[0]
+                    if isinstance(child_plan, Selectable):
+                        child_plan = child_plan.snowflake_plan
+                    assert isinstance(child_plan, SnowflakePlan)
+
+                    new_plan = copy.deepcopy(node)
+                    new_plan.snowflake_plan.source_plan.right_cols = (  # type: ignore
+                        node.snowflake_plan.quoted_identifiers[
+                            len(child_plan.quoted_identifiers) :
+                        ]
+                    )
+
+                    update_resolvable_node(new_plan, query_generator)
+                    replace_child_and_update_ancestors(
+                        node, new_plan, node_parents_map, query_generator
+                    )
+
+        return deepcopied_plan
+
     def create_or_replace_dynamic_table(
         self,
         name: str,
@@ -1341,6 +1408,9 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
+
+        child = self.find_and_update_table_function_plan(child)  # type: ignore
+
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
 
