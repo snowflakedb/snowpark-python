@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.data_source.utils import (
     worker_process,
     PARTITION_TASK_COMPLETE_SIGNAL_PREFIX,
     PARTITION_TASK_ERROR_SIGNAL,
+    process_completed_futures,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -1160,3 +1161,62 @@ def test_graceful_shutdown_on_worker_process_error(session):
                 assert (
                     process.exitcode != 0
                 ), f"Process {i} should have non-zero exit code after termination"
+
+
+def test_unit_process_completed_futures_comprehensive():
+    """Comprehensive test covering all lines and branches of process_completed_futures."""
+    from concurrent.futures import Future
+
+    # Test 1: Normal successful completion path
+    successful_future = MagicMock(spec=Future)
+    successful_future.done.return_value = True
+    successful_future.result.return_value = None
+
+    # Test 2: Not done future (should remain)
+    pending_future = MagicMock(spec=Future)
+    pending_future.done.return_value = False
+
+    thread_futures = {
+        ("success.parquet", successful_future),
+        ("pending.parquet", pending_future),
+    }
+
+    # Call function - should process successfully
+    process_completed_futures(thread_futures)
+
+    # Verify: successful future removed, pending remains
+    assert len(thread_futures) == 1
+    assert ("pending.parquet", pending_future) in thread_futures
+    successful_future.result.assert_called_once()
+    pending_future.result.assert_not_called()
+
+    # Test 3: Exception handling path
+    error_future = MagicMock(spec=Future)
+    error_future.done.return_value = True
+    error_future.result.side_effect = RuntimeError("Test error")
+
+    cancellable_future = MagicMock(spec=Future)
+    cancellable_future.done.return_value = False
+
+    done_future = MagicMock(spec=Future)
+    done_future.done.return_value = True
+
+    thread_futures = {
+        ("error.parquet", error_future),
+        ("cancellable.parquet", cancellable_future),
+        ("done.parquet", done_future),
+    }
+
+    # Call function - should raise exception and cancel undone futures
+    with pytest.raises(RuntimeError, match="Test error"):
+        process_completed_futures(thread_futures)
+
+    # Verify: exception raised, undone futures cancelled, set cleared
+    assert len(thread_futures) == 0
+    cancellable_future.cancel.assert_called_once()
+    done_future.cancel.assert_not_called()  # Don't cancel already done futures
+
+    # Test 4: Empty set edge case
+    empty_set = set()
+    process_completed_futures(empty_set)  # Should not raise any exceptions
+    assert len(empty_set) == 0

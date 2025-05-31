@@ -312,7 +312,7 @@ def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
             break
 
 
-def _process_completed_futures(thread_futures):
+def process_completed_futures(thread_futures):
     """Process completed futures with simplified error handling."""
     for parquet_id, future in list(thread_futures):  # Iterate over a copy of the set
         if future.done():
@@ -380,7 +380,7 @@ def process_parquet_queue_with_threads(
         thread_futures = set()  # stores tuples of (parquet_id, thread_future)
         while len(completed_partitions) < total_partitions or thread_futures:
             # Process any completed futures and handle errors
-            _process_completed_futures(thread_futures)
+            process_completed_futures(thread_futures)
 
             try:
                 backpressure_semaphore.acquire()

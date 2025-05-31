@@ -1426,9 +1426,6 @@ class DataFrameReader:
                 if process.is_alive():
                     process.terminate()
                     process.join(timeout=5)
-                    if process.is_alive():
-                        process.kill()
-                        process.join()
 
             if isinstance(exc, SnowparkDataframeReaderException):
                 raise exc
