@@ -895,6 +895,8 @@ class DataFrameReader:
 
               + ``valueTag``: The column name used for the value when there are attributes in an element that has no child elements.
                 The default value is ``_VALUE``.
+
+              + ``nullValue``: The value to treat as a null value. The default value is ``""``.
         """
         df = self._read_semi_structured_file(path, "XML")
 

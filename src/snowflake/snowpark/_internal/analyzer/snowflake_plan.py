@@ -1514,6 +1514,8 @@ class SnowflakePlanBuilder:
         attribute_prefix = options.get("ATTRIBUTEPREFIX", "_")
         exclude_attributes = options.get("EXCLUDEATTRIBUTES", False)
         value_tag = options.get("VALUETAG", "_VALUE")
+        # NULLVALUE will be mapped to NULL_IF in pre-defined mapping in `dataframe_writer.py`
+        null_value = options.get("NULL_IF", "")
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1547,6 +1549,7 @@ class SnowflakePlanBuilder:
                 lit(attribute_prefix),
                 lit(exclude_attributes),
                 lit(value_tag),
+                lit(null_value),
             ),
         )
 

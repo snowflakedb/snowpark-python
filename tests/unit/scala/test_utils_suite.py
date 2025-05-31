@@ -289,6 +289,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/malformed_not_self_closing.xml",
                 "resources/malformed_record.xml",
                 "resources/nested.xml",
+                "resources/null_value.xml",
                 "resources/test.avro",
                 "resources/test.orc",
                 "resources/test.parquet",

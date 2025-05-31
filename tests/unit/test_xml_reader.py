@@ -38,31 +38,47 @@ def test_replace_entity_unknown():
     assert replace_entity(match) == "&foo;"
 
 
-def test_element_to_dict_or_str_text():
+@pytest.mark.parametrize(
+    "text", ("   \n\t  ", " ", "\n\n", "  \t  ", "  hello world  ")
+)
+def test_element_to_dict_or_str_text(text):
     # Element with only text.
     element = ET.Element("greeting")
-    element.text = "  hello world  "
+    element.text = text
     result = element_to_dict_or_str(element)
-    assert result == "hello world"
+    assert result == text
 
 
 @pytest.mark.parametrize("attribute_prefix", ["_", ""])
 def test_element_to_dict_or_str_attributes(attribute_prefix):
-    # Element with attributes only.
     element = ET.Element("person", attrib={"name": "Alice", "age": "30"})
-    result = element_to_dict_or_str(element, attribute_prefix=attribute_prefix)
+    element.text = None
+    result = element_to_dict_or_str(
+        element, attribute_prefix=attribute_prefix, value_tag="value"
+    )
     expected = {f"{attribute_prefix}name": "Alice", f"{attribute_prefix}age": "30"}
+    assert result == expected
+    element.text = "xxx"
+    result = element_to_dict_or_str(
+        element, attribute_prefix=attribute_prefix, value_tag="value"
+    )
+    expected = {
+        f"{attribute_prefix}name": "Alice",
+        f"{attribute_prefix}age": "30",
+        "value": "xxx",
+    }
     assert result == expected
 
 
 def test_element_to_dict_or_str_exclude_attributes():
-    # Element with attributes only.
     element = ET.Element("person", attrib={"name": "Alice", "age": "30"})
     result = element_to_dict_or_str(
-        element, attribute_prefix="_", exclude_attributes=True
+        element, attribute_prefix="_", exclude_attributes=True, value_tag="value"
     )
-    expected = {}
-    assert result == expected
+    assert result is None
+    element.text = "xxx"
+    result = element_to_dict_or_str(element, exclude_attributes=True, value_tag="value")
+    assert result == "xxx"
 
 
 def test_element_to_dict_or_str_children():
@@ -77,6 +93,31 @@ def test_element_to_dict_or_str_children():
     result = element_to_dict_or_str(root)
     expected = {"item": ["value1", "value2"], "note": "note1"}
     assert result == expected
+
+
+@pytest.mark.parametrize("null_value", ["", "NULL", "<empty>", "N/A"])
+def test_element_to_dict_or_str_null_value(null_value):
+    element = ET.Element("empty")
+    element.text = null_value
+    result = element_to_dict_or_str(element, null_value=null_value)
+    assert result is None
+
+
+@pytest.mark.parametrize("null_value", ["", "NULL", "<empty>", "N/A"])
+def test_element_to_dict_or_str_null_value_with_attributes(null_value):
+    element = ET.Element("empty", attrib={"attr": null_value})
+    element.text = null_value
+    result = element_to_dict_or_str(element, null_value=null_value)
+    assert result == {"_attr": None}
+
+
+@pytest.mark.parametrize("null_value", ["", "NULL", "<empty>", "N/A"])
+def test_element_to_dict_or_str_null_value_with_children(null_value):
+    element = ET.Element("empty")
+    child = ET.SubElement(element, "child")
+    child.text = null_value
+    result = element_to_dict_or_str(element, null_value=null_value)
+    assert result == {"child": None}
 
 
 def test_default_namespace():
