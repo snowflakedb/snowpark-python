@@ -3,8 +3,9 @@
 #
 
 import datetime
-import logging
 import json
+import logging
+import os
 import random
 import tempfile
 from decimal import Decimal
@@ -1203,24 +1204,27 @@ def test_read_json_quoted_names(session):
         ]
     )
 
-    with tempfile.NamedTemporaryFile(mode="w+", suffix=".json") as file:
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as file:
         file.write(json.dumps(quoted_column_data))
         file_path = file.name
         file.flush()
-        try:
-            Utils.create_stage(session, stage_name, is_temporary=True)
-            put_result = session.file.put(
-                file_path, f"@{stage_name}", auto_compress=False, overwrite=True
-            )
-            reader = session.read.schema(schema)
-            df_1 = reader.json(f"@{stage_name}/{put_result[0].target}")
-            assert df_1.schema == parsed_schema
-            df_2 = reader.json(f"@{stage_name}/{put_result[0].target}")
-            assert df_2.schema == parsed_schema
-            result = df_1.union_all(df_2).collect()
-            Utils.check_answer(result, [Row(1, "2"), Row(1, "2")])
-        finally:
-            Utils.drop_stage(session, stage_name)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        put_result = session.file.put(
+            file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+        reader = session.read.schema(schema)
+        df_1 = reader.json(f"@{stage_name}/{put_result[0].target}")
+        assert df_1.schema == parsed_schema
+        df_2 = reader.json(f"@{stage_name}/{put_result[0].target}")
+        assert df_2.schema == parsed_schema
+        result = df_1.union_all(df_2).collect()
+        Utils.check_answer(result, [Row(1, "2"), Row(1, "2")])
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 
 @pytest.mark.skipif(
