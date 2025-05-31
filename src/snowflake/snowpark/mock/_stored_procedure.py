@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.ast.utils import (
+    add_intermediate_stmt,
     build_sproc,
     build_sproc_apply,
     with_src_position,
@@ -82,13 +83,8 @@ class MockStoredProcedure(StoredProcedure):
 
         sproc_expr = None
         if _emit_ast and self._ast is not None:
-            assert (
-                self._ast is not None
-            ), "Need to ensure _emit_ast is True when registering a stored procedure."
-            assert (
-                self._ast_id is not None
-            ), "Need to assign an ID to the stored procedure."
-
+            if self._ast_id is None:
+                add_intermediate_stmt(session._ast_batch, self)
             # Performing an bind here since we want to be able to generate a `sproc(arg1, arg2)` type
             # expression for the stored procedure call.
             sproc_expr = session._ast_batch.bind()
@@ -266,9 +262,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.stored_procedure, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.stored_procedure, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.StoredProcedure()
 
             object_name = kwargs["_registered_object_name"]
             sproc = MockStoredProcedure(
@@ -326,9 +325,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             )
 
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.stored_procedure, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.stored_procedure, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.StoredProcedure()
                 build_sproc(
                     ast,
                     func,
@@ -466,12 +468,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             )
             sproc_expr = None
             if _emit_ast and sproc._ast is not None:
-                assert (
-                    sproc._ast is not None
-                ), "Need to ensure _emit_ast is True when registering a stored procedure."
-                assert (
-                    sproc._ast_id is not None
-                ), "Need to assign an ID to the stored procedure."
+                if sproc._ast_id is None:
+                    add_intermediate_stmt(self._session._ast_batch, sproc)
                 sproc_expr = proto.Expr()
                 build_sproc_apply(sproc_expr, sproc._ast_id, statement_params, *args)
 
