@@ -4,6 +4,7 @@
 #
 
 """Context module for Snowpark."""
+from logging import warning
 from typing import Callable, Optional
 
 import snowflake.snowpark
@@ -28,6 +29,21 @@ _use_structured_type_semantics_lock = threading.RLock()
 
 # This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
 _is_snowpark_connect_compatible_mode = False
+
+# Following are internal-only global flags, used to enable development features.
+_enable_dataframe_trace_on_error = False
+
+
+def configure_development_features(
+    *,
+    enable_dataframe_trace_on_error: bool = True,
+):
+    warning(
+        "configure_development_features",
+        "This feature is experimental since 1.33.0. Do not use it in production.",
+    )
+    global _enable_dataframe_trace_on_error
+    _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
 
 
 def _should_use_structured_type_semantics():

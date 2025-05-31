@@ -26,6 +26,7 @@
   - Added support for specifying the column name for the value when there are attributes in an element that has no child elements using `valueTag` option.
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leads to a `SnowparkSQLException`. Enable it using `snowflake.snowpark.context.configure_development_features()`. This also requires AST collection enabled in the session.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
 - Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
 
