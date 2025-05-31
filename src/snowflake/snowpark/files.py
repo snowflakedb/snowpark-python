@@ -13,6 +13,7 @@ from __future__ import annotations
 import array
 import io
 import sys
+import tempfile
 from io import RawIOBase
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -102,7 +103,16 @@ class SnowflakeFile(RawIOBase):
         Args:
             mode: A string used to mark the type of an IO stream. Supported modes are "w" for text write and "wb" for binary write.
         """
-        return cls("new results file", mode, require_scoped_url=0, from_result_api=True)
+        if mode not in ("w", "wb"):
+            raise ValueError(
+                f"Invalid mode '{mode}' for SnowflakeFile.open_new_result. Supported modes are 'w' and 'wb'."
+            )
+        return cls(
+            tempfile.NamedTemporaryFile().name,
+            mode,
+            require_scoped_url=0,
+            from_result_api=True,
+        )
 
     def close(self) -> None:
         """
