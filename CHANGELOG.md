@@ -81,6 +81,7 @@
 #### Improvements
 
 - Make `iceberg_config` a required parameter for `DataFrame.to_iceberg` and `Series.to_iceberg`.
+- Show more helpful messages to Snowflake Notebook users when Modin or pandas version is not matching with the one we required.
 
 ## 1.31.1 (2025-05-05)
 
