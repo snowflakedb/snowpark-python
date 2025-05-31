@@ -587,6 +587,7 @@ jobs:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Install protoc
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Download wheel(s)
