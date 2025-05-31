@@ -287,6 +287,9 @@ _PYTHON_SNOWPARK_CLIENT_AST_MODE = "PYTHON_SNOWPARK_CLIENT_AST_MODE"
 _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
     "PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST"
 )
+_PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
+    "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
+)
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -654,6 +657,14 @@ class Session:
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
             )
         )
+        self._generate_multiline_queries: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, True
+            )
+        )
+        if self._generate_multiline_queries:
+            self._enable_multiline_queries()
+
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
@@ -773,6 +784,18 @@ class Session:
             f"role={self.get_current_role()}, database={self.get_current_database()}, "
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
         )
+
+    def _enable_multiline_queries(self):
+        import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+        analyzer_utils.NEW_LINE = "\n"
+        analyzer_utils.TAB = "    "
+
+    def _disable_multiline_queries(self):
+        import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+        analyzer_utils.NEW_LINE = ""
+        analyzer_utils.TAB = ""
 
     def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
         """
