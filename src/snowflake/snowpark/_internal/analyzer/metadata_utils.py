@@ -5,7 +5,14 @@ from enum import Enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
-from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression, Star
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Expression,
+    Literal,
+    Star,
+    UnresolvedAttribute,
+)
+from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
     LogicalPlan,
@@ -76,6 +83,40 @@ def infer_quoted_identifiers_from_expressions(
     return result
 
 
+def _extract_inferable_attribute_names(
+    attributes: Optional[List[Expression]],
+) -> tuple[List[Expression], List[Expression]]:
+    """
+    Returns a list of attribute names that can be infered from a list of Expressions.
+    Returns None if one or more attributes cannot be infered.
+    """
+    if attributes is None:
+        return None, None
+
+    new_attributes = []
+    old_attributes = []
+    for attr in attributes:
+        # Skip regular attributes. They were already resolved.
+        if isinstance(attr, Attribute):
+            old_attributes.append(attr)
+        elif isinstance(attr, Alias):
+            cur = attr
+            while True:
+                cur = cur.child
+                if not isinstance(cur, Alias):
+                    break
+            if isinstance(cur, (Literal, Attribute)):
+                new_attributes.append(attr)
+            else:
+                return None, None
+        elif isinstance(attr, (UnresolvedAttribute, UnresolvedAlias)):
+            return None, None
+        else:
+            raise ValueError(attr)
+            return None, None
+    return old_attributes, new_attributes
+
+
 def infer_metadata(
     source_plan: Optional[LogicalPlan],
     analyzer: "Analyzer",
@@ -93,8 +134,13 @@ def infer_metadata(
         LeftSemi,
     )
     from snowflake.snowpark._internal.analyzer.select_statement import (
+        SelectSQL,
+        SelectSnowflakePlan,
         SelectStatement,
+        SelectTableFunction,
         SelectableEntity,
+        SetStatement,
+        ColumnChangeState,
     )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
     from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -106,8 +152,11 @@ def infer_metadata(
         Distinct,
     )
 
+    from snowflake.snowpark.types import DataType
+
     attributes = None
     quoted_identifiers = None
+    referenced_identifiers = []
     if analyzer.session.reduce_describe_query_enabled and source_plan is not None:
         # If source_plan is a LogicalPlan, SQL simplifier is not enabled
         # so we can try to infer the metadata from its child (SnowflakePlan)
@@ -154,13 +203,52 @@ def infer_metadata(
                 if len(quoted_identifiers) != len(set(quoted_identifiers)):
                     quoted_identifiers = None
         # If source_plan is a SelectableEntity or SelectStatement, SQL simplifier is enabled
-        if isinstance(source_plan, SelectableEntity):
+        elif isinstance(source_plan, SelectableEntity):
             if source_plan.attributes is not None:
                 attributes = source_plan.attributes
         elif isinstance(source_plan, SelectStatement):
-            # When attributes is cached on source_plan, just use it
-            if source_plan.attributes is not None:
-                attributes = source_plan.attributes
+
+            def extract_attributes(current_plan):
+                # When attributes is cached on source_plan, just use it
+                attributes = None
+                if isinstance(current_plan, SelectStatement):
+                    if current_plan.attributes is not None:
+                        attributes = current_plan.attributes
+                    else:
+                        from_attributes = extract_attributes(current_plan.from_)
+                        (
+                            expected_attributes,
+                            new_attributes,
+                        ) = _extract_inferable_attribute_names(current_plan.projection)
+                        if from_attributes is not None and new_attributes is not None:
+                            missing_attrs = {
+                                attr.name for attr in expected_attributes
+                            } - {attr.name for attr in from_attributes}
+                            if not missing_attrs and all(
+                                type(attr.datatype) != DataType
+                                for attr in current_plan.projection
+                            ):
+                                attributes = current_plan.projection
+                elif isinstance(
+                    current_plan, (SelectSnowflakePlan, SelectTableFunction)
+                ):
+                    attributes = current_plan._snowflake_plan._metadata.attributes
+                elif isinstance(current_plan, SelectableEntity):
+                    if current_plan.attributes:
+                        attributes = current_plan.attributes
+                    elif current_plan._snowflake_plan is not None:
+                        attributes = current_plan._snowflake_plan._metadata.attributes
+                elif isinstance(current_plan, SelectSQL):
+                    if current_plan._snowflake_plan is not None:
+                        attributes = current_plan._snowflake_plan._metadata.attributes
+                elif isinstance(current_plan, SetStatement) and current_plan._nodes:
+                    # Union usues the schema from the first child
+                    attributes = extract_attributes(current_plan._nodes[0])
+                else:
+                    raise ValueError(current_plan)
+                return attributes
+
+            attributes = extract_attributes(source_plan)
             # When _column_states.projection is available, we can just use it,
             # which is either (only one happen):
             # 1) cached on self._snowflake_plan._quoted_identifiers
@@ -169,6 +257,13 @@ def infer_metadata(
                 quoted_identifiers = [
                     c.name for c in source_plan._column_states.projection
                 ]
+                for state in source_plan._column_states.values():
+                    if state.change_state not in {
+                        ColumnChangeState.NEW,
+                        ColumnChangeState.DROPPED,
+                    }:
+                        referenced_identifiers.append(state.col_name)
+
             # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
             # which means source_plan has the same metadata as its child plan, we can use it directly
             if not source_plan.has_projection:
@@ -198,9 +293,15 @@ def infer_metadata(
                 ):
                     attributes = source_plan.from_.attributes
 
+        available_identifiers = {a.name for a in attributes or []}
+        if available_identifiers and (
+            missing := set(referenced_identifiers) - available_identifiers
+        ):
+            raise ValueError(missing)
+
         # If attributes is available, we always set quoted_identifiers to None
         # as it can be retrieved later from attributes
-        if attributes is not None:
+        if attributes is not None and quoted_identifiers is not None:
             quoted_identifiers = None
 
     return PlanMetadata(attributes=attributes, quoted_identifiers=quoted_identifiers)
