@@ -154,41 +154,60 @@ jobs:
             python-version: "3.12"
             cloud-provider: aws
     steps:
+      - name: Check if skip label is present
+        id: check_skip
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-snowpark-python-ci') }}" == "true" ]]; then
+            echo "Skipping snowpark python CI due to skip-snowpark-python-ci label"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
       - name: Checkout Code
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/checkout@v4
       - name: Set up Python
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Install protoc
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Add protoc to Windows path
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.check_skip.outputs.skip != 'true'
         run: |
           echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Download wheel(s)
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
       - name: Show wheels downloaded
+        if: steps.check_skip.outputs.skip != 'true'
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install tox
       # we only run doctest on macos
-      - if: ${{ matrix.os == 'macos-latest' }}
+      - if: ${{ matrix.os == 'macos-latest' && steps.check_skip.outputs.skip != 'true' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -200,7 +219,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' }}
+      - if: ${{ matrix.os != 'macos-latest' && steps.check_skip.outputs.skip != 'true' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -211,7 +230,7 @@ jobs:
         shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
-        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') }}
+        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') && steps.check_skip.outputs.skip != 'true' }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -220,11 +239,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: steps.check_skip.outputs.skip != 'true'
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -265,40 +286,60 @@ jobs:
           - os: ubuntu-latest
             python-version: "3.9"
     steps:
+      - name: Check if skip label is present
+        id: check_skip
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-local-testing-ci') }}" == "true" ]]; then
+            echo "Skipping local testing CI due to skip-local-testing-ci label"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
       - name: Checkout Code
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/checkout@v4
       - name: Set up Python
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Install protoc
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Add protoc to Windows path
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.check_skip.outputs.skip != 'true'
         run: |
           echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Download wheel(s)
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
       - name: Show wheels downloaded
+        if: steps.check_skip.outputs.skip != 'true'
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install tox
       - name: Run tests
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e "py${PYTHON_VERSION/\./}-local"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -308,11 +349,13 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: steps.check_skip.outputs.skip != 'true'
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-local-testing
@@ -334,45 +377,66 @@ jobs:
         cloud-provider: [aws]
         protobuf-version: ["3.20.1"]
     steps:
+      - name: Check if skip label is present
+        id: check_skip
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-ast-encoding-ci') }}" == "true" ]]; then
+            echo "Skipping AST encoding CI due to skip-ast-encoding-ci label"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
       - name: Checkout Code
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/checkout@v4
       - name: Set up Python
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Install protoc
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Download wheel(s)
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
       - name: Show wheels downloaded
+        if: steps.check_skip.outputs.skip != 'true'
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install -U setuptools pip wheel
       - name: Install protobuf
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install protobuf==${{ matrix.protobuf-version }}
       - name: Install tox
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install tox
       - name: Set up Windows environment
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.check_skip.outputs.skip != 'true'
         # windows timezone management is broken, that's why we need a special fix here
         run: |
             "TZ=EST" >> $env:GITHUB_ENV
             echo "TZ=EST" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Run tests
+        if: steps.check_skip.outputs.skip != 'true'
         # TODO: SNOW-1763186 use pytest marker to test multiple TZs
         run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast"
         env:
@@ -384,11 +448,13 @@ jobs:
           TZ: EST
         shell: bash
       - name: Combine coverages
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: steps.check_skip.outputs.skip != 'true'
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -407,36 +473,56 @@ jobs:
         python-version: [ "3.9"]
         cloud-provider: [ aws ]
     steps:
+      - name: Check if skip label is present
+        id: check_skip
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-ast-encoding-ci') }}" == "true" ]]; then
+            echo "Skipping AST encoding CI due to skip-ast-encoding-ci label"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
       - name: Checkout Code
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/checkout@v4
       - name: Set up Python
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Install protoc
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Download wheel(s)
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
       - name: Show wheels downloaded
+        if: steps.check_skip.outputs.skip != 'true'
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install tox
       - name: Run doctests for AST (I/II)
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -472,15 +558,29 @@ jobs:
           - python-version: "3.11"
             cloud-provider: azure
     steps:
+      - name: Check if skip label is present
+        id: check_skip
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-ast-encoding-ci') }}" == "true" ]]; then
+            echo "Skipping AST encoding CI due to skip-ast-encoding-ci label"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
       - name: Checkout Code
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/checkout@v4
       - name: Set up Python
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
         env:
@@ -490,18 +590,23 @@ jobs:
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Download wheel(s)
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
       - name: Show wheels downloaded
+        if: steps.check_skip.outputs.skip != 'true'
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install tox
       - name: Run tests for AST (II/II)
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -510,11 +615,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: steps.check_skip.outputs.skip != 'true'
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -571,41 +678,60 @@ jobs:
             python-version: "3.11"
             cloud-provider: azure
     steps:
+      - name: Check if skip label is present
+        id: check_skip
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-snowpark-pandas-ci') }}" == "true" ]]; then
+            echo "Skipping snowpark pandas CI due to skip-snowpark-pandas-ci label"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
       - name: Checkout Code
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/checkout@v4
       - name: Set up Python
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Install protoc
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Add protoc to Windows path
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.check_skip.outputs.skip != 'true'
         run: |
           echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Download wheel(s)
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
       - name: Show wheels downloaded
+        if: steps.check_skip.outputs.skip != 'true'
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install tox
-        # only run doctest for macos on aws
-      - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
+      # only run doctest for macos on aws
+      - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' && steps.check_skip.outputs.skip != 'true' }}
         name: Run Snowpark pandas API doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
         env:
@@ -617,7 +743,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
         # do not run other tests for macos on aws
-      - if: ${{ !(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
+      - if: ${{ !(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') && steps.check_skip.outputs.skip != 'true' }}
         name: Run Snowpark pandas API tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
         env:
@@ -627,11 +753,13 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
         env:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
+        if: steps.check_skip.outputs.skip != 'true'
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-snowpark-pandas-testing
@@ -652,36 +780,56 @@ jobs:
         python-version: ["3.9"]
         cloud-provider: [aws]
     steps:
+      - name: Check if skip label is present
+        id: check_skip
+        run: |
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'skip-snowpark-pandas-ci') }}" == "true" ]]; then
+            echo "Skipping snowpark pandas CI due to skip-snowpark-pandas-ci label"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
       - name: Checkout Code
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/checkout@v4
       - name: Set up Python
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
       - name: Display Python version
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/decrypt_parameters.sh
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
       - name: Download wheel(s)
+        if: steps.check_skip.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           name: wheel
           path: dist
       - name: Show wheels downloaded
+        if: steps.check_skip.outputs.skip != 'true'
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install -U setuptools pip wheel
       - name: Install protoc
+        if: steps.check_skip.outputs.skip != 'true'
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Install tox
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m pip install tox
       - name: Run all tests
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e "modin_extra_without_pandas_extra"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -690,9 +838,11 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
+        if: steps.check_skip.outputs.skip != 'true'
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
       - uses: actions/upload-artifact@v4
+        if: steps.check_skip.outputs.skip != 'true'
         with:
           include-hidden-files: true
           name: coverage_modin_extra_without_pandas_extra
