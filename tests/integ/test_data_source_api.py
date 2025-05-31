@@ -6,6 +6,7 @@ import functools
 import logging
 import math
 import multiprocessing
+import threading
 import os
 import subprocess
 import tempfile
@@ -175,6 +176,7 @@ def test_dbapi_retry(session):
                 parquet_id="test.parquet",
                 parquet_buffer=BytesIO(b"test data"),
                 snowflake_stage_name="fake_stage",
+                backpressure_semaphore=threading.Semaphore(),
                 snowflake_table_name="fake_table",
             )
         assert mock_task.call_count == _MAX_RETRY_TIME

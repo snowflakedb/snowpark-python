@@ -1387,19 +1387,19 @@ class DataFrameReader:
             processes = []
 
             # Determine the number of processes to use
-            num_processes = min(max_workers or mp.cpu_count(), len(partitioned_queries))
+            max_workers = max_workers or mp.cpu_count()
 
             # Create a queue of partitions to be processed and a queue of parquet BytesIO objects to be uploaded
             # Set a max size for parquet_queue to apply backpressure and prevent overfilling when consumers are slower than producers
-            partition_queue, parquet_queue = mp.Queue(), mp.Queue(2 * num_processes)
+            partition_queue, parquet_queue = mp.Queue(), mp.Queue(2 * max_workers)
             for partition_idx, query in enumerate(partitioned_queries):
                 partition_queue.put((partition_idx, query))
 
             # Start worker processes
             logger.debug(
-                f"Starting {num_processes} worker processes to fetch data from the data source."
+                f"Starting {max_workers} worker processes to fetch data from the data source."
             )
-            for _worker_id in range(num_processes):
+            for _worker_id in range(max_workers):
                 process = mp.Process(
                     target=worker_process,
                     args=(partition_queue, parquet_queue, partitioner.reader()),

@@ -5,6 +5,8 @@
 import queue
 import traceback
 import multiprocessing as mp
+from concurrent.futures import ThreadPoolExecutor
+from threading import BoundedSemaphore
 from io import BytesIO
 from enum import Enum
 from typing import Any, Tuple, Optional, Callable, Dict
@@ -200,6 +202,7 @@ def _upload_and_copy_into_table(
     parquet_id: str,
     parquet_buffer: BytesIO,
     snowflake_stage_name: str,
+    backpressure_semaphore: BoundedSemaphore,
     snowflake_table_name: Optional[str] = None,
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
@@ -233,6 +236,7 @@ def _upload_and_copy_into_table(
     finally:
         # proactively close the buffer to release memory
         parquet_buffer.close()
+        backpressure_semaphore.release()
 
 
 def _upload_and_copy_into_table_with_retry(
@@ -240,6 +244,7 @@ def _upload_and_copy_into_table_with_retry(
     parquet_id: str,
     parquet_buffer: BytesIO,
     snowflake_stage_name: str,
+    backpressure_semaphore: BoundedSemaphore,
     snowflake_table_name: Optional[str] = None,
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
@@ -250,6 +255,7 @@ def _upload_and_copy_into_table_with_retry(
         parquet_id,
         parquet_buffer,
         snowflake_stage_name,
+        backpressure_semaphore,
         snowflake_table_name,
         on_error,
         statements_params,
@@ -306,6 +312,30 @@ def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
             break
 
 
+def _process_completed_futures(thread_futures):
+    """Process completed futures with simplified error handling."""
+    for parquet_id, future in list(thread_futures):  # Iterate over a copy of the set
+        if future.done():
+            thread_futures.discard((parquet_id, future))
+            try:
+                future.result()
+                logger.debug(
+                    f"Thread future for parquet {parquet_id} completed successfully."
+                )
+            except BaseException:
+                # Cancel all remaining futures when one fails
+                for remaining_parquet_id, remaining_future in list(
+                    thread_futures
+                ):  # Also iterate over copy here
+                    if not remaining_future.done():
+                        remaining_future.cancel()
+                        logger.debug(
+                            f"Cancelled a remaining future {remaining_parquet_id} due to error in another thread."
+                        )
+                thread_futures.clear()  # Clear the set since all are cancelled
+                raise
+
+
 def process_parquet_queue_with_threads(
     session: "snowflake.snowpark.Session",
     parquet_queue: mp.Queue,
@@ -340,48 +370,20 @@ def process_parquet_queue_with_threads(
     Raises:
         SnowparkDataframeReaderException: If any worker process fails
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    import queue
 
     completed_partitions = set()
-
+    # process parquet_queue may produce more data than the threads can handle,
+    # so we use a semaphore to limit the number of threads
+    backpressure_semaphore = BoundedSemaphore(value=2 * max_workers)
+    logger.debug(f"Initialized backpressure semaphore with value: {2 * max_workers}")
     with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
-        thread_futures = set()
-
+        thread_futures = set()  # stores tuples of (parquet_id, thread_future)
         while len(completed_partitions) < total_partitions or thread_futures:
-            # Process completed futures first to clean up memory
-            completed_futures = []
-            try:
-                for future in as_completed(thread_futures, timeout=0.1):
-                    try:
-                        future.result()  # Throw error if the thread failed
-                        logger.debug("A thread future completed successfully.")
-                        completed_futures.append(future)
-                    except Exception:
-                        # Cancel all remaining futures when one fails
-                        for remaining_future in thread_futures:
-                            if (
-                                remaining_future != future
-                                and not remaining_future.done()
-                            ):
-                                remaining_future.cancel()
-                                logger.debug(
-                                    "Cancelled a remaining future due to error in another thread."
-                                )
-                        raise
-            except TimeoutError:
-                # as_completed timed out, no futures completed yet
-                pass
-
-            # Remove completed futures from the set
-            for future in completed_futures:
-                thread_futures.discard(future)
-
-            # If we've completed all partitions and no more threads are running, break
-            if len(completed_partitions) >= total_partitions and not thread_futures:
-                break
+            # Process any completed futures and handle errors
+            _process_completed_futures(thread_futures)
 
             try:
+                backpressure_semaphore.acquire()
                 parquet_id, parquet_buffer = parquet_queue.get(timeout=1.0)
 
                 # Check for completion signals
@@ -389,43 +391,47 @@ def process_parquet_queue_with_threads(
                     partition_idx = int(parquet_id.split("_")[-1])
                     completed_partitions.add(partition_idx)
                     logger.debug(f"Partition {partition_idx} completed.")
+                    backpressure_semaphore.release()  # Release semaphore since no thread was created
                     continue
-
                 # Check for errors
-                if parquet_id == PARTITION_TASK_ERROR_SIGNAL:
+                elif parquet_id == PARTITION_TASK_ERROR_SIGNAL:
                     logger.error(f"Error in data fetching process: {parquet_buffer}")
+                    backpressure_semaphore.release()  # Release semaphore since no thread was created
                     raise parquet_buffer
 
                 # Process valid BytesIO parquet data
                 logger.debug(f"Retrieved BytesIO parquet from queue: {parquet_id}")
+
                 thread_future = thread_executor.submit(
                     _upload_and_copy_into_table_with_retry,
                     session,
                     parquet_id,
                     parquet_buffer,
                     snowflake_stage_name,
+                    backpressure_semaphore,
                     snowflake_table_name,
                     on_error,
                     statements_params,
                 )
-                thread_futures.add(thread_future)
+                thread_futures.add((parquet_id, thread_future))
                 logger.debug(
-                    f"Submitted BytesIO parquet {parquet_id} to thread executor for ingestion."
+                    f"Submitted BytesIO parquet {parquet_id} to thread executor for ingestion. Active threads: {len(thread_futures)}"
                 )
 
             except queue.Empty:
+                backpressure_semaphore.release()  # Release semaphore if no data was fetched
                 # Check if any processes have failed
                 for i, process in enumerate(processes):
                     if not process.is_alive() and process.exitcode != 0:
                         raise SnowparkDataframeReaderException(
-                            f"Process {i} failed with exit code {process.exitcode}"
+                            f"Partition {i} data fetching process failed with exit code {process.exitcode}"
                         )
                 continue
 
     # Wait for all processes to complete
-    for process in processes:
+    for idx, process in enumerate(processes):
         process.join()
         if process.exitcode != 0:
             raise SnowparkDataframeReaderException(
-                f"Process failed with exit code {process.exitcode}"
+                f"Partition {idx} data fetching process failed with exit code {process.exitcode}"
             )
