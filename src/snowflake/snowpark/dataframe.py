@@ -1069,7 +1069,9 @@ class DataFrame:
         # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
-                return pandas.DataFrame(result)
+                return pandas.DataFrame(
+                    result, columns=[attr.name for attr in self._plan.attributes]
+                )
 
         return result
 
