@@ -64,11 +64,11 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
         # All NA
         ([np.nan] * 5, [np.nan] * 5),
         pytest.param(
-            pd.timedelta_range(
+            native_pd.timedelta_range(
                 "1 days",
                 "5 days",
             ),
-            pd.timedelta_range("1 second", "5 second"),
+            native_pd.timedelta_range("1 second", "5 second"),
             id="timedelta",
         ),
     ],

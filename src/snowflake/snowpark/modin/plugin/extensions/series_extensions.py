@@ -12,7 +12,7 @@ from typing import Any, List, Literal, Optional, Union
 
 import modin.pandas as pd
 import pandas
-from modin.pandas.api.extensions import register_series_accessor
+from .series_overrides import register_series_accessor
 from pandas._typing import Axis, IndexLabel
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
