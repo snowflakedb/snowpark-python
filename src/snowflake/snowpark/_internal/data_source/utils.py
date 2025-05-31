@@ -346,9 +346,41 @@ def process_parquet_queue_with_threads(
     completed_partitions = set()
 
     with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
-        thread_futures = []
+        thread_futures = set()
 
-        while len(completed_partitions) < total_partitions:
+        while len(completed_partitions) < total_partitions or thread_futures:
+            # Process completed futures first to clean up memory
+            completed_futures = []
+            try:
+                for future in as_completed(thread_futures, timeout=0.1):
+                    try:
+                        future.result()  # Throw error if the thread failed
+                        logger.debug("A thread future completed successfully.")
+                        completed_futures.append(future)
+                    except Exception:
+                        # Cancel all remaining futures when one fails
+                        for remaining_future in thread_futures:
+                            if (
+                                remaining_future != future
+                                and not remaining_future.done()
+                            ):
+                                remaining_future.cancel()
+                                logger.debug(
+                                    "Cancelled a remaining future due to error in another thread."
+                                )
+                        raise
+            except TimeoutError:
+                # as_completed timed out, no futures completed yet
+                pass
+
+            # Remove completed futures from the set
+            for future in completed_futures:
+                thread_futures.discard(future)
+
+            # If we've completed all partitions and no more threads are running, break
+            if len(completed_partitions) >= total_partitions and not thread_futures:
+                break
+
             try:
                 parquet_id, parquet_buffer = parquet_queue.get(timeout=1.0)
 
@@ -376,7 +408,7 @@ def process_parquet_queue_with_threads(
                     on_error,
                     statements_params,
                 )
-                thread_futures.append(thread_future)
+                thread_futures.add(thread_future)
                 logger.debug(
                     f"Submitted BytesIO parquet {parquet_id} to thread executor for ingestion."
                 )
@@ -389,11 +421,6 @@ def process_parquet_queue_with_threads(
                             f"Process {i} failed with exit code {process.exitcode}"
                         )
                 continue
-
-        # Wait for all upload threads to complete
-        for future in as_completed(thread_futures):
-            future.result()  # Throw error if the thread failed
-            logger.debug("A thread future completed successfully.")
 
     # Wait for all processes to complete
     for process in processes:

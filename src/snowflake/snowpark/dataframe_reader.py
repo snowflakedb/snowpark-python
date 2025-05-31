@@ -1384,15 +1384,14 @@ class DataFrameReader:
         )
 
         try:
-            # Use multiprocessing.Queue for BytesIO objects
-            parquet_queue = mp.Queue()
             processes = []
 
             # Determine the number of processes to use
             num_processes = min(max_workers or mp.cpu_count(), len(partitioned_queries))
 
-            # Create a queue of partitions to be processed
-            partition_queue = mp.Queue()
+            # Create a queue of partitions to be processed and a queue of parquet BytesIO objects to be uploaded
+            # Set a max size for parquet_queue to apply backpressure and prevent overfilling when consumers are slower than producers
+            partition_queue, parquet_queue = mp.Queue(), mp.Queue(2 * num_processes)
             for partition_idx, query in enumerate(partitioned_queries):
                 partition_queue.put((partition_idx, query))
 
