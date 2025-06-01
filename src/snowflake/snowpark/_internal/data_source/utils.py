@@ -3,6 +3,7 @@
 #
 
 import queue
+import time
 import traceback
 import multiprocessing as mp
 from concurrent.futures import ThreadPoolExecutor
@@ -384,7 +385,7 @@ def process_parquet_queue_with_threads(
 
             try:
                 backpressure_semaphore.acquire()
-                parquet_id, parquet_buffer = parquet_queue.get(timeout=1.0)
+                parquet_id, parquet_buffer = parquet_queue.get(block=False)
 
                 # Check for completion signals
                 if parquet_id.startswith(PARTITION_TASK_COMPLETE_SIGNAL_PREFIX):
@@ -426,6 +427,7 @@ def process_parquet_queue_with_threads(
                         raise SnowparkDataframeReaderException(
                             f"Partition {i} data fetching process failed with exit code {process.exitcode}"
                         )
+                time.sleep(0.1)
                 continue
 
     # Wait for all processes to complete
