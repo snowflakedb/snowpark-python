@@ -4,6 +4,12 @@ on:
     branches: [ main ]
   pull_request:
     branches: '**'
+    types:
+      - labeled
+      - unlabeled
+      - opened
+      - synchronize
+      - reopened
   workflow_dispatch:
       inputs:
         logLevel:
