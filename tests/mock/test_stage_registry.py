@@ -219,9 +219,6 @@ def test_stage_get_file():
 
 
 def test_stage_get_and_put_sproc(session):
-    stage_registry = StageEntityRegistry(MockServerConnection())
-    stage_registry.create_or_replace_stage("test_stage")
-
     test_file = f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
     with open(test_file, "rb") as f:
         test_content = f.read()
