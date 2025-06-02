@@ -695,7 +695,7 @@ def test_write_table_names(session, db_parameters):
         Utils.drop_schema(session, double_quoted_schema)
 
 
-def test_skip_table_exists_check(session):
+def test_skip_table_exists_check(session, local_testing_mode):
     table_name = Utils.random_table_name()
     df = session.create_dataframe([1, 2, 3], schema=["A"])
 
@@ -711,17 +711,20 @@ def test_skip_table_exists_check(session):
             assert not table_exists.called
             Utils.drop_table(session, table_name)
 
-            # Try appending to non-existant table
-            with pytest.raises(
-                SnowparkSQLException, match="does not exist or not authorized"
-            ):
-                df.write.save_as_table(table_name, mode="append", table_exists=True)
+            if not local_testing_mode:
+                # Try appending to non-existant table
+                with pytest.raises(
+                    SnowparkSQLException, match="does not exist or not authorized"
+                ):
+                    df.write.save_as_table(table_name, mode="append", table_exists=True)
 
-            # Try truncating to non-existant table
-            with pytest.raises(
-                SnowparkSQLException, match="does not exist or not authorized"
-            ):
-                df.write.save_as_table(table_name, mode="truncate", table_exists=True)
+                # Try truncating to non-existant table
+                with pytest.raises(
+                    SnowparkSQLException, match="does not exist or not authorized"
+                ):
+                    df.write.save_as_table(
+                        table_name, mode="truncate", table_exists=True
+                    )
     finally:
         Utils.drop_table(session, table_name)
 
