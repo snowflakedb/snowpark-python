@@ -26,6 +26,7 @@
   - Added support for excluding attributes from the XML element using `excludeAttributes` option.
   - Added support for specifying the column name for the value when there are attributes in an element that has no child elements using `valueTag` option.
   - Added support for specifying the value to treat as a ``null`` value using `nullValue` option.
+  - Added support for specifying the character encoding of the XML file using `charset` option.
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
