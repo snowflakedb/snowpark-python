@@ -164,6 +164,47 @@ register_ser_groupby_override("agg")(aggregate)
 ###########################################################################
 
 
+@register_ser_groupby_override("cov")
+def cov(self, min_periods=None, ddof=1):
+    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+    ErrorMessage.method_not_implemented_error(name="cov", class_="GroupBy")
+
+
+@register_ser_groupby_override("corr")
+def corr(self, method="pearson", min_periods=1):
+    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+    ErrorMessage.method_not_implemented_error(name="corr", class_="GroupBy")
+
+
+@register_ser_groupby_override("describe")
+def describe(self, percentiles=None, include=None, exclude=None):
+    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+    ErrorMessage.method_not_implemented_error(name="describe", class_="GroupBy")
+
+
+@register_ser_groupby_override("hist")
+def hist(
+    self,
+    by=None,
+    grid=True,
+    xlabelsize=None,
+    xrot=None,
+    ylabelsize=None,
+    yrot=None,
+    ax=None,
+    sharex=False,
+    sharey=False,
+    figsize=None,
+    layout=None,
+    bins=10,
+    backend=None,
+    legend=False,
+    **kwargs,
+):
+    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+    ErrorMessage.method_not_implemented_error(name="hist", class_="GroupBy")
+
+
 @register_ser_groupby_override("is_monotonic_decreasing")
 @property
 def is_monotonic_decreasing(self):
