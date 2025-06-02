@@ -66,6 +66,10 @@ from snowflake.snowpark.types import (
 )
 from snowflake.snowpark.version import VERSION
 
+PandasSeriesType = None
+PandasDataFrameType = None
+PandasDataFrame = None
+
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
@@ -202,7 +206,10 @@ def extract_return_type_from_udtf_type_hints(
 ) -> Union[StructType, "PandasDataFrameType", None]:
 
     global PandasDataFrameType, PandasDataFrame
-    if get_installed_pandas():
+    # Only load pandas types if they haven't been loaded yet
+    if get_installed_pandas() and (
+        PandasDataFrame is None or PandasDataFrameType is None
+    ):
         snowpark_types = get_snowpark_types()
         PandasDataFrame = snowpark_types.PandasDataFrame
         PandasDataFrameType = snowpark_types.PandasDataFrameType
@@ -254,13 +261,11 @@ def extract_return_type_from_udtf_type_hints(
         return None
     else:
         if get_installed_pandas():  # Vectorized UDTF
+            # Check if return_type_hint is a PandasDataFrame type
             origin = typing.get_origin(return_type_hint)
-            # Check if it's a PandasDataFrame type (dynamically created by __getattr__)
             if (
                 origin is not None
                 and getattr(origin, "__name__", "") == "PandasDataFrame"
-                and hasattr(origin, "__bases__")
-                and any(base.__name__ == "DataFrame" for base in origin.__bases__)
             ):
                 return PandasDataFrameType(
                     col_types=[
@@ -609,7 +614,9 @@ def extract_return_input_types(
     """
 
     global PandasSeriesType, PandasDataFrameType
-    if get_installed_pandas():
+    if get_installed_pandas() and (
+        PandasSeriesType is None or PandasDataFrameType is None
+    ):
         snowpark_types = get_snowpark_types()
         PandasDataFrameType = snowpark_types.PandasDataFrameType
         PandasSeriesType = snowpark_types.PandasSeriesType

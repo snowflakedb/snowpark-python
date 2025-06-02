@@ -36,7 +36,7 @@ from snowflake.snowpark._internal.ast.utils import (
     debug_check_missing_ast,
     with_src_position,
 )
-from snowflake.snowpark._internal.lazy_import_utils import get_pandas, get_numpy
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
@@ -432,7 +432,8 @@ class RelationalGroupedDataFrame:
         class _ApplyInPandas:
             def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
                 if key_columns is not None:
-                    np = get_numpy()
+                    import numpy as np
+
                     key_list = [pdf[key].iloc[0] for key in key_columns]
                     numpy_array = np.array(key_list)
                     keys = tuple(numpy_array)

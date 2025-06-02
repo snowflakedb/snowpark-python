@@ -28,6 +28,7 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark.context as context
+from snowflake.connector.options import pyarrow
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
@@ -122,7 +123,6 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.lazy_import_utils import (
     get_installed_pandas,
-    get_pyarrow,
     get_pandas,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -221,7 +221,7 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
-    from snowflake.connector.options import pandas, pyarrow
+    from snowflake.connector.options import pandas
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
 
@@ -1204,8 +1204,6 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
-        get_pyarrow()
-
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -1248,8 +1246,6 @@ class DataFrame:
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
         """
-        get_pyarrow()
-
         return self._session._conn.execute(
             self._plan,
             to_pandas=False,
@@ -6657,7 +6653,7 @@ def map(
         pandas = get_pandas()
 
         def wrap_result(result):
-            if isinstance(result, pandas().DataFrame) or isinstance(result, tuple):
+            if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
                 return result
             return (result,)
 

@@ -40,6 +40,7 @@ import pkg_resources
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.connector.options import pyarrow
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -78,7 +79,6 @@ from snowflake.snowpark._internal.lazy_import_utils import (
     get_write_pandas,
     get_installed_pandas,
     get_pandas,
-    get_pyarrow,
 )
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
@@ -225,7 +225,7 @@ from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
-    from snowflake.connector.options import pandas, pyarrow
+    from snowflake.connector.options import pandas
     import modin.pandas  # pragma: no cover
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -3426,7 +3426,6 @@ class Session:
 
         installed_pandas = get_installed_pandas()
         pandas = get_pandas()
-        pyarrow = get_pyarrow()
         # check the type of data
         if isinstance(data, Row):
             raise TypeError("create_dataframe() function does not accept a Row object.")

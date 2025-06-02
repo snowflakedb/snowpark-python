@@ -86,7 +86,7 @@ class DataSourceReader:
             cursor.close()
             conn.close()
 
-    # For the type cehcker only
+    # For the type checker only
     if TYPE_CHECKING:
         from snowflake.connector.options import pandas as pd
 

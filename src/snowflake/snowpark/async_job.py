@@ -7,6 +7,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
+from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
@@ -241,8 +242,6 @@ class AsyncJob:
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
-        from snowflake.connector.errors import DatabaseError
-
         if (
             is_in_stored_procedure()
             and self._session._conn._get_client_side_session_parameter(
@@ -337,11 +336,6 @@ class AsyncJob:
         async_result_type = (
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
-        if async_result_type in [
-            _AsyncResultType.PANDAS,
-            _AsyncResultType.PANDAS_BATCH,
-        ]:
-            from snowflake.connector.options import pandas
 
         self._cursor.get_results_from_sfqid(self.query_id)
         if self._num_statements is not None:
