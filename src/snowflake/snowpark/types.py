@@ -1050,12 +1050,16 @@ PandasDataFrameShadow = None
 
 
 def __getattr__(name: str):
-    from snowflake.snowpark._internal.utils import installed_pandas, pandas
+    from snowflake.snowpark._internal.lazy_import_utils import (
+        get_installed_pandas,
+        get_pandas,
+    )
     from typing_extensions import TypeVarTuple
 
     _TT = TypeVarTuple("_TT")
     if name == "PandasSeries":
-        if installed_pandas:
+        if get_installed_pandas():
+            pandas = get_pandas()
 
             class PandasSeries(pandas.Series, Generic[_T]):
                 """The type hint for annotating pandas Series data when registering UDFs."""
@@ -1066,7 +1070,8 @@ def __getattr__(name: str):
         else:
             raise AttributeError(f"pandas not installed, {name} not available")
     elif name == "PandasDataFrame":
-        if installed_pandas:
+        if get_installed_pandas():
+            pandas = get_pandas()
             global PandasDataFrameShadow
             # Return cached class if it exists
             if PandasDataFrameShadow is not None:
