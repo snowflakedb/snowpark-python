@@ -15,6 +15,8 @@
 
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where databricks `TIMESTAMP` type was converted to Snowflake `TIMESTAMP_NTZ` type which should be `TIMESTAMP_LTZ` type.
+- Fixed a bug in `DataFrameReader.json` where repeated reads with the same reader object would create incorrectly quoted columns.
+- Fixed a bug in `DataFrame.to_pandas()` that would drop column names when converting a dataframe that did not originate from a select statement.
 - Fixed a bug that `DataFrame.create_or_replace_dynamic_table` raises error when the dataframe contains a UDTF and `SELECT *` in UDTF not being parsed correctly.
 
 #### Improvements
@@ -27,6 +29,7 @@
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
+- Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
 
 ### Snowpark Local Testing Updates
 
