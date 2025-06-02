@@ -35,6 +35,7 @@ from snowflake.snowpark._internal.data_source.utils import (
     STATEMENT_PARAMS_DATA_SOURCE,
     DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
+    _MAX_WORKER_SCALE,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -1389,9 +1390,12 @@ class DataFrameReader:
             # Determine the number of processes to use
             max_workers = max_workers or mp.cpu_count()
 
-            # Create a queue of partitions to be processed and a queue of parquet BytesIO objects to be uploaded
-            # Set a max size for parquet_queue to apply backpressure and prevent overfilling when consumers are slower than producers
-            partition_queue, parquet_queue = mp.Queue(), mp.Queue(2 * max_workers)
+            # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
+            partition_queue = mp.Queue()
+            # a queue of parquet BytesIO objects to be uploaded
+            # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
+            # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
+            parquet_queue = mp.Queue(_MAX_WORKER_SCALE * max_workers)
             for partition_idx, query in enumerate(partitioned_queries):
                 partition_queue.put((partition_idx, query))
 

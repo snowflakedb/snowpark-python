@@ -36,6 +36,7 @@ from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 logger = logging.getLogger(__name__)
 
 _MAX_RETRY_TIME = 3
+_MAX_WORKER_SCALE = 2  # 2 * max_workers
 STATEMENT_PARAMS_DATA_SOURCE = "SNOWPARK_PYTHON_DATASOURCE"
 DATA_SOURCE_DBAPI_SIGNATURE = "DataFrameReader.dbapi"
 DATA_SOURCE_SQL_COMMENT = (
@@ -374,9 +375,11 @@ def process_parquet_queue_with_threads(
 
     completed_partitions = set()
     # process parquet_queue may produce more data than the threads can handle,
-    # so we use a semaphore to limit the number of threads
-    backpressure_semaphore = BoundedSemaphore(value=2 * max_workers)
-    logger.debug(f"Initialized backpressure semaphore with value: {2 * max_workers}")
+    # so we use semaphore to limit the number of threads
+    backpressure_semaphore = BoundedSemaphore(value=_MAX_WORKER_SCALE * max_workers)
+    logger.debug(
+        f"Initialized backpressure semaphore with value: {_MAX_WORKER_SCALE * max_workers}"
+    )
     with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
         thread_futures = set()  # stores tuples of (parquet_id, thread_future)
         while len(completed_partitions) < total_partitions or thread_futures:
