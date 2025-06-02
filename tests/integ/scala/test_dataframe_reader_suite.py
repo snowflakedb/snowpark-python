@@ -3,7 +3,6 @@
 #
 
 import csv
-import os
 import datetime
 import json
 import logging
@@ -1736,11 +1735,11 @@ def test_pattern_with_infer(session, mode):
                 good_file_path = os.path.join(temp_dir, f"good{i}.csv")
                 bad_file_path = os.path.join(temp_dir, f"bad{i}.csv")
 
-                with open(good_file_path, "w+") as ofile:
+                with open(good_file_path, "w+", newline="") as ofile:
                     csv_writer = csv.writer(ofile)
                     csv_writer.writerows(example_data)
 
-                with open(bad_file_path, "w+") as ofile:
+                with open(bad_file_path, "w+", newline="") as ofile:
                     csv_writer = csv.writer(ofile)
                     csv_writer.writerows(incompatible_data)
 
@@ -1755,10 +1754,7 @@ def test_pattern_with_infer(session, mode):
         )
 
         single_file_df = reader.csv(f"@{stage_name}/path/good1.csv")
-        try:
-            Utils.check_answer(single_file_df, expected_rows)
-        except Exception:
-            raise ValueError(single_file_df.collect())
+        Utils.check_answer(single_file_df, expected_rows)
 
         reader = reader.option("PATTERN", ".*good.*")
         single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
