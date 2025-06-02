@@ -979,7 +979,7 @@ class DataFrameReader:
         # It should be safe to assume it is a file if there is a parent directory which means that it's
         # not the top level stage and there's a suffix which means it has a file extension.
         parsed_path = pathlib.Path(path)
-        path_is_file = parsed_path.parent and parsed_path.suffix
+        path_is_file = bool(parsed_path.parent and parsed_path.suffix)
 
         # When pattern is set we should only consider files that match the pattern during schema inference
         # If no files match fallback to trying to read all files.

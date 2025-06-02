@@ -1746,25 +1746,35 @@ def test_pattern_with_infer(session, mode):
                 session.file.put(good_file_path, f"@{stage_name}/path")
                 session.file.put(bad_file_path, f"@{stage_name}/path")
 
-        reader = (
-            get_reader(session, mode)
-            .option("INFER_SCHEMA", True)
-            .option("INFER_SCHEMA_OPTIONS", {"MAX_RECORDS_PER_FILE": 10000})
-            .option("PARSE_HEADER", True)
-        )
+        def base_reader(include_pattern=True):
+            reader = (
+                get_reader(session, mode)
+                .option("INFER_SCHEMA", True)
+                .option("INFER_SCHEMA_OPTIONS", {"MAX_RECORDS_PER_FILE": 10000})
+                .option("PARSE_HEADER", True)
+            )
+            if include_pattern:
+                reader = reader.option("PATTERN", ".*good.*")
+            return reader
 
-        single_file_df = reader.csv(f"@{stage_name}/path/good1.csv")
+        # Test loading a single file
+        single_file_df = base_reader(False).csv(f"@{stage_name}/path/good1.csv")
         Utils.check_answer(single_file_df, expected_rows)
 
-        reader = reader.option("PATTERN", ".*good.*")
+        # Test loading a single file while pattern is defined
+        reader = base_reader()
         single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
         Utils.check_answer(single_file_with_pattern_df, expected_rows)
 
-        reader = reader.option("INFER_SCHEMA_OPTIONS", {"FILES": ["good1.csv"]})
+        # Test loading a directory while including patter and FILES
+        reader = base_reader().option(
+            "INFER_SCHEMA_OPTIONS", {"FILES": ["good1.csv.gz"]}
+        )
         file_override_df = reader.csv(f"@{stage_name}/path")
         Utils.check_answer(file_override_df, expected_rows * 3)
 
-        reader = reader.option("INFER_SCHEMA_OPTIONS", {"MAX_RECORDS_PER_FILE": 10000})
+        # Test just pattern
+        reader = base_reader()
         df = reader.csv(f"@{stage_name}/path")
         assert df.schema == expected_schema
         Utils.check_answer(df, expected_rows * 3)
