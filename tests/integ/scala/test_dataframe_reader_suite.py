@@ -3,8 +3,11 @@
 #
 
 import datetime
+import json
 import logging
+import os
 import random
+import tempfile
 from decimal import Decimal
 from unittest import mock
 
@@ -1179,6 +1182,49 @@ def test_read_json_with_infer_schema(session, mode):
         '"size"',
         '"z""\'na""me"',
     ]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing does not support loading json with user specified schema.",
+)
+def test_read_json_quoted_names(session):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    quoted_column_data = {'"A"': 1, '"B"': "2"}
+    schema = StructType(
+        [
+            StructField('"A"', LongType(), True),
+            StructField('"B"', StringType(), False),
+        ]
+    )
+    parsed_schema = StructType(
+        [
+            StructField('"""A"""', LongType(), True),
+            StructField('"""B"""', StringType(), False),
+        ]
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as file:
+        file.write(json.dumps(quoted_column_data))
+        file_path = file.name
+        file.flush()
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        put_result = session.file.put(
+            file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+        reader = session.read.schema(schema)
+        df_1 = reader.json(f"@{stage_name}/{put_result[0].target}")
+        assert df_1.schema == parsed_schema
+        df_2 = reader.json(f"@{stage_name}/{put_result[0].target}")
+        assert df_2.schema == parsed_schema
+        result = df_1.union_all(df_2).collect()
+        Utils.check_answer(result, [Row(1, "2"), Row(1, "2")])
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 
 @pytest.mark.skipif(
