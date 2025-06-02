@@ -1010,12 +1010,9 @@ def test_negative_test_join_of_join(session):
         df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
         df_j_clone = copy.copy(df_j)
 
-        if session._join_alias_fix:
+        with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
             df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
-        else:
-            with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
-                df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
-            assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
+        assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
     finally:
         session.table(table_name1).drop_table()
 
