@@ -592,10 +592,6 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_id = None
-        if _emit_ast:
-            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
-
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
         else:
@@ -609,6 +605,12 @@ class DataFrame:
             )
         else:
             self._select_statement = None
+
+        # Setup the ast id for the dataframe.
+        self.__ast_id = None
+        if _emit_ast:
+            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
+
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
@@ -659,6 +661,18 @@ class DataFrame:
     @property
     def analytics(self) -> DataFrameAnalyticsFunctions:
         return self._analytics
+
+    @property
+    def _ast_id(self) -> Optional[int]:
+        return self.__ast_id
+
+    @_ast_id.setter
+    def _ast_id(self, value: Optional[int]) -> None:
+        self.__ast_id = value
+        if self._plan is not None:
+            self._plan.df_ast_id = value
+        if self._select_statement is not None:
+            self._select_statement.add_df_ast_id(value)
 
     @publicapi
     @overload
@@ -1056,7 +1070,9 @@ class DataFrame:
         # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
-                return pandas.DataFrame(result)
+                return pandas.DataFrame(
+                    result, columns=[attr.name for attr in self._plan.attributes]
+                )
 
         return result
 

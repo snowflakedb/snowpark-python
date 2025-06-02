@@ -8,6 +8,8 @@ __all__ = [
     "SqliteDriver",
     "PyodbcDriver",
     "DatabricksDriver",
+    "Psycopg2Driver",
+    "PymysqlDriver",
 ]
 
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
@@ -19,3 +21,7 @@ from snowflake.snowpark._internal.data_source.drivers.pyodbc_driver import Pyodb
 from snowflake.snowpark._internal.data_source.drivers.databricks_driver import (
     DatabricksDriver,
 )
+from snowflake.snowpark._internal.data_source.drivers.psycopg2_driver import (
+    Psycopg2Driver,
+)
+from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import PymysqlDriver
