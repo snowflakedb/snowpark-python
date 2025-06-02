@@ -108,7 +108,7 @@ def test_series_to_numeric(input, dtype, expected_dtype):
         (True, "bool"),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_scalar_to_numeric(input, dtype):
     snow = pd.to_numeric(input)
     assert snow.dtype == dtype
@@ -119,7 +119,7 @@ def test_scalar_to_numeric(input, dtype):
         assert snow == native
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_scalar_timedelta_to_numeric():
     # Test this case separately because of a bug in pandas: https://github.com/pandas-dev/pandas/issues/59944
     input = native_pd.Timedelta(1)
@@ -128,7 +128,7 @@ def test_scalar_timedelta_to_numeric():
     assert pd.to_numeric(input) == 1
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_downcast_ignored(downcast, caplog):
     caplog.clear()
     with caplog.at_level(logging.DEBUG):
@@ -139,7 +139,7 @@ def test_downcast_ignored(downcast, caplog):
         assert "downcast is ignored in Snowflake backend" not in caplog.text
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_nan_to_numeric():
     # snowpark pandas can handle "nan" correctly but native pandas does not
     input = "nan"
@@ -155,7 +155,7 @@ def large_val(request):
     return request.param
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_really_large_scalar(large_val):
     snow = pd.to_numeric(large_val)
     native = native_pd.to_numeric(large_val)

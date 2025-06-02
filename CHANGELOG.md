@@ -4,11 +4,36 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for MySQL in `DataFrameWriter.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
+- Added support for PostgreSQL in `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
+- Added support for Databricks in `DataFrameWriter.dbapi` (PrPr) for UDTF-based ingestion.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where databricks `TIMESTAMP` type was converted to Snowflake `TIMESTAMP_NTZ` type which should be `TIMESTAMP_LTZ` type.
+- Fixed a bug in `DataFrame.to_pandas()` that would drop column names when converting a dataframe that did not originate from a select statement.
+- Fixed a bug that `DataFrame.create_or_replace_dynamic_table` raises error when the dataframe contains a UDTF and `SELECT *` in UDTF not being parsed correctly.
+
 #### Improvements
 
-- Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
+- Added support for more options when reading XML files with a row tag using `rowTag` option:
+  - Added support for removing namespace prefixes from col names using `stripNamespaces` option.
+  - Added support for specifying the prefix for the attribute column in the result table using `attributePrefix` option.
+  - Added support for excluding attributes from the XML element using `excludeAttributes` option.
+  - Added support for specifying the column name for the value when there are attributes in an element that has no child elements using `valueTag` option.
+- Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
+- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
+- Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
 
 ### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `Column.isin` that would cause incorrect filtering on joined or previously filtered data.
 
 ### Snowpark pandas API Updates
 
@@ -16,7 +41,7 @@
 
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
-- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
 
 ## 1.32.0 (2025-05-15)
 
@@ -35,7 +60,6 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
-- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 
 ### Snowpark Local Testing Updates
 
@@ -52,6 +76,7 @@
 - Added support for `DataFrame.to_html`.
 - Added support for `DataFrame.to_string` and `Series.to_string`.
 - Added support for reading files from S3 buckets using `pd.read_csv`.
+- Added `ENFORCE_EXISTING_FILE_FORMAT` option to the `DataFrameReader`, which allows to read a dataframe only based on an existing file format object when used together with `FORMAT_NAME`.
 
 #### Improvements
 

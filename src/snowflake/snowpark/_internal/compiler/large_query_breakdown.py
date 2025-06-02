@@ -55,8 +55,7 @@ from snowflake.snowpark._internal.compiler.utils import (
     extract_child_from_with_query_block,
     is_active_transaction,
     is_with_query_block,
-    replace_child,
-    update_resolvable_node,
+    replace_child_and_update_ancestors,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -590,15 +589,6 @@ class LargeQueryBreakdown:
         )
         temp_table_selectable.post_actions = [drop_table_query]
 
-        parents = self._parent_map[child]
-        for parent in parents:
-            replace_child(parent, child, temp_table_selectable, self._query_generator)
-
-        nodes_to_reset = list(parents)
-        while nodes_to_reset:
-            node = nodes_to_reset.pop()
-
-            update_resolvable_node(node, self._query_generator)
-
-            parents = self._parent_map[node]
-            nodes_to_reset.extend(parents)
+        replace_child_and_update_ancestors(
+            child, temp_table_selectable, self._parent_map, self._query_generator
+        )

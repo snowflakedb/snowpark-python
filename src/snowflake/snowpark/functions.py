@@ -524,7 +524,7 @@ def current_statement(_emit_ast: bool = True) -> Column:
 
     Example:
         >>> # Return result is tied to session, so we only test if the result exists
-        >>> session.create_dataframe([1]).select(current_statement()).collect()
+        >>> session.create_dataframe([1]).select(current_statement()).collect() # doctest: +SKIP
         [Row(CURRENT_STATEMENT()='SELECT current_statement() FROM ( SELECT "_1" FROM ( SELECT $1 AS "_1" FROM  VALUES (1 :: INT)))')]
     """
     return _call_function("current_statement", _emit_ast=_emit_ast)
@@ -12230,13 +12230,15 @@ def ai_classify(
 
         >>> # for text
         >>> session.range(1).select(ai_classify('One day I will see the world', ['travel', 'cooking']).alias("answer")).show()
-        -----------------------
-        |"ANSWER"             |
-        -----------------------
-        |{                    |
-        |  "label": "travel"  |
-        |}                    |
-        -----------------------
+        -----------------
+        |"ANSWER"       |
+        -----------------
+        |{              |
+        |  "labels": [  |
+        |    "travel"   |
+        |  ]            |
+        |}              |
+        -----------------
         <BLANKLINE>
         >>> df = session.create_dataframe([
         ...     ['France', ['North America', 'Europe', 'Asia']],
@@ -12244,7 +12246,7 @@ def ai_classify(
         ...     ['one day I will see the world', ['travel', 'cooking', 'dancing']],
         ...     ['my lobster bisque is second to none', ['travel', 'cooking', 'dancing']]
         ... ], schema=["data", "category"])
-        >>> df.select("data", ai_classify(col("data"), col("category"))["label"].alias("class")).sort("data").show()
+        >>> df.select("data", ai_classify(col("data"), col("category"))["labels"][0].alias("class")).sort("data").show()
         ---------------------------------------------------
         |"DATA"                               |"CLASS"    |
         ---------------------------------------------------
@@ -12264,15 +12266,16 @@ def ai_classify(
         ...     ).alias("classes")
         ... )
         >>> df.show()
-        ------------------------
-        |"CLASSES"             |
-        ------------------------
-        |{                     |
-        |  "label": "Cavapoo"  |
-        |}                     |
-        ------------------------
+        -----------------
+        |"CLASSES"      |
+        -----------------
+        |{              |
+        |  "labels": [  |
+        |    "Cavapoo"  |
+        |  ]            |
+        |}              |
+        -----------------
         <BLANKLINE>
-
     """
     sql_func_name = "ai_classify"
     ast = (

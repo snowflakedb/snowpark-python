@@ -287,6 +287,9 @@ _PYTHON_SNOWPARK_CLIENT_AST_MODE = "PYTHON_SNOWPARK_CLIENT_AST_MODE"
 _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
     "PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST"
 )
+_PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
+    "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
+)
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -654,6 +657,14 @@ class Session:
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
             )
         )
+        self._generate_multiline_queries: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, True
+            )
+        )
+        if self._generate_multiline_queries:
+            self._enable_multiline_queries()
+
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
@@ -773,6 +784,18 @@ class Session:
             f"role={self.get_current_role()}, database={self.get_current_database()}, "
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
         )
+
+    def _enable_multiline_queries(self):
+        import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+        analyzer_utils.NEW_LINE = "\n"
+        analyzer_utils.TAB = "    "
+
+    def _disable_multiline_queries(self):
+        import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+        analyzer_utils.NEW_LINE = ""
+        analyzer_utils.TAB = ""
 
     def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
         """
@@ -3181,6 +3204,11 @@ class Session:
                 f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
             )
 
+        if hasattr(df, "columns") and len(df.columns) == 0:
+            raise ProgrammingError(
+                "The provided schema or inferred schema cannot be None or empty"
+            )
+
         success = None  # forward declaration
         try:
             if quote_identifiers:
@@ -4114,6 +4142,7 @@ class Session:
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
         log_on_exception: bool = False,
+        return_dataframe: Optional[bool] = None,
         _emit_ast: bool = True,
     ) -> Any:
         """Calls a stored procedure by name.
@@ -4124,6 +4153,8 @@ class Session:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
                 as a table return type.
+            return_dataframe: When set to True, the return value of this function is a DataFrame object.
+                This is useful when the given stored procedure's return type is a table.
 
         Example::
 
@@ -4163,6 +4194,7 @@ class Session:
             *args,
             statement_params=statement_params,
             log_on_exception=log_on_exception,
+            is_return_table=return_dataframe,
             _emit_ast=_emit_ast,
         )
 

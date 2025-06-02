@@ -219,6 +219,11 @@ def _deepcopy_selectable_fields(
     # field by default and let it rebuild when needed. As far as we have other fields
     # copied correctly, the plan can be recovered properly.
     to_selectable._is_valid_for_replacement = True
+    to_selectable.df_ast_ids = (
+        from_selectable.df_ast_ids.copy()
+        if from_selectable.df_ast_ids is not None
+        else None
+    )
 
 
 class Selectable(LogicalPlan, ABC):
@@ -256,6 +261,7 @@ class Selectable(LogicalPlan, ABC):
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         self._encoded_node_id_with_query: Optional[str] = None
+        self.df_ast_ids: Optional[List[int]] = None
 
     @property
     def analyzer(self) -> "Analyzer":
@@ -303,7 +309,13 @@ class Selectable(LogicalPlan, ABC):
     @property
     def sql_in_subquery(self) -> str:
         """Return the sql when this Selectable is used in a subquery."""
-        return f"{analyzer_utils.LEFT_PARENTHESIS}{self.sql_query}{analyzer_utils.RIGHT_PARENTHESIS}"
+        return (
+            f"{analyzer_utils.LEFT_PARENTHESIS}"
+            f"{analyzer_utils.NEW_LINE}"
+            f"{self.sql_query}"
+            f"{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.RIGHT_PARENTHESIS}"
+        )
 
     @property
     @abstractmethod
@@ -362,6 +374,11 @@ class Selectable(LogicalPlan, ABC):
             # We update the alias maps for the snowflake plan similar to how it is
             # updated after analyzer.resolve() step.
             self._snowflake_plan.add_aliases(self.analyzer.generated_alias_maps)
+            # Add df ast ids to the snowflake plan.
+            if self.df_ast_ids is not None:
+                # Add the last df ast id to the snowflake plan as the most recent
+                # dataframe operation to create this plan.
+                self._snowflake_plan.df_ast_id = self.df_ast_ids[-1]
         return self._snowflake_plan
 
     @property
@@ -443,7 +460,8 @@ class Selectable(LogicalPlan, ABC):
 
     def merge_into_post_action(self, post_action: "Query") -> None:
         """Method to merge a post-action into the current Selectable's post-actions if it
-        is not already present. If post_actions is None, new list will be initialized."""
+        is not already present. If post_actions is None, new list will be initialized.
+        """
         if self.post_actions is None:
             self.post_actions = [copy(post_action)]
         elif post_action not in self.post_actions:
@@ -473,6 +491,16 @@ class Selectable(LogicalPlan, ABC):
             self._snowflake_plan = resolved_snowflake_plan
 
         return self
+
+    def add_df_ast_id(self, ast_id: int) -> None:
+        """Method to add a df ast id to the selectable.
+        This is used to track the df ast ids that are used in creating the
+        sql for this selectable.
+        """
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
 
 
 class SelectableEntity(Selectable):
@@ -540,6 +568,13 @@ class SelectableEntity(Selectable):
             self._schema_query = analyzer_utils.schema_value_statement(value)
 
 
+@SnowflakePlan.Decorator.wrap_exception
+def _analyze_attributes(
+    sql: str, session: "snowflake.snowpark.session.Session"  # type: ignore
+) -> List[Attribute]:
+    return analyze_attributes(sql, session)
+
+
 class SelectSQL(Selectable):
     """Query from a SQL. Mainly used by session.sql()"""
 
@@ -566,7 +601,7 @@ class SelectSQL(Selectable):
                 self.pre_actions[0].query_id_place_holder
             )
             self._schema_query = analyzer_utils.schema_value_statement(
-                analyze_attributes(sql, self._session)
+                _analyze_attributes(sql, self._session)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
             self._query_param = None
         else:
@@ -652,6 +687,10 @@ class SelectSnowflakePlan(Selectable):
             if query.params:
                 self._query_params.extend(query.params)
 
+        # Copy the df ast ids from the snowflake plan.
+        if (df_ast_id := self._snowflake_plan.df_ast_id) is not None:
+            self.df_ast_ids = [df_ast_id]
+
     def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
         copied = SelectSnowflakePlan(
             snowflake_plan=deepcopy(self._snowflake_plan, memodict),
@@ -704,7 +743,8 @@ class SelectSnowflakePlan(Selectable):
 
 class SelectStatement(Selectable):
     """The main logic plan to be used by a DataFrame.
-    It structurally has the parts of a query and uses the ColumnState to decide whether a query can be flattened."""
+    It structurally has the parts of a query and uses the ColumnState to decide whether a query can be flattened.
+    """
 
     def __init__(
         self,
@@ -763,6 +803,10 @@ class SelectStatement(Selectable):
         ] = None
         # Metadata/Attributes for the plan
         self._attributes: Optional[List[Attribute]] = None
+        # Copy the df ast ids from the from_ selectable.
+        self.df_ast_ids = (
+            from_.df_ast_ids.copy() if from_.df_ast_ids is not None else None
+        )
 
     def __copy__(self):
         new = SelectStatement(
@@ -791,7 +835,7 @@ class SelectStatement(Selectable):
         new._merge_projection_complexity_with_subquery = (
             self._merge_projection_complexity_with_subquery
         )
-
+        new.df_ast_ids = self.df_ast_ids.copy() if self.df_ast_ids is not None else None
         return new
 
     def __deepcopy__(self, memodict={}) -> "SelectStatement":  # noqa: B006
@@ -873,7 +917,9 @@ class SelectStatement(Selectable):
                 assert (
                     self.exclude_cols is None
                 ), "We should not have reached this state. There is likely a bug in flattening logic."
-                self._projection_in_str = analyzer_utils.COMMA.join(
+                self._projection_in_str = (
+                    analyzer_utils.COMMA + analyzer_utils.NEW_LINE + analyzer_utils.TAB
+                ).join(
                     self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name)
                     for x in self.projection
                 )
@@ -897,22 +943,24 @@ class SelectStatement(Selectable):
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
         where_clause = (
-            f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.WHERE}{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.TAB}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         order_by_clause = (
-            f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.ORDER_BY}{analyzer_utils.NEW_LINE}{analyzer_utils.TAB}"
+            f"{(analyzer_utils.COMMA + analyzer_utils.NEW_LINE + analyzer_utils.TAB).join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
             if self.order_by
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         limit_clause = (
-            f"{analyzer_utils.LIMIT}{self.limit_}"
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.LIMIT}{self.limit_}"
             if self.limit_ is not None
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         offset_clause = (
-            f"{analyzer_utils.OFFSET}{self.offset}"
+            f"{analyzer_utils.NEW_LINE}{analyzer_utils.OFFSET}{self.offset}"
             if self.offset
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
@@ -922,8 +970,13 @@ class SelectStatement(Selectable):
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         self._sql_query = (
-            f"{analyzer_utils.SELECT}{distinct_clause}{self.projection_in_str}{analyzer_utils.FROM}"
-            f"{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+            f"{analyzer_utils.SELECT}{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.TAB}{distinct_clause}{self.projection_in_str}{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.FROM}{from_clause}"
+            f"{where_clause}"
+            f"{order_by_clause}"
+            f"{limit_clause}"
+            f"{offset_clause}"
         )
         return self._sql_query
 
@@ -1236,6 +1289,9 @@ class SelectStatement(Selectable):
             # there is no need to flatten the projection complexity since the child
             # select projection is already flattened with the current select.
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
@@ -1275,6 +1331,9 @@ class SelectStatement(Selectable):
             new.column_states = self.column_states
             new.where = And(self.where, col) if self.where is not None else col
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
@@ -1308,6 +1367,9 @@ class SelectStatement(Selectable):
             new.order_by = cols + (self.order_by or [])
             new.column_states = self.column_states
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1342,6 +1404,9 @@ class SelectStatement(Selectable):
             new.distinct_ = True
             new.column_states = self.column_states
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1372,6 +1437,9 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         else:
             new = SelectStatement(
                 from_=self.to_subqueryable(),
@@ -1468,6 +1536,9 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
         if self._session.reduce_describe_query_enabled:
             new.attributes = self.attributes
 
@@ -1601,7 +1672,8 @@ class SetStatement(Selectable):
     @property
     def schema_query(self) -> str:
         """The first operand decide the column attributes of a query with set operations.
-        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes"""
+        Refer to https://docs.snowflake.com/en/sql-reference/operators-query.html#general-usage-notes
+        """
         attributes = self.set_operands[0].selectable.snowflake_plan.attributes
         sql = f"({schema_value_statement(attributes)})"
         for i in range(1, len(self.set_operands)):

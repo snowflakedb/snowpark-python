@@ -36,6 +36,7 @@ class DataSourcePartitioner:
         self,
         create_connection: Callable[[], "Connection"],
         table_or_query: str,
+        is_query: bool,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
@@ -49,6 +50,7 @@ class DataSourcePartitioner:
     ) -> None:
         self.create_connection = create_connection
         self.table_or_query = table_or_query
+        self.is_query = is_query
         self.column = column
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
@@ -82,7 +84,9 @@ class DataSourcePartitioner:
     @cached_property
     def schema(self) -> StructType:
         if self.custom_schema is None:
-            return self.driver.infer_schema_from_description(self.table_or_query)
+            return self.driver.infer_schema_from_description_with_error_control(
+                self.table_or_query, self.is_query
+            )
         else:
             if isinstance(self.custom_schema, str):
                 schema = type_string_to_type_object(self.custom_schema)
@@ -105,7 +109,7 @@ class DataSourcePartitioner:
     @cached_property
     def partitions(self) -> List[str]:
         select_query = self.dialect.generate_select_query(
-            self.table_or_query, self.schema, self.driver.raw_schema
+            self.table_or_query, self.schema, self.driver.raw_schema, self.is_query
         )
         logger.debug(f"Generated select query: {select_query}")
         if self.column is None:
