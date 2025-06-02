@@ -271,6 +271,7 @@ class DataFrameWriter:
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
         iceberg_config: Optional[Dict[str, str]] = None,
+        table_exists: Optional[bool] = None,
         _emit_ast: bool = True,
         **kwargs: Optional[Dict[str, Any]],
     ) -> Optional[AsyncJob]:
@@ -335,6 +336,8 @@ class DataFrameWriter:
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
                 * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
+            table_exists: This parameter allows skipping a potentially expensive table lookup if the existence of the table is known. When
+                truncating or appending to a table this parameter is used if set.
 
 
         Example 1::
@@ -488,17 +491,20 @@ class DataFrameWriter:
                 )
 
             session = self._dataframe._session
-            if not isinstance(session._conn, MockServerConnection) and save_mode in [
-                SaveMode.APPEND,
-                SaveMode.TRUNCATE,
-            ]:
+            if (
+                table_exists is None
+                and not isinstance(session._conn, MockServerConnection)
+                and save_mode
+                in [
+                    SaveMode.APPEND,
+                    SaveMode.TRUNCATE,
+                ]
+            ):
                 # whether the table already exists in the database
                 # determines the compiled SQL for APPEND and TRUNCATE mode
                 # if the table does not exist, we need to create it first;
                 # if the table exists, we can skip the creation step and insert data directly
                 table_exists = session._table_exists(table_name)
-            else:
-                table_exists = None
 
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
