@@ -228,12 +228,13 @@ def test_stage_get_and_put_sproc(session):
 
     @sproc
     def read_and_write_file(session_: Session) -> str:
-        put_result = stage_registry.put(
+        put_result = session_.file.put(
             normalize_local_file(test_file),
             "@test_output_stage/test_parent_dir/test_child_dir",
+            auto_compress=False,
         )
         assert len(put_result) == 1
-        put_result = put_result.iloc[0]
+        put_result = put_result[0]
         assert put_result.source == put_result.target == "test_file_1"
         assert put_result.source_size is not None
         assert put_result.target_size is not None
@@ -243,12 +244,12 @@ def test_stage_get_and_put_sproc(session):
         assert put_result.message == ""
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            get_results = stage_registry.get(
+            get_results = session_.file.get(
                 "@test_output_stage/test_parent_dir/test_child_dir/test_file_1",
                 f"'file://{temp_dir}'",
             )
             assert len(get_results) == 1
-            get_result = get_results.iloc[0]
+            get_result = get_results[0]
             assert get_result.file == "test_file_1"
             assert get_result.size is not None
             assert get_result.status == "DOWNLOADED"
