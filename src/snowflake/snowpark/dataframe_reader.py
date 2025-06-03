@@ -561,11 +561,11 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
-        if canon_format not in allowed_formats:
-            raise ValueError(
-                f"Invalid format '{value}'. Supported formats are {allowed_formats}."
-            )
+        # allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
+        # if canon_format not in allowed_formats:
+        #     raise ValueError(
+        #         f"Invalid format '{value}'. Supported formats are {allowed_formats}."
+        #     )
         self.__format = canon_format
 
     @publicapi
@@ -609,18 +609,19 @@ class DataFrameReader:
             raise ValueError(
                 "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
             )
-        if format_str != "dbapi" and path is None:
-            raise TypeError(
-                "DataFrameReader.load() missing 1 required positional argument: 'path'"
-            )
         if format_str in self.custom_data_sources and path is not None:
             raise ValueError(
                 "The 'path' parameter is not supported for the custom datasource format. Please omit this parameter when calling."
             )
-        if format_str not in self.custom_data_sources and path is None:
+        if (
+            format_str != "dbapi"
+            and format_str not in self.custom_data_sources
+            and path is None
+        ):
             raise TypeError(
                 "DataFrameReader.load() missing 1 required positional argument: 'path'"
             )
+
         if format_str == "dbapi":
             return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
 
@@ -1531,7 +1532,7 @@ class DataFrameReader:
         self,
         data_source: ["DataSource"],
     ) -> None:
-        self.custom_data_sources[data_source.name] = data_source
+        self.custom_data_sources[data_source.name()] = data_source
 
     def _custom_data_source(self, data_source: str) -> DataFrame:
         if "udtf_configs" in self._cur_options:
@@ -1540,8 +1541,8 @@ class DataFrameReader:
         else:
             data_source_class = self.custom_data_sources[data_source]
             data_source_instance = data_source_class()
-            partitions = data_source_instance.partitions
-            schema = convert_custom_schema_to_structtype(data_source_instance.schema)
+            partitions = data_source_instance.partitions()
+            schema = convert_custom_schema_to_structtype(data_source_instance.schema())
 
             with tempfile.TemporaryDirectory() as tmp_dir:
                 # create temp table
@@ -1589,7 +1590,7 @@ class DataFrameReader:
                         for partition_idx, query in enumerate(partitions):
                             process_future = process_executor.submit(
                                 _task_fetch_data_from_source_with_retry,
-                                data_source_instance.reader(),
+                                data_source_instance.reader(schema),
                                 query,
                                 partition_idx,
                                 tmp_dir,

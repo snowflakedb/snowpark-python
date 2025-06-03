@@ -11,7 +11,6 @@ from snowflake.snowpark._internal.data_source.datasource_typing import Connectio
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
-from snowflake.connector.options import pandas as pd
 import logging
 
 logger = logging.getLogger(__name__)
@@ -85,8 +84,3 @@ class DataSourceReader:
         finally:
             cursor.close()
             conn.close()
-
-    def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
-        # self.driver is guaranteed to be initialized in self.read() which is called prior to this method
-        assert self.driver is not None
-        return self.driver.data_source_data_to_pandas_df(data, self.schema)
