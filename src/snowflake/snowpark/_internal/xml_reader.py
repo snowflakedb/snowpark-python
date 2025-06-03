@@ -329,7 +329,7 @@ def process_xml_range(
     approx_end: int,
     mode: str,
     column_name_of_corrupt_record: str,
-    strip_namespaces: bool,
+    ignore_namespace: bool,
     attribute_prefix: str,
     exclude_attributes: bool,
     value_tag: str,
@@ -356,7 +356,7 @@ def process_xml_range(
         mode (str): The mode for dealing with corrupt records.
             "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
         column_name_of_corrupt_record (str): The name of the column for corrupt records.
-        strip_namespaces (bool): Whether to strip namespaces from the XML element.
+        ignore_namespace (bool): Whether to strip namespaces from the XML element.
         attribute_prefix (str): The prefix to add to the attribute names.
         exclude_attributes (bool): Whether to exclude attributes from the XML element.
         value_tag (str): The tag name for the value column.
@@ -447,7 +447,7 @@ def process_xml_range(
                     element = ET.fromstring(record_str, parser)
                 else:
                     element = ET.fromstring(record_str)
-                if strip_namespaces:
+                if ignore_namespace:
                     element = strip_xml_namespaces(element)
                 result = element_to_dict_or_str(
                     element,
@@ -484,7 +484,7 @@ class XMLReader:
         i: int,
         mode: str,
         column_name_of_corrupt_record: str,
-        strip_namespaces: bool,
+        ignore_namespace: bool,
         attribute_prefix: str,
         exclude_attributes: bool,
         value_tag: str,
@@ -504,7 +504,7 @@ class XMLReader:
             mode (str): The mode for dealing with corrupt records.
                 "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
             column_name_of_corrupt_record (str): The name of the column for corrupt records.
-            strip_namespaces (bool): Whether to strip namespaces from the XML element.
+            ignore_namespace (bool): Whether to strip namespaces from the XML element.
             attribute_prefix (str): The prefix to add to the attribute names.
             exclude_attributes (bool): Whether to exclude attributes from the XML element.
             value_tag (str): The tag name for the value column.
@@ -522,7 +522,7 @@ class XMLReader:
             approx_end,
             mode,
             column_name_of_corrupt_record,
-            strip_namespaces,
+            ignore_namespace,
             attribute_prefix,
             exclude_attributes,
             value_tag,

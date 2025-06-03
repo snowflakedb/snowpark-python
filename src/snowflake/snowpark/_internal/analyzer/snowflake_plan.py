@@ -1510,7 +1510,7 @@ class SnowflakePlanBuilder:
         column_name_of_corrupt_record = options.get(
             "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
         )
-        strip_namespaces = options.get("STRIPNAMESPACES", True)
+        ignore_namespace = options.get("ignoreNamespace", True)
         attribute_prefix = options.get("ATTRIBUTEPREFIX", "_")
         exclude_attributes = options.get("EXCLUDEATTRIBUTES", False)
         value_tag = options.get("VALUETAG", "_VALUE")
@@ -1546,7 +1546,7 @@ class SnowflakePlanBuilder:
                 col(worker_column_name),
                 lit(mode),
                 lit(column_name_of_corrupt_record),
-                lit(strip_namespaces),
+                lit(ignore_namespace),
                 lit(attribute_prefix),
                 lit(exclude_attributes),
                 lit(value_tag),

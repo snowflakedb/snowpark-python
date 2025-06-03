@@ -21,7 +21,7 @@
 #### Improvements
 
 - Added support for more options when reading XML files with a row tag using `rowTag` option:
-  - Added support for removing namespace prefixes from col names using `stripNamespaces` option.
+  - Added support for removing namespace prefixes from col names using `ignoreNamespace` option.
   - Added support for specifying the prefix for the attribute column in the result table using `attributePrefix` option.
   - Added support for excluding attributes from the XML element using `excludeAttributes` option.
   - Added support for specifying the column name for the value when there are attributes in an element that has no child elements using `valueTag` option.

@@ -880,7 +880,7 @@ class DataFrameReader:
               + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
                 The default value is '_corrupt_record'.
 
-              + ``stripNamespaces``: remove namespace prefixes from XML element names when constructing result column names.
+              + ``ignoreNamespace``: remove namespace prefixes from XML element names when constructing result column names.
                 The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
                 it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
                 For example, for the following XML data with a row tag ``abc:def``:
