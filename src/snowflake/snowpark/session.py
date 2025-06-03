@@ -76,7 +76,6 @@ from snowflake.snowpark._internal.ast.utils import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.lazy_import_utils import (
-    get_write_pandas,
     get_installed_pandas,
     get_pandas,
 )
@@ -3191,7 +3190,10 @@ class Session:
             If `TIMESTAMP_TZ` is needed for those columns instead, please manually create the table before loading data.
         """
 
-        write_pandas = get_write_pandas()
+        # Import through __getattr__ to support mocking
+        import snowflake.snowpark.session as session_module
+
+        write_pandas = session_module.write_pandas
         pandas = get_pandas()
 
         if isinstance(self._conn, MockServerConnection):
@@ -4477,3 +4479,18 @@ class Session:
             return None
 
     createDataFrame = create_dataframe
+
+
+# Lazy wrapper for write_pandas to support mocking while preserving lazy import
+def _write_pandas_lazy_wrapper(*args, **kwargs):
+    from snowflake.snowpark._internal.lazy_import_utils import get_write_pandas
+
+    write_pandas_func = get_write_pandas()
+    return write_pandas_func(*args, **kwargs)
+
+
+# Add module-level attribute access for testing compatibility
+def __getattr__(name: str):
+    if name == "write_pandas":
+        return _write_pandas_lazy_wrapper
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
