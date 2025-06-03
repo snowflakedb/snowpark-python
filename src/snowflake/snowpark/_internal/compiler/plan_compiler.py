@@ -31,7 +31,6 @@ from snowflake.snowpark._internal.compiler.utils import (
 )
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import random_name_for_temp_object
-from snowflake.snowpark.mock._connection import MockServerConnection
 
 _logger = logging.getLogger(__name__)
 
@@ -67,6 +66,7 @@ class PlanCompiler:
         -------
         True if optimization should be applied. Otherwise, return False.
         """
+        from snowflake.snowpark.mock._connection import MockServerConnection
 
         current_session = self._plan.session
         return (
