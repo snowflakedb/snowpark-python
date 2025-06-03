@@ -8,9 +8,10 @@ import shutil
 import sys
 import tempfile
 from functools import cmp_to_key, partial
-from typing import Any, Callable, Iterable, Optional, Set, Tuple, Union, TYPE_CHECKING
+from typing import Any, Callable, Iterable, Optional, Set, Tuple, Union
 
 from snowflake.snowpark._internal.utils import parse_table_name, quote_name
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
 from snowflake.snowpark.types import (
     ArrayType,
@@ -32,10 +33,6 @@ from snowflake.snowpark.types import (
     VariantType,
     _NumericType,
 )
-
-if TYPE_CHECKING:
-    from snowflake.snowpark.mock._options import pandas as pd
-
 
 # placeholder map helps convert wildcard to reg. In practice, we convert wildcard to a middle string first,
 # and then convert middle string to regex. See the following example:
