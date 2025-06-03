@@ -178,6 +178,19 @@ from snowflake.snowpark.functions import (
     to_variant,
 )
 from snowflake.snowpark.lineage import Lineage
+from snowflake.snowpark.mock._analyzer import MockAnalyzer
+from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.mock._nop_analyzer import NopAnalyzer
+from snowflake.snowpark.mock._nop_connection import NopConnection
+from snowflake.snowpark.mock._pandas_util import (
+    _convert_dataframe_to_table,
+    _extract_schema_and_data_from_pandas_df,
+)
+from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+from snowflake.snowpark.mock._stored_procedure import MockStoredProcedureRegistration
+from snowflake.snowpark.mock._udaf import MockUDAFRegistration
+from snowflake.snowpark.mock._udf import MockUDFRegistration
+from snowflake.snowpark.mock._udtf import MockUDTFRegistration
 from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -213,8 +226,6 @@ from snowflake.snowpark.udtf import UDTFRegistration
 if TYPE_CHECKING:
     from snowflake.connector.options import pandas
     import modin.pandas  # pragma: no cover
-    from snowflake.snowpark.mock._connection import MockServerConnection
-    from snowflake.snowpark.mock._nop_connection import NopConnection
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -484,9 +495,6 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            from snowflake.snowpark.mock._connection import MockServerConnection
-            from snowflake.snowpark.mock._nop_connection import NopConnection
-
             if self._options.get("local_testing", False):
                 session = Session(MockServerConnection(self._options), self._options)
                 if "password" in self._options:
@@ -560,7 +568,7 @@ class Session:
 
     def __init__(
         self,
-        conn: Union[ServerConnection, "MockServerConnection", "NopConnection"],
+        conn: Union[ServerConnection, MockServerConnection, NopConnection],
         options: Optional[Dict[str, Any]] = None,
     ) -> None:
         if (
@@ -588,15 +596,6 @@ class Session:
 """
         self.version = get_version()
         self._session_stage = None
-
-        from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
-        from snowflake.snowpark.mock._connection import MockServerConnection
-        from snowflake.snowpark.mock._udf import MockUDFRegistration
-        from snowflake.snowpark.mock._udtf import MockUDTFRegistration
-        from snowflake.snowpark.mock._udaf import MockUDAFRegistration
-        from snowflake.snowpark.mock._stored_procedure import (
-            MockStoredProcedureRegistration,
-        )
 
         if isinstance(conn, MockServerConnection):
             self._udf_registration = MockUDFRegistration(self)
@@ -826,11 +825,6 @@ class Session:
 
     @property
     def _analyzer(self) -> Analyzer:
-        from snowflake.snowpark.mock._analyzer import MockAnalyzer
-        from snowflake.snowpark.mock._connection import MockServerConnection
-        from snowflake.snowpark.mock._nop_analyzer import NopAnalyzer
-        from snowflake.snowpark.mock._nop_connection import NopConnection
-
         if not hasattr(self._thread_store, "analyzer"):
             analyzer: Union[Analyzer, MockAnalyzer, NopAnalyzer, None] = None
             if isinstance(self._conn, NopConnection):
@@ -861,7 +855,6 @@ class Session:
     def catalog(self):
         """Returns a :class:`Catalog` object rooted on current session."""
         from snowflake.snowpark.catalog import Catalog
-        from snowflake.snowpark.mock._connection import MockServerConnection
 
         if self._catalog is None:
             if isinstance(self._conn, MockServerConnection):
@@ -1171,8 +1164,6 @@ class Session:
         Cancel all action methods that are running currently.
         This does not affect any action methods called in the future.
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         _logger.info("Canceling all running queries")
         with self._lock:
             self._last_canceled_id = self._last_action_id
@@ -1261,8 +1252,6 @@ class Session:
             ``imports`` argument in :func:`functions.udf` or
             :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if isinstance(self._conn, MockServerConnection):
             self.udf._import_file(path, import_path=import_path)
             self.sproc._import_file(path, import_path=import_path)
@@ -1308,8 +1297,6 @@ class Session:
         """
         Clears all files in a stage or local files from the imports of a user-defined function (UDF).
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
             self.sproc._clear_session_imports()
@@ -1994,8 +1981,6 @@ class Session:
         Returns:
             List[str]: List of package specifiers
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         # Always include cloudpickle
         extra_modules = [cloudpickle]
         if include_pandas:
@@ -2606,8 +2591,6 @@ class Session:
                 *func_arguments,
                 **func_named_arguments,
             )
-        from snowflake.snowpark.mock._connection import MockServerConnection
-        from snowflake.snowpark.mock._nop_connection import NopConnection
 
         # TODO: Support table_function in MockServerConnection.
         if isinstance(self._conn, MockServerConnection) and not isinstance(
@@ -2812,8 +2795,6 @@ class Session:
             >>> session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]).sort("column1").collect()
             [Row(COLUMN1=1, COLUMN2='a'), Row(COLUMN1=2, COLUMN2='b')]
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         # AST.
         stmt = None
         if _emit_ast:
@@ -3215,7 +3196,6 @@ class Session:
 
         # Import through __getattr__ to support mocking
         import snowflake.snowpark.session as session_module
-        from snowflake.snowpark.mock._connection import MockServerConnection
 
         write_pandas = session_module.write_pandas
         pandas = get_pandas()
@@ -3445,11 +3425,6 @@ class Session:
         """
         if data is None:
             raise ValueError("data cannot be None.")
-        from snowflake.snowpark.mock._connection import MockServerConnection
-        from snowflake.snowpark.mock._pandas_util import (
-            _convert_dataframe_to_table,
-            _extract_schema_and_data_from_pandas_df,
-        )
 
         installed_pandas = get_installed_pandas()
         pandas = get_pandas()
@@ -3901,8 +3876,6 @@ class Session:
         See also:
             :class:`AsyncJob`
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if (
             is_in_stored_procedure()
             and not self._conn._get_client_side_session_parameter(
@@ -4032,8 +4005,6 @@ class Session:
         )
 
     def _use_object(self, object_name: str, object_type: str) -> None:
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if object_name:
             validate_object_name(object_name)
             query = f"use {object_type} {object_name}"
@@ -4278,9 +4249,6 @@ class Session:
                     build_expr_from_python_val(entry._2, statement_params[k])
             expr.fn.stored_procedure.log_on_exception.value = log_on_exception
             self._ast_batch.eval(stmt)
-        from snowflake.snowpark.mock._stored_procedure import (
-            MockStoredProcedureRegistration,
-        )
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
@@ -4383,7 +4351,6 @@ class Session:
             - :meth:`DataFrame.flatten`, which creates a new :class:`DataFrame` by exploding a VARIANT column of an existing :class:`DataFrame`.
             - :meth:`Session.table_function`, which can be used for any Snowflake table functions, including ``flatten``.
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
 
         check_flatten_mode(mode)
 
@@ -4466,8 +4433,6 @@ class Session:
 
     def _table_exists(self, raw_table_name: Iterable[str]):
         """ """
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
         qualified_table_name = list(raw_table_name)
         if isinstance(self._conn, MockServerConnection):
