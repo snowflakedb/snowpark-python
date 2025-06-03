@@ -897,6 +897,8 @@ class DataFrameReader:
                 The default value is ``_VALUE``.
 
               + ``nullValue``: The value to treat as a null value. The default value is ``""``.
+
+              + ``charset``: The character encoding of the XML file. The default value is ``utf-8``.
         """
         df = self._read_semi_structured_file(path, "XML")
 
