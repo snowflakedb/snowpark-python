@@ -4,8 +4,11 @@
 
 import io
 import re
+import tempfile
+import os
 import lxml.etree as ET
 import html.entities
+from unittest.mock import patch
 import pytest
 
 from snowflake.snowpark._internal.xml_reader import (
@@ -15,6 +18,7 @@ from snowflake.snowpark._internal.xml_reader import (
     find_next_closing_tag_pos,
     find_next_opening_tag_pos,
     tag_is_self_closing,
+    process_xml_range,
     DEFAULT_CHUNK_SIZE,
 )
 
@@ -375,3 +379,98 @@ def test_find_next_opening_tag_pos_no_tag(chunk_size):
         find_next_opening_tag_pos(
             file_obj, tag_start_1, tag_start_2, end_limit, chunk_size=chunk_size
         )
+
+
+@pytest.mark.parametrize("charset", ["utf-8", "iso-8859-1", "ascii"])
+def test_process_xml_range_charset(charset):
+    """Test that process_xml_range handles different character encodings correctly."""
+    # Create test XML content with special characters
+    if charset == "utf-8":
+        xml_content = '<?xml version="1.0" encoding="UTF-8"?>\n<root><record>Café</record><record>Naïve</record></root>'
+        text_values = ["Café", "Naïve"]
+    elif charset == "iso-8859-1":
+        xml_content = '<?xml version="1.0" encoding="ISO-8859-1"?>\n<root><record>Café</record><record>résumé</record></root>'
+        text_values = ["Café", "résumé"]
+    else:  # ascii
+        xml_content = '<?xml version="1.0" encoding="ASCII"?>\n<root><record>test</record><record>data</record></root>'
+        text_values = ["test", "data"]
+
+    # Write XML content to a temporary file with the specified encoding
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding=charset, delete=False, suffix=".xml"
+    ) as f:
+        f.write(xml_content)
+        temp_file_path = f.name
+
+    try:
+        # Mock file operations for testing - create a BytesIO with the encoded content
+        xml_bytes = xml_content.encode(charset)
+
+        # Mock SnowflakeFile.open to return our test data
+        mock_file = io.BytesIO(xml_bytes)
+        with patch(
+            "snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file
+        ):
+            # Process the XML with the specified charset
+            results = list(
+                process_xml_range(
+                    file_path="test.xml",
+                    tag_name="record",
+                    approx_start=0,
+                    approx_end=len(xml_bytes),
+                    mode="PERMISSIVE",
+                    column_name_of_corrupt_record="_corrupt_record",
+                    strip_namespaces=True,
+                    attribute_prefix="_",
+                    exclude_attributes=False,
+                    value_tag="_VALUE",
+                    null_value="",
+                    charset=charset,
+                )
+            )
+
+        # Verify that the records were parsed correctly with the right charset
+        assert len(results) == 2
+        for i, result in enumerate(results):
+            assert result == {"_VALUE": text_values[i]}
+
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+
+
+def test_process_xml_range_charset_decode_error():
+    """Test that process_xml_range handles encoding errors gracefully with errors='replace'."""
+    from unittest.mock import patch
+
+    # Create XML content with UTF-8 characters but try to decode as ASCII
+    xml_content = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<root><record>Café</record></root>'
+    )
+    xml_bytes = xml_content.encode("utf-8")
+
+    mock_file = io.BytesIO(xml_bytes)
+    with patch("snowflake.snowpark.files.SnowflakeFile.open", return_value=mock_file):
+        # Process the XML with ASCII charset (should use errors='replace')
+        results = list(
+            process_xml_range(
+                file_path="test.xml",
+                tag_name="record",
+                approx_start=0,
+                approx_end=len(xml_bytes),
+                mode="PERMISSIVE",
+                column_name_of_corrupt_record="_corrupt_record",
+                strip_namespaces=True,
+                attribute_prefix="_",
+                exclude_attributes=False,
+                value_tag="_VALUE",
+                null_value="",
+                charset="ascii",  # This will cause decode errors
+            )
+        )
+
+    # Should still get a result, but with replacement characters
+    assert len(results) == 1
+    # The replacement character () should be present in the decoded text
+    assert "Caf" in str(results[0])  # Should get "Caf" or similar
