@@ -67,7 +67,6 @@ from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import (
     MODIN_UNNAMED_SERIES_LABEL,
-    _inherit_docstrings,
     hashable,
     validate_int_kwarg,
 )
@@ -748,7 +747,6 @@ def ohlc(self):
 
 
 @register_df_groupby_override("pct_change")
-@_inherit_docstrings(pandas.core.groupby.DataFrameGroupBy.pct_change)
 def pct_change(
     self,
     periods=1,
