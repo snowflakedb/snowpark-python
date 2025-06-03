@@ -674,8 +674,33 @@ def python_type_str_to_object(
         return pandas.Series
     elif tp_str in ["DataFrame", "pd.DataFrame"] and get_installed_pandas():
         return pandas.DataFrame
+    elif tp_str == "PandasSeries" and get_installed_pandas():
+        # Handle dynamically created PandasSeries class
+        return get_snowpark_types().PandasSeries
+    elif tp_str == "PandasDataFrame" and get_installed_pandas():
+        # Handle dynamically created PandasDataFrame class
+        return get_snowpark_types().PandasDataFrame
     else:
-        return eval(tp_str)
+        try:
+            return eval(tp_str)
+        except NameError:
+            # Add essential types for eval() to work with pandas type hints
+            eval_globals = {
+                "Dict": typing.Dict,
+                "List": typing.List,
+                "Optional": typing.Optional,
+                "Union": typing.Union,
+                "datetime": datetime,
+            }
+            if get_installed_pandas():
+                snowpark_types = get_snowpark_types()
+                eval_globals.update(
+                    {
+                        "PandasSeries": snowpark_types.PandasSeries,
+                        "PandasDataFrame": snowpark_types.PandasDataFrame,
+                    }
+                )
+            return eval(tp_str, eval_globals)
 
 
 def python_type_to_snow_type(
