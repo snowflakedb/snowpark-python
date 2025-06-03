@@ -718,7 +718,7 @@ def test_skip_table_exists_check(session, local_testing_mode):
                 ):
                     df.write.save_as_table(table_name, mode="append", table_exists=True)
 
-                # Try truncating to non-existant table
+                # Try truncating to non-existent table
                 with pytest.raises(
                     SnowparkSQLException, match="does not exist or not authorized"
                 ):
