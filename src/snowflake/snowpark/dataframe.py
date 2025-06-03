@@ -192,7 +192,6 @@ from snowflake.snowpark.functions import (
     stddev,
     to_char,
 )
-from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -600,6 +599,7 @@ class DataFrame:
             self._plan = self._session._analyzer.resolve(plan)
         else:
             self._plan = None
+        from snowflake.snowpark.mock._select_statement import MockSelectStatement
 
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
