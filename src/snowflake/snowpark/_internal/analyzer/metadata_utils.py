@@ -4,14 +4,16 @@
 from enum import Enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
+from snowflake.snowpark.types import DataType
 
+from snowflake.snowpark.exceptions import SnowparkSQLInvalidIdException
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     Expression,
     Literal,
     Star,
-    UnresolvedAttribute,
 )
+from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Limit,
@@ -96,24 +98,29 @@ def _extract_inferable_attribute_names(
     new_attributes = []
     old_attributes = []
     for attr in attributes:
-        # Skip regular attributes. They were already resolved.
+        # Attributes are already resolved and don't require inferrence
         if isinstance(attr, Attribute):
             old_attributes.append(attr)
-        elif isinstance(attr, Alias):
-            cur = attr
-            while True:
-                cur = cur.child
-                if not isinstance(cur, Alias):
-                    break
-            if isinstance(cur, (Literal, Attribute)):
-                new_attributes.append(attr)
-            else:
-                return None, None
-        elif isinstance(attr, (UnresolvedAttribute, UnresolvedAlias)):
-            return None, None
+            continue
+
+        if isinstance(attr, Alias):
+            # If the first non-aliased child of an Alias node is Literal or Attribute
+            # the column can be inferred.
+            root_attr = attr
+            while isinstance(root_attr.child, Alias):
+                root_attr = root_attr.child
+            if isinstance(root_attr.child, (Literal, Attribute)) and root_attr.datatype:
+                attr = Attribute(attr.name, root_attr.datatype, root_attr.nullable)
+        elif isinstance(attr, Literal) and type(attr.datatype) != DataType:
+            # Names of literal values can be inferred
+            attr = Attribute(
+                to_sql(attr.value, attr.datatype), attr.datatype, attr.nullable
+            )
+
+        # If the attr has been coerced to attribute then it has been inferred
+        if isinstance(attr, Attribute):
+            new_attributes.append(attr)
         else:
-            # This should not be reached, but if it is it means 
-            # that we don't know how to process the attribute yet.
             return None, None
     return old_attributes, new_attributes
 
@@ -209,10 +216,12 @@ def infer_metadata(
                 attributes = source_plan.attributes
         elif isinstance(source_plan, SelectStatement):
 
-            def extract_attributes(current_plan: LogicalPlan) -> Optional[List[Expression]]:
-                # When attributes is cached on source_plan, just use it
-                attributes: Optional[List[Expression]] = None
+            def extract_attributes(
+                current_plan: LogicalPlan,
+            ) -> Optional[List[Attribute]]:
+                attributes: Optional[List[Attribute]] = None
                 if isinstance(current_plan, SelectStatement):
+                    # When attributes is cached on source_plan, just use it
                     if current_plan.attributes is not None:
                         attributes = current_plan.attributes
                     else:
@@ -221,15 +230,20 @@ def infer_metadata(
                             expected_attributes,
                             new_attributes,
                         ) = _extract_inferable_attribute_names(current_plan.projection)
-                        if from_attributes is not None and expected_attributes is not None and new_attributes is not None:
+                        if (
+                            from_attributes is not None
+                            and expected_attributes is not None
+                            and new_attributes is not None
+                        ):
                             missing_attrs = {
                                 attr.name for attr in expected_attributes
                             } - {attr.name for attr in from_attributes}
                             if not missing_attrs and all(
-                                isinstance(attr, (Attribute, Alias)) and type(attr.datatype) != DataType
+                                isinstance(attr, (Attribute, Alias))
+                                and type(attr.datatype) != DataType
                                 for attr in current_plan.projection or []
                             ):
-                                attributes = current_plan.projection
+                                attributes = current_plan.projection  # type: ignore
                 elif isinstance(
                     current_plan, (SelectSnowflakePlan, SelectTableFunction)
                 ):
@@ -245,9 +259,6 @@ def infer_metadata(
                 elif isinstance(current_plan, SetStatement) and current_plan._nodes:
                     # Union usues the schema from the first child
                     attributes = extract_attributes(current_plan._nodes[0])
-                else:
-                    # This should only be reached if new plan types are added to the analyzer.
-                    return None
                 return attributes
 
             attributes = extract_attributes(source_plan)
@@ -299,7 +310,9 @@ def infer_metadata(
         if available_identifiers and (
             missing := set(referenced_identifiers) - available_identifiers
         ):
-            raise ValueError(missing)
+            raise SnowparkSQLInvalidIdException(
+                f"DataFrame references column(s) that are not present {missing}"
+            )
 
         # If attributes is available, we always set quoted_identifiers to None
         # as it can be retrieved later from attributes
