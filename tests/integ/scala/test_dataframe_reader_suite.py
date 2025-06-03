@@ -1971,6 +1971,7 @@ def test_read_multiple_csvs(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SNOW-2117071: UDTF bug in xml-reader")
 @pytest.mark.parametrize(
     "file,row_tag,expected_row_count,expected_column_count",
     [
@@ -1993,6 +1994,7 @@ def test_read_xml_row_tag(
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SNOW-2117071: UDTF bug in xml-reader")
 def test_read_xml_no_xxe(session):
     row_tag = "bar"
     stage_file_path = f"@{tmp_stage_name1}/{test_file_xxe_xml}"
@@ -2004,6 +2006,7 @@ def test_read_xml_no_xxe(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="xml not supported in local testing mode",
 )
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SNOW-2117071: UDTF bug in xml-reader")
 def test_read_xml_query_nested_data(session):
     row_tag = "tag"
     df = session.read.option("rowTag", row_tag).xml(
@@ -2042,6 +2045,7 @@ def test_read_xml_non_existing_file(session):
         test_file_malformed_record_xml,
     ),
 )
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="SNOW-2117071: UDTF bug in xml-reader")
 def test_read_malformed_xml(session, file):
     row_tag = "record"
     file_path = f"@{tmp_stage_name1}/{file}"
