@@ -122,6 +122,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     ExprAliasUpdateDict,
     UNQUOTED_CASE_INSENSITIVE,
+    ttl_cache,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -133,6 +134,13 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+
+@ttl_cache(ttl_seconds=15)
+def _analyze_attributes(
+    sql: str, session: "snowflake.snowpark.session.Session"  # type: ignore
+) -> List[Attribute]:
+    return analyze_attributes(sql, session)
 
 
 class SnowflakePlan(LogicalPlan):
@@ -493,7 +501,7 @@ class SnowflakePlan(LogicalPlan):
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        return analyze_attributes(self.schema_query, self.session)
+        return _analyze_attributes(self.schema_query, self.session)
 
     @property
     def attributes(self) -> List[Attribute]:

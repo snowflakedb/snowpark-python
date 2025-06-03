@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
     SnowflakePlan,
+    _analyze_attributes,
 )
 from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -501,6 +502,24 @@ class ServerConnection:
                 if not kwargs.get("_statement_params"):
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
+            if (
+                query.strip()
+                .lower()
+                .startswith(
+                    (
+                        "rm",
+                        "remove",
+                        "alter",
+                        "drop",
+                        "use",
+                        "create",
+                        "grant",
+                        "revoke",
+                        "comment",
+                    )
+                )
+            ):
+                _analyze_attributes.clear_cache()
             if block:
                 results_cursor = self.execute_and_notify_query_listener(
                     query, params=params, **kwargs
