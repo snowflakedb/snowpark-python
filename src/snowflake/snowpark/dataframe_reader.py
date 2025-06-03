@@ -74,6 +74,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
 )
 from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
@@ -518,8 +519,6 @@ class DataFrameReader:
         See Also:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if isinstance(self._session._conn, MockServerConnection):
             self._session._conn.log_not_supported_error(
                 external_feature_name="DataFrameReader.with_metadata",
@@ -638,7 +637,6 @@ class DataFrameReader:
         if not self._user_schema:
             if not self._infer_schema:
                 raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
-            from snowflake.snowpark.mock._connection import MockServerConnection
 
             if isinstance(self._session._conn, MockServerConnection):
                 self._session._conn.log_not_supported_error(
@@ -1101,8 +1099,6 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
                 raise SnowparkSessionException(
