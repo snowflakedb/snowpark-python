@@ -2,6 +2,15 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+try:
+    import numpy as np
+    from pandas.api.indexers import BaseIndexer
+except ImportError:
+    # snowflake dataframe.py imports module that indirectly depends on this window_utils.py
+    # to avoid impacting the live session features which doesn't need pandas
+    # we ignore the error for now, there might be other better ways to workaround the issue
+    BaseIndexer = object
+    pass
 
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression, Literal
 from snowflake.snowpark._internal.analyzer.window_expression import (
@@ -15,19 +24,8 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 
 
-class EntireWindowIndexer:
-    def __init__(self, *args, **kwargs) -> None:
-        try:
-            from pandas.api.indexers import BaseIndexer
-
-            if BaseIndexer not in self.__class__.__bases__:
-                self.__class__.__bases__ = (BaseIndexer,)
-        except ImportError:
-            pass
-        super().__init__(*args, **kwargs)
-
+class EntireWindowIndexer(BaseIndexer):
     def get_window_bounds(self, num_values, min_periods, center, closed, step):
-        import numpy as np
 
         start = np.empty(num_values, dtype=np.int64)
         end = np.empty(num_values, dtype=np.int64)
@@ -38,19 +36,8 @@ class EntireWindowIndexer:
         return start, end
 
 
-class RowFrameIndexer:
-    def __init__(self, *args, **kwargs) -> None:
-        try:
-            from pandas.api.indexers import BaseIndexer
-
-            if BaseIndexer not in self.__class__.__bases__:
-                self.__class__.__bases__ = (BaseIndexer,)
-        except ImportError:
-            pass
-        super().__init__(*args, **kwargs)
-
+class RowFrameIndexer(BaseIndexer):
     def get_window_bounds(self, num_values, min_periods, center, closed, step):
-        import numpy as np
 
         start = np.empty(num_values, dtype=np.int64)
         end = np.empty(num_values, dtype=np.int64)

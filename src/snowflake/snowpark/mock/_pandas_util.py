@@ -9,6 +9,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -28,7 +29,6 @@ from snowflake.snowpark.types import (
 )
 
 if TYPE_CHECKING:
-    import pandas as pd
     from snowflake.snowpark import DataFrame, Session
 
 
@@ -43,7 +43,6 @@ def _extract_schema_and_data_from_pandas_df(
     pandas type related doc: https://pandas.pydata.org/docs/user_guide/basics.html#dtypes
     """
     import numpy
-    import pandas as pd
 
     # PANDAS_INTEGER_TYPES defined here to avoid module level referencing pandas lib
     # as pandas is optional to snowpark-python
