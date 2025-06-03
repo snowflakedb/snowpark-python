@@ -145,7 +145,7 @@ class _DGQLQueryBuilder:
     Provides methods for building DGQL query.
     """
 
-    EDGE_TEMPLETE = "{direction}: {edge_key}(edgeType:[{edge_types}],direction:{dir}){{{source_key} {{{properties}}}, {target_key} {{{properties}}}}}"
+    EDGE_TEMPLETE = "{direction}: {edge_key}(edgeType:[{edge_types}],direction:{dir}){{{source_key} {{{properties}}}, {target_key} {{{properties}}}, properties}}"
     QUERY_TEMPLETE = '{{{nodeKey}({domainKey}: {domain}, {object_key}:"{query_object}"{parent_param}) {{{edges}}}}}'
     USER_TO_SYSTEM_DOMAIN_MAP = {
         _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,

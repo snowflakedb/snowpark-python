@@ -888,6 +888,15 @@ class DataFrameReader:
                 <abc:def><abc:xyz>0</abc:xyz></abc:def>
                 ```
                 the result column name is ``abc:xyz`` where ``abc`` is not stripped.
+
+              + ``attributePrefix``: The prefix to add to the attribute names. The default value is ``_``.
+
+              + ``excludeAttributes``: Whether to exclude attributes from the XML element. The default value is ``False``.
+
+              + ``valueTag``: The column name used for the value when there are attributes in an element that has no child elements.
+                The default value is ``_VALUE``.
+
+              + ``nullValue``: The value to treat as a null value. The default value is ``""``.
         """
         df = self._read_semi_structured_file(path, "XML")
 
@@ -1060,9 +1069,10 @@ class DataFrameReader:
             identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
             schema_to_cast.append((identifier, field._name))
             transformations.append(sql_expr(identifier))
-        self._user_schema = StructType._from_attributes(new_schema)
         self._infer_schema_transformations = transformations
-        self._infer_schema_target_columns = self._user_schema.names
+        self._infer_schema_target_columns = StructType._from_attributes(
+            new_schema
+        ).names
         read_file_transformations = [t._expression.sql for t in transformations]
         return new_schema, schema_to_cast, read_file_transformations
 

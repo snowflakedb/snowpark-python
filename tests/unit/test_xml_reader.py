@@ -10,7 +10,7 @@ import pytest
 
 from snowflake.snowpark._internal.xml_reader import (
     replace_entity,
-    element_to_dict,
+    element_to_dict_or_str,
     strip_xml_namespaces,
     find_next_closing_tag_pos,
     find_next_opening_tag_pos,
@@ -38,23 +38,50 @@ def test_replace_entity_unknown():
     assert replace_entity(match) == "&foo;"
 
 
-def test_element_to_dict_text():
+@pytest.mark.parametrize(
+    "text", ("   \n\t  ", " ", "\n\n", "  \t  ", "  hello world  ")
+)
+def test_element_to_dict_or_str_text(text):
     # Element with only text.
     element = ET.Element("greeting")
-    element.text = "  hello world  "
-    result = element_to_dict(element)
-    assert result == "hello world"
+    element.text = text
+    result = element_to_dict_or_str(element)
+    assert result == text
 
 
-def test_element_to_dict_attributes():
-    # Element with attributes only.
+@pytest.mark.parametrize("attribute_prefix", ["_", ""])
+def test_element_to_dict_or_str_attributes(attribute_prefix):
     element = ET.Element("person", attrib={"name": "Alice", "age": "30"})
-    result = element_to_dict(element)
-    expected = {"_name": "Alice", "_age": "30"}
+    element.text = None
+    result = element_to_dict_or_str(
+        element, attribute_prefix=attribute_prefix, value_tag="value"
+    )
+    expected = {f"{attribute_prefix}name": "Alice", f"{attribute_prefix}age": "30"}
+    assert result == expected
+    element.text = "xxx"
+    result = element_to_dict_or_str(
+        element, attribute_prefix=attribute_prefix, value_tag="value"
+    )
+    expected = {
+        f"{attribute_prefix}name": "Alice",
+        f"{attribute_prefix}age": "30",
+        "value": "xxx",
+    }
     assert result == expected
 
 
-def test_element_to_dict_children():
+def test_element_to_dict_or_str_exclude_attributes():
+    element = ET.Element("person", attrib={"name": "Alice", "age": "30"})
+    result = element_to_dict_or_str(
+        element, attribute_prefix="_", exclude_attributes=True, value_tag="value"
+    )
+    assert result is None
+    element.text = "xxx"
+    result = element_to_dict_or_str(element, exclude_attributes=True, value_tag="value")
+    assert result == "xxx"
+
+
+def test_element_to_dict_or_str_children():
     # Element with children including repeated tags.
     root = ET.Element("data")
     child1 = ET.SubElement(root, "item")
@@ -63,9 +90,34 @@ def test_element_to_dict_children():
     child2.text = "value2"
     child3 = ET.SubElement(root, "note")
     child3.text = "note1"
-    result = element_to_dict(root)
+    result = element_to_dict_or_str(root)
     expected = {"item": ["value1", "value2"], "note": "note1"}
     assert result == expected
+
+
+@pytest.mark.parametrize("null_value", ["", "NULL", "<empty>", "N/A"])
+def test_element_to_dict_or_str_null_value(null_value):
+    element = ET.Element("empty")
+    element.text = null_value
+    result = element_to_dict_or_str(element, null_value=null_value)
+    assert result is None
+
+
+@pytest.mark.parametrize("null_value", ["", "NULL", "<empty>", "N/A"])
+def test_element_to_dict_or_str_null_value_with_attributes(null_value):
+    element = ET.Element("empty", attrib={"attr": null_value})
+    element.text = null_value
+    result = element_to_dict_or_str(element, null_value=null_value)
+    assert result == {"_attr": None}
+
+
+@pytest.mark.parametrize("null_value", ["", "NULL", "<empty>", "N/A"])
+def test_element_to_dict_or_str_null_value_with_children(null_value):
+    element = ET.Element("empty")
+    child = ET.SubElement(element, "child")
+    child.text = null_value
+    result = element_to_dict_or_str(element, null_value=null_value)
+    assert result == {"child": None}
 
 
 def test_default_namespace():

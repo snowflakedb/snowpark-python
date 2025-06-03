@@ -114,6 +114,23 @@ def test_async_to_pandas_common(session):
         session.create_dataframe(res), session.create_dataframe(expected_res)
     )
 
+    # Non-select
+    non_select = session.sql("show regions")
+    expected = session.create_dataframe(non_select.to_pandas())
+    actual = session.create_dataframe(non_select.to_pandas(block=False).result())
+    assert non_select.columns == actual.columns
+    Utils.check_answer(expected, actual)
+
+    try:
+        table_name = Utils.random_table_name()
+        df = session.sql(f"create temporary table {table_name} (A int)")
+        Utils.check_answer(
+            session.create_dataframe(df.to_pandas(block=False).result()),
+            [Row(f"Table {table_name} successfully created.")],
+        )
+    finally:
+        Utils.drop_table(session, table_name)
+
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")

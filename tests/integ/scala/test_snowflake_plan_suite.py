@@ -310,32 +310,34 @@ def test_create_scoped_temp_table(session):
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
         inner_select_sql = (
-            f" SELECT  *  FROM {table_name}"
+            f" SELECT * FROM {table_name}"
             if session._sql_simplifier_enabled
-            else f" SELECT  *  FROM ({table_name})"
+            else f" SELECT * FROM ({table_name})"
         )
         assert (
-            session._plan_builder.save_as_table(
-                table_name=[temp_table_name],
-                column_names=None,
-                mode=SaveMode.ERROR_IF_EXISTS,
-                table_type="temp",
-                clustering_keys=None,
-                comment=None,
-                enable_schema_evolution=None,
-                data_retention_time=None,
-                max_data_extension_time=None,
-                change_tracking=None,
-                copy_grants=False,
-                child=df._plan,
-                source_plan=None,
-                use_scoped_temp_objects=False,
-                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
-                child_attributes=None,
+            Utils.normalize_sql(
+                session._plan_builder.save_as_table(
+                    table_name=[temp_table_name],
+                    column_names=None,
+                    mode=SaveMode.ERROR_IF_EXISTS,
+                    table_type="temp",
+                    clustering_keys=None,
+                    comment=None,
+                    enable_schema_evolution=None,
+                    data_retention_time=None,
+                    max_data_extension_time=None,
+                    change_tracking=None,
+                    copy_grants=False,
+                    child=df._plan,
+                    source_plan=None,
+                    use_scoped_temp_objects=False,
+                    creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                    child_attributes=None,
+                )
+                .queries[0]
+                .sql
             )
-            .queries[0]
-            .sql
-            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ({inner_select_sql})"
+            == f"CREATE TEMPORARY TABLE {temp_table_name} AS SELECT * FROM ({inner_select_sql} )"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (

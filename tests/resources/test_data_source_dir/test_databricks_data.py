@@ -22,7 +22,7 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 
-TEST_TABLE_NAME = "ALL_TYPE_TABLE_2"  # ALL_TYPE_TABLE_2 contains None data while ALL_TYPE_TABLE doesn't
+TEST_TABLE_NAME = "ALL_TYPE_TABLE_3"  # ALL_TYPE_TABLE_3 contains None data while ALL_TYPE_TABLE doesn't
 TZ_INFO = pytz.timezone("America/Los_Angeles")
 EXPECTED_TEST_DATA = [
     tuple([None] * 18),
@@ -44,7 +44,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 51, 18, 565000),
         "[\n  6,\n  87\n]",
         '{\n  "key1": 83,\n  "key2": 12\n}',
-        '{\n  "field1": "f_77",\n  "field2": 13\n}',
+        '{\n  "field1": "f_77",\n  "field2": "13"\n}',
         "1-8",
         "0 23:14:09.000000000",
     ),
@@ -66,7 +66,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 42, 39, 565000),
         "[\n  0,\n  89\n]",
         '{\n  "key1": 97,\n  "key2": 33\n}',
-        '{\n  "field1": "f_84",\n  "field2": 1\n}',
+        '{\n  "field1": "f_84",\n  "field2": "1"\n}',
         "1-10",
         "2 11:12:05.000000000",
     ),
@@ -88,7 +88,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 49, 8, 565000),
         "[\n  82,\n  40\n]",
         '{\n  "key1": 71,\n  "key2": 81\n}',
-        '{\n  "field1": "f_25",\n  "field2": 25\n}',
+        '{\n  "field1": "f_25",\n  "field2": "25"\n}',
         "3-10",
         "18 14:29:08.000000000",
     ),
@@ -110,7 +110,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 47, 9, 565000),
         "[\n  81,\n  65\n]",
         '{\n  "key1": 67,\n  "key2": 88\n}',
-        '{\n  "field1": "f_98",\n  "field2": 69\n}',
+        '{\n  "field1": "f_98",\n  "field2": "69"\n}',
         "0-7",
         "19 06:25:08.000000000",
     ),
@@ -132,7 +132,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 50, 8, 565000),
         "[\n  92,\n  27\n]",
         '{\n  "key1": 52,\n  "key2": 65\n}',
-        '{\n  "field1": "f_85",\n  "field2": 50\n}',
+        '{\n  "field1": "f_85",\n  "field2": "50"\n}',
         "7-4",
         "22 04:52:41.000000000",
     ),

@@ -373,8 +373,6 @@ class AsyncJob:
             result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=False
             )["data"]
-            if not isinstance(result, pandas.DataFrame):
-                result = pandas.DataFrame(result)
         elif async_result_type == _AsyncResultType.PANDAS_BATCH:
             result = self._session._conn._to_data_or_iter(
                 self._cursor, to_pandas=True, to_iter=True

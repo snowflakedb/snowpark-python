@@ -279,14 +279,14 @@ def test_get_feature_view_name():
 
 
 def test_build_query():
-    query = "select SYSTEM$DGQL('{V(domain: TABLE, name:\"db.sch.name1\") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}}}}')"
+    query = "select SYSTEM$DGQL('{V(domain: TABLE, name:\"db.sch.name1\") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, properties}}}')"
     assert query == _DGQLQueryBuilder.build_query(
         _SnowflakeDomain.TABLE,
         [LineageDirection.DOWNSTREAM],
         object_name="db.sch.name1",
     )
 
-    query = 'select SYSTEM$DGQL(\'{V(domain: MODULE, name:"v1", parentName:"db.sch.name1") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}}}}\')'
+    query = 'select SYSTEM$DGQL(\'{V(domain: MODULE, name:"v1", parentName:"db.sch.name1") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, properties}}}\')'
     assert query == _DGQLQueryBuilder.build_query(
         _UserDomain.MODEL,
         [LineageDirection.DOWNSTREAM],
@@ -294,7 +294,7 @@ def test_build_query():
         object_version="v1",
     )
 
-    query = 'select SYSTEM$DGQL(\'{V(domain: TABLE, name:"db.sch.\\\\"NAME1$v1\\\\"") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}}}}\')'
+    query = 'select SYSTEM$DGQL(\'{V(domain: TABLE, name:"db.sch.\\\\"NAME1$v1\\\\"") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, properties}}}\')'
     assert query == _DGQLQueryBuilder.build_query(
         _UserDomain.FEATURE_VIEW,
         [LineageDirection.DOWNSTREAM],
@@ -306,7 +306,7 @@ def test_build_query():
         'select SYSTEM$DGQL(\'{V(domain: MODULE, name:"\\\\"v1\\\\"", parentName:"\\\\"db\\\\".\\\\"sch\\\\".\\\\"name1\\\\""'
         ") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, "
         "properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, "
-        "status, createdOn, id}}}}')"
+        "status, createdOn, id}, properties}}}')"
     )
     assert query == _DGQLQueryBuilder.build_query(
         _UserDomain.MODEL,
@@ -319,7 +319,7 @@ def test_build_query():
         'select SYSTEM$DGQL(\'{V(domain: SNOWSERVICE_INSTANCE, name:"\\\\"db\\\\".\\\\"sch\\\\".\\\\"name1\\\\""'
         ") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, "
         "properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, "
-        "status, createdOn, id}}}}')"
+        "status, createdOn, id}, properties}}}')"
     )
     assert query == _DGQLQueryBuilder.build_query(
         _UserDomain.SERVICE,
@@ -327,12 +327,12 @@ def test_build_query():
         object_name='"db"."sch"."name1"',
     )
 
-    query = "select SYSTEM$DGQL('{V(domain: TABLE, id:\"12345\") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}}}}')"
+    query = "select SYSTEM$DGQL('{V(domain: TABLE, id:\"12345\") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, properties}}}')"
     assert query == _DGQLQueryBuilder.build_query(
         _SnowflakeDomain.TABLE, [LineageDirection.DOWNSTREAM], object_id="12345"
     )
 
-    query = 'select SYSTEM$DGQL(\'{V(domain: TABLE, id:"12345", parentId:"6789") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}}}}\')'
+    query = 'select SYSTEM$DGQL(\'{V(domain: TABLE, id:"12345", parentId:"6789") {downstream: E(edgeType:[DATA_LINEAGE, OBJECT_DEPENDENCY],direction:OUT){S {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, T {domain, refinedDomain, userDomain, name, properties, schema, db, status, createdOn, id}, properties}}}\')'
     assert query == _DGQLQueryBuilder.build_query(
         _SnowflakeDomain.TABLE,
         [LineageDirection.DOWNSTREAM],
