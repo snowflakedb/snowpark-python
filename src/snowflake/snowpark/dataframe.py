@@ -219,7 +219,6 @@ else:
     from collections.abc import Iterable
 
 if TYPE_CHECKING:
-    from snowflake.connector.options import pandas
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
 
@@ -1072,6 +1071,7 @@ class DataFrame:
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
         if block:
+            pandas = get_pandas()
             if not isinstance(result, pandas.DataFrame):
                 return pandas.DataFrame(result)
 

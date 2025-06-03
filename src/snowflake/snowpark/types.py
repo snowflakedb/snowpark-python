@@ -1047,6 +1047,7 @@ class Timestamp(datetime.datetime, Generic[_T]):
 
 
 PandasDataFrameShadow = None
+PandasSeriesShadow = None
 
 
 def __getattr__(name: str):
@@ -1060,13 +1061,20 @@ def __getattr__(name: str):
     if name == "PandasSeries":
         if get_installed_pandas():
             pandas = get_pandas()
+            global PandasSeriesShadow
+            # Return cached class if it exists
+            if PandasSeriesShadow is not None:
+                return PandasSeriesShadow
 
+            # Create the class only once
             class PandasSeries(pandas.Series, Generic[_T]):
                 """The type hint for annotating pandas Series data when registering UDFs."""
 
                 pass
 
-            return PandasSeries
+            # Cache and return the class
+            PandasSeriesShadow = PandasSeries
+            return PandasSeriesShadow
         else:
             raise AttributeError(f"pandas not installed, {name} not available")
     elif name == "PandasDataFrame":
