@@ -114,12 +114,15 @@ def test_async_to_pandas_common(session):
         session.create_dataframe(res), session.create_dataframe(expected_res)
     )
 
-    # Non-select
-    non_select = session.sql("show regions")
-    expected = session.create_dataframe(non_select.to_pandas())
-    actual = session.create_dataframe(non_select.to_pandas(block=False).result())
-    assert non_select.columns == actual.columns
-    Utils.check_answer(expected, actual)
+    # Non-select cases
+
+    # show regions does not work in stored proc test
+    if not IS_IN_STORED_PROC:
+        non_select = session.sql("show regions")
+        expected = session.create_dataframe(non_select.to_pandas())
+        actual = session.create_dataframe(non_select.to_pandas(block=False).result())
+        assert non_select.columns == actual.columns
+        Utils.check_answer(expected, actual)
 
     try:
         table_name = Utils.random_table_name()
