@@ -255,6 +255,7 @@ def test_read_xml_declared_namespace(session):
         .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
     )
     result = df.collect()
+    print(result)
     assert len(result) == 1
     # Namespaces should be replaced with URI
     assert result[0]["'{http://example.com/px}item'"] == expected_data
