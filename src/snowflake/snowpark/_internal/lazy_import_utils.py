@@ -20,8 +20,9 @@ def get_snowpark_types() -> Any:
 
 
 def get_write_pandas() -> Any:
-    return importlib.import_module("snowflake.connector").pandas_tools.write_pandas
+    module = importlib.import_module("snowflake.connector.pandas_tools")
+    return module.write_pandas
 
 
 def get_pandas_tools() -> Any:
-    return importlib.import_module("snowflake.connector").pandas_tools
+    return importlib.import_module("snowflake.connector.pandas_tools")
