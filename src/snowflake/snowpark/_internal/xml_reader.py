@@ -334,6 +334,7 @@ def process_xml_range(
     exclude_attributes: bool,
     value_tag: str,
     null_value: str,
+    charset: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -360,6 +361,7 @@ def process_xml_range(
         exclude_attributes (bool): Whether to exclude attributes from the XML element.
         value_tag (str): The tag name for the value column.
         null_value (str): The value to treat as a null value.
+        charset (str): The character encoding of the XML file.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -401,7 +403,7 @@ def process_xml_range(
                 if mode == "PERMISSIVE":
                     # read util the end of file or util variant column size limit
                     record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
-                    record_str = record_bytes.decode("utf-8", errors="replace")
+                    record_str = record_bytes.decode(charset, errors="replace")
                     record_str = re.sub(r"&(\w+);", replace_entity, record_str)
                     yield {column_name_of_corrupt_record: record_str}
                 elif mode == "FAILFAST":
@@ -422,7 +424,7 @@ def process_xml_range(
                     if mode == "PERMISSIVE":
                         # read util the end of file or util variant column size limit
                         record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
-                        record_str = record_bytes.decode("utf-8", errors="replace")
+                        record_str = record_bytes.decode(charset, errors="replace")
                         record_str = re.sub(r"&(\w+);", replace_entity, record_str)
                         yield {column_name_of_corrupt_record: record_str}
                     elif mode == "FAILFAST":
@@ -434,7 +436,7 @@ def process_xml_range(
             # Read the complete XML record.
             f.seek(record_start)
             record_bytes = f.read(record_end - record_start)
-            record_str = record_bytes.decode("utf-8", errors="replace")
+            record_str = record_bytes.decode(charset, errors="replace")
             record_str = re.sub(r"&(\w+);", replace_entity, record_str)
 
             try:
@@ -487,6 +489,7 @@ class XMLReader:
         exclude_attributes: bool,
         value_tag: str,
         null_value: str,
+        charset: str,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -506,6 +509,7 @@ class XMLReader:
             exclude_attributes (bool): Whether to exclude attributes from the XML element.
             value_tag (str): The tag name for the value column.
             null_value (str): The value to treat as a null value.
+            charset (str): The character encoding of the XML file.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -523,5 +527,6 @@ class XMLReader:
             exclude_attributes,
             value_tag,
             null_value,
+            charset,
         ):
             yield (element,)
