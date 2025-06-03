@@ -24,7 +24,7 @@ class DataSource:
     def __init__(self) -> None:
         pass
 
-    def reader(self) -> DataSourceReader:
+    def reader(self, schema: Union[StructType, str]) -> DataSourceReader:
         pass
 
     @classmethod
