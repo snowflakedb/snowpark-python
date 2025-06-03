@@ -712,7 +712,7 @@ def test_skip_table_exists_check(session, local_testing_mode):
             Utils.drop_table(session, table_name)
 
             if not local_testing_mode:
-                # Try appending to non-existant table
+                # Try appending to non-existent table
                 with pytest.raises(
                     SnowparkSQLException, match="does not exist or not authorized"
                 ):
