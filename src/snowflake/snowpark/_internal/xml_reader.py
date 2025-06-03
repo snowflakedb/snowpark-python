@@ -276,6 +276,7 @@ def element_to_dict_or_str(
     exclude_attributes: bool = False,
     value_tag: str = "_VALUE",
     null_value: str = "",
+    ignore_surrounding_whitespace: bool = False,
 ) -> Optional[Union[Dict[str, Any], str]]:
     """
     Recursively converts an XML Element to a dictionary.
@@ -283,9 +284,12 @@ def element_to_dict_or_str(
 
     def get_text(element: ET.Element) -> Optional[str]:
         """Do not strip the text"""
-        if element.text is None or element.text == null_value:
+        if element.text is None:
             return None
-        return element.text
+        text = element.text.strip() if ignore_surrounding_whitespace else element.text
+        if text == null_value:
+            return None
+        return text
 
     children = list(element)
     if not children and (not element.attrib or exclude_attributes):
@@ -296,6 +300,8 @@ def element_to_dict_or_str(
 
     if not exclude_attributes:
         for attr_name, attr_value in element.attrib.items():
+            if ignore_surrounding_whitespace:
+                attr_value = attr_value.strip()
             result[f"{attribute_prefix}{attr_name}"] = (
                 None if attr_value == null_value else attr_value
             )
@@ -304,7 +310,12 @@ def element_to_dict_or_str(
         temp_dict = {}
         for child in children:
             child_dict = element_to_dict_or_str(
-                child, attribute_prefix, exclude_attributes, value_tag, null_value
+                child,
+                attribute_prefix=attribute_prefix,
+                exclude_attributes=exclude_attributes,
+                value_tag=value_tag,
+                null_value=null_value,
+                ignore_surrounding_whitespace=ignore_surrounding_whitespace,
             )
             tag = child.tag
             if tag in temp_dict:
@@ -335,6 +346,7 @@ def process_xml_range(
     value_tag: str,
     null_value: str,
     charset: str,
+    ignore_surrounding_whitespace: bool,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -362,6 +374,7 @@ def process_xml_range(
         value_tag (str): The tag name for the value column.
         null_value (str): The value to treat as a null value.
         charset (str): The character encoding of the XML file.
+        ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -455,6 +468,7 @@ def process_xml_range(
                     exclude_attributes=exclude_attributes,
                     value_tag=value_tag,
                     null_value=null_value,
+                    ignore_surrounding_whitespace=ignore_surrounding_whitespace,
                 )
                 if isinstance(result, dict):
                     yield result
@@ -490,6 +504,7 @@ class XMLReader:
         value_tag: str,
         null_value: str,
         charset: str,
+        ignore_surrounding_whitespace: bool,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -510,6 +525,7 @@ class XMLReader:
             value_tag (str): The tag name for the value column.
             null_value (str): The value to treat as a null value.
             charset (str): The character encoding of the XML file.
+            ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -528,5 +544,6 @@ class XMLReader:
             value_tag,
             null_value,
             charset,
+            ignore_surrounding_whitespace,
         ):
             yield (element,)
