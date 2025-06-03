@@ -6,7 +6,7 @@ import os
 import queue
 import traceback
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict, Set
+from typing import Any, Tuple, Optional, Callable, Dict, Set, Union
 import logging
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
@@ -26,9 +26,10 @@ from snowflake.snowpark._internal.data_source.drivers import (
 )
 import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
+from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-
+from snowflake.snowpark.types import StructType
 
 logger = logging.getLogger(__name__)
 
@@ -260,3 +261,25 @@ def add_unseen_files_to_process_queue(
     for file in unseen:
         queue.put(os.path.join(work_dir, file))
         set_of_files_already_added_in_queue.add(file)
+
+
+def convert_custom_schema_to_structtype(
+    custom_schema: Union[str, StructType]
+) -> StructType:
+    if isinstance(custom_schema, str):
+        schema = type_string_to_type_object(custom_schema)
+        if not isinstance(schema, StructType):
+            raise ValueError(
+                f"Invalid schema string: {custom_schema}. "
+                f"You should provide a valid schema string representing a struct type."
+                'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
+            )
+        return schema
+    elif isinstance(custom_schema, StructType):
+        return custom_schema
+    else:
+        raise ValueError(
+            f"Invalid schema type: {type(custom_schema)}."
+            'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
+            'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
+        )
