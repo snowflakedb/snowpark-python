@@ -270,6 +270,7 @@ def indices_dict():
 
 @pytest.fixture(scope="module", autouse=True)
 def session(session):
+    session._disable_multiline_queries()
     return session
 
 

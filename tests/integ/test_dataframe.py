@@ -36,7 +36,10 @@ from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.dataframe_na_functions import _SUBSET_CHECK_ERROR_MESSAGE
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -63,6 +66,7 @@ from snowflake.snowpark.functions import (
     udtf,
     uniform,
     when,
+    cast,
 )
 from snowflake.snowpark.types import (
     FileType,
@@ -276,7 +280,7 @@ def test_distinct(session, use_simplification, local_testing_mode):
     if not local_testing_mode:
         queries = df.distinct().queries["queries"]
         if use_simplification:
-            assert "SELECT  DISTINCT" in queries[0]
+            assert "SELECT DISTINCT" in Utils.normalize_sql(queries[0])
         else:
             assert "GROUP BY" in queries[0]
 
@@ -3350,6 +3354,241 @@ def test_append_existing_table(session, local_testing_mode):
             assert history.queries[1].sql_text.startswith("INSERT")
     finally:
         Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+def test_dynamic_table_join_table_function(session):
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        )
+
+        df_t.create_or_replace_dynamic_table(
+            table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1 minute",
+            is_transient=True,
+        )
+        Utils.check_answer(
+            df_t,
+            [
+                Row(
+                    SITEID=100002,
+                    COMPETITOR_ID=100316,
+                    GRADEID=9,
+                    OBSERVATION_DATE="2025-02-03",
+                    OBSERVED_PRICE=3.932,
+                    LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                    DUMMY=1,
+                )
+            ],
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+def test_dynamic_table_join_table_function_with_more_layers(session):
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        )
+
+        df_t = df_t.with_column("COL1", lit(1)).distinct()
+        df_t.create_or_replace_dynamic_table(
+            table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1 minute",
+            is_transient=True,
+        )
+        Utils.check_answer(
+            df_t,
+            [
+                Row(
+                    SITEID=100002,
+                    COMPETITOR_ID=100316,
+                    GRADEID=9,
+                    OBSERVATION_DATE="2025-02-03",
+                    OBSERVED_PRICE=3.932,
+                    LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                    DUMMY=1,
+                    COL1=1,
+                )
+            ],
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+def test_dynamic_table_join_table_function_nested(session):
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        ).select(
+            col("SITEID"), col("OBSERVATION_DATE"), col("LAST_UPDATED"), col("DUMMY")
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+    df_t.create_or_replace_dynamic_table(
+        table_name,
+        warehouse=session.get_current_warehouse(),
+        lag="1 minute",
+        is_transient=True,
+    )
+    Utils.check_answer(
+        df_t,
+        [
+            Row(
+                SITEID=100002,
+                OBSERVATION_DATE="2025-02-03",
+                LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                DUMMY=1,
+            )
+        ],
+    )
 
 
 @pytest.mark.xfail(
