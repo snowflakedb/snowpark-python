@@ -1,0 +1,8 @@
+<tag>
+    <test>
+        <num>1</num>
+        <str1>NULL</str1>
+        <str2></str2>
+        <str3 id="empty">xxx</str3>
+    </test>
+</tag>

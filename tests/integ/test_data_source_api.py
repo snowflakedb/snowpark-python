@@ -5,10 +5,14 @@ import decimal
 import functools
 import logging
 import math
+import multiprocessing
+import threading
 import os
 import subprocess
 import tempfile
 import datetime
+import queue
+from io import BytesIO
 from textwrap import dedent
 from unittest import mock
 from unittest.mock import patch, MagicMock, PropertyMock
@@ -26,15 +30,19 @@ from snowflake.snowpark._internal.data_source.drivers import (
     SqliteDriver,
 )
 from snowflake.snowpark._internal.data_source.utils import (
-    _task_fetch_data_from_source_with_retry,
-    _upload_and_copy_into_table_with_retry,
     _task_fetch_data_from_source,
+    _upload_and_copy_into_table_with_retry,
+    _task_fetch_data_from_source_with_retry,
     STATEMENT_PARAMS_DATA_SOURCE,
     DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
     detect_dbms,
     DBMS_TYPE,
     DRIVER_TYPE,
+    worker_process,
+    PARTITION_TASK_COMPLETE_SIGNAL_PREFIX,
+    PARTITION_TASK_ERROR_SIGNAL,
+    process_completed_futures,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -102,7 +110,7 @@ def test_dbapi_with_temp_table(session, caplog):
             sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, max_workers=4
         )
         # default fetch size is 1k, so we should only see 1 parquet file generated as the data is less than 1k
-        assert caplog.text.count("Retrieved file from parquet queue") == 1
+        assert caplog.text.count("Retrieved BytesIO parquet from queue") == 1
         assert df.collect() == sql_server_all_type_data
 
 
@@ -127,7 +135,7 @@ def test_dbapi_batch_fetch(
         )
         # we only expect math.ceil(len(expected_result) / fetch_size) parquet files to be generated
         # for example, 5 rows, fetch size 2, we expect 3 parquet files
-        assert caplog.text.count("Retrieved file from parquet queue") == math.ceil(
+        assert caplog.text.count("Retrieved BytesIO parquet from queue") == math.ceil(
             len(expected_result) / fetch_size
         )
         assert df.order_by("ID").collect() == expected_result
@@ -139,6 +147,7 @@ def test_dbapi_retry(session):
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
         mock_task.__name__ = "_task_fetch_from_data_source"
+        parquet_queue = multiprocessing.Queue()
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
@@ -151,7 +160,7 @@ def test_dbapi_retry(session):
                 ),
                 partition="SELECT * FROM test_table",
                 partition_idx=0,
-                tmp_dir="/tmp",
+                parquet_queue=parquet_queue,
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
 
@@ -165,8 +174,10 @@ def test_dbapi_retry(session):
         ):
             _upload_and_copy_into_table_with_retry(
                 session=session,
-                local_file="fake_file",
+                parquet_id="test.parquet",
+                parquet_buffer=BytesIO(b"test data"),
                 snowflake_stage_name="fake_stage",
+                backpressure_semaphore=threading.Semaphore(),
                 snowflake_table_name="fake_table",
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
@@ -185,7 +196,7 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
         table_name, _, _, assert_data = sqlite3_db(dbpath)
 
         with mock.patch(
-            "snowflake.snowpark.dataframe_reader._upload_and_copy_into_table_with_retry",
+            "snowflake.snowpark._internal.data_source.utils._upload_and_copy_into_table_with_retry",
             wraps=_upload_and_copy_into_table_with_retry,
         ) as mock_upload_and_copy:
             df = session.read.dbapi(
@@ -340,7 +351,9 @@ def test_telemetry_tracking(caplog, session):
         nonlocal comment_showed
         statement_parameters = kwargs.get("_statement_params")
         query = args[0]
-        assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        if not query.lower().startswith("put"):
+            # put_stream does not accept statement_params
+            assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
         if "select" not in query.lower() and "put" not in query.lower():
             assert DATA_SOURCE_SQL_COMMENT in query
             comment_showed += 1
@@ -525,36 +538,81 @@ def test_task_fetch_from_data_source_with_fetch_size(
         else 1
     )
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
+    parquet_queue = multiprocessing.Queue()
 
-        params = {
-            "worker": DataSourceReader(
-                PyodbcDriver,
-                sql_server_create_connection_small_data,
-                schema=schema,
-                dbms_type=DBMS_TYPE.SQL_SERVER_DB,
-                fetch_size=fetch_size,
-            ),
-            "partition": "SELECT * FROM test_table",
-            "partition_idx": partition_idx,
-            "tmp_dir": tmp_dir,
-        }
+    params = {
+        "worker": DataSourceReader(
+            PyodbcDriver,
+            sql_server_create_connection_small_data,
+            schema=schema,
+            dbms_type=DBMS_TYPE.SQL_SERVER_DB,
+            fetch_size=fetch_size,
+        ),
+        "partition": "SELECT * FROM test_table",
+        "partition_idx": partition_idx,
+        "parquet_queue": parquet_queue,
+    }
 
-        if expected_error:
-            with pytest.raises(
-                ValueError,
-                match="fetch size cannot be smaller than 0",
-            ):
-                _task_fetch_data_from_source(**params)
-        else:
+    if expected_error:
+        with pytest.raises(
+            ValueError,
+            match="fetch size cannot be smaller than 0",
+        ):
             _task_fetch_data_from_source(**params)
+    else:
+        _task_fetch_data_from_source(**params)
 
-            files = sorted(os.listdir(tmp_dir))
-            for idx, file in enumerate(files):
-                assert (
-                    f"data_partition{partition_idx}_fetch{idx}.parquet" in file
-                ), f"file: {file} does not match"
-            assert len(files) == file_count
+        # Collect all parquet data from the queue
+        parquet_files = []
+        completion_signal_received = False
+        timeout = 5.0  # 5 second timeout
+
+        # Keep draining the queue until we get the completion signal or timeout
+        while not completion_signal_received:
+            try:
+                parquet_id, parquet_buffer = parquet_queue.get(timeout=timeout)
+
+                # Check for completion signal
+                if parquet_id.startswith(PARTITION_TASK_COMPLETE_SIGNAL_PREFIX):
+                    completion_signal_received = True
+                    continue
+
+                # Verify parquet file naming pattern
+                assert parquet_id.startswith(
+                    f"data_partition{partition_idx}_fetch"
+                ), f"Unexpected parquet ID: {parquet_id}"
+                assert parquet_id.endswith(
+                    ".parquet"
+                ), f"Parquet ID should end with .parquet: {parquet_id}"
+
+                # Verify parquet_buffer is a BytesIO object
+                assert isinstance(
+                    parquet_buffer, BytesIO
+                ), f"Expected BytesIO, got {type(parquet_buffer)}"
+
+                parquet_files.append((parquet_id, parquet_buffer))
+
+            except queue.Empty:
+                pytest.fail(
+                    f"Timeout waiting for completion signal after {timeout} seconds"
+                )
+
+        # Verify we received the completion signal
+        assert (
+            completion_signal_received
+        ), "Should have received partition completion signal"
+
+        # Verify the number of parquet files matches expected count
+        assert (
+            len(parquet_files) == file_count
+        ), f"Expected {file_count} parquet files, got {len(parquet_files)}"
+
+        # Verify the parquet files are named correctly in sequence
+        for idx, (parquet_id, _) in enumerate(parquet_files):
+            expected_name = f"data_partition{partition_idx}_fetch{idx}.parquet"
+            assert (
+                expected_name in parquet_id
+            ), f"Expected {expected_name} in {parquet_id}"
 
 
 def test_database_detector():
@@ -922,7 +980,7 @@ def test_fetch_merge_count_integ(session, caplog):
             )
             assert df.order_by("ID").collect() == assert_data
             # 2 batch + 2 fetch size = 2 parquet file
-            assert caplog.text.count("Retrieved file from parquet queue") == 2
+            assert caplog.text.count("Retrieved BytesIO parquet from queue") == 2
 
 
 def test_unicode_column_name_sql_server(session):
@@ -983,3 +1041,182 @@ def test_local_create_connection_function(session, db_parameters):
         )
         result = subprocess.run(["python", "-c", code], capture_output=True, text=True)
         assert "successful ingestion" in result.stdout
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_worker_process_unit():
+    """Test worker_process function with sqlite3 database."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, columns, example_data, _ = sqlite3_db(dbpath)
+
+        # Create DataSourceReader for sqlite3
+        reader = DataSourceReader(
+            SqliteDriver,
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
+            dbms_type=DBMS_TYPE.SQLITE_DB,
+            fetch_size=2,
+        )
+
+        partition_queue = multiprocessing.Queue()
+        parquet_queue = multiprocessing.Queue()
+
+        # Set up partition_queue to return test data, then raise queue.Empty
+        partition_queue.put((0, f"SELECT * FROM {table_name} WHERE id <= 3"))
+        partition_queue.put((1, f"SELECT * FROM {table_name} WHERE id > 3"))
+
+        # Call the worker_process function directly (using real sqlite3 operations)
+        worker_process(partition_queue, parquet_queue, reader)
+
+        expected_order = [
+            "data_partition0_fetch0.parquet",
+            "data_partition0_fetch1.parquet",
+            f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}0",
+            "data_partition1_fetch0.parquet",
+            "data_partition1_fetch1.parquet",
+            f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}1",
+        ]
+
+        parquet_ids = []
+        done_job = set()
+        while len(done_job) < 2:
+            try:
+                parquet_id, parquet_buffer = parquet_queue.get(timeout=1)
+                parquet_ids.append(parquet_id)
+                if parquet_id.startswith("PARTITION_COMPLETE_"):
+                    done_job.add(int(parquet_id.split("_")[-1]))
+            except queue.Empty:
+                break
+        assert parquet_ids == expected_order, f"Order mismatch: {parquet_ids}"
+
+        # check error handling
+        partition_queue.put((0, "SELECT * FROM NON_EXISTING_TABLE"))
+        worker_process(partition_queue, parquet_queue, reader)
+        error_signal, error_instance = parquet_queue.get()
+        assert error_signal == PARTITION_TASK_ERROR_SIGNAL
+        assert isinstance(
+            error_instance, SnowparkDataframeReaderException
+        ) and "no such table: NON_EXISTING_TABLE" in str(error_instance)
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_graceful_shutdown_on_worker_process_error(session):
+    """Test graceful shutdown when worker_process raises an exception."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, _ = sqlite3_db(dbpath)
+
+        # Track created processes by patching the Process.__init__ method
+        created_processes = []
+        original_init = multiprocessing.Process.__init__
+
+        def track_process_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)
+            created_processes.append(self)
+
+        with mock.patch.object(
+            multiprocessing.Process, "__init__", track_process_init
+        ), mock.patch(
+            "snowflake.snowpark.dataframe_reader.process_parquet_queue_with_threads",
+            side_effect=RuntimeError("Simulated error in queue processing"),
+        ):
+
+            # This should trigger the graceful shutdown
+            with pytest.raises(
+                SnowparkDataframeReaderException,
+                match="Simulated error in queue processing",
+            ):
+                session.read.dbapi(
+                    functools.partial(create_connection_to_sqlite3_db, dbpath),
+                    table=table_name,
+                    column="id",
+                    upper_bound=10,
+                    lower_bound=0,
+                    num_partitions=2,
+                    max_workers=2,
+                    custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                )
+
+            # Verify that processes were created
+            assert len(created_processes) == 2, "Should have created 2 processes"
+
+            # Give a moment for processes to be terminated
+            import time
+
+            time.sleep(0.1)
+
+            # Verify that all processes have been terminated
+            for i, process in enumerate(created_processes):
+                assert (
+                    not process.is_alive()
+                ), f"Process {i} should not be alive after shutdown"
+                # Check that exitcode indicates termination (not successful completion)
+                assert (
+                    process.exitcode != 0
+                ), f"Process {i} should have non-zero exit code after termination"
+
+
+def test_unit_process_completed_futures_comprehensive():
+    """Comprehensive test covering all lines and branches of process_completed_futures."""
+    from concurrent.futures import Future
+
+    # Test 1: Normal successful completion path
+    successful_future = MagicMock(spec=Future)
+    successful_future.done.return_value = True
+    successful_future.result.return_value = None
+
+    # Test 2: Not done future (should remain)
+    pending_future = MagicMock(spec=Future)
+    pending_future.done.return_value = False
+
+    thread_futures = {
+        ("success.parquet", successful_future),
+        ("pending.parquet", pending_future),
+    }
+
+    # Call function - should process successfully
+    process_completed_futures(thread_futures)
+
+    # Verify: successful future removed, pending remains
+    assert len(thread_futures) == 1
+    assert ("pending.parquet", pending_future) in thread_futures
+    successful_future.result.assert_called_once()
+    pending_future.result.assert_not_called()
+
+    # Test 3: Exception handling path
+    error_future = MagicMock(spec=Future)
+    error_future.done.return_value = True
+    error_future.result.side_effect = RuntimeError("Test error")
+
+    cancellable_future = MagicMock(spec=Future)
+    cancellable_future.done.return_value = False
+
+    done_future = MagicMock(spec=Future)
+    done_future.done.return_value = True
+
+    thread_futures = {
+        ("error.parquet", error_future),
+        ("cancellable.parquet", cancellable_future),
+        ("done.parquet", done_future),
+    }
+
+    # Call function - should raise exception and cancel undone futures
+    with pytest.raises(RuntimeError, match="Test error"):
+        process_completed_futures(thread_futures)
+
+    # Verify: exception raised, undone futures cancelled, set cleared
+    assert len(thread_futures) == 0
+    cancellable_future.cancel.assert_called_once()
+    done_future.cancel.assert_not_called()  # Don't cancel already done futures
+
+    # Test 4: Empty set edge case
+    empty_set = set()
+    process_completed_futures(empty_set)  # Should not raise any exceptions
+    assert len(empty_set) == 0

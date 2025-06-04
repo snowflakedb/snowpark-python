@@ -1191,17 +1191,17 @@ def test_read_json_with_infer_schema(session, mode):
 )
 def test_read_json_quoted_names(session):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-    quoted_column_data = {'"A"': 1, '"B"': "2"}
+    quoted_column_data = {'"A"': 1, '"B"': 2.2}
     schema = StructType(
         [
             StructField('"A"', LongType(), True),
-            StructField('"B"', StringType(), False),
+            StructField('"B"', DoubleType(), False),
         ]
     )
     parsed_schema = StructType(
         [
             StructField('"""A"""', LongType(), True),
-            StructField('"""B"""', StringType(), False),
+            StructField('"""B"""', DoubleType(), False),
         ]
     )
 
@@ -1221,7 +1221,7 @@ def test_read_json_quoted_names(session):
         df_2 = reader.json(f"@{stage_name}/{put_result[0].target}")
         assert df_2.schema == parsed_schema
         result = df_1.union_all(df_2).collect()
-        Utils.check_answer(result, [Row(1, "2"), Row(1, "2")])
+        Utils.check_answer(result, [Row(1, 2.2), Row(1, 2.2)])
     finally:
         Utils.drop_stage(session, stage_name)
         if os.path.exists(file_path):
