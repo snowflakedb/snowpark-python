@@ -672,14 +672,14 @@ def create_or_update_statement_params_with_query_tag(
     return ret
 
 
-def get_stage_file_prefix_length(stage_location: str) -> int:
+def get_stage_parts(stage_location: str) -> tuple[str, str]:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
 
     # Remove the first three characters from @~/...
     if normalized.startswith(f"{STAGE_PREFIX}~"):
-        return len(normalized) - 3
+        return "~", normalized[3:]
 
     is_quoted = False
     for i, c in enumerate(normalized):
@@ -698,11 +698,23 @@ def get_stage_file_prefix_length(stage_location: str) -> int:
             stage_name = res[-1][0]
             # For a table stage, stage name is not in the prefix,
             # so the prefix is path. Otherwise, the prefix is stageName + "/" + path
-            return (
-                len(path)
-                if stage_name.startswith("%")
-                else len(path) + len(stage_name.strip('"')) + 1
-            )
+            return stage_name, path
+
+    return None, None
+
+
+def get_stage_file_prefix_length(stage_location: str) -> int:
+    stage_name, path = get_stage_parts(stage_location)
+
+    if stage_name == "~":
+        return len(path)
+
+    if stage_name:
+        return (
+            len(path)
+            if stage_name.startswith("%")
+            else len(path) + len(stage_name.strip('"')) + 1
+        )
 
     raise ValueError(f"Invalid stage {stage_location}")
 
