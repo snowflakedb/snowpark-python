@@ -3,7 +3,6 @@
 #
 import multiprocessing as mp
 import os
-import pathlib
 import sys
 import time
 
@@ -59,13 +58,14 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_aliased_option_name,
     get_copy_into_table_options,
-    parse_positional_args_to_list_variadic,
-    publicapi,
+    get_stage_parts,
     get_temp_type_for_object,
+    is_in_stored_procedure,
+    parse_positional_args_to_list_variadic,
     private_preview,
+    publicapi,
     random_name_for_temp_object,
     warning,
-    is_in_stored_procedure,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -970,19 +970,12 @@ class DataFrameReader:
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
         infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", {})
 
-        # Client side has no context for if the path is a directory or a file
-        # It should be safe to assume it is a file if there is a parent directory which means that it's
-        # not the top level stage and there's a suffix which means it has a file extension.
-        parsed_path = pathlib.Path(path)
-        path_is_file = bool(parsed_path.parent and parsed_path.suffix)
-
         # When pattern is set we should only consider files that match the pattern during schema inference
         # If no files match fallback to trying to read all files.
+        infer_path = path
         if (
-            (pattern := self._cur_options.get("PATTERN", None))
-            and "FILES" not in infer_schema_options
-            and not path_is_file
-        ):
+            pattern := self._cur_options.get("PATTERN", None)
+        ) and "FILES" not in infer_schema_options:
             # matches has schema (name, size, md5, last_modified)
             # Name is fully qualified with stage path
             matches = self._session._conn.run_query(
@@ -990,11 +983,16 @@ class DataFrameReader:
             )["data"]
 
             if len(matches):
-                files = [m[0].split("/")[-1] for m in matches]
+                # Constuct a list of file prefixes not including the stage
+                files = [m[0].partition("/")[2] for m in matches]
                 infer_schema_options["FILES"] = files
 
+                # Reconstruct path using just stage and any qualifiers
+                stage, _ = get_stage_parts(path)
+                infer_path = path[: path.find(stage)] + stage
+
         infer_schema_query = infer_schema_statement(
-            path, file_format_name, infer_schema_options or None
+            infer_path, file_format_name, infer_schema_options or None
         )
 
         try:

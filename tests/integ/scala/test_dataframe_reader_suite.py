@@ -1779,6 +1779,14 @@ def test_pattern_with_infer(session, mode):
         assert df.schema == expected_schema
         Utils.check_answer(df, expected_rows * 3)
 
+        # Test using fully qualified stage name
+        reader = base_reader()
+        df = reader.csv(
+            f"@{session.get_current_database()}.{session.get_current_schema()}.{stage_name}"
+        )
+        assert df.schema == expected_schema
+        Utils.check_answer(df, expected_rows * 3)
+
     finally:
         Utils.drop_stage(session, stage_name)
 
