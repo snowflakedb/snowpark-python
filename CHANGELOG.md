@@ -18,6 +18,7 @@
 - Fixed a bug in `DataFrameReader.json` where repeated reads with the same reader object would create incorrectly quoted columns.
 - Fixed a bug in `DataFrame.to_pandas()` that would drop column names when converting a dataframe that did not originate from a select statement.
 - Fixed a bug that `DataFrame.create_or_replace_dynamic_table` raises error when the dataframe contains a UDTF and `SELECT *` in UDTF not being parsed correctly.
+- Fixed a bug where casted columns could not be used in the values-clause of in functions.
 
 #### Improvements
 
