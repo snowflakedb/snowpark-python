@@ -44,8 +44,16 @@ from snowflake.snowpark._internal.utils import EMPTY_STRING
 
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
-analyzer_utils.NEW_LINE = "\n"
-analyzer_utils.TAB = "    "
+
+@pytest.fixture(autouse=True)
+def setup():
+    original_new_line = analyzer_utils.NEW_LINE
+    original_tab = analyzer_utils.TAB
+    analyzer_utils.NEW_LINE = "\n"
+    analyzer_utils.TAB = "    "
+    yield
+    analyzer_utils.NEW_LINE = original_new_line
+    analyzer_utils.TAB = original_tab
 
 
 def test_generate_scoped_temp_objects():
