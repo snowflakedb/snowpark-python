@@ -169,6 +169,10 @@ if MODIN_IS_AT_LEAST_0_33_0:
         register_function_for_post_op_switch,
         register_function_for_pre_op_switch,
     )
+    from modin.config import AutoSwitchBackend  # isort: skip  # noqa: E402
+
+    # Disable automatic backend switching by default
+    AutoSwitchBackend().disable()
 
     # Hybrid Mode Registration
     pre_op_switch_points: list[dict[str, Union[str, None]]] = [
