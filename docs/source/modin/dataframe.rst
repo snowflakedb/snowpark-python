@@ -43,6 +43,11 @@ DataFrame
     DataFrame.to_view
     DataFrame.to_dynamic_table
     DataFrame.to_iceberg
+    DataFrame.get_backend
+    DataFrame.set_backend
+    DataFrame.move_to
+    DataFrame.pin_backend
+    DataFrame.unpin_backend
 
 .. rubric:: Conversion
 
@@ -236,4 +241,3 @@ DataFrame
     DataFrame.to_csv
     DataFrame.to_html
     DataFrame.to_string
-    
