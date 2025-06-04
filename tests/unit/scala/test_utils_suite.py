@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.utils import (
     deprecated,
     experimental,
     get_stage_file_prefix_length,
+    get_stage_parts,
     get_temp_type_for_object,
     get_udf_upload_prefix,
     is_snowflake_quoted_id_case_insensitive,
@@ -289,6 +290,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/malformed_not_self_closing.xml",
                 "resources/malformed_record.xml",
                 "resources/nested.xml",
+                "resources/null_value.xml",
                 "resources/test.avro",
                 "resources/test.orc",
                 "resources/test.parquet",
@@ -353,97 +355,133 @@ def test_zip_file_or_directory_to_stream():
 
 def test_get_stage_file_prefix_length():
     stageName = "@stage"  # stage/
+    assert get_stage_parts(stageName) == ("stage", "")
     assert get_stage_file_prefix_length(stageName) == 6
 
     stageName2 = "@stage/"  # stage/
+    assert get_stage_parts(stageName2) == ("stage", "")
     assert get_stage_file_prefix_length(stageName2) == 6
 
     stageName3 = '@"sta/ge"/'  # sta/ge/
+    assert get_stage_parts(stageName3) == ('"sta/ge"', "")
     assert get_stage_file_prefix_length(stageName3) == 7
 
     stageName4 = '@"stage.1"/dir'  # stage.1/dir/
+    assert get_stage_parts(stageName4) == ('"stage.1"', "dir/")
     assert get_stage_file_prefix_length(stageName4) == 12
 
     stageName5 = '@" stage.\'1"/dir'  # [whitespace]stage.'1/dir/
+    assert get_stage_parts(stageName5) == ('" stage.\'1"', "dir/")
     assert get_stage_file_prefix_length(stageName5) == 14
 
     stageName6 = "'@\" stage.'1\"/dir'"  # [whitespace]stage.'1/dir/
+    assert get_stage_parts(stageName6) == ('" stage.\'1"', "dir/")
     assert get_stage_file_prefix_length(stageName6) == 14
 
     stageName7 = "'@\" stage.\\'1\"/dir'"  # [whitespace]stage.'1/dir/
+    assert get_stage_parts(stageName7) == ('" stage.\'1"', "dir/")
     assert get_stage_file_prefix_length(stageName7) == 14
 
     quotedStageName = '@"stage"'  # stage/
+    assert get_stage_parts(quotedStageName) == ('"stage"', "")
     assert get_stage_file_prefix_length(quotedStageName) == 6
 
     quotedStageName2 = '@"stage"/'  # stage/
+    assert get_stage_parts(quotedStageName2) == ('"stage"', "")
     assert get_stage_file_prefix_length(quotedStageName2) == 6
 
     stagePrefix = "@stage/dir"  # stage/dir/
+    assert get_stage_parts(stagePrefix) == ("stage", "dir/")
     assert get_stage_file_prefix_length(stagePrefix) == 10
 
     stagePrefix2 = '@"stage"/dir'  # stage/dir/
+    assert get_stage_parts(stagePrefix2) == ('"stage"', "dir/")
     assert get_stage_file_prefix_length(stagePrefix2) == 10
 
     schemaStage = "@schema.stage"  # stage/
+    assert get_stage_parts(schemaStage) == ("stage", "")
     assert get_stage_file_prefix_length(schemaStage) == 6
 
     schemaStage2 = "@schema.stage/"  # stage/
+    assert get_stage_parts(schemaStage2) == ("stage", "")
     assert get_stage_file_prefix_length(schemaStage2) == 6
 
     schemaStage3 = '@"schema".stage'  # stage/
+    assert get_stage_parts(schemaStage3) == ("stage", "")
     assert get_stage_file_prefix_length(schemaStage3) == 6
 
     schemaStage4 = '@"schema".stage/'  # stage/
+    assert get_stage_parts(schemaStage4) == ("stage", "")
     assert get_stage_file_prefix_length(schemaStage4) == 6
 
     schemaStage5 = '@"schema"."stage"'  # stage/
+    assert get_stage_parts(schemaStage5) == ('"stage"', "")
     assert get_stage_file_prefix_length(schemaStage5) == 6
 
     schemaStage6 = '@"schema"."sta/ge"/'  # sta/ge/
+    assert get_stage_parts(schemaStage6) == ('"sta/ge"', "")
     assert get_stage_file_prefix_length(schemaStage6) == 7
 
     schemaStage7 = '@"schema.1".stage/dir'  # stage/dir/
+    assert get_stage_parts(schemaStage7) == ("stage", "dir/")
     assert get_stage_file_prefix_length(schemaStage7) == 10
 
     dbStage = "@db.schema.stage"  # stage/
+    assert get_stage_parts(dbStage) == ("stage", "")
     assert get_stage_file_prefix_length(dbStage) == 6
 
     dbStage1 = "@db..stage"  # stage/
+    assert get_stage_parts(dbStage1) == ("stage", "")
     assert get_stage_file_prefix_length(dbStage1) == 6
 
     dbStage2 = "@db.schema.stage/"  # stage/
+    assert get_stage_parts(dbStage2) == ("stage", "")
     assert get_stage_file_prefix_length(dbStage2) == 6
 
     dbStage3 = "@db..stage/"  # stage/
+    assert get_stage_parts(dbStage3) == ("stage", "")
     assert get_stage_file_prefix_length(dbStage3) == 6
 
     dbStage4 = '@"db"."schema"."stage"'  # stage/
+    assert get_stage_parts(dbStage4) == ('"stage"', "")
     assert get_stage_file_prefix_length(dbStage4) == 6
 
     dbStage5 = '@"db".."stage"/'  # stage/
+    assert get_stage_parts(dbStage5) == ('"stage"', "")
     assert get_stage_file_prefix_length(dbStage5) == 6
 
     dbStage6 = '@"db.1"."schema.1"."stage.1"/dir'  # stage.1/dir/
+    assert get_stage_parts(dbStage6) == ('"stage.1"', "dir/")
     assert get_stage_file_prefix_length(dbStage6) == 12
 
     dbStage7 = '\'@"db.1"."schema.1"."\'stage.1"/dir\''  # 'stage.1/dir/
+    assert get_stage_parts(dbStage7) == ('"\'stage.1"', "dir/")
     assert get_stage_file_prefix_length(dbStage7) == 13
 
     tempStage = '@"TESTDB_SNOWPARK"."SN_TEST_OBJECT_1509309849".SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL'
+    assert get_stage_parts(tempStage) == ("SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL", "")
     assert get_stage_file_prefix_length(tempStage) == 36
 
     tempStage2 = '@"TESTDB_SNOWPARK"."SN_TEST_OBJECT_1509309849".SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL/'
+    assert get_stage_parts(tempStage2) == ("SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL", "")
     assert get_stage_file_prefix_length(tempStage2) == 36
 
     tempStage3 = '@"TESTDB_SNOWPARK"."SN_TEST_OBJECT_1509309849"."SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL"/'
+    assert get_stage_parts(tempStage3) == ('"SNOWPARK_TEMP_STAGE_AS0HRUKQIZH0JOL"', "")
     assert get_stage_file_prefix_length(tempStage3) == 36
 
     userStage = "@~/dir"  # dir/
+    assert get_stage_parts(userStage) == ("~", "dir/")
     assert get_stage_file_prefix_length(userStage) == 4
 
     tableStage = "db.schema.%table/dir"  # dir/
+    assert get_stage_parts(tableStage) == ("%table", "dir/")
     assert get_stage_file_prefix_length(tableStage) == 4
+
+    with pytest.raises(ValueError, match="Invalid stage"):
+        invalid_stage = "@!/dir"
+        assert get_stage_parts(invalid_stage) == (None, None)
+        get_stage_file_prefix_length(invalid_stage)
 
 
 def test_use_scoped_temporary():

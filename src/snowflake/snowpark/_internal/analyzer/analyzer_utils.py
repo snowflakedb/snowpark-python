@@ -1108,7 +1108,10 @@ def infer_schema_statement(
         + file_format_name
         + SINGLE_QUOTE
         + (
-            ", " + ", ".join(f"{k} => {v}" for k, v in options.items())
+            ", "
+            + ", ".join(
+                f"{k} => {convert_value_to_sql_option(v)}" for k, v in options.items()
+            )
             if options
             else ""
         )
@@ -1127,7 +1130,9 @@ def file_operation_statement(
     raise ValueError(f"Unsupported file operation type {command}")
 
 
-def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -> str:
+def convert_value_to_sql_option(
+    value: Optional[Union[str, bool, int, float, list, tuple]]
+) -> str:
     if isinstance(value, str):
         if len(value) > 1 and is_single_quoted(value):
             return value
@@ -1137,9 +1142,9 @@ def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -
             )  # escape single quotes before adding a pair of quotes
             return f"'{value}'"
     else:
-        if isinstance(value, list):
+        if isinstance(value, (list, tuple)):
             # Snowflake sql uses round brackets for options that are lists
-            return str(tuple(value))
+            return f"({', '.join(convert_value_to_sql_option(val) for val in value)})"
         return str(value)
 
 

@@ -1132,7 +1132,6 @@ def test_time_series_aggregation_grouping(session):
         union_count=0,
         join_count=0,
         cte_join_count=0,
-        describe_count_for_optimized=6 if session._join_alias_fix else None,
     )
 
 
