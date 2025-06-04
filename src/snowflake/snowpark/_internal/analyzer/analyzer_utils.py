@@ -1130,7 +1130,9 @@ def file_operation_statement(
     raise ValueError(f"Unsupported file operation type {command}")
 
 
-def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -> str:
+def convert_value_to_sql_option(
+    value: Optional[Union[str, bool, int, float, list, tuple]]
+) -> str:
     if isinstance(value, str):
         if len(value) > 1 and is_single_quoted(value):
             return value
