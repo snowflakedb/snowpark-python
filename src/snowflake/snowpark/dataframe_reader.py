@@ -989,7 +989,7 @@ class DataFrameReader:
 
                 # Reconstruct path using just stage and any qualifiers
                 stage, _ = get_stage_parts(path)
-                infer_path = path[: path.find(stage)] + stage
+                infer_path = path.partition(stage)[0] + stage
 
         infer_schema_query = infer_schema_statement(
             infer_path, file_format_name, infer_schema_options or None
