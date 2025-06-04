@@ -912,7 +912,9 @@ class AstFlagSource(IntEnum):
     LOCAL = auto()
     """Some local criteria determined the value. This has the lowest precedence. Any other source can override it."""
     SERVER = auto()
-    """The server set the value. This has the highest precedence. Nothing else can override it."""
+    """The server set the value."""
+    USER = auto()
+    """The flag has been set by the user explicitly at their own risk."""
     TEST = auto()
     """
     Do not use this in production Snowpark code. Test code sets the value. This has the highest precedence.
@@ -933,7 +935,7 @@ class _AstFlagState(IntEnum):
     TENTATIVE = auto()
     """The flag has been set by a source with lower precedence than SERVER. It can be overridden by SERVER."""
     FINALIZED = auto()
-    """The flag has been set by SERVER. It cannot be overridden."""
+    """The flag state can only be changed by TEST or USER sources."""
 
 
 class _AstState:
@@ -995,19 +997,23 @@ class _AstState:
                 source,
                 enable,
             )
-            if source == AstFlagSource.TEST:
-                # TEST behaviors override everything.
+            if source in (AstFlagSource.TEST, AstFlagSource.USER):
+                # TEST/USER behaviors override everything.
                 # If you see this code path running in production, the calling code is broken.
                 self._state = _AstFlagState.FINALIZED
                 self._ast_enabled = enable
                 return
             if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
                 _logger.warning(
-                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s.",
+                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s from source %s.",
                     self._ast_enabled,
                     enable,
+                    source,
                 )
                 return
+
+            # If the current state is TENTATIVE, and the value is transitioning from disabled -> enabled,
+            # then the transition is unsafe.
             safe_transition: bool = not (
                 self._state == _AstFlagState.TENTATIVE
                 and not self._ast_enabled
@@ -1020,7 +1026,6 @@ class _AstState:
                     _logger.warning(
                         "Server cannot enable AST after treating it as disabled locally. Ignoring request."
                     )
-                self._state = _AstFlagState.FINALIZED
             elif source == AstFlagSource.LOCAL:
                 if safe_transition:
                     self._ast_enabled = enable

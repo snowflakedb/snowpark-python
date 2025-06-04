@@ -908,6 +908,7 @@ class Session:
         return is_ast_enabled()
 
     @ast_enabled.setter
+    @experimental_parameter(version="1.33.0")
     def ast_enabled(self, value: bool) -> None:
         # TODO: we could send here explicit telemetry if a user changes the behavior.
         # In addition, we could introduce a server-side parameter to enable AST capture or not.
@@ -928,8 +929,8 @@ class Session:
                 "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
-            self.auto_clean_up_temp_table_enabled = False
-        set_ast_state(AstFlagSource.LOCAL, value)
+            self._auto_clean_up_temp_table_enabled = False
+        set_ast_state(AstFlagSource.USER, value)
 
     @property
     def cte_optimization_enabled(self) -> bool:
