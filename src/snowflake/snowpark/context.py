@@ -4,12 +4,13 @@
 #
 
 """Context module for Snowpark."""
-from logging import warning
+import logging
 from typing import Callable, Optional
 
 import snowflake.snowpark
 import threading
 
+_logger = logging.getLogger(__name__)
 _use_scoped_temp_objects = True
 
 # This is an internal-only global flag, used to determine whether to execute code in a client's local sandbox or connect to a Snowflake account.
@@ -37,10 +38,20 @@ _enable_dataframe_trace_on_error = False
 def configure_development_features(
     *,
     enable_dataframe_trace_on_error: bool = True,
-):
-    warning(
-        "configure_development_features",
-        "This feature is experimental since 1.33.0. Do not use it in production.",
+) -> None:
+    """
+    Configure development features for the session.
+
+    Args:
+        enable_dataframe_trace_on_error: If True, upon failure, we will add most recent dataframe
+            operations to the error trace. This requires AST collection to be enabled in the
+            session which can be done using `session.ast_enabled = True`.
+
+    Note:
+        This feature is experimental since 1.33.0. Do not use it in production.
+    """
+    _logger.warning(
+        "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
     )
     global _enable_dataframe_trace_on_error
     _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error

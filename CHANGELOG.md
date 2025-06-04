@@ -30,7 +30,7 @@
   - Added support for specifying the character encoding of the XML file using `charset` option.
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
-- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leads to a `SnowparkSQLException`. Enable it using `snowflake.snowpark.context.configure_development_features()`. This also requires AST collection enabled in the session.
+- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leads to a `SnowparkSQLException`. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
 - Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
 - Improved `DataFrameReader.dbapi` (PrPr) to use in-memory Parquet-based ingestion for better performance and security.
