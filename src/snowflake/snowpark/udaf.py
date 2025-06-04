@@ -472,7 +472,7 @@ class UDAFRegistration:
                 parallel,
             )
 
-            native_app_params = kwargs.get("native_app_params", None)
+            native_app_params = kwargs.pop("native_app_params", None)
 
             # register udaf
             return self._do_register_udaf(

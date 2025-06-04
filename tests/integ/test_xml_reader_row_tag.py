@@ -34,6 +34,7 @@ test_file_malformed_not_self_closing_xml = "malformed_not_self_closing.xml"
 test_file_malformed_record_xml = "malformed_record.xml"
 test_file_xml_declared_namespace = "declared_namespace.xml"
 test_file_xml_undeclared_namespace = "undeclared_namespace.xml"
+test_file_null_value_xml = "null_value.xml"
 
 # Global stage name for uploading test files
 tmp_stage_name = Utils.random_stage_name()
@@ -92,6 +93,12 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name,
         test_files.test_xml_undeclared_namespace,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_null_value_xml,
         compress=False,
     )
 
@@ -293,3 +300,55 @@ def test_read_xml_exclude_attributes(session):
     assert len(result[0]) == 6
     with pytest.raises(KeyError):
         _ = result[0]["'_id'"]
+
+
+def test_read_xml_value_tag(session):
+    row_tag = "author"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("valueTag", "value")
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 12
+    assert len(result[0]) == 1
+    assert result[0]["'value'"] is not None
+
+    row_tag = "str3"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("valueTag", "value")
+        .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
+    )
+    result = df.collect()
+    print(result)
+    assert len(result) == 1
+    assert len(result[0]) == 2
+    assert result[0]["'value'"] == '"xxx"'
+
+
+@pytest.mark.parametrize(
+    "null_value, expected_row",
+    [
+        (
+            "",
+            Row('"1"', '"NULL"', "null", '{\n  "_VALUE": "xxx",\n  "_id": "empty"\n}'),
+        ),
+        (
+            "NULL",
+            Row('"1"', "null", "null", '{\n  "_VALUE": "xxx",\n  "_id": "empty"\n}'),
+        ),
+        (
+            "empty",
+            Row('"1"', '"NULL"', "null", '{\n  "_VALUE": "xxx",\n  "_id": null\n}'),
+        ),
+    ],
+)
+def test_read_xml_null_value(session, null_value, expected_row):
+    row_tag = "test"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("nullValue", null_value)
+        .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
+    )
+    Utils.check_answer(df, [expected_row])
