@@ -352,3 +352,29 @@ def test_read_xml_null_value(session, null_value, expected_row):
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     Utils.check_answer(df, [expected_row])
+
+
+@pytest.mark.parametrize(
+    "ignore_surrounding_whitespace, expected_row",
+    [
+        (
+            True,
+            Row('{\n  "_VALUE": "xxx",\n  "_id": null\n}'),
+        ),
+        (
+            False,
+            Row('{\n  "_VALUE": " xxx  ",\n  "_id": "  empty"\n}'),
+        ),
+    ],
+)
+def test_read_xml_ignore_surrounding_whitespace(
+    session, ignore_surrounding_whitespace, expected_row
+):
+    row_tag = "test2"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("nullValue", "empty")
+        .option("ignoreSurroundingWhitespace", ignore_surrounding_whitespace)
+        .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
+    )
+    Utils.check_answer(df, [expected_row])

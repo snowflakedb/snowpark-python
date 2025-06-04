@@ -124,6 +124,61 @@ def test_element_to_dict_or_str_null_value_with_children(null_value):
     assert result == {"child": None}
 
 
+@pytest.mark.parametrize("ignore_surrounding_whitespace", [True, False])
+def test_element_to_dict_or_str_ignore_surrounding_whitespace_text(
+    ignore_surrounding_whitespace,
+):
+    """Test ignore_surrounding_whitespace parameter with element text containing surrounding whitespace."""
+    element = ET.Element("greeting")
+    element.text = "  \n\t  hello world  \n\t  "
+    result = element_to_dict_or_str(
+        element, ignore_surrounding_whitespace=ignore_surrounding_whitespace
+    )
+    if ignore_surrounding_whitespace:
+        assert result == "hello world"
+    else:
+        assert result == "  \n\t  hello world  \n\t  "
+
+
+@pytest.mark.parametrize("ignore_surrounding_whitespace", [True, False])
+def test_element_to_dict_or_str_ignore_surrounding_whitespace_with_attributes(
+    ignore_surrounding_whitespace,
+):
+    """Test ignore_surrounding_whitespace parameter with element text and attributes containing whitespace."""
+    element = ET.Element("person", attrib={"name": "  Alice  ", "age": " 30 "})
+    element.text = "  \n  content text  \n  "
+    result = element_to_dict_or_str(
+        element,
+        attribute_prefix="_",
+        value_tag="value",
+        ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+    )
+    expected_result = (
+        {"_name": "Alice", "_age": "30", "value": "content text"}
+        if ignore_surrounding_whitespace
+        else {"_name": "  Alice  ", "_age": " 30 ", "value": "  \n  content text  \n  "}
+    )
+    assert result == expected_result
+
+
+@pytest.mark.parametrize("ignore_surrounding_whitespace", [True, False])
+def test_element_to_dict_or_str_ignore_surrounding_whitespace_with_null_value(
+    ignore_surrounding_whitespace,
+):
+    """Test ignore_surrounding_whitespace parameter with null_value handling."""
+    element = ET.Element("test")
+    element.text = "  NULL  "
+    result = element_to_dict_or_str(
+        element,
+        null_value="NULL",
+        ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+    )
+    if ignore_surrounding_whitespace:
+        assert result is None  # "  NULL  ".strip() == "NULL" -> None
+    else:
+        assert result == "  NULL  "  # "  NULL  " != "NULL" -> keep original
+
+
 def test_default_namespace():
     """
     Test that a default namespace is correctly stripped from tags and attributes.
@@ -426,6 +481,7 @@ def test_process_xml_range_charset(charset):
                     value_tag="_VALUE",
                     null_value="",
                     charset=charset,
+                    ignore_surrounding_whitespace=True,
                 )
             )
 
@@ -467,6 +523,7 @@ def test_process_xml_range_charset_decode_error():
                 value_tag="_VALUE",
                 null_value="",
                 charset="ascii",  # This will cause decode errors
+                ignore_surrounding_whitespace=True,
             )
         )
 
