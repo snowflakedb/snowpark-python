@@ -9,6 +9,7 @@
 - Added support for MySQL in `DataFrameWriter.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for PostgreSQL in `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for Databricks in `DataFrameWriter.dbapi` (PrPr) for UDTF-based ingestion.
+- Added support to `DataFrameReader` to enable use of `PATTERN` when reading files with `INFER_SCHEMA` enabled.
 
 #### Bug Fixes
 

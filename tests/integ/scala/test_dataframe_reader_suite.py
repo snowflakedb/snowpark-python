@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import csv
 import datetime
 import json
 import logging
@@ -1704,6 +1705,90 @@ def test_pattern(session, mode):
         .count()
         == 4
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing does not support file.put",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_pattern_with_infer(session, mode):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    expected_schema = StructType(
+        [
+            StructField("col1", LongType(), True),
+            StructField("col2", StringType(), True),
+            StructField("col3", DecimalType(2, 1), True),
+        ]
+    )
+    example_data = [expected_schema.names] + [(1, "A", 2.3), (2, "B", 3.4)]
+    incompatible_data = ["A", "B", "C", "D"]
+    expected_rows = [
+        Row(1, "A", 2.3),
+        Row(2, "B", 3.4),
+    ]
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i in range(3):
+                good_file_path = os.path.join(temp_dir, f"good{i}.csv")
+                bad_file_path = os.path.join(temp_dir, f"bad{i}.csv")
+
+                with open(good_file_path, "w+", newline="") as ofile:
+                    csv_writer = csv.writer(ofile)
+                    csv_writer.writerows(example_data)
+
+                with open(bad_file_path, "w+", newline="") as ofile:
+                    csv_writer = csv.writer(ofile)
+                    csv_writer.writerows(incompatible_data)
+
+                session.file.put(good_file_path, f"@{stage_name}/path")
+                session.file.put(bad_file_path, f"@{stage_name}/path")
+
+        def base_reader(include_pattern=True):
+            reader = (
+                get_reader(session, mode)
+                .option("INFER_SCHEMA", True)
+                .option("INFER_SCHEMA_OPTIONS", {"MAX_RECORDS_PER_FILE": 10000})
+                .option("PARSE_HEADER", True)
+            )
+            if include_pattern:
+                reader = reader.option("PATTERN", ".*good.*")
+            return reader
+
+        # Test loading a single file
+        single_file_df = base_reader(False).csv(f"@{stage_name}/path/good1.csv")
+        Utils.check_answer(single_file_df, expected_rows)
+
+        # Test loading a single file while pattern is defined
+        reader = base_reader()
+        single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
+        Utils.check_answer(single_file_with_pattern_df, expected_rows)
+
+        # Test loading a directory while including patter and FILES
+        reader = base_reader().option(
+            "INFER_SCHEMA_OPTIONS", {"FILES": ["good1.csv.gz"]}
+        )
+        file_override_df = reader.csv(f"@{stage_name}/path")
+        Utils.check_answer(file_override_df, expected_rows * 3)
+
+        # Test just pattern
+        reader = base_reader()
+        df = reader.csv(f"@{stage_name}/path")
+        assert df.schema == expected_schema
+        Utils.check_answer(df, expected_rows * 3)
+
+        # Test using fully qualified stage name
+        reader = base_reader()
+        df = reader.csv(
+            f"@{session.get_current_database()}.{session.get_current_schema()}.{stage_name}"
+        )
+        assert df.schema == expected_schema
+        Utils.check_answer(df, expected_rows * 3)
+
+    finally:
+        Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.xfail(

@@ -345,6 +345,8 @@ def test_convert_value_to_sql_option():
     assert convert_value_to_sql_option("") == "''"
     assert convert_value_to_sql_option(1) == "1"
     assert convert_value_to_sql_option(None) == "None"
+    assert convert_value_to_sql_option((1,)) == "(1)"
+    assert convert_value_to_sql_option((1, 2)) == "(1, 2)"
 
 
 def test_file_operation_negative():
