@@ -659,7 +659,7 @@ class Session:
         )
         self._generate_multiline_queries: bool = (
             self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, False
+                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, True
             )
         )
         if self._generate_multiline_queries:
