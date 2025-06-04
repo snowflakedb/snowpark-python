@@ -6,7 +6,7 @@ import pytest
 
 import modin.pandas as pd
 from modin.config import context as config_context
-from snowflake.snowpark.modin.plugin._internal import MODIN_IS_AT_LEAST_0_33_0
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 if not MODIN_IS_AT_LEAST_0_33_0:  # pragma: no branch
     pytestmark = pytest.mark.skip(
@@ -20,7 +20,7 @@ def enable_autoswitch():
         yield
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def init_transaction_tables():
     session = pd.session
     session.sql(

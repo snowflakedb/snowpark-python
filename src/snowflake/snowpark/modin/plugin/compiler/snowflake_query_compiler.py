@@ -811,6 +811,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             or (
                 is_dict_like(data)
+                and not isinstance(data, native_pd.DataFrame)
                 and all(
                     isinstance(v, pd.Series)
                     and isinstance(v._query_compiler, type(self))

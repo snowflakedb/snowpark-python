@@ -5,13 +5,14 @@
 import pytest
 
 import numpy as np
+from numpy.testing import assert_array_equal
 import modin.pandas as pd
 import snowflake.snowpark.modin.plugin  # noqa: F401
 
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1)
 def test_merge(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -25,7 +26,7 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=6)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -48,16 +49,18 @@ def test_filtered_data(init_transaction_tables):
         "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, current_date ) and Date < current_date"
     )
     assert df_transactions_filter2.get_backend() == "Pandas"
-    assert (
-        df_transactions_filter1
-        == df_transactions_filter2.groupby("DATE").sum()["REVENUE"]
+    assert_array_equal(
+        # Snowpark handles index objects differently from native pandas, so just check values
+        df_transactions_filter1.to_pandas().values,
+        df_transactions_filter2.groupby("DATE").sum()["REVENUE"].to_pandas().values,
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=8)
 def test_apply(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
+    df_us_holidays["Date"] = pd.to_datetime(df_us_holidays["Date"])
 
     def forecast_revenue(df, start_date, end_date):
         # Filter data from last year
@@ -135,7 +138,7 @@ def small_snow_df():
         "nunique",
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_groupby_agg_post_op_switch(operation, small_snow_df):
     assert small_snow_df.get_backend() == "Snowflake"
     dataframe_groupby_result = getattr(small_snow_df.groupby(0), operation)()

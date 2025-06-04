@@ -5,26 +5,31 @@
 import tempfile
 import pandas as native_pd
 
+# We're comparing an object with the native pandas backend, so we use the pandas testing utility
+# here rather than our own internal one.
+from pandas.testing import assert_series_equal
+
 import modin.pandas as pd
 from modin.config import context as config_context
 import snowflake.snowpark.modin.plugin  # noqa: F401
 
-from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
 
-CSV_CONTENT = """fruit, score
-apple, 1
-orange, 2
-melon, 3
-grape, 4
-raisin, -1
+CSV_CONTENT = """fruit,score
+apple,1
+orange,2
+melon,3
+grape,4
+raisin,-1
 """
 
 
 # When automatic backend switching is enabled, read_csv should end up in native pandas.
 @sql_count_checker(query_count=0)
 def test_read_csv_local():
-    with open(tempfile.NamedTemporaryFile(mode="w")) as f:
+    with tempfile.NamedTemporaryFile(mode="w") as f:
         f.write(CSV_CONTENT)
+        f.flush()
         fruits = pd.read_csv(f.name)
         assert fruits.get_backend() == "Pandas"
 
@@ -62,24 +67,31 @@ def test_from_list(us_holidays_data):
         df_us_holidays.iterrows(), native_df_us_holidays.iterrows()
     ):
         assert index == native_index
-        assert row == native_row
+        assert_series_equal(row.to_pandas(), native_row)
 
 
-@sql_count_checker(query_count=1)
 def test_move_threshold_setting():
     with config_context(NativePandasMaxRows=10):
-        df_small = pd.DataFrame({"a": [1] * 20, "b": [2] * 20}).move_to("Snowflake")
-        assert df_small.get_backend() == "Snowflake"
-        # Above threshold; no move
-        df_small = df_small.apply(lambda x: x + 1)
-        assert df_small.get_backend() == "Snowflake"
-        # Below threshold; should move
-        df_small = df_small.head(5)
-        df_small = df_small.apply(lambda x: x + 1)
-        assert df_small.get_backend() == "Pandas"
+        with SqlCounter(
+            query_count=11,
+            join_count=3,
+            udtf_count=2,
+            high_count_expected=True,
+            high_count_reason="Apply in Snowflake creates UDTF",
+        ):
+            df_small = pd.DataFrame({"a": [1] * 20, "b": [2] * 20}).move_to("Snowflake")
+            assert df_small.get_backend() == "Snowflake"
+            # Above threshold; no move
+            df_small = df_small.apply(lambda x: x + 1)
+            assert df_small.get_backend() == "Snowflake"
+        with SqlCounter(query_count=2):
+            # Below threshold; should move before apply is performed
+            df_small = df_small.head(5)
+            df_small = df_small.apply(lambda x: x + 1)
+            assert df_small.get_backend() == "Pandas"
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_constructor_does_not_double_move():
     # Discovered in 5/1/25 bug bash, fixed in this commit:
     # https://github.com/snowflakedb/snowpark-python/commit/c37b30fb7e478c66e0937f6289603d5d9cc2e1b2
