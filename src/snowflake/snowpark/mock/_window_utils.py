@@ -18,11 +18,19 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 class EntireWindowIndexer:
     def __init__(self, *args, **kwargs) -> None:
         try:
-            from pandas.api.indexers import BaseIndexer
+            from snowflake.snowpark.mock._options import pandas as pd
+
+            BaseIndexer = pd.api.indexers.BaseIndexer
 
             if BaseIndexer not in self.__class__.__bases__:
-                self.__class__.__bases__ = (BaseIndexer,)
-        except ImportError:
+                try:
+                    self.__class__.__bases__ = (BaseIndexer,)
+                except TypeError:
+                    # Handle deallocator conflicts when changing __bases__ dynamically
+                    # Continue with existing base class if pandas BaseIndexer can't be used
+                    pass
+        except (ImportError, AttributeError):
+            # pandas not available or BaseIndexer not accessible
             pass
         super().__init__(*args, **kwargs)
 
@@ -41,11 +49,19 @@ class EntireWindowIndexer:
 class RowFrameIndexer:
     def __init__(self, *args, **kwargs) -> None:
         try:
-            from pandas.api.indexers import BaseIndexer
+            from snowflake.snowpark.mock._options import pandas as pd
+
+            BaseIndexer = pd.api.indexers.BaseIndexer
 
             if BaseIndexer not in self.__class__.__bases__:
-                self.__class__.__bases__ = (BaseIndexer,)
-        except ImportError:
+                try:
+                    self.__class__.__bases__ = (BaseIndexer,)
+                except TypeError:
+                    # Handle deallocator conflicts when changing __bases__ dynamically
+                    # Continue with existing base class if pandas BaseIndexer can't be used
+                    pass
+        except (ImportError, AttributeError):
+            # pandas not available or BaseIndexer not accessible
             pass
         super().__init__(*args, **kwargs)
 

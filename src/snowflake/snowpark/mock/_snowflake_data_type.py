@@ -28,7 +28,7 @@ from snowflake.snowpark.types import (
 
 if TYPE_CHECKING:
     import snowflake.connector.options.installed_pandas as installed_pandas
-    import pandas as pd
+    from snowflake.snowpark.mock._options import pandas as pd
 
     PandasDataframeType = object if not installed_pandas else pd.DataFrame
     PandasSeriesType = object if not installed_pandas else pd.Series
@@ -51,25 +51,19 @@ _TIMESTAMP_TYPE_TIMEZONE_MAPPING = {
 
 def infer_sp_type_from_python_type(p: Any) -> DataType:
     """helper function to map python types (using pandas) to Snowpark types."""
-    from pandas.core.dtypes.common import (
-        is_bool_dtype,
-        is_float_dtype,
-        is_integer_dtype,
-        is_object_dtype,
-        is_string_dtype,
-    )
+    from snowflake.snowpark.mock._options import pandas as pd
 
     # TODO SNOW-1826001: refactor this with Snowpark pandas to avoid redundancy.
 
-    if is_object_dtype(p):
+    if pd.api.types.is_object_dtype(p):
         return VariantType()
-    if is_string_dtype(p):
+    if pd.api.types.is_string_dtype(p):
         return StringType()
-    if is_bool_dtype(p):
+    if pd.api.types.is_bool_dtype(p):
         return BooleanType()
-    if is_integer_dtype(p):
+    if pd.api.types.is_integer_dtype(p):
         return LongType()
-    if is_float_dtype(p):
+    if pd.api.types.is_float_dtype(p):
         return DoubleType()
     return VariantType()
 
@@ -168,7 +162,7 @@ SNOW_DATA_TYPE_CONVERSION_DICT = {
 def isna_helper(obj: Any) -> bool:
     """Small helper function to detect whether object is considered NULL. Needed because for
     lists, tuples, ... pandas isna() does not handle correctly."""
-    import pandas as pd
+    from snowflake.snowpark.mock._options import pandas as pd
 
     if isinstance(obj, Iterable):
         return False
@@ -395,7 +389,7 @@ class LazyPandasMeta(type):
             from snowflake.connector.options import installed_pandas
 
             if installed_pandas and cls._pandas_type:
-                import pandas as pd
+                from snowflake.snowpark.mock._options import pandas as pd
 
                 if cls._pandas_type == "DataFrame":
                     cls._real_base = pd.DataFrame
@@ -403,7 +397,14 @@ class LazyPandasMeta(type):
                     cls._real_base = pd.Series
             else:
                 cls._real_base = object
-            cls.__bases__ = (cls._real_base,)
+            # NEW (safe):
+            try:
+                cls.__bases__ = (cls._real_base,)
+            except TypeError:
+                # Handle deallocator conflicts when changing __bases__ dynamically
+                # This can happen when pandas DataFrame/Series have different memory layouts
+                # In this case, we'll continue with the existing base class
+                pass
 
         return super().__call__(*args, **kwargs)
 
@@ -497,7 +498,7 @@ def get_number_precision_scale(t: DataType):
 def add_date_and_number(
     col1: "ColumnEmulator", col2: "ColumnEmulator"
 ) -> Optional["ColumnEmulator"]:
-    import pandas as pd
+    from snowflake.snowpark.mock._options import pandas as pd
 
     """If one column is DateType and another column is numeric, round and add the numeric to days"""
     if isinstance(col2.sf_type.datatype, DateType):
@@ -566,9 +567,9 @@ class ColumnEmulator(metaclass=LazyPandasMeta, pandas_type="Series"):
             # due to ColumnEmulator inheriting from a pandas Series.
             nullable = any([isna_helper(obj) for obj in self.values])
 
-            from pandas.core.dtypes.common import is_object_dtype
+            from snowflake.snowpark.mock._options import pandas as pd
 
-            if is_object_dtype(self.dtype) and len(self) != 0:
+            if pd.api.types.is_object_dtype(self.dtype) and len(self) != 0:
                 # Infer from data when object type for the type to become more specific.
                 return ColumnType(
                     infer_sp_type_from_python_type(type(self.iloc[0])), nullable
