@@ -409,7 +409,7 @@ class StageEntity:
         options: Dict[str, str],
     ) -> TableEmulator:
         from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
-        import pandas as pd
+        from snowflake.snowpark.mock._options import pandas as pd
 
         stage_source_dir_path = os.path.join(self._working_directory, stage_location)
 

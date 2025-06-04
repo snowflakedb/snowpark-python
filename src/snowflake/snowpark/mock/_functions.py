@@ -24,6 +24,7 @@ import pytz
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
 from snowflake.snowpark._internal.utils import unalias_datetime_part
+from snowflake.snowpark.mock._options import numpy
 from snowflake.snowpark.mock._snowflake_data_type import (
     _TIMESTAMP_TYPE_MAPPING,
     _TIMESTAMP_TYPE_TIMEZONE_MAPPING,
@@ -499,7 +500,7 @@ def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
 
 @patch("array_construct")
 def mock_array_construct(*columns):
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     if len(columns) == 0:
         data = [[]]
@@ -1065,7 +1066,7 @@ def _to_timestamp(
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     res = column.to_frame().apply(convert_timestamp, axis=1).replace({pandas.NaT: None})
     return [
@@ -1453,7 +1454,7 @@ def mock_to_binary(
 
 @patch("coalesce")
 def mock_coalesce(*exprs):
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     if len(exprs) < 2:
         raise SnowparkLocalTestingException(
@@ -1621,7 +1622,7 @@ def _object_construct(exprs, drop_nulls):
             if x[i] is not None and not (drop_nulls and x[i + 1] is None)
         }
 
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     combined = pandas.concat(exprs, axis=1, ignore_index=True)
     return combined.apply(construct_dict, axis=1)
@@ -1652,7 +1653,7 @@ def add_years(date, duration):
 
 
 def add_months(scalar, date, duration):
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     res = (
         pandas.to_datetime(date) + pandas.DateOffset(months=scalar * duration)
@@ -1722,7 +1723,7 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
     """
     unaliased = unalias_datetime_part(part)
     datatype = datetime_expr.sf_type.datatype
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     # Year of week is another alias unique to date_part
     if unaliased == "yearofweek":
@@ -1802,7 +1803,7 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
     """
     # Map snowflake time unit to pandas rounding alias
     # Not all units have an alias so handle those with a special case
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     SUPPORTED_UNITS = {
         "day": "D",
@@ -1902,7 +1903,7 @@ def mock_datediff(
     data = []
     for x, y in zip(col1, col2):
         data.append(None if x is None or y is None else func(x, y))
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     return ColumnEmulator(
         pandas.Series(data, dtype=object),
@@ -2014,7 +2015,7 @@ def mock_convert_timezone(
     For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
     """
     import dateutil
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     # mock_convert_timezone matches the sql function call semantics.
     # It has different parameters when called with 2 or 3 args.
@@ -2117,6 +2118,7 @@ def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
             ValueError("concat expects one or more column(s) to be passed in.")
         )
     from snowflake.snowpark.mock._options import pandas
+
     pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
     result = pdf.T.apply(
         lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
@@ -2134,6 +2136,7 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
             )
         )
     from snowflake.snowpark.mock._options import pandas
+
     pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
     result = pdf.T.apply(
         lambda c: None
@@ -2218,8 +2221,6 @@ def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator
     rand_min = -(2**63)
     rand_max = 2**63 - 1
     seed = seed if seed is not None else randint(rand_min, rand_max)
-    import numpy
-
     gen = numpy.random.Generator(numpy.random.MT19937(abs(seed)))
     return ColumnEmulator(
         data=[gen.integers(rand_min, rand_max) for _ in range(len(column_index))],
@@ -2256,7 +2257,7 @@ def _rank(raw_input, dense=False):
                 rank = index
         previous = value
         final_values.append(rank)
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     return pandas.Series(final_values, index=raw_input.index)
 

@@ -70,7 +70,7 @@ PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 
 if TYPE_CHECKING:
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
 
 class MockedSnowflakeConnection(SnowflakeConnection):
@@ -157,7 +157,7 @@ class MockServerConnection:
             mode: SaveMode,
             column_names: Optional[List[str]] = None,
         ) -> List[Row]:
-            import pandas
+            from snowflake.snowpark.mock._options import pandas
 
             with self._lock:
                 for column in table.columns:
@@ -719,7 +719,7 @@ class MockServerConnection:
             rows = [r for r in res]
 
         if to_pandas:
-            import pandas
+            from snowflake.snowpark.mock._options import pandas
 
             pandas_df = pandas.DataFrame()
             for col_name in res.columns:
@@ -826,7 +826,7 @@ class MockServerConnection:
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     pd_df = pandas.DataFrame()
     for col_name in table_res.columns:

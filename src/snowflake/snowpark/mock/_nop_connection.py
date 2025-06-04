@@ -57,7 +57,7 @@ from snowflake.snowpark.types import (
 )
 
 if TYPE_CHECKING:
-    import pandas
+    from snowflake.snowpark.mock._options import pandas
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -123,7 +123,7 @@ class NopConnection(MockServerConnection):
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
         source_plan = plan.source_plan
-        import pandas
+        from snowflake.snowpark.mock._options import pandas
 
         if hasattr(source_plan, "execution_queries"):
             # If temp read-only table, explicitly create it.

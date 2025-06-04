@@ -492,6 +492,7 @@ class DataFrameWriter:
 
             session = self._dataframe._session
             from snowflake.snowpark.mock._connection import MockServerConnection
+
             if (
                 table_exists is None
                 and not isinstance(session._conn, MockServerConnection)
