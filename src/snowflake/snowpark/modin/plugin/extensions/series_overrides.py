@@ -81,7 +81,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
     register_series_accessor = functools.partial(
         _register_series_accessor, backend="Snowflake"
     )
-else:
+else:  # pragma: no branch
     from modin.pandas.api.extensions import register_series_accessor
 
 

@@ -279,7 +279,7 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
 
     if MODIN_IS_AT_LEAST_0_33_0:
         from modin.pandas.groupby import SeriesGroupBy
-    else:
+    else:  # pragma: no branch
         from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
             SeriesGroupBy,
         )

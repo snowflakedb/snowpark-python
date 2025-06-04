@@ -101,7 +101,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
 
         return decorator
 
-else:
+else:  # pragma: no branch
     from modin.pandas.api.extensions import (
         register_dataframe_accessor,
         register_series_accessor,

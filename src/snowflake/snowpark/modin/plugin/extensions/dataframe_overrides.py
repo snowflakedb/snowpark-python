@@ -126,7 +126,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
     register_dataframe_accessor = functools.partial(
         _register_dataframe_accessor, backend="Snowflake"
     )
-else:
+else:  # pragma: no branch
     from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
         DataFrameGroupBy,
         validate_groupby_args,

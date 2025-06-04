@@ -80,7 +80,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
     register_df_groupby_override = functools.partial(
         register_dataframe_groupby_accessor, backend="Snowflake"
     )
-else:
+else:  # pragma: no branch
     # This code path should only be hit in doctests. For modin<0.33.0, groupby overrides are
     # handled independently in groupby_overrides.py, so we should not register anything.
     def register_df_groupby_override(method_name: str):

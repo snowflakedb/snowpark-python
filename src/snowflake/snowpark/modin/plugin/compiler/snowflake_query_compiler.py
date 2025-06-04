@@ -1011,7 +1011,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     # delete this stub and use only to_interchange_dataframe
     def to_dataframe(
         self, nan_as_null: bool = False, allow_copy: bool = True
-    ) -> InterchangeDataframe:
+    ) -> InterchangeDataframe:  # pragma: no cover
         return self.to_pandas().__dataframe__(
             nan_as_null=nan_as_null, allow_copy=allow_copy
         )
@@ -1023,7 +1023,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     # TODO: MODIN_IS_AT_LEAST_0_33_0
     # delete this stub and use only from_interchange_dataframe
     @classmethod
-    def from_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
+    def from_dataframe(
+        cls, df: native_pd.DataFrame, data_cls: Any
+    ) -> None:  # pragma: no cover
         pass
 
     @classmethod
@@ -10153,7 +10155,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # Force this query compiler to be an SFQC, since with auto-switch behavior
                 # it may become a NativeQueryCompiler.
                 index = pd.Series([index]).set_backend("Snowflake")._query_compiler
-            else:
+            else:  # pragma: no branch
                 index = pd.Series([index])._query_compiler
         # convert list like to series
         elif is_list_like(index):

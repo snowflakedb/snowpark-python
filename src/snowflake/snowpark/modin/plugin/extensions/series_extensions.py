@@ -8,11 +8,14 @@ as `Series.to_snowflake`.
 """
 
 from collections.abc import Iterable
+import functools
 from typing import Any, List, Literal, Optional, Union
 
 import modin.pandas as pd
+from modin.pandas.api.extensions import (
+    register_series_accessor as _register_series_accessor,
+)
 import pandas
-from .series_overrides import register_series_accessor
 from pandas._typing import Axis, IndexLabel
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
@@ -23,6 +26,14 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
 from snowflake.snowpark.row import Row
+
+
+register_series_accessor = functools.partial(
+    _register_series_accessor, backend="Snowflake"
+)
+
+
+_register_series_accessor(name="to_pandas", backend="Pandas")(pd.Series._to_pandas)
 
 
 @register_series_accessor("_set_axis_name")
@@ -89,6 +100,13 @@ def to_snowflake(
         - :func:`read_snowflake <modin.pandas.read_snowflake>`
     """
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
+
+
+_register_series_accessor("to_snowflake", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowflake(
+        *args, **kwargs
+    )
+)
 
 
 @register_series_accessor("to_snowpark")
@@ -198,6 +216,11 @@ def to_snowpark(
         <BLANKLINE>
     """
     return self._query_compiler.to_snowpark(index, index_label)
+
+
+_register_series_accessor("to_snowpark", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowpark(*args, **kwargs)
+)
 
 
 @register_series_accessor("to_pandas")

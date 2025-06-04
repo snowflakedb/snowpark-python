@@ -30,7 +30,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
     register_series_accessor = functools.partial(
         register_series_accessor, backend="Snowflake"
     )
-else:
+else:  # pragma: no branch
     EXTENSIONS_DICT = pd.series._SERIES_EXTENSIONS_
 
 

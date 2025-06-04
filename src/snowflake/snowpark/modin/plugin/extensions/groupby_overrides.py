@@ -109,7 +109,7 @@ _DEFAULT_BEHAVIOUR = {
 if MODIN_IS_AT_LEAST_0_33_0:
     from modin.pandas.groupby import DataFrameGroupBy, SeriesGroupBy
     from .dataframe_groupby_overrides import validate_groupby_args
-else:
+else:  # pragma: no branch
 
     @_inherit_docstrings(
         pandas.core.groupby.DataFrameGroupBy, modify_doc=doc_replace_dataframe_with_link

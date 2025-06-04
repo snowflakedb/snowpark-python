@@ -30,7 +30,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
 
     register_pd_accessor = functools.partial(_register_pd_accessor, backend="Snowflake")
     PD_EXTENSIONS = _GENERAL_EXTENSIONS["Snowflake"]
-else:
+else:  # pragma: no branch
     PD_EXTENSIONS = pd._PD_EXTENSIONS_
     register_pd_accessor = _register_pd_accessor
 

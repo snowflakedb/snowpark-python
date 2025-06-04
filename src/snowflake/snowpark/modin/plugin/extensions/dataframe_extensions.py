@@ -8,9 +8,13 @@ as `DataFrame.to_snowflake`.
 """
 
 from collections.abc import Iterable
+import functools
 from typing import Any, List, Literal, Optional, Union
 
 import modin.pandas as pd
+from modin.pandas.api.extensions import (
+    register_dataframe_accessor as _register_dataframe_accessor,
+)
 import pandas
 from pandas._typing import IndexLabel
 
@@ -23,7 +27,15 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 )
 from snowflake.snowpark.row import Row
 
-from .dataframe_overrides import register_dataframe_accessor
+
+register_dataframe_accessor = functools.partial(
+    _register_dataframe_accessor, backend="Snowflake"
+)
+
+
+_register_dataframe_accessor(name="to_pandas", backend="Pandas")(
+    pd.DataFrame._to_pandas
+)
 
 
 # Snowflake specific dataframe methods
@@ -67,6 +79,13 @@ def to_snowflake(
 
     """
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
+
+
+_register_dataframe_accessor(name="to_snowflake", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowflake(
+        *args, **kwargs
+    )
+)
 
 
 @register_dataframe_accessor("to_snowpark")
@@ -199,6 +218,11 @@ def to_snowpark(
         <BLANKLINE>
     """
     return self._query_compiler.to_snowpark(index, index_label)
+
+
+_register_dataframe_accessor(name="to_snowpark", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowpark(*args, **kwargs)
+)
 
 
 @register_dataframe_accessor("to_pandas")

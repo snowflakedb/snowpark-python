@@ -91,7 +91,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
     )
 
     register_pd_accessor = functools.partial(_register_pd_accessor, backend="Snowflake")
-else:
+else:  # pragma: no branch
     from modin.pandas.api.extensions import register_pd_accessor
 
 # To prevent cross-reference warnings when building documentation and prevent erroneously

@@ -74,7 +74,7 @@ import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: ski
 if MODIN_IS_AT_LEAST_0_33_0:
     import snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides  # isort: skip  # noqa: E402,F401
     import snowflake.snowpark.modin.plugin.extensions.series_groupby_overrides  # isort: skip  # noqa: E402,F401
-else:
+else:  # pragma: no branch
     import snowflake.snowpark.modin.plugin.extensions.groupby_overrides  # isort: skip  # noqa: E402,F401
 
 # === INITIALIZE DOCSTRINGS ===
@@ -122,7 +122,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
         (docstrings.io, modin.pandas),
         (docstrings.general, modin.pandas),
     ]
-else:
+else:  # pragma: no branch
     function_inherit_modules = [
         (docstrings.io, modin.pandas.io),
         (docstrings.general, modin.pandas.general),
@@ -143,7 +143,7 @@ for (doc_module, target_module) in function_inherit_modules:
 
 if MODIN_IS_AT_LEAST_0_33_0:
     from modin.config import Engine, Backend, Execution  # isort: skip  # noqa: E402
-else:
+else:  # pragma: no branch
     from modin.config import Engine  # isort: skip  # noqa: E402
 
 # Secretly insert our factory class into Modin so the dispatcher can find it
@@ -256,7 +256,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
             backend="Snowflake",
         )
     Backend.set_active_backends(["Snowflake", "Pandas"])
-else:
+else:  # pragma: no branch
     modin_factories.PandasOnSnowflakeFactory = PandasOnSnowflakeFactory
     Engine.add_option("Snowflake")
     Engine.put("Snowflake")
