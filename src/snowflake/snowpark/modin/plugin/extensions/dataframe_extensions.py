@@ -19,6 +19,7 @@ import pandas
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
@@ -28,14 +29,25 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.row import Row
 
 
-register_dataframe_accessor = functools.partial(
-    _register_dataframe_accessor, backend="Snowflake"
-)
-
-
-_register_dataframe_accessor(name="to_pandas", backend="Pandas")(
-    pd.DataFrame._to_pandas
-)
+if MODIN_IS_AT_LEAST_0_33_0:
+    register_dataframe_accessor = functools.partial(
+        _register_dataframe_accessor, backend="Snowflake"
+    )
+    _register_dataframe_accessor(name="to_pandas", backend="Pandas")(
+        pd.DataFrame._to_pandas
+    )
+    _register_dataframe_accessor(name="to_snowflake", backend="Pandas")(
+        lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowflake(
+            *args, **kwargs
+        )
+    )
+    _register_dataframe_accessor(name="to_snowpark", backend="Pandas")(
+        lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowpark(
+            *args, **kwargs
+        )
+    )
+else:
+    register_dataframe_accessor = _register_dataframe_accessor
 
 
 # Snowflake specific dataframe methods
@@ -79,13 +91,6 @@ def to_snowflake(
 
     """
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
-
-
-_register_dataframe_accessor(name="to_snowflake", backend="Pandas")(
-    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowflake(
-        *args, **kwargs
-    )
-)
 
 
 @register_dataframe_accessor("to_snowpark")
@@ -218,11 +223,6 @@ def to_snowpark(
         <BLANKLINE>
     """
     return self._query_compiler.to_snowpark(index, index_label)
-
-
-_register_dataframe_accessor(name="to_snowpark", backend="Pandas")(
-    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowpark(*args, **kwargs)
-)
 
 
 @register_dataframe_accessor("to_pandas")
