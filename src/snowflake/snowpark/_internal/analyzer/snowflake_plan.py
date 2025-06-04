@@ -1325,9 +1325,7 @@ class SnowflakePlanBuilder:
             source_plan,
         )
 
-    def find_and_update_table_function_plan(
-        self, plan: SnowflakePlan
-    ) -> Optional[SnowflakePlan]:
+    def find_and_update_table_function_plan(self, plan: SnowflakePlan) -> SnowflakePlan:
         """This function is meant to find any udtf function call from a create dynamic table plan and
         replace '*' with explicit column identifier in the select of table function. Since we cannot
         differentiate udtf call from other table functions, we apply this change to all table functions.
@@ -1375,10 +1373,16 @@ class SnowflakePlanBuilder:
                     ] = node.snowflake_plan.children_plan_nodes[0]
                     if isinstance(child_plan, Selectable):
                         child_plan = child_plan.snowflake_plan
-                    assert isinstance(child_plan, SnowflakePlan)
 
                     new_plan = copy.deepcopy(node)
-                    new_plan.snowflake_plan.source_plan.right_cols = (  # type: ignore
+
+                    # type assertions
+                    assert isinstance(child_plan, SnowflakePlan)
+                    assert isinstance(
+                        new_plan.snowflake_plan.source_plan, TableFunctionJoin
+                    )
+
+                    new_plan.snowflake_plan.source_plan.right_cols = (
                         node.snowflake_plan.quoted_identifiers[
                             len(child_plan.quoted_identifiers) :
                         ]
@@ -1409,7 +1413,7 @@ class SnowflakePlanBuilder:
         iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
 
-        child = self.find_and_update_table_function_plan(child)  # type: ignore
+        child = self.find_and_update_table_function_plan(child)
 
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
@@ -1510,10 +1514,16 @@ class SnowflakePlanBuilder:
         column_name_of_corrupt_record = options.get(
             "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
         )
-        strip_namespaces = options.get("STRIPNAMESPACES", True)
+        ignore_namespace = options.get("IGNORENAMESPACE", True)
         attribute_prefix = options.get("ATTRIBUTEPREFIX", "_")
         exclude_attributes = options.get("EXCLUDEATTRIBUTES", False)
         value_tag = options.get("VALUETAG", "_VALUE")
+        # NULLVALUE will be mapped to NULL_IF in pre-defined mapping in `dataframe_writer.py`
+        null_value = options.get("NULL_IF", "")
+        charset = options.get("CHARSET", "utf-8")
+        ignore_surrounding_whitespace = options.get(
+            "IGNORESURROUNDINGWHITESPACE", False
+        )
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1543,10 +1553,13 @@ class SnowflakePlanBuilder:
                 col(worker_column_name),
                 lit(mode),
                 lit(column_name_of_corrupt_record),
-                lit(strip_namespaces),
+                lit(ignore_namespace),
                 lit(attribute_prefix),
                 lit(exclude_attributes),
                 lit(value_tag),
+                lit(null_value),
+                lit(charset),
+                lit(ignore_surrounding_whitespace),
             ),
         )
 
