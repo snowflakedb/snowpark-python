@@ -991,7 +991,7 @@ class _AstState:
         """
         with self._mutex:
             _logger.debug(
-                "Setting AST state. Current state: ast_enabled = %s, state = %s. Request: source = %s, enable = %s.",
+                "Setting AST state. Current state: ast_enabled = %s, state = %s. Request: source = %s, enable = %d.",
                 self._ast_enabled,
                 self._state,
                 source,
