@@ -53,10 +53,15 @@ def setup(request, session):
         session.eliminate_numeric_sql_value_cast_enabled
     )
     session.eliminate_numeric_sql_value_cast_enabled = request.param
+    original = session._generate_multiline_queries
+    if not original:
+        session._enable_multiline_queries()
     yield
     session.eliminate_numeric_sql_value_cast_enabled = (
         is_eliminate_numeric_sql_value_cast_enabled
     )
+    if not original:
+        session._disable_multiline_queries()
 
 
 def get_metadata_names(session: Session, df: DataFrame):

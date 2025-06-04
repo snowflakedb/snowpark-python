@@ -50,6 +50,16 @@ pytestmark = [
 
 
 @pytest.fixture(scope="module", autouse=True)
+def setup(request, session):
+    original = session._generate_multiline_queries
+    if not original:
+        session._enable_multiline_queries()
+    yield
+    if not original:
+        session._disable_multiline_queries()
+
+
+@pytest.fixture(scope="module", autouse=True)
 def skip(pytestconfig):
     if pytestconfig.getoption("disable_sql_simplifier"):
         pytest.skip(
