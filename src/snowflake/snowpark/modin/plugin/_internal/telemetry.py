@@ -648,7 +648,6 @@ if MODIN_IS_AT_LEAST_0_33_0:
             location = frame_before_snowpandas.code_context[0].replace("\n", "")
         return {"group": group, "source": location}
 
-
     def hybrid_metrics_watcher(
         metric_name: str, metric_value: Union[int, float]
     ) -> None:
