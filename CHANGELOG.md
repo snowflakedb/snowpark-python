@@ -46,10 +46,10 @@
 
 #### Dependency Updates
 
-- Updated `modin` dependency constraint from 0.32.0 to >=0.32.0, <0.34.0. The newest tested version is `modin` 0.33.1.
+- Updated `modin` dependency constraint from 0.32.0 to >=0.32.0, <0.34.0. The latest version tested with Snowpark pandas is `modin` 0.33.1.
 
 #### New Features
-- Added support for Hybrid Execution (PrPr). By running `from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()`, Snowpark pandas will automatically choose whether to run certain pandas operations locally or on Snowflake. This feature is disabled by default.
+- Added support for **Hybrid Execution (PrPr)**. By running `from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()`, Snowpark pandas will automatically choose whether to run certain pandas operations locally or on Snowflake. This feature is disabled by default.
 
 
 #### Improvements
