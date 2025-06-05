@@ -336,8 +336,9 @@ class DataFrameWriter:
                 * storage_serialization_policy: specifies the storage serialization policy for the table
 
                 * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
-            table_exists: This parameter allows skipping a potentially expensive table lookup if the existence of the table is known. When
-                truncating or appending to a table this parameter is used if set.
+            table_exists: Optional parameter to specify if the table is known to exist or not.
+                Set to ``True`` if table exists, ``False`` if it doesn't, or ``None`` (default) for automatic detection.
+                Primarily useful for "append" and "truncate" modes to avoid running query for automatic detection.
 
 
         Example 1::
