@@ -1412,7 +1412,7 @@ def test_udtf_artifact_repository(session, resources_path):
         except SnowparkSQLException as ex:
             assert (
                 "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-                in str(ex.value)
+                in str(ex)
             )
 
 

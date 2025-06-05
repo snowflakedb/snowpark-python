@@ -2896,7 +2896,7 @@ def test_register_artifact_repository_negative(session):
         except SnowparkSQLException as ex:
             assert (
                 "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-                in str(ex.value)
+                in str(ex)
             )
 
 
