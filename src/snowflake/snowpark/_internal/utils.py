@@ -934,8 +934,12 @@ class _AstFlagState(IntEnum):
     """The flag is initialized with a hard-coded default. No source has set the value."""
     TENTATIVE = auto()
     """The flag has been set by a source with lower precedence than SERVER. It can be overridden by SERVER."""
+    SERVER_SET = auto()
+    """The flag has been set by SERVER."""
+    USER_SET = auto()
+    """The flag has been set by USER."""
     FINALIZED = auto()
-    """The flag state can only be changed by TEST or USER sources."""
+    """The flag state can only be changed by TEST sources."""
 
 
 class _AstState:
@@ -997,8 +1001,8 @@ class _AstState:
                 source,
                 enable,
             )
-            if source in (AstFlagSource.TEST, AstFlagSource.USER):
-                # TEST/USER behaviors override everything.
+            if source == AstFlagSource.TEST:
+                # TEST behaviors override everything.
                 # If you see this code path running in production, the calling code is broken.
                 self._state = _AstFlagState.FINALIZED
                 self._ast_enabled = enable
@@ -1010,6 +1014,13 @@ class _AstState:
                     enable,
                     source,
                 )
+                return
+
+            if source == AstFlagSource.USER:
+                # User is allowed to override the server setting if it is not
+                # finalized by test.
+                self._ast_enabled = enable
+                self._state = _AstFlagState.USER_SET
                 return
 
             # If the current state is TENTATIVE, and the value is transitioning from disabled -> enabled,
@@ -1026,6 +1037,7 @@ class _AstState:
                     _logger.warning(
                         "Server cannot enable AST after treating it as disabled locally. Ignoring request."
                     )
+                self._state = _AstFlagState.SERVER_SET
             elif source == AstFlagSource.LOCAL:
                 if safe_transition:
                     self._ast_enabled = enable
