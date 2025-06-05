@@ -210,7 +210,7 @@ from snowflake.snowpark._internal.utils import (
     check_create_map_parameter,
     deprecated,
     private_preview,
-    warn_on_spark_semantic_gap,
+    pyspark_migration_helper,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -3745,7 +3745,7 @@ def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-@warn_on_spark_semantic_gap(migration_strategy="Use concat_ws_ignore_nulls instead.")
+@pyspark_migration_helper(migration_strategy="Use concat_ws_ignore_nulls instead.")
 def concat_ws(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Concatenates two or more strings, or concatenates two or more binary values. If any of the values is null, the result is also null.
     The CONCAT_WS operator requires at least two arguments, and uses the first argument to separate all following arguments.
@@ -7144,6 +7144,9 @@ def array_construct_compact(*cols: ColumnOrName, _emit_ast: bool = True) -> Colu
 
 
 @publicapi
+@pyspark_migration_helper(
+    migration_strategy="Arrays are 1-indexed in PySpark, but 0-indexed in Snowpark."
+)
 def array_contains(
     variant: ColumnOrName, array: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
@@ -9161,7 +9164,7 @@ Row(K=4, PERCENTILE=None)]
 
 
 @publicapi
-@warn_on_spark_semantic_gap(migration_strategy="Use greatest_ignore_nulls instead.")
+@pyspark_migration_helper(migration_strategy="Use greatest_ignore_nulls instead.")
 def greatest(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the largest value from a list of expressions.

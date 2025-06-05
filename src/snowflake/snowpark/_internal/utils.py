@@ -1182,7 +1182,7 @@ def private_preview(
     )
 
 
-def warn_on_spark_semantic_gap(*, migration_strategy: str) -> Callable:
+def pyspark_migration_helper(*, migration_strategy: str) -> Callable:
     def wrapper(param_setter_function):
         warning_text = (
             f"{param_setter_function.__name__} is semantically different in behavior from PySpark. "
