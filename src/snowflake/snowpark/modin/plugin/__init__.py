@@ -242,18 +242,14 @@ if MODIN_IS_AT_LEAST_0_33_0:
         ]
     )
 
-    pre_op_points = []
     for point in pre_op_switch_points:
-        pre_op_points.append(f"{point['class_name'] or 'pd'}.{point['method']}")
         register_function_for_pre_op_switch(
             class_name=point["class_name"],
             method=point["method"],
             backend="Snowflake",
         )
 
-    post_op_points = []
     for point in post_op_switch_points:
-        post_op_points.append(f"{point['class_name']}.{point['method']}")
         register_function_for_post_op_switch(
             class_name=point["class_name"],
             method=point["method"],
@@ -361,7 +357,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
     for attr_name in BasePandasDataset.__dict__:
         # To prevent double-counting of APIs, only record telemetry if Series/DataFrame BOTH do not
         # define the method as extensions themselves. This will create under-reporting in certain edge cases
-        # where BasePandasDataset and DataFrame define both a method but Series does not, but few APIs
+        # where BasePandasDataset and DataFrame both define a method but Series does not, but few APIs
         # are affected by this.
         if (
             attr_name not in DataFrame._extensions["Snowflake"]
