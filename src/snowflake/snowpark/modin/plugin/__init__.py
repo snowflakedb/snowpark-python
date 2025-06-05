@@ -305,9 +305,15 @@ if MODIN_IS_AT_LEAST_0_33_0:
     # Telemetry is currently not recorded for the ModinAPI accessor object, which contains methods such as
     # df.modin.to_pandas() that Snowpark pandas raises NotImplementedError for.
     from modin.pandas.base import BasePandasDataset  # isort: skip  # noqa: E402,F401
-    from modin.pandas.api.extensions import (
-        register_base_accessor,
+    from modin.pandas.groupby import (
+        DataFrameGroupBy,
+        SeriesGroupBy,
     )  # isort: skip  # noqa: E402,F401
+    from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
+        register_base_accessor,
+        register_dataframe_groupby_accessor,
+        register_series_groupby_accessor,
+    )
 
     def _maybe_apply_telemetry(
         cls: Union[DataFrame, Series, BasePandasDataset],
@@ -362,6 +368,16 @@ if MODIN_IS_AT_LEAST_0_33_0:
             and attr_name not in Series._extensions["Snowflake"]
         ):
             _maybe_apply_telemetry(BasePandasDataset, register_base_accessor, attr_name)
+
+    for attr_name in DataFrameGroupBy.__dict__:
+        _maybe_apply_telemetry(
+            DataFrameGroupBy, register_dataframe_groupby_accessor, attr_name
+        )
+
+    for attr_name in SeriesGroupBy.__dict__:
+        _maybe_apply_telemetry(
+            SeriesGroupBy, register_series_groupby_accessor, attr_name
+        )
 
     # Apply telemetry to top-level functions in the pd namespace.
     defined_backend = None

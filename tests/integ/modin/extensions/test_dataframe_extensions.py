@@ -90,6 +90,9 @@ def test_dataframe_extension_override_method():
 
     original_method = pd.DataFrame.sum
 
+    if MODIN_IS_AT_LEAST_0_33_0:
+        original_extension = EXTENSIONS_DICT[method_name]
+
     try:
 
         @register_dataframe_accessor(method_name)
@@ -102,5 +105,8 @@ def test_dataframe_extension_override_method():
     finally:
         # Because we're overriding a method on the DataFrame class, we need to restore the original method
         # after we're done, or else other tests that use DataFrame.sum will fail
-        register_dataframe_accessor(method_name)(original_method)
-        del EXTENSIONS_DICT[method_name]
+        if MODIN_IS_AT_LEAST_0_33_0:
+            EXTENSIONS_DICT[method_name] = original_extension
+        else:
+            register_dataframe_accessor(method_name)(original_method)
+            del EXTENSIONS_DICT[method_name]

@@ -86,6 +86,9 @@ def test_series_extension_override_method():
 
     original_method = pd.Series.sum
 
+    if MODIN_IS_AT_LEAST_0_33_0:
+        original_extension = EXTENSIONS_DICT[method_name]
+
     try:
 
         @register_series_accessor(method_name)
@@ -98,5 +101,9 @@ def test_series_extension_override_method():
     finally:
         # Because we're overriding a method on the Series class, we need to restore the original method
         # after we're done, or else other tests that use Series.sum will fail
-        register_series_accessor(method_name)(original_method)
-        del EXTENSIONS_DICT[method_name]
+
+        if MODIN_IS_AT_LEAST_0_33_0:
+            EXTENSIONS_DICT[method_name] = original_extension
+        else:
+            register_series_accessor(method_name)(original_method)
+            del EXTENSIONS_DICT[method_name]
