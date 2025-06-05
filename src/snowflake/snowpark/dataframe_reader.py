@@ -12,8 +12,7 @@ from concurrent.futures import (
     as_completed,
 )
 
-from snowflake.snowpark.data_source import DataSource
-
+import cloudpickle
 import sys
 from logging import getLogger
 import queue
@@ -77,6 +76,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     warning,
     is_in_stored_procedure,
+    generate_random_alphanumeric,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1530,14 +1530,73 @@ class DataFrameReader:
 
     def register_custom_data_source(
         self,
-        data_source: ["DataSource"],
+        data_source,
     ) -> None:
         self.custom_data_sources[data_source.name()] = data_source
 
     def _custom_data_source(self, data_source: str) -> DataFrame:
-        if "udtf_configs" in self._cur_options:
+        if "UDTF_CONFIGS" in self._cur_options:
             # udtf ingestion
-            pass
+            external_access_integrations = self._cur_options["UDTF_CONFIGS"].get(
+                "external_access_integration", None
+            )
+            imports = self._cur_options["UDTF_CONFIGS"].get("imports", None)
+            packages = self._cur_options["UDTF_CONFIGS"].get("packages", None)
+
+            data_source_class = self.custom_data_sources[data_source]
+            data_source_instance = data_source_class()
+            partitions = data_source_instance.partitions()
+            schema = convert_custom_schema_to_structtype(data_source_instance.schema())
+
+            pickled_partitions = [cloudpickle.dumps(par) for par in partitions]
+            partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                [[par] for par in pickled_partitions], schema=["partition"]
+            ).write.save_as_table(partitions_table, table_type="temp")
+
+            class UDTFIngestion:
+                def process(self, pickled_partition: bytearray):
+                    import cloudpickle
+
+                    partition = cloudpickle.loads(pickled_partition)
+                    reader = data_source_instance.reader(schema)
+                    for result in reader.read(partition):
+                        if isinstance(result, list):
+                            yield from result
+                        else:
+                            yield from list(reader.read(partition))
+                            break
+
+            from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
+
+            udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
+            start = time.time()
+            self._session.udtf.register(
+                UDTFIngestion,
+                name=udtf_name,
+                output_schema=StructType(
+                    [
+                        StructField(field.name, VariantType(), field.nullable)
+                        for field in schema.fields
+                    ]
+                ),
+                external_access_integrations=[external_access_integrations],
+                packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
+                imports=imports,
+            )
+            logger.debug(
+                f"register ingestion udtf takes: {time.time() - start} seconds"
+            )
+            call_udtf_sql = f"""
+                        select * from {partitions_table}, table({udtf_name}(partition))
+                        """
+            res = self._session.sql(call_udtf_sql, _emit_ast=True)
+            cols = [
+                res[field.name].cast(field.datatype).alias(field.name)
+                for field in schema.fields
+            ]
+            return res.select(cols, _emit_ast=True)
+
         else:
             data_source_class = self.custom_data_sources[data_source]
             data_source_instance = data_source_class()

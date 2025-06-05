@@ -170,7 +170,11 @@ def _task_fetch_data_from_source(
         df.to_parquet(path)
 
     for i, result in enumerate(worker.read(partition)):
-        convert_to_parquet(result, i)
+        if isinstance(result, list):
+            convert_to_parquet(result, i)
+        else:
+            convert_to_parquet(list(worker.read(partition)), 0)
+            break
 
 
 def _task_fetch_data_from_source_with_retry(

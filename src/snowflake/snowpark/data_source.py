@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Iterator, Any, Union
+from typing import Any, Tuple, Iterator, Union, List
 
 from snowflake.snowpark.types import StructType
 
@@ -16,7 +16,9 @@ class DataSourceReader:
     def __init__(self, schema: StructType) -> None:
         self.schema = schema
 
-    def read(self, partition: InputPartition) -> Iterator[List[Any]]:
+    def read(
+        self, partition: InputPartition
+    ) -> Union[Iterator[Tuple], Iterator[List[Any]]]:
         pass
 
 
