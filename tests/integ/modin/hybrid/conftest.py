@@ -8,41 +8,40 @@ import modin.pandas as pd
 from modin.config import context as config_context
 from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
-if not MODIN_IS_AT_LEAST_0_33_0:  # pragma: no branch
-    pytestmark = pytest.mark.skip(
-        "backend switching tests only work on newer modin versions"
-    )
-
 
 @pytest.fixture(autouse=True, scope="function")
 def enable_autoswitch():
-    with config_context(AutoSwitchBackend=True):
+    if MODIN_IS_AT_LEAST_0_33_0:
+        with config_context(AutoSwitchBackend=True):
+            yield
+    else:
         yield
 
 
 @pytest.fixture(scope="module")
 def init_transaction_tables():
-    session = pd.session
-    session.sql(
+    if MODIN_IS_AT_LEAST_0_33_0:
+        session = pd.session
+        session.sql(
+            """
+        CREATE OR REPLACE TABLE revenue_transactions (
+            Transaction_ID STRING,
+            Date DATE,
+            Revenue FLOAT
+        );"""
+        ).collect()
+        session.sql(
+            """SET num_days = (SELECT DATEDIFF(DAY, '2024-01-01', CURRENT_DATE));"""
+        ).collect()
+        session.sql(
+            """INSERT INTO revenue_transactions (Transaction_ID, Date, Revenue)
+        SELECT
+            UUID_STRING() AS Transaction_ID,
+            DATEADD(DAY, UNIFORM(0, $num_days, RANDOM()), '2024-01-01') AS Date,
+            UNIFORM(10, 1000, RANDOM()) AS Revenue
+        FROM TABLE(GENERATOR(ROWCOUNT => 10000000));
         """
-    CREATE OR REPLACE TABLE revenue_transactions (
-        Transaction_ID STRING,
-        Date DATE,
-        Revenue FLOAT
-    );"""
-    ).collect()
-    session.sql(
-        """SET num_days = (SELECT DATEDIFF(DAY, '2024-01-01', CURRENT_DATE));"""
-    ).collect()
-    session.sql(
-        """INSERT INTO revenue_transactions (Transaction_ID, Date, Revenue)
-    SELECT
-        UUID_STRING() AS Transaction_ID,
-        DATEADD(DAY, UNIFORM(0, $num_days, RANDOM()), '2024-01-01') AS Date,
-        UNIFORM(10, 1000, RANDOM()) AS Revenue
-    FROM TABLE(GENERATOR(ROWCOUNT => 10000000));
-    """
-    ).collect()
+        ).collect()
 
 
 @pytest.fixture
