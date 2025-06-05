@@ -7174,6 +7174,9 @@ def array_contains(
 
 
 @publicapi
+@pyspark_migration_helper(
+    migration_strategy="The position argument `pos` is 1-based in PySpark, but 0-based in Snowpark."
+)
 def array_insert(
     array: ColumnOrName,
     pos: ColumnOrName,
@@ -7222,6 +7225,9 @@ def array_insert(
 
 
 @publicapi
+@pyspark_migration_helper(
+    migration_strategy="The position value is 1-based in PySpark, but 0-based in Snowpark. When value is not found, PySpark returns 0, but Snowpark returns NULL."
+)
 def array_position(
     variant: ColumnOrName, array: ColumnOrName, _emit_ast: bool = True
 ) -> Column:

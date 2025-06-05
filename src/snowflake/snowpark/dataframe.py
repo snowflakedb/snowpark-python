@@ -1754,6 +1754,9 @@ class DataFrame:
     selectExpr = select_expr
 
     @publicapi
+    @pyspark_migration_helper(
+        migration_strategy="Dropping all columns raises SnowparkColumnException in Snowpark, but returns an empty dataframe in PySpark."
+    )
     def drop(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> "DataFrame":
@@ -3133,6 +3136,9 @@ class DataFrame:
     )
     @df_api_usage
     @publicapi
+    @pyspark_migration_helper(
+        migration_strategy="This method is equivalent to PySpark's `subtract` method and does not preserve duplicate rows."
+    )
     def except_(self, other: "DataFrame", _emit_ast: bool = True) -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
         except for the rows that also appear in the ``other`` DataFrame. Duplicate rows are eliminated.
