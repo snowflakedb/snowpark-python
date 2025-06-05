@@ -5,6 +5,7 @@ import multiprocessing as mp
 import os
 import sys
 import time
+
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
@@ -57,13 +58,14 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_aliased_option_name,
     get_copy_into_table_options,
-    parse_positional_args_to_list_variadic,
-    publicapi,
+    get_stage_parts,
     get_temp_type_for_object,
+    is_in_stored_procedure,
+    parse_positional_args_to_list_variadic,
     private_preview,
+    publicapi,
     random_name_for_temp_object,
     warning,
-    is_in_stored_procedure,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -870,7 +872,7 @@ class DataFrameReader:
               + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
                 The default value is '_corrupt_record'.
 
-              + ``stripNamespaces``: remove namespace prefixes from XML element names when constructing result column names.
+              + ``ignoreNamespace``: remove namespace prefixes from XML element names when constructing result column names.
                 The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
                 it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
                 For example, for the following XML data with a row tag ``abc:def``:
@@ -889,6 +891,9 @@ class DataFrameReader:
               + ``nullValue``: The value to treat as a null value. The default value is ``""``.
 
               + ``charset``: The character encoding of the XML file. The default value is ``utf-8``.
+
+              + ``ignoreSurroundingWhitespace``: Whether or not whitespaces surrounding values should be skipped.
+                The default value is ``False``.
         """
         df = self._read_semi_structured_file(path, "XML")
 
@@ -954,7 +959,9 @@ class DataFrameReader:
         return self
 
     def _infer_schema_for_file_format(
-        self, path: str, format: str
+        self,
+        path: str,
+        format: str,
     ) -> Tuple[List, List, List, Exception]:
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
@@ -964,10 +971,33 @@ class DataFrameReader:
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
-        infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", None)
+        infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", {})
+
+        # When pattern is set we should only consider files that match the pattern during schema inference
+        # If no files match fallback to trying to read all files.
+        infer_path = path
+        if (
+            pattern := self._cur_options.get("PATTERN", None)
+        ) and "FILES" not in infer_schema_options:
+            # matches has schema (name, size, md5, last_modified)
+            # Name is fully qualified with stage path
+            matches = self._session._conn.run_query(
+                f"list {path} pattern = '{pattern}'"
+            )["data"]
+
+            if len(matches):
+                # Constuct a list of file prefixes not including the stage
+                files = [m[0].partition("/")[2] for m in matches]
+                infer_schema_options["FILES"] = files
+
+                # Reconstruct path using just stage and any qualifiers
+                stage, _ = get_stage_parts(path)
+                infer_path = path.partition(stage)[0] + stage
+
         infer_schema_query = infer_schema_statement(
-            path, file_format_name, infer_schema_options
+            infer_path, file_format_name, infer_schema_options or None
         )
+
         try:
             if use_temp_file_format:
                 self._session._conn.run_query(

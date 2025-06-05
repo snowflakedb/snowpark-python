@@ -9,6 +9,7 @@
 - Added support for MySQL in `DataFrameWriter.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for PostgreSQL in `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for Databricks in `DataFrameWriter.dbapi` (PrPr) for UDTF-based ingestion.
+- Added support to `DataFrameReader` to enable use of `PATTERN` when reading files with `INFER_SCHEMA` enabled.
 
 #### Bug Fixes
 
@@ -17,16 +18,18 @@
 - Fixed a bug in `DataFrameReader.json` where repeated reads with the same reader object would create incorrectly quoted columns.
 - Fixed a bug in `DataFrame.to_pandas()` that would drop column names when converting a dataframe that did not originate from a select statement.
 - Fixed a bug that `DataFrame.create_or_replace_dynamic_table` raises error when the dataframe contains a UDTF and `SELECT *` in UDTF not being parsed correctly.
+- Fixed a bug where casted columns could not be used in the values-clause of in functions.
 
 #### Improvements
 
 - Added support for more options when reading XML files with a row tag using `rowTag` option:
-  - Added support for removing namespace prefixes from col names using `stripNamespaces` option.
+  - Added support for removing namespace prefixes from col names using `ignoreNamespace` option.
   - Added support for specifying the prefix for the attribute column in the result table using `attributePrefix` option.
   - Added support for excluding attributes from the XML element using `excludeAttributes` option.
   - Added support for specifying the column name for the value when there are attributes in an element that has no child elements using `valueTag` option.
   - Added support for specifying the value to treat as a ``null`` value using `nullValue` option.
   - Added support for specifying the character encoding of the XML file using `charset` option.
+  - Added support for ignoring surrounding whitespace in the XML element using `ignoreSurroundingWhitespace` option.
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
@@ -39,6 +42,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `Column.isin` that would cause incorrect filtering on joined or previously filtered data.
+- Fixed a bug in `snowflake.snowpark.functions.concat_ws` that would cause results to have an incorrect index.
 
 ### Snowpark pandas API Updates
 
@@ -65,6 +69,7 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+- Fixed a bug duplicated `native_app_params` parameters in register udaf function.
 
 ### Snowpark Local Testing Updates
 
