@@ -12,6 +12,7 @@ from typing import Dict, List, Tuple
 import pytest
 
 from snowflake.snowpark import Row, Table, context
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
@@ -1389,19 +1390,30 @@ def test_udtf_artifact_repository(session, resources_path):
         ],
     )
 
-    try:
-        ar_udtf = session.udtf.register(
-            ArtifactRepositoryUDTF,
-            output_schema=StructType([StructField("a", StringType())]),
-            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            packages=["urllib3", "requests"],
-            resource_constraint={"architecture": "x86"},
+    warehouse_info = (
+        session.sql(
+            f"show warehouses like '{unquote_if_quoted(session.get_current_warehouse())}'"
         )
-    except SnowparkSQLException as ex:
-        assert (
-            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-            in str(ex.value)
-        )
+        .select('"is_current"', '"resource_constraint"')
+        .collect()
+    )
+    active, resource_constraint = warehouse_info[0]
+
+    # Only test error case on ARM warehouse. X86 warehouse will have a resource constraint
+    if len(warehouse_info) == 1 and active == "Y" and resource_constraint is None:
+        try:
+            ar_udtf = session.udtf.register(
+                ArtifactRepositoryUDTF,
+                output_schema=StructType([StructField("a", StringType())]),
+                artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+                packages=["urllib3", "requests"],
+                resource_constraint={"architecture": "x86"},
+            )
+        except SnowparkSQLException as ex:
+            assert (
+                "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
+                in str(ex.value)
+            )
 
 
 @pytest.mark.skipif(
