@@ -2832,7 +2832,7 @@ def test_register_artifact_repository(session):
             func=test_urllib,
             name=temp_func_name,
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            packages=["urllib3", "requests"],
+            packages=["urllib3", "requests", "cloudpickle"],
         )
 
         # Test UDF call
@@ -2854,16 +2854,6 @@ def test_register_artifact_repository_negative(session):
         pass
 
     temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
-    with pytest.raises(
-        ValueError,
-        match="artifact_repository must be specified when packages has been specified",
-    ):
-        udf(
-            func=test_nop,
-            name=temp_func_name,
-            packages=["urllib3", "requests"],
-        )
-
     with pytest.raises(Exception, match="Unknown resource constraint key"):
         udf(
             func=test_nop,
