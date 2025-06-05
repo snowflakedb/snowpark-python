@@ -634,7 +634,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
         stack = inspect.stack()
         frame_before_snowpandas = None
         location = "<unknown>"
-        for _i, f in enumerate(reversed(stack)):
+        for f in reversed(stack):
             if f.filename is None:
                 continue
             if "snowpark" in f.filename or "modin" in f.filename:
@@ -648,9 +648,6 @@ if MODIN_IS_AT_LEAST_0_33_0:
             location = frame_before_snowpandas.code_context[0].replace("\n", "")
         return {"group": group, "source": location}
 
-    def get_hybrid_switch_log() -> native_pd.DataFrame:
-        global hybrid_switch_log
-        return hybrid_switch_log.copy()
 
     def hybrid_metrics_watcher(
         metric_name: str, metric_value: Union[int, float]

@@ -37,8 +37,8 @@ def init_transaction_tables():
             """INSERT INTO revenue_transactions (Transaction_ID, Date, Revenue)
         SELECT
             UUID_STRING() AS Transaction_ID,
-            DATEADD(DAY, UNIFORM(0, $num_days, RANDOM()), '2024-01-01') AS Date,
-            UNIFORM(10, 1000, RANDOM()) AS Revenue
+            DATEADD(DAY, UNIFORM(0, $num_days, RANDOM(0)), '2024-01-01') AS Date,
+            UNIFORM(10, 1000, RANDOM(0)) AS Revenue
         FROM TABLE(GENERATOR(ROWCOUNT => 10000000));
         """
         ).collect()
