@@ -500,7 +500,7 @@ def create_initial_ordered_dataframe(
         )
     # Set the materialized row count
     materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
-        _emit_ast=False
+        statement_params=get_default_snowpark_pandas_statement_params(), _emit_ast=False
     )
     ordered_dataframe.row_count = materialized_row_count
     ordered_dataframe.row_count_upper_bound = materialized_row_count
