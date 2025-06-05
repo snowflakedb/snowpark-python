@@ -41,6 +41,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `Column.isin` that would cause incorrect filtering on joined or previously filtered data.
+- Fixed a bug in `snowflake.snowpark.functions.concat_ws` that would cause results to have an incorrect index.
 
 ### Snowpark pandas API Updates
 
