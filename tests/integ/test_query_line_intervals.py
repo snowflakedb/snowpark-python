@@ -18,16 +18,6 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup(request, session):
-    original = session._generate_multiline_queries
-    if not original:
-        session._enable_multiline_queries()
-    yield
-    if not original:
-        session._disable_multiline_queries()
-
-
 @pytest.fixture(scope="module")
 def test_data(session):
     df1 = session.create_dataframe([[1, "A", 100], [2, "B", 200]]).to_df(
