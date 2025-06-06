@@ -1009,13 +1009,15 @@ class _AstState:
                 return
             if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
                 _logger.warning(
-                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s from source %s.",
+                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s.",
                     self._ast_enabled,
                     enable,
-                    source,
                 )
                 return
 
+            # User is allowed to make the disabled -> enabled transition which is considered unsafe.
+            # This is only intended for case when the user wants to enable AST immediately after session
+            # is initialized.
             if source == AstFlagSource.USER:
                 # User is allowed to override the server setting if it is not
                 # finalized by test.
