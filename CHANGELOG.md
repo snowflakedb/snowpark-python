@@ -24,7 +24,7 @@
 
 #### New Features
 
-- Add support for snow urls (snow://) in local file testing
+- Added support for snow urls (snow://) in local file testing.
 
 #### Bug Fixes
 
