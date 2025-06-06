@@ -28,8 +28,9 @@ def test_sql_exception_from_programming_error(debug_context):
     assert ex.sql_error_code == 123
     assert ex.raw_message == "test message"
     assert ex.debug_context == debug_context
+    debug_message = f"\n{debug_context}" if debug_context else ""
 
-    assert str(ex) == f"(1304): 0000-1111: 000123: test message{debug_context or ''}"
+    assert str(ex) == f"(1304): 0000-1111: 000123: test message{debug_message}"
 
 
 def test_sql_exception_from_operational_error():
