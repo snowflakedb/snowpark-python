@@ -5,6 +5,9 @@ import logging
 from enum import Enum
 from typing import Callable, List, Any, TYPE_CHECKING
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
+)
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark.functions import to_variant, parse_json, column
@@ -209,7 +212,9 @@ class Psycopg2Driver(BaseDriver):
                 data_type = snow_type(TimestampTimeZone.TZ)
             else:
                 data_type = snow_type()
-            fields.append(StructField(name, data_type, True))
+            fields.append(
+                StructField(quote_name_without_upper_casing(name), data_type, True)
+            )
         return StructType(fields)
 
     @staticmethod

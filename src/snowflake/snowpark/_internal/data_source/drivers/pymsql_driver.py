@@ -7,6 +7,10 @@ from decimal import Decimal
 from datetime import date, datetime, timedelta
 from typing import List, Any, Type, TYPE_CHECKING
 import logging
+
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
+)
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
@@ -179,7 +183,9 @@ class PymysqlDriver(BaseDriver):
                 data_type = snow_type(TimestampTimeZone.NTZ)
             else:
                 data_type = snow_type()
-            fields.append(StructField(name, data_type, null_ok))
+            fields.append(
+                StructField(quote_name_without_upper_casing(name), data_type, null_ok)
+            )
         return StructType(fields)
 
     def udtf_class_builder(
