@@ -66,16 +66,6 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup(request, session):
-    original = session._generate_multiline_queries
-    if not original:
-        session._enable_multiline_queries()
-    yield
-    if not original:
-        session._disable_multiline_queries()
-
-
 def reset_node(node: LogicalPlan, query_generator: QueryGenerator) -> None:
     def reset_selectable(selectable_node: Selectable) -> None:
         # reset the analyzer to use the current query generator instance to

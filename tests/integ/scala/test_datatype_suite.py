@@ -75,16 +75,6 @@ select
 """
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup(request, session):
-    original = session._generate_multiline_queries
-    if not original:
-        session._enable_multiline_queries()
-    yield
-    if not original:
-        session._disable_multiline_queries()
-
-
 # make sure dataframe creation is the same as _STRUCTURED_DATAFRAME_QUERY
 def _create_test_dataframe(s, structured_type_support):
     nested_field_name = "b" if structured_type_support else "B"
