@@ -40,6 +40,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### New Features
+
+- Added support for snow urls (snow://) in local file testing.
+
 #### Bug Fixes
 
 - Fixed a bug in `Column.isin` that would cause incorrect filtering on joined or previously filtered data.
