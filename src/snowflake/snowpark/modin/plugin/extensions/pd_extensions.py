@@ -9,7 +9,7 @@ under the `pd` namespace, such as `pd.read_snowflake`.
 from typing import Any, Iterable, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
-from modin.pandas.api.extensions import register_pd_accessor
+from .general_overrides import register_pd_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame

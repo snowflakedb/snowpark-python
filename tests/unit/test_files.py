@@ -5,7 +5,7 @@
 from functools import partial
 
 import pytest
-
+import re
 from snowflake.snowpark.files import _DEFER_IMPLEMENTATION_ERR_MSG, SnowflakeFile
 
 
@@ -14,11 +14,37 @@ def test_create_snowflakefile():
         assert snowflake_file._file_location == "test_file_location"
         assert snowflake_file._mode == "r"
 
+    with SnowflakeFile.open("test_file_location", mode="rb") as snowflake_file:
+        assert snowflake_file._file_location == "test_file_location"
+        assert snowflake_file._mode == "rb"
+
+    with pytest.raises(
+        ValueError,
+        match="Invalid mode 'rw' for SnowflakeFile.open. Supported modes are 'r' and 'rb'.",
+    ):
+        snowflake_file = SnowflakeFile.open("test_file_location", mode="rw")
+
 
 def test_write_snowflakefile():
-    with SnowflakeFile.open_new_result("w") as snowflake_file:
-        assert snowflake_file._file_location == "new results file"
+    with SnowflakeFile.open_new_result() as snowflake_file:
+        assert snowflake_file._file_location is not None
         assert snowflake_file._mode == "w"
+
+    with SnowflakeFile.open_new_result("w") as snowflake_file:
+        assert snowflake_file._file_location is not None
+        assert snowflake_file._mode == "w"
+
+    with SnowflakeFile.open_new_result("wb") as snowflake_file:
+        assert snowflake_file._file_location is not None
+        assert snowflake_file._mode == "wb"
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Invalid mode 'w+' for SnowflakeFile.open_new_result. Supported modes are 'w' and 'wb'."
+        ),
+    ):
+        snowflake_file = SnowflakeFile.open_new_result("w+")
 
 
 def test_snowflake_file_attribute():

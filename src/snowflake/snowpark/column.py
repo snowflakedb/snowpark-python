@@ -721,7 +721,9 @@ class Column:
 
             def validate_value(value_expr: Expression):
                 # literal and column
-                if isinstance(value_expr, (Literal, Attribute, UnresolvedAttribute)):
+                if isinstance(
+                    value_expr, (Literal, Attribute, UnresolvedAttribute, Cast)
+                ):
                     return
                 elif isinstance(value_expr, MultipleExpression):
                     for expr in value_expr.expressions:
