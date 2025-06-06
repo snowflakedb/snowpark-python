@@ -13,6 +13,7 @@
 - Added support for the following AI-powered functions in `functions.py`:
   - `ai_similarity`
   - `ai_summarize_agg` (originally `summarize_agg`)
+  - different config options for `ai_classify`
 
 #### Bug Fixes
 
