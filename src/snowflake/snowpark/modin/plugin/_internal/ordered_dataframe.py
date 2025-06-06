@@ -236,6 +236,11 @@ class OrderedDataFrame:
     # row count snowflake quoted identifier
     row_count_snowflake_quoted_identifier: Optional[str]
 
+    # possible cached value of exact row count for this dataframe
+    row_count: Optional[int]
+    # possible cached estimate for the upper limit of the number of rows in this frame
+    row_count_upper_bound: Optional[int]
+
     def __init__(
         self,
         dataframe_ref: DataFrameReference,
