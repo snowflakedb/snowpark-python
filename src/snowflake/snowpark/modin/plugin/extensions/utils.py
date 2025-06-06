@@ -25,6 +25,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     get_pandas_aggr_func_name,
 )
 from snowflake.snowpark.modin.utils import Fn
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 cache_result_docstring = """
 Persists the current Snowpark pandas {object_name} to a temporary table to improve the latency of subsequent operations.
@@ -276,9 +277,12 @@ def extract_validate_and_try_convert_named_aggs_from_kwargs(
     """
     from modin.pandas import Series
 
-    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-        SeriesGroupBy,
-    )
+    if MODIN_IS_AT_LEAST_0_33_0:
+        from modin.pandas.groupby import SeriesGroupBy
+    else:  # pragma: no branch
+        from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+            SeriesGroupBy,
+        )
 
     is_series_like = isinstance(obj, (Series, SeriesGroupBy))
     named_aggs = {}

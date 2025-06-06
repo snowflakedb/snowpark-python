@@ -526,8 +526,8 @@ def test_select_with_table_function_join(session):
         def process(self, n: int) -> Iterable[Tuple[int, int]]:
             yield (2 * n, 3 * n)
 
-    df1 = df.select("a", split_to_table("c", lit(" ")))
-    df2 = df.select("a", multiplier_udtf(df.b))
+    df1 = df.select(col("a"), split_to_table("c", lit(" ")))
+    df2 = df.select(col("a"), multiplier_udtf(df.b))
     # test multiple selects are flattened
     expected = [Row(1), Row(1), Row(1), Row(2), Row(2), Row(2)]
     df3 = df1.select("a", "seq").select("a").select("a")

@@ -47,7 +47,13 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils, multithreaded_run
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    TestFiles,
+    Utils,
+    multithreaded_run,
+)
 
 test_file_csv = "testCSV.csv"
 test_file_cvs_various_data = "testCSVvariousData.csv"
@@ -978,6 +984,10 @@ def test_read_csv_with_quotes_containing_delimiter(session, mode):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1435385 DataFrameReader.with_metadata is not supported",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS,
+    reason="metadata info is not available in localfs",
 )
 @pytest.mark.parametrize(
     "file_format", ["csv", "json", "avro", "parquet", "xml", "orc"]

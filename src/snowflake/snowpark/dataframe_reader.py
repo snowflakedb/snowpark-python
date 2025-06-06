@@ -872,7 +872,7 @@ class DataFrameReader:
               + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
                 The default value is '_corrupt_record'.
 
-              + ``stripNamespaces``: remove namespace prefixes from XML element names when constructing result column names.
+              + ``ignoreNamespace``: remove namespace prefixes from XML element names when constructing result column names.
                 The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
                 it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
                 For example, for the following XML data with a row tag ``abc:def``:
@@ -891,6 +891,9 @@ class DataFrameReader:
               + ``nullValue``: The value to treat as a null value. The default value is ``""``.
 
               + ``charset``: The character encoding of the XML file. The default value is ``utf-8``.
+
+              + ``ignoreSurroundingWhitespace``: Whether or not whitespaces surrounding values should be skipped.
+                The default value is ``False``.
         """
         df = self._read_semi_structured_file(path, "XML")
 

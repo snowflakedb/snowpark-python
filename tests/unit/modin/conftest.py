@@ -10,10 +10,24 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
 from snowflake.snowpark.types import StringType
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.config import AutoSwitchBackend
+
+    # Disable automatic backend selection for hybrid execution by default.
+    AutoSwitchBackend.disable()
+
+    @pytest.fixture(scope="function", autouse=True)
+    def mock_session():
+        # Temporary fix for SNOW-2132871
+        # Modin QC code tries to find an active session even with auto-switching disabled
+        with mock.patch("snowflake.snowpark.context.get_active_session"):
+            yield
 
 
 @pytest.fixture(scope="function")

@@ -13,6 +13,7 @@ and if possible, whether this can be reconciled with upstream Modin.
 from __future__ import annotations
 
 import copy
+import functools
 import pickle as pkl
 import warnings
 from collections.abc import Sequence
@@ -23,10 +24,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas
 from modin.pandas import Series
-from modin.pandas.api.extensions import (
-    register_dataframe_accessor,
-    register_series_accessor,
-)
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas._libs import lib
@@ -66,6 +63,7 @@ from pandas.util._validators import (
     validate_percentile,
 )
 
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
@@ -88,50 +86,69 @@ _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
     "pct_change(axis=1) is invalid when one column is Timedelta another column is not."
 )
 
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.pandas.api.extensions import register_base_accessor
 
-def register_base_override(method_name: str):
-    """
-    Decorator function to override a method on BasePandasDataset. Since Modin does not provide a mechanism
-    for directly overriding methods on BasePandasDataset, we mock this by performing the override on
-    DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
-    to allow both the docstring extension and method dispatch to work properly.
-    """
+    register_base_override = functools.partial(
+        register_base_accessor, backend="Snowflake"
+    )
 
-    def decorator(base_method: Any):
-        parent_method = getattr(BasePandasDataset, method_name, None)
-        if isinstance(parent_method, property):
-            parent_method = parent_method.fget
-        # If the method was not defined on Series/DataFrame and instead inherited from the superclass
-        # we need to override it as well.
-        series_method = getattr(pd.Series, method_name, None)
-        if isinstance(series_method, property):
-            series_method = series_method.fget
-        if (
-            series_method is None
-            or series_method is parent_method
-            or parent_method is None
-        ):
-            register_series_accessor(method_name)(base_method)
-        df_method = getattr(pd.DataFrame, method_name, None)
-        if isinstance(df_method, property):
-            df_method = df_method.fget
-        if df_method is None or df_method is parent_method or parent_method is None:
-            register_dataframe_accessor(method_name)(base_method)
-        # Replace base method
-        setattr(BasePandasDataset, method_name, base_method)
-        return base_method
+    def register_base_not_implemented():
+        def decorator(base_method: Any):
+            return register_base_override(name=base_method.__name__)(
+                base_not_implemented()(base_method)
+            )
 
-    return decorator
+        return decorator
 
+else:  # pragma: no branch
+    from modin.pandas.api.extensions import (
+        register_dataframe_accessor,
+        register_series_accessor,
+    )
 
-def register_base_not_implemented():
-    def decorator(base_method: Any):
-        func = base_not_implemented()(base_method)
-        register_series_accessor(base_method.__name__)(func)
-        register_dataframe_accessor(base_method.__name__)(func)
-        return func
+    def register_base_override(method_name: str):
+        """
+        Decorator function to override a method on BasePandasDataset. Since Modin does not provide a mechanism
+        for directly overriding methods on BasePandasDataset, we mock this by performing the override on
+        DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
+        to allow both the docstring extension and method dispatch to work properly.
+        """
 
-    return decorator
+        def decorator(base_method: Any):
+            parent_method = getattr(BasePandasDataset, method_name, None)
+            if isinstance(parent_method, property):
+                parent_method = parent_method.fget
+            # If the method was not defined on Series/DataFrame and instead inherited from the superclass
+            # we need to override it as well.
+            series_method = getattr(pd.Series, method_name, None)
+            if isinstance(series_method, property):
+                series_method = series_method.fget
+            if (
+                series_method is None
+                or series_method is parent_method
+                or parent_method is None
+            ):
+                register_series_accessor(method_name)(base_method)
+            df_method = getattr(pd.DataFrame, method_name, None)
+            if isinstance(df_method, property):
+                df_method = df_method.fget
+            if df_method is None or df_method is parent_method or parent_method is None:
+                register_dataframe_accessor(method_name)(base_method)
+            # Replace base method
+            setattr(BasePandasDataset, method_name, base_method)
+            return base_method
+
+        return decorator
+
+    def register_base_not_implemented():
+        def decorator(base_method: Any):
+            func = base_not_implemented()(base_method)
+            register_series_accessor(base_method.__name__)(func)
+            register_dataframe_accessor(base_method.__name__)(func)
+            return func
+
+        return decorator
 
 
 # === UNIMPLEMENTED METHODS ===
@@ -451,9 +468,11 @@ def truncate(
     pass  # pragma: no cover
 
 
-@register_base_not_implemented()
-def update(self, other) -> None:  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+if not MODIN_IS_AT_LEAST_0_33_0:
+
+    @register_base_not_implemented()
+    def update(self, other) -> None:  # noqa: PR01, RT01, D200
+        pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -821,17 +840,17 @@ def var(
     )
 
 
-def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
-    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
-    # a column named "_attrs"
-    self._query_compiler._attrs = copy.deepcopy(value)
+if not MODIN_IS_AT_LEAST_0_33_0:
 
+    def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+        # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+        # a column named "_attrs"
+        self._query_compiler._attrs = copy.deepcopy(value)
 
-def _get_attrs(self) -> dict:  # noqa: RT01, D200
-    return self._query_compiler._attrs
+    def _get_attrs(self) -> dict:  # noqa: RT01, D200
+        return self._query_compiler._attrs
 
-
-register_base_override("attrs")(property(_get_attrs, _set_attrs))
+    register_base_override("attrs")(property(_get_attrs, _set_attrs))
 
 
 @register_base_override("align")

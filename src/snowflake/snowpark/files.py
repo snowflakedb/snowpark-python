@@ -13,6 +13,7 @@ from __future__ import annotations
 import array
 import io
 import sys
+import tempfile
 from io import RawIOBase
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -88,6 +89,10 @@ class SnowflakeFile(RawIOBase):
             is_owner_file: (Deprecated) A boolean value, if True, the API is intended to access owner's files and all URI/URL are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped URL is allowed.
             require_scoped_url: A boolean value, if True, file_location must be a scoped URL. A scoped URL ensures that the caller cannot access the UDF owners files that the caller does not have access to.
         """
+        if mode not in ("r", "rb"):
+            raise ValueError(
+                f"Invalid mode '{mode}' for SnowflakeFile.open. Supported modes are 'r' and 'rb'."
+            )
         return cls(
             file_location, mode, is_owner_file, require_scoped_url=require_scoped_url
         )
@@ -102,7 +107,16 @@ class SnowflakeFile(RawIOBase):
         Args:
             mode: A string used to mark the type of an IO stream. Supported modes are "w" for text write and "wb" for binary write.
         """
-        return cls("new results file", mode, require_scoped_url=0, from_result_api=True)
+        if mode not in ("w", "wb"):
+            raise ValueError(
+                f"Invalid mode '{mode}' for SnowflakeFile.open_new_result. Supported modes are 'w' and 'wb'."
+            )
+        return cls(
+            tempfile.NamedTemporaryFile().name,
+            mode,
+            require_scoped_url=0,
+            from_result_api=True,
+        )
 
     def close(self) -> None:
         """

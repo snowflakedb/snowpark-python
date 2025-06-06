@@ -2,7 +2,7 @@
 GroupBy
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.plugin.extensions.groupby_overrides
+.. currentmodule:: modin.pandas.groupby
 .. rubric:: :doc:`All supported groupby APIs <supported/groupby_supported>`
 
 .. rubric:: Indexing, iteration

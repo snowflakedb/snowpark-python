@@ -5,4 +5,7 @@
         <str2></str2>
         <str3 id="empty">xxx</str3>
     </test>
+    <test2>
+        <str4 id="  empty"> xxx  </str4>
+    </test2>
 </tag>

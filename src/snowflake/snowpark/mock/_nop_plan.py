@@ -76,14 +76,14 @@ def resolve_attributes(
         project_attributes = {
             unquote_if_quoted(attr.name): attr for attr in plan.project_list
         }
+        child_attributes = resolve_attributes(plan.children[0], session)
         if len(project_attributes) == 1 and (
             "*" in project_attributes or "STAR()" in project_attributes
         ):
-            attributes = plan.children[0].attributes
+            attributes = child_attributes
         else:
             source_attributes = {
-                unquote_if_quoted(attr.name): attr
-                for attr in plan.children[0].attributes
+                unquote_if_quoted(attr.name): attr for attr in child_attributes
             }
             attributes = [
                 Attribute(

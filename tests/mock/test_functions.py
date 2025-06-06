@@ -16,6 +16,7 @@ from snowflake.snowpark.functions import (
     asc,
     call_function,
     col,
+    concat_ws,
     contains,
     count,
     current_date,
@@ -580,3 +581,10 @@ def test_array_construct_indexing(session):
         filtered = df.filter(col("a") == n)
         filtered = filtered.with_column("arr", array_construct(*["a", "b", "c"]))
         Utils.check_answer(filtered, result)
+
+
+def test_concat_ws_indexing(session):
+    df = session.create_dataframe([(1, "A"), (2, "B"), (3, "C")], schema=["A", "B"])
+    filtered = df.where(df.A > 1)
+    final = filtered.with_column("concat", concat_ws(lit("-"), "A", "B"))
+    Utils.check_answer(final, [Row(2, "B", "2-B"), Row(3, "C", "3-C")])

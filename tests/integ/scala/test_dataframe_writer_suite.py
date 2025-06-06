@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from unittest.mock import patch
 from tests.utils import TestFiles, Utils, iceberg_supported, is_in_stored_procedure
 
 
@@ -692,6 +693,40 @@ def test_write_table_names(session, db_parameters):
         # drop schema
         Utils.drop_schema(session, schema)
         Utils.drop_schema(session, double_quoted_schema)
+
+
+def test_skip_table_exists_check(session, local_testing_mode):
+    table_name = Utils.random_table_name()
+    df = session.create_dataframe([1, 2, 3], schema=["A"])
+
+    try:
+        with patch.object(
+            session, "_table_exists", wraps=session._table_exists
+        ) as table_exists:
+            # Truncate before table exists
+            df.write.save_as_table(table_name, mode="truncate", table_exists=False)
+            assert not table_exists.called
+            # Append to existing table
+            df.write.save_as_table(table_name, mode="append", table_exists=True)
+            assert not table_exists.called
+            Utils.drop_table(session, table_name)
+
+            if not local_testing_mode:
+                # Try appending to non-existent table
+                with pytest.raises(
+                    SnowparkSQLException, match="does not exist or not authorized"
+                ):
+                    df.write.save_as_table(table_name, mode="append", table_exists=True)
+
+                # Try truncating to non-existent table
+                with pytest.raises(
+                    SnowparkSQLException, match="does not exist or not authorized"
+                ):
+                    df.write.save_as_table(
+                        table_name, mode="truncate", table_exists=True
+                    )
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 @pytest.mark.skipif(

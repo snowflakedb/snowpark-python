@@ -18,7 +18,7 @@ def mock_server_connection():
 
 @pytest.fixture(scope="function")
 def session(mock_server_connection):
-    with Session(mock_server_connection) as s:
+    with Session.builder.config("local_testing", True).create() as s:
         yield s
 
 

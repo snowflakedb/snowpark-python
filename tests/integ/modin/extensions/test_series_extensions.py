@@ -15,12 +15,23 @@
 # ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
+import functools
 import modin.pandas as pd
 import pandas as native_pd
 from modin.pandas.api.extensions import register_series_accessor
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from tests.integ.utils.sql_counter import sql_count_checker
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    EXTENSIONS_DICT = pd.Series._extensions["Snowflake"]
+
+    register_series_accessor = functools.partial(
+        register_series_accessor, backend="Snowflake"
+    )
+else:  # pragma: no branch
+    EXTENSIONS_DICT = pd.series._SERIES_EXTENSIONS_
 
 
 @sql_count_checker(query_count=0)
@@ -33,8 +44,8 @@ def test_series_extension_simple_method():
     def my_method_implementation(self):
         return expected_string_val
 
-    assert method_name in pd.series._SERIES_EXTENSIONS_.keys()
-    assert pd.series._SERIES_EXTENSIONS_[method_name] is my_method_implementation
+    assert method_name in EXTENSIONS_DICT.keys()
+    assert EXTENSIONS_DICT[method_name] is my_method_implementation
     assert ser.new_method() == expected_string_val
 
 
@@ -45,8 +56,8 @@ def test_series_extension_non_method():
     register_series_accessor(attribute_name)(expected_val)
     ser = pd.Series([1, 2, 3])
 
-    assert attribute_name in pd.series._SERIES_EXTENSIONS_.keys()
-    assert pd.series._SERIES_EXTENSIONS_[attribute_name] == 4
+    assert attribute_name in EXTENSIONS_DICT.keys()
+    assert EXTENSIONS_DICT[attribute_name] == 4
     assert ser.four == expected_val
 
 
@@ -61,8 +72,8 @@ def test_series_extension_access_existing_methods():
     def ext_new_method(self):
         return self.sum() / self.count()
 
-    assert method_name in pd.series._SERIES_EXTENSIONS_.keys()
-    assert pd.series._SERIES_EXTENSIONS_[method_name] is ext_new_method
+    assert method_name in EXTENSIONS_DICT.keys()
+    assert EXTENSIONS_DICT[method_name] is ext_new_method
     assert ser.self_accessor() == expected_result
 
 
@@ -75,17 +86,24 @@ def test_series_extension_override_method():
 
     original_method = pd.Series.sum
 
+    if MODIN_IS_AT_LEAST_0_33_0:
+        original_extension = EXTENSIONS_DICT[method_name]
+
     try:
 
         @register_series_accessor(method_name)
         def my_method(self):
             return expected_result
 
-        assert method_name in pd.series._SERIES_EXTENSIONS_.keys()
-        assert pd.series._SERIES_EXTENSIONS_[method_name] is my_method
+        assert method_name in EXTENSIONS_DICT.keys()
+        assert EXTENSIONS_DICT[method_name] is my_method
         assert ser.sum() == expected_result
     finally:
         # Because we're overriding a method on the Series class, we need to restore the original method
         # after we're done, or else other tests that use Series.sum will fail
-        register_series_accessor(method_name)(original_method)
-        del pd.series._SERIES_EXTENSIONS_[method_name]
+
+        if MODIN_IS_AT_LEAST_0_33_0:
+            EXTENSIONS_DICT[method_name] = original_extension
+        else:
+            register_series_accessor(method_name)(original_method)
+            del EXTENSIONS_DICT[method_name]

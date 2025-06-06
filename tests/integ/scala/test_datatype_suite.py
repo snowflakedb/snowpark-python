@@ -1724,3 +1724,20 @@ def test_nest_struct_field_names(structured_type_session, structured_type_suppor
         [{"A": {"field with space": "value"}}], schema
     )
     Utils.check_answer(df, [Row(A=Row(**{"field with space": "value"}))])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not use lob.",
+)
+@pytest.mark.parametrize(
+    "type_string,datatype", [("STRING", StringType()), ("VARIANT", VariantType())]
+)
+def test_lob_collect_max_size(session, server_side_max_string, type_string, datatype):
+    # Test that the client can pull a row that contains a max sized record
+    # max size - 16 is used because variant result includes a little overhead
+    df = session.sql(
+        f"select randstr({server_side_max_string - 16}, random()) :: {type_string} as DATA"
+    )
+    assert df.schema == StructType([StructField("DATA", datatype, nullable=False)])
+    assert len(df.collect()[0][0]) >= server_side_max_string - 16

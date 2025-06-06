@@ -12,15 +12,22 @@ from typing import Any, Callable, Optional, TypeVar, Union, cast
 
 from typing_extensions import ParamSpec
 
+import pandas as native_pd
+
 import snowflake.snowpark.session
 from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
 from snowflake.snowpark._internal.telemetry import TelemetryField, safe_telemetry
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.modin.plugin._internal.utils import (
     is_snowpark_pandas_dataframe_or_series_type,
+    MODIN_IS_AT_LEAST_0_33_0,
 )
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.session import Session
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.logging.metrics import add_metric_handler
+    from modin.config import MetricsMode
 
 # Define ParamSpec with "_Args" as the generic parameter specification similar to Any
 _Args = ParamSpec("_Args")
@@ -358,7 +365,10 @@ def _telemetry_helper(
         raise e
 
     # Not inplace lazy APIs: add curr_api_call to the result
-    if is_snowpark_pandas_dataframe_or_series_type(result):
+    # In hybrid execution modin, the result may be a NativeQueryCompiler, so we need to check for snowpark_pandas_api_calls.
+    if is_snowpark_pandas_dataframe_or_series_type(result) and hasattr(
+        result._query_compiler, "snowpark_pandas_api_calls"
+    ):
         result._query_compiler.snowpark_pandas_api_calls = (
             existing_api_calls
             + result._query_compiler.snowpark_pandas_api_calls
@@ -596,3 +606,79 @@ class TelemetryMeta(type):
         for attr_name, attr_value in attrs.items():
             attrs[attr_name] = try_add_telemetry_to_attribute(attr_name, attr_value)
         return type.__new__(cls, name, bases, attrs)
+
+
+# List naively tracking API calls
+modin_api_call_history: list[str] = []
+
+
+def snowpark_pandas_api_watcher(api_name: str, _time: Union[int, float]) -> None:
+    """
+    Telemetry hook that records all Modin API calls, regardless of whether they were performed with
+    the Snowpark pandas backend.
+    Ideally, we would be able to distinguish backends for individual API calls, but such a change
+    would need to be made upstream. For now we naively record all API calls.
+    """
+    tokens = api_name.split(".")
+    if len(tokens) >= 2 and tokens[0] == "pandas-api":
+        modin_api_call_history.append(tokens[1])
+
+
+if MODIN_IS_AT_LEAST_0_33_0:
+    hybrid_switch_log = native_pd.DataFrame({})
+
+    @functools.cache
+    def get_user_source_location(group: str) -> dict[str, str]:
+        import inspect
+
+        stack = inspect.stack()
+        frame_before_snowpandas = None
+        location = "<unknown>"
+        for f in reversed(stack):
+            if f.filename is None:
+                continue
+            if "snowpark" in f.filename or "modin" in f.filename:
+                break
+            else:
+                frame_before_snowpandas = f
+        if (
+            frame_before_snowpandas is not None
+            and frame_before_snowpandas.code_context is not None
+        ):
+            location = frame_before_snowpandas.code_context[0].replace("\n", "")
+        return {"group": group, "source": location}
+
+    def hybrid_metrics_watcher(
+        metric_name: str, metric_value: Union[int, float]
+    ) -> None:
+        global hybrid_switch_log
+        mode = None
+        if metric_name.startswith("modin.hybrid.auto"):
+            mode = "auto"
+        elif metric_name.startswith("modin.hybrid.merge"):
+            mode = "merge"
+        else:
+            return
+        tokens = metric_name.split(".")[3:]
+        entry = {"mode": mode}
+        while len(tokens) >= 2:
+            key = tokens.pop(0)
+            if key == "api":
+                value = tokens.pop(0) + "." + tokens.pop(0)
+            else:
+                value = tokens.pop(0)
+            entry[key] = value
+
+        if len(tokens) == 1:
+            key = tokens.pop(0)
+            entry[key] = metric_value  # type: ignore[assignment]
+
+        source = get_user_source_location(entry["group"])
+        entry["source"] = source["source"]
+        new_row = native_pd.DataFrame(entry, index=[0])
+        hybrid_switch_log = native_pd.concat([hybrid_switch_log, new_row])
+
+    def connect_modin_telemetry() -> None:
+        MetricsMode.enable()
+        add_metric_handler(snowpark_pandas_api_watcher)
+        add_metric_handler(hybrid_metrics_watcher)
