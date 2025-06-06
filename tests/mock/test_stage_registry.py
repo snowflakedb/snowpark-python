@@ -15,6 +15,7 @@ from snowflake.snowpark.mock._stage_registry import (
 )
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.session import Session
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 
 def test_util():
@@ -258,3 +259,12 @@ def test_stage_get_and_put_sproc(session):
 
     content = read_and_write_file()
     assert content == test_content
+
+
+def test_stage_invalid_url_read_file(session):
+    stage_registry = StageEntityRegistry(MockServerConnection())
+    test_file = f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+    invalid_snowurl = f"sNoW://test{test_file}"
+
+    with pytest.raises(SnowparkLocalTestingException):
+        stage_registry.read_file(invalid_snowurl, "", [], "", {})
