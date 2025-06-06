@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     IntegerType,
     BinaryType,
     DateType,
+    BooleanType,
 )
 import snowflake.snowpark
 import logging
@@ -185,9 +186,13 @@ class BaseDriver:
                     else x
                 )
             elif isinstance(field.datatype, BinaryType):
-                df[name] = df[name].map(
-                    lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
+                df[name] = (
+                    df[name]
+                    .map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
+                    .astype("string")
                 )
+            elif isinstance(field.datatype, BooleanType):
+                df[name] = df[name].astype("boolean")
         return df
 
     @staticmethod
