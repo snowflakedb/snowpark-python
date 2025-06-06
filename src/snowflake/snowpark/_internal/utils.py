@@ -934,8 +934,12 @@ class _AstFlagState(IntEnum):
     """The flag is initialized with a hard-coded default. No source has set the value."""
     TENTATIVE = auto()
     """The flag has been set by a source with lower precedence than SERVER. It can be overridden by SERVER."""
+    SERVER_SET = auto()
+    """The flag has been set by SERVER."""
+    USER_SET = auto()
+    """The flag has been set by USER."""
     FINALIZED = auto()
-    """The flag state can only be changed by TEST or USER sources."""
+    """The flag state can only be changed by TEST sources."""
 
 
 class _AstState:
@@ -997,7 +1001,7 @@ class _AstState:
                 source,
                 enable,
             )
-            if source in (AstFlagSource.TEST, AstFlagSource.USER):
+            if source == AstFlagSource.TEST:
                 # TEST/USER behaviors override everything.
                 # If you see this code path running in production, the calling code is broken.
                 self._state = _AstFlagState.FINALIZED
@@ -1005,11 +1009,20 @@ class _AstState:
                 return
             if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
                 _logger.warning(
-                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s from source %s.",
+                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s.",
                     self._ast_enabled,
                     enable,
-                    source,
                 )
+                return
+
+            # User is allowed to make the disabled -> enabled transition which is considered unsafe.
+            # This is only intended for case when the user wants to enable AST immediately after session
+            # is initialized.
+            if source == AstFlagSource.USER:
+                # User is allowed to override the server setting if it is not
+                # finalized by test.
+                self._ast_enabled = enable
+                self._state = _AstFlagState.USER_SET
                 return
 
             # If the current state is TENTATIVE, and the value is transitioning from disabled -> enabled,
@@ -1026,6 +1039,7 @@ class _AstState:
                     _logger.warning(
                         "Server cannot enable AST after treating it as disabled locally. Ignoring request."
                     )
+                self._state = _AstFlagState.SERVER_SET
             elif source == AstFlagSource.LOCAL:
                 if safe_transition:
                     self._ast_enabled = enable
