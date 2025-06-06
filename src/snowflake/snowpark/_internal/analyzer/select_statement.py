@@ -387,10 +387,10 @@ class Selectable(LogicalPlan, ABC):
             schema_query = None if skip_schema_query else self.schema_query
             child_uuids_and_query_idxs = []
             if isinstance(self, SelectStatement):
-                child_uuids_and_query_idxs = [(self.from_.uuid, 0)]
+                child_uuids_and_query_idxs = [(self.from_.uuid, int(0))]
             elif isinstance(self, SetStatement):
                 child_uuids_and_query_idxs = [
-                    (operand.selectable.uuid, 0) for operand in self.set_operands
+                    (operand.selectable.uuid, int(0)) for operand in self.set_operands
                 ]
             self._snowflake_plan = SnowflakePlan(
                 queries,
@@ -1015,8 +1015,16 @@ class SelectStatement(Selectable):
 
     @property
     def sql_query_with_uuids(self) -> str:
-        if self._sql_query_with_uuids is None:
-            self.sql_query
+        if self._sql_query_with_uuids:
+            return self._sql_query_with_uuids
+        if not self.has_clause and not self.has_projection:
+            self._sql_query = self.from_.sql_query
+            self._sql_query_with_uuids = (
+                f"-- {self.from_.uuid}\n{self._sql_query}\n-- {self.from_.uuid}"
+            )
+            return self._sql_query
+        self._sql_query_with_uuids = self._generate_sql()
+        self._sql_query = remove_comments(self._sql_query_with_uuids, [self.from_.uuid])
         return self._sql_query_with_uuids
 
     def _generate_sql(self) -> str:
