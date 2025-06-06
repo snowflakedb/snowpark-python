@@ -42,19 +42,6 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 )
 from snowflake.snowpark._internal.utils import EMPTY_STRING
 
-import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
-
-
-@pytest.fixture(autouse=True)
-def setup():
-    original_new_line = analyzer_utils.NEW_LINE
-    original_tab = analyzer_utils.TAB
-    analyzer_utils.NEW_LINE = "\n"
-    analyzer_utils.TAB = "    "
-    yield
-    analyzer_utils.NEW_LINE = original_new_line
-    analyzer_utils.TAB = original_tab
-
 
 def test_generate_scoped_temp_objects():
     temp_file_format_name = "SNOWPARK_TEMP_FILE_FORMAT_E0ZW8Z9WMY"

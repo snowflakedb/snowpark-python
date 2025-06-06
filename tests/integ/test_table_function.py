@@ -22,16 +22,6 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup(request, session):
-    original = session._generate_multiline_queries
-    if not original:
-        session._enable_multiline_queries()
-    yield
-    if not original:
-        session._disable_multiline_queries()
-
-
 def test_query_args(session):
     split_to_table = table_function("split_to_table")
     df = session.table_function(split_to_table(lit("Hello Table Function"), lit(" ")))
