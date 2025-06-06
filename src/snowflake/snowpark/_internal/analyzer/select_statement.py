@@ -86,7 +86,6 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     ExprAliasUpdateDict,
     remove_comments,
-    get_line_numbers,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -272,7 +271,6 @@ class Selectable(LogicalPlan, ABC):
         self._encoded_node_id_with_query: Optional[str] = None
         self.df_ast_ids: Optional[List[int]] = None
         self._uuid = str(uuid.uuid4())
-        self.query_line_intervals: Optional[List["QueryLineInterval"]] = None
 
     @property
     def analyzer(self) -> "Analyzer":
@@ -295,6 +293,12 @@ class Selectable(LogicalPlan, ABC):
     @abstractmethod
     def sql_query(self) -> str:
         """Returns the sql query of this Selectable logical plan."""
+        pass
+
+    @property
+    @abstractmethod
+    def sql_query_with_uuids(self) -> str:
+        """Returns the sql query of this Selectable logical plan with uuids."""
         pass
 
     @property
@@ -378,15 +382,16 @@ class Selectable(LogicalPlan, ABC):
             )
             self.analyzer.alias_maps_to_use = self.expr_to_alias.copy()
 
-            query = Query(self.sql_query, params=self.query_params)
+            query = Query(self.sql_query_with_uuids, params=self.query_params)
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
             schema_query = None if skip_schema_query else self.schema_query
-            query_line_intervals = []
-            if self.query_line_intervals:
-                for interval in self.query_line_intervals:
-                    interval.query_idx = len(queries) - 1
-                    query_line_intervals.append(interval)
-            queries[-1].query_line_intervals = query_line_intervals
+            child_uuids_and_query_idxs = []
+            if isinstance(self, SelectStatement):
+                child_uuids_and_query_idxs = [(self.from_.uuid, 0)]
+            elif isinstance(self, SetStatement):
+                child_uuids_and_query_idxs = [
+                    (operand.selectable.uuid, 0) for operand in self.set_operands
+                ]
             self._snowflake_plan = SnowflakePlan(
                 queries,
                 schema_query,
@@ -396,12 +401,12 @@ class Selectable(LogicalPlan, ABC):
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
                 referenced_ctes=self.referenced_ctes,
+                child_uuids_and_query_idxs=child_uuids_and_query_idxs,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
             # We want Selectable and SnowflakePlan to share the same api_calls.
             self._snowflake_plan.api_calls = self.api_calls
-            self._snowflake_plan._uuid = self._uuid
             # We update the alias maps for the snowflake plan similar to how it is
             # updated after analyzer.resolve() step.
             self._snowflake_plan.add_aliases(self.analyzer.generated_alias_maps)
@@ -569,11 +574,11 @@ class SelectableEntity(Selectable):
     @property
     def sql_query(self) -> str:
         sql = f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
-        if not self.query_line_intervals:
-            self.query_line_intervals = [
-                QueryLineInterval(0, sql.count("\n"), self.uuid, 0)
-            ]
         return sql
+
+    @property
+    def sql_query_with_uuids(self) -> str:
+        return self.sql_query
 
     @property
     def sql_in_subquery(self) -> str:
@@ -656,9 +661,7 @@ class SelectSQL(Selectable):
             self._sql_query = sql
             self._schema_query = sql
             self._query_param = params
-        self.query_line_intervals = [
-            QueryLineInterval(0, self._sql_query.count("\n"), self.uuid, 0)
-        ]
+        self._sql_query_with_uuids = self._sql_query
 
     def __deepcopy__(self, memodict={}) -> "SelectSQL":  # noqa: B006
         copied = SelectSQL(
@@ -675,6 +678,7 @@ class SelectSQL(Selectable):
         # copy over the other fields
         copied.convert_to_select = self.convert_to_select
         copied._sql_query = self._sql_query
+        copied._sql_query_with_uuids = self._sql_query_with_uuids
         copied._schema_query = self._schema_query
         copied._query_param = deepcopy(self._query_param)
 
@@ -682,6 +686,10 @@ class SelectSQL(Selectable):
 
     @property
     def sql_query(self) -> str:
+        return self._sql_query
+
+    @property
+    def sql_query_with_uuids(self) -> str:
         return self._sql_query
 
     @property
@@ -735,11 +743,6 @@ class SelectSnowflakePlan(Selectable):
         self._api_calls = self._snowflake_plan.api_calls
         self._query_params = []
         self._uuid = self._snowflake_plan.uuid
-        self.query_line_intervals = (
-            []
-            if len(self._snowflake_plan.queries) == 0
-            else self._snowflake_plan.queries[-1].query_line_intervals
-        )
         for query in self._snowflake_plan.queries:
             if query.params:
                 self._query_params.extend(query.params)
@@ -763,6 +766,10 @@ class SelectSnowflakePlan(Selectable):
 
     @property
     def sql_query(self) -> str:
+        return self._snowflake_plan.queries[-1].sql
+
+    @property
+    def sql_query_with_uuids(self) -> str:
         return self._snowflake_plan.queries[-1].sql
 
     @property
@@ -827,6 +834,7 @@ class SelectStatement(Selectable):
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
+        self._sql_query_with_uuids = None
         self._schema_query = schema_query
         self.distinct_: bool = distinct
         # An optional set to store the columns that should be excluded from the projection
@@ -997,17 +1005,19 @@ class SelectStatement(Selectable):
             return self._sql_query
         if not self.has_clause and not self.has_projection:
             self._sql_query = self.from_.sql_query
-            query_length = self._sql_query.count("\n")
-            self.query_line_intervals = [
-                (QueryLineInterval(0, query_length, self.from_.uuid, 0))
-            ]
+            self._sql_query_with_uuids = (
+                f"-- {self.from_.uuid}\n{self._sql_query}\n-- {self.from_.uuid}"
+            )
             return self._sql_query
-        commented_sql = self._generate_sql()
-        self._sql_query = remove_comments(commented_sql, [self.from_.uuid])
-        self.query_line_intervals = get_line_numbers(
-            commented_sql, [(self.from_.uuid, 0)], self.uuid, 0
-        )
+        self._sql_query_with_uuids = self._generate_sql()
+        self._sql_query = remove_comments(self._sql_query_with_uuids, [self.from_.uuid])
         return self._sql_query
+
+    @property
+    def sql_query_with_uuids(self) -> str:
+        if self._sql_query_with_uuids is None:
+            self.sql_query
+        return self._sql_query_with_uuids
 
     def _generate_sql(self) -> str:
         """Generate SQL query with UUID comments for child plans if multiline queries are enabled.
@@ -1671,6 +1681,10 @@ class SelectTableFunction(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
+    def sql_query_with_uuids(self) -> str:
+        return self._snowflake_plan.queries[-1].sql
+
+    @property
     def schema_query(self) -> Optional[str]:
         return self._snowflake_plan.schema_query
 
@@ -1737,23 +1751,23 @@ class SetStatement(Selectable):
     @property
     def sql_query(self) -> str:
         if not self._sql_query:
-            sql_query = (
+            self._sql_query_with_uuids = (
                 self._generate_sql_with_comments()
                 if self._session._generate_multiline_queries
                 else self._generate_sql_without_comments()
             )
             self._sql_query = remove_comments(
-                sql_query,
+                self._sql_query_with_uuids,
                 [operand.selectable.uuid for operand in self.set_operands],
-            )
-            self.query_line_intervals = get_line_numbers(
-                sql_query,
-                [(operand.selectable.uuid, 0) for operand in self.set_operands],
-                self.uuid,
-                0,
             )
 
         return self._sql_query
+
+    @property
+    def sql_query_with_uuids(self) -> str:
+        if self._sql_query_with_uuids is None:
+            self.sql_query
+        return self._sql_query_with_uuids
 
     def _generate_sql_without_comments(self) -> str:
         sql = f"({self.set_operands[0].selectable.sql_query})"

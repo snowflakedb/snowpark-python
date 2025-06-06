@@ -1924,10 +1924,9 @@ def get_plan_from_line_numbers(
     stack = [(plan_node, query_idx, line_number)]
     while stack:
         node, query_idx, line_number = stack.pop()
-        if isinstance(node, SnowflakePlan):
-            query_line_intervals = node.queries[query_idx].query_line_intervals
-        else:
-            query_line_intervals = node.query_line_intervals
+        if isinstance(node, Selectable):
+            node = node.get_snowflake_plan(skip_schema_query=True)
+        query_line_intervals = node.queries[query_idx].query_line_intervals
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:
             uuid = query_line_intervals[idx].uuid
@@ -1936,7 +1935,11 @@ def get_plan_from_line_numbers(
                 return node
             else:
                 for child in node.children_plan_nodes:
-                    if child.uuid == uuid:
+                    if child.uuid == uuid or (
+                        isinstance(child, Selectable)
+                        and child.get_snowflake_plan(skip_schema_query=True).uuid
+                        == uuid
+                    ):
                         stack.append(
                             (
                                 child,
