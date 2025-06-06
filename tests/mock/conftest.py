@@ -4,7 +4,7 @@
 import os
 
 import pytest
-
+import tempfile
 from snowflake.snowpark import Session
 from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -24,3 +24,9 @@ def session(mock_server_connection):
 
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
+
+
+@pytest.fixture(scope="function")
+def temp_file():
+    with tempfile.NamedTemporaryFile() as temp_file:
+        yield temp_file.name

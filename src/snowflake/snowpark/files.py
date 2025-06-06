@@ -14,7 +14,10 @@ import array
 import io
 import sys
 import tempfile
-from io import RawIOBase
+import os
+from io import RawIOBase, UnsupportedOperation, SEEK_SET, SEEK_END, SEEK_CUR
+from snowflake.snowpark._internal.utils import RELATIVE_PATH_PREFIX
+import logging
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -25,6 +28,8 @@ else:
     from collections.abc import Iterable
 
 _DEFER_IMPLEMENTATION_ERR_MSG = "SnowflakeFile currently only works in UDF and Stored Procedures. It doesn't work locally yet."
+_CLOSED_FILE_IO_ERR_MSG = "I/O operation on closed file."
+_logger = logging.getLogger(__name__)
 
 
 class SnowflakeFile(RawIOBase):
@@ -61,6 +66,17 @@ class SnowflakeFile(RawIOBase):
         self.buffer = None
         self.encoding = None
         self.errors = None
+
+        # Attributes required for local testing functionality
+        _DEFAULT_READ_BUFFER_SIZE = 32 * 1024
+        if mode in ("r", "rb"):
+            self._file_stream = io.BufferedReader(
+                open(self._file_location, self._mode), _DEFAULT_READ_BUFFER_SIZE
+            )
+        else:
+            self._file_stream = open(
+                self._file_location, self._mode
+            )  # need to still open a file stream for testing, otherwise class throws an attribute not found error for methods like close
 
     @classmethod
     def open(
@@ -118,11 +134,25 @@ class SnowflakeFile(RawIOBase):
             from_result_api=True,
         )
 
+    def _raise_if_not_read(self) -> None:
+        """
+        Internal function to validate read mode of the file object before performing an IO operation.
+        """
+        if self._mode not in ["r", "rb"]:
+            raise UnsupportedOperation(f"Not readable mode={self._mode}")
+
+    def _raise_if_closed(self) -> None:
+        """
+        Internal function to validate open status of the file object before performing an IO operation.
+        """
+        if self._file_stream.closed:
+            raise ValueError(_CLOSED_FILE_IO_ERR_MSG)
+
     def close(self) -> None:
         """
-        In UDF and Stored Procedures, the close func closes the IO Stream included in the SnowflakeFile.
+        Close the underlying Snowflake file stream.
         """
-        return
+        self._file_stream.close()
 
     def detach(self) -> None:
         """
@@ -130,112 +160,236 @@ class SnowflakeFile(RawIOBase):
 
         See https://docs.python.org/3/library/io.html#io.BufferedIOBase.detach
         """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        self._raise_if_closed()
+        raise UnsupportedOperation("Detaching stream from file is unsupported")
 
-    def fileno(self) -> None:
+    def fileno(self) -> int:
         """
-        See https://docs.python.org/3/library/io.html#io.IOBase.fileno
+        Getting a file descriptor number is not supported. Raises an OSError.
         """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        self._raise_if_closed()
+        raise OSError("This object does not use a file descriptor")
 
     def flush(self) -> None:
         """
-        Not yet supported in UDF and Stored Procedures.
+        Read no-op. Fail if the stream is closed.
         """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        self._raise_if_closed()
 
-    def isatty(self) -> None:
+    def isatty(self) -> bool:
         """
         Returns False, file streams in stored procedures and UDFs are never interactive in Snowflake.
         """
+        self._raise_if_closed()
+        return False
+
+    def read(self, size: int = -1):
+        """
+        From https://docs.python.org/3/library/io.html#io.BufferedIOBase.read
+
+        Read and return up to size bytes. If the argument is omitted, None, or negative, data is read and returned until EOF is
+        reached. An empty bytes object is returned if the stream is already at EOF.
+
+        If the argument is positive, and the underlying raw stream is not interactive, multiple raw reads may be issued to
+        satisfy the byte count (unless EOF is reached first). But for interactive raw streams, at most one raw read will be
+        issued, and a short result does not imply that EOF is imminent.
+
+        A BlockingIOError is raised if the underlying raw stream is in non blocking-mode, and has no data available at the
+        moment.
+        """
+        self._raise_if_closed()
+        self._raise_if_not_read()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            return self._file_stream.raw.read(size)
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def read(self, size: int = -1) -> None:
+    def read1(self, size: int = -1):
         """
-        See https://docs.python.org/3/library/io.html#io.RawIOBase.read
+        From https://docs.python.org/3/library/io.html#io.BufferedIOBase.read1
+
+        Read and return up to size bytes, with at most one call to the underlying raw stream’s read() (or readinto()) method.
+        This can be useful if you are implementing your own buffering on top of a BufferedIOBase object.
+
+        If size is -1 (the default), an arbitrary number of bytes are returned (more than zero unless EOF is reached).
         """
+        self._raise_if_closed()
+        self._raise_if_not_read()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            if self._mode == "r":
+                return self.read(size).encode()
+            return self._file_stream.read1(size)
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def read1(self, size: int = -1) -> None:
+    def readable(self) -> bool:
         """
-        See https://docs.python.org/3/library/io.html#io.BufferedIOBase.read1
+        Whether the stream is readable.
         """
+        self._raise_if_closed()
+        return self._file_stream.readable()
+
+    def readall(self):
+        """
+        From https://docs.python.org/3/library/io.html#io.RawIOBase.readall
+
+        Read and return all the bytes from the stream until EOF, using multiple calls to the stream if necessary.
+        """
+        return self.read(-1)
+
+    def readinto(self, b: bytes | bytearray | array.array) -> int:
+        """
+        From https://docs.python.org/3/library/io.html#io.RawIOBase.readinto
+
+        Read bytes into a pre-allocated, writable bytes-like object b, and return the number of bytes read. For example, b might
+        be a bytearray. If the object is in non-blocking mode and no bytes are available, None is returned.
+        """
+        self._raise_if_closed()
+        self._raise_if_not_read()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            if self._mode == "r":
+                buffer_len = len(b)
+                if buffer_len == 0:
+                    return 0
+                content = self.read1(buffer_len)
+                size = memoryview(content)
+                b[:buffer_len] = content
+                return size.nbytes
+            return self._file_stream.readinto(b)
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readable(self) -> None:
+    def readinto1(self, b: bytes | bytearray | array.array) -> int:
         """
-        See https://docs.python.org/3/library/io.html#io.IOBase.readable
+        From https://docs.python.org/3/library/io.html#io.BufferedIOBase.readinto1
+
+        Read bytes into a pre-allocated, writable bytes-like object b, using at most one call to the underlying raw stream’s
+        read() (or readinto()) method. Return the number of bytes read.
+
+        A BlockingIOError is raised if the underlying raw stream is in non blocking-mode, and has no data available at the
+        moment.
         """
+        self._raise_if_closed()
+        self._raise_if_not_read()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            if self._mode == "r":
+                buffer_len = len(b)
+                if buffer_len == 0:
+                    return 0
+                content = self._file_stream.raw.read(buffer_len).encode()
+                size = memoryview(content)
+                b[:buffer_len] = content
+                return size.nbytes
+            return self._file_stream.readinto1(b)
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readall(self) -> None:
+    def readline(self, size: int = -1):
         """
-        See https://docs.python.org/3/library/io.html#io.RawIOBase.readall
+        From https://docs.python.org/3/library/io.html#io.IOBase.readline
+
+        Read and return one line from the stream. If size is specified, at most size bytes will be read.
+
+        The line terminator is always b'\n' for binary files; for text files, the newline argument to open() can be used to
+        select the line terminator(s) recognized.
         """
+        self._raise_if_closed()
+        self._raise_if_not_read()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            return self._file_stream.raw.readline(size)
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readinto(self, b: bytes | bytearray | array.array) -> None:
+    def readlines(self, hint: int = -1):
         """
-        See https://docs.python.org/3/library/io.html#io.IOBase.readinto
+        From https://docs.python.org/3/library/io.html#io.IOBase.readlines
+
+        Read and return a list of lines from the stream. hint can be specified to control the number of lines read: no more
+        lines will be read if the total size (in bytes/characters) of all lines so far exceeds hint.
+
+        hint values of 0 or less, as well as None, are treated as no hint.
+
+        Note that it’s already possible to iterate on file objects using for line in file: ... without calling file.readlines().
         """
+        self._raise_if_closed()
+        self._raise_if_not_read()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            return self._file_stream.raw.readlines(hint)
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readinto1(self, b: bytes | bytearray | array.array) -> None:
+    def seek(self, offset: int, whence: int = SEEK_SET) -> int:
         """
-        See https://docs.python.org/3/library/io.html#io.BufferedIOBase.readinto1
+        Move the stream position to a new location given an offset and a starting position. SEEK_SET/0
+        indicates a position relative to the start of the file. SEEK_CUR/1 indicates a position relative
+        to the current stream position. SEEK_END/2 indicates a position relative to the end of the file.
+        Only supported in read mode.
+
+        Returns the new stream position.
         """
+        self._raise_if_closed()
+        self._raise_if_not_read()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            if whence == SEEK_SET:
+                pos = offset
+            elif whence == SEEK_CUR:
+                pos = self._file_stream.tell() + offset
+            elif whence == SEEK_END:
+                pos = os.path.getsize(self._file_location) + offset
+            else:
+                raise NotImplementedError(f"Unsupported whence value {whence}")
+            if pos < 0:
+                raise ValueError(f"Negative seek position {pos}")
+            return self._file_stream.seek(pos, SEEK_SET)
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readline(self, size: int = -1) -> None:
+    def seekable(self) -> bool:
         """
-        See https://docs.python.org/3/library/io.html#io.IOBase.readline
+        Whether the stream is seekable.
         """
+        self._raise_if_closed()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            return self._mode in ("r", "rb")
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def readlines(self, hint: int = -1) -> None:
+    def tell(self) -> int:
         """
-        See https://docs.python.org/3/library/io.html#io.IOBase.readlines
+        Gets the current stream position.
         """
+        self._raise_if_closed()
+        self._raise_if_not_read()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            return self._file_stream.tell()
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
-        """
-        See https://docs.python.org/3/library/io.html#io.IOBase.seek
-        """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
-
-    def seekable(self) -> None:
-        """
-        See https://docs.python.org/3/library/io.html#io.IOBase.seekable
-        """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
-
-    def tell(self) -> None:
-        """
-        See https://docs.python.org/3/library/io.html#io.IOBase.tell
-        """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
-
-    def truncate(self, size: int | None = None) -> None:
+    def truncate(self, size: int | None = None) -> int:
         """
         Not yet supported in UDF and Stored Procedures.
         """
+        self._raise_if_closed()
+        if self._mode in ("r", "rb"):
+            raise UnsupportedOperation()
+        else:
+            raise NotImplementedError()
+
+    def write(self, b: bytes | bytearray | array.array) -> int:
+        """
+        Write the given bytes-like object, b, to the underlying raw stream, and return the number of bytes-like objects
+        written (e.g. unicode characters provided to a text input count as 1). The number of bytes should equal the input
+        bytes, since all bytes are written directly to the stream.
+
+        See https://docs.python.org/3/library/io.html#io.RawIOBase.write for external comments.
+        """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
-    def write(self, b: bytes | bytearray | array.array) -> None:
+    def writable(self) -> bool:
         """
-        See https://docs.python.org/3/library/io.html#io.RawIOBase.write
+        Whether the stream is writable.
         """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
-
-    def writable(self) -> None:
-        """
-        See https://docs.python.org/3/library/io.html#io.IOBase.writable
-        """
+        self._raise_if_closed()
+        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+            return self._file_stream.writable()
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def writelines(self, lines: Iterable[str] | list[str]) -> None:
         """
-        See https://docs.python.org/3/library/io.html#io.IOBase.writelines
+        From https://docs.python.org/3/library/io.html#io.IOBase.writelines
+
+        Write a list of lines to the stream. Line separators are not added, so it is usual for each of the lines provided to
+        have a line separator at the end.
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
