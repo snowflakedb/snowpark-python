@@ -12,7 +12,6 @@ from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.session import Session
-import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
 
 @pytest.fixture
@@ -82,10 +81,5 @@ def mock_session(mock_analyzer) -> Session:
     fake_session._analyzer = mock_analyzer
     fake_session._plan_lock = mock.MagicMock()
     mock_analyzer.session = fake_session
+    fake_session._enable_multiline_queries()
     return fake_session
-
-
-@pytest.fixture(scope="module")
-def setup_multiline_queries() -> None:
-    analyzer_utils.NEW_LINE = "\n"
-    analyzer_utils.TAB = "    "
