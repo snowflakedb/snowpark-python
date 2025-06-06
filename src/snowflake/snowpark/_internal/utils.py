@@ -1002,7 +1002,7 @@ class _AstState:
                 enable,
             )
             if source == AstFlagSource.TEST:
-                # TEST/USER behaviors override everything.
+                # TEST behaviors override everything.
                 # If you see this code path running in production, the calling code is broken.
                 self._state = _AstFlagState.FINALIZED
                 self._ast_enabled = enable
