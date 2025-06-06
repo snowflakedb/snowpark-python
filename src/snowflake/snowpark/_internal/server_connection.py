@@ -62,6 +62,7 @@ from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_version,
     is_in_stored_procedure,
+    is_sql_select_statement,
     normalize_local_file,
     normalize_remote_file_or_dir,
     result_set_to_iter,
@@ -502,23 +503,7 @@ class ServerConnection:
                 if not kwargs.get("_statement_params"):
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
-            if (
-                query.strip()
-                .lower()
-                .startswith(
-                    (
-                        "rm",
-                        "remove",
-                        "alter",
-                        "drop",
-                        "use",
-                        "create",
-                        "grant",
-                        "revoke",
-                        "comment",
-                    )
-                )
-            ):
+            if not is_sql_select_statement(query):
                 _analyze_attributes.clear_cache()
             if block:
                 results_cursor = self.execute_and_notify_query_listener(
