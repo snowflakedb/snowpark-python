@@ -1851,8 +1851,9 @@ def ttl_cache(ttl_seconds: float):
                     del cache[cache_key]
 
         def _clear_cache():
-            cache.clear()
-            expiry_heap.clear()
+            with cache_lock:
+                cache.clear()
+                expiry_heap.clear()
 
         @wraps(func)
         def wrapper(*args, **kwargs):
