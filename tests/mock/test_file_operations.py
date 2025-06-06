@@ -3,7 +3,6 @@
 #
 import os
 import tempfile
-
 from snowflake.snowpark._internal.utils import normalize_local_file
 
 

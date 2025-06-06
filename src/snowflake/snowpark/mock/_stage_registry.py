@@ -112,6 +112,9 @@ SUPPORT_READ_OPTIONS = {
 
 
 RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = True
+_INVALID_STAGE_LOCATION_ERR_MSG = (
+    lambda stage_location: f"Invalid stage {stage_location}, stage name should start with character '@' or snow://"
+)
 
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
@@ -739,11 +742,9 @@ class StageEntityRegistry:
         target_directory: str,
         options: Dict[str, str] = None,
     ):
-        if not stage_location.startswith("@") and not stage_location.startswith(
-            "snow://"
-        ):
+        if not stage_location.startswith(("@", "snow://")):
             raise SnowparkLocalTestingException(
-                f"Invalid stage {stage_location}, stage name should start with character '@' or snow://"
+                _INVALID_STAGE_LOCATION_ERR_MSG(stage_location)
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         with self._lock:
@@ -764,11 +765,9 @@ class StageEntityRegistry:
         analyzer: "MockAnalyzer",
         options: Dict[str, str],
     ):
-        if not stage_location.startswith("@") and not stage_location.startswith(
-            "snow://"
-        ):
+        if not stage_location.startswith(("@", "snow://")):
             raise SnowparkLocalTestingException(
-                f"Invalid stage {stage_location}, stage name should start with character '@' or snow://"
+                _INVALID_STAGE_LOCATION_ERR_MSG(stage_location)
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         with self._lock:
