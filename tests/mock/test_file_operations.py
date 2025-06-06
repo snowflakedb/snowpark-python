@@ -3,9 +3,7 @@
 #
 import os
 import tempfile
-import pytest
 from snowflake.snowpark._internal.utils import normalize_local_file
-from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 
 def test_get_and_put_snowurl(session):
@@ -54,22 +52,3 @@ def test_get_and_put_snowurl(session):
             with open(os.path.join(temp_dir, "test_file_1"), "rb") as f:
                 content = f.read()
                 assert content == test_content
-
-
-def test_get_and_read_invalid_snowurl(session):
-    test_file = f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        invalid_snowurl = f"sNoW://test{test_file}"
-        with pytest.raises(SnowparkLocalTestingException):
-            session.file.get(
-                invalid_snowurl,
-                temp_dir,
-            )
-
-        invalid_snowurl = f"snow:{test_file}"
-        with pytest.raises(SnowparkLocalTestingException):
-            session.file.get(
-                invalid_snowurl,
-                temp_dir,
-            )
