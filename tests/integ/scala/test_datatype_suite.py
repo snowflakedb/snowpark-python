@@ -60,6 +60,7 @@ from tests.utils import (
     iceberg_supported,
     structured_types_enabled_session,
     structured_types_supported,
+    IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
 )
 
@@ -1726,6 +1727,10 @@ def test_nest_struct_field_names(structured_type_session, structured_type_suppor
     Utils.check_answer(df, [Row(A=Row(**{"field with space": "value"}))])
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2055478: LOB does not work reliably in stored procedures.",
+)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not use lob.",
