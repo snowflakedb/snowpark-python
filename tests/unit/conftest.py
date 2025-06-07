@@ -46,6 +46,7 @@ def mock_query():
     fake_query = mock.create_autospec(Query)
     fake_query.sql = "dummy sql"
     fake_query.params = "dummy params"
+    fake_query.query_line_intervals = []
     return fake_query
 
 

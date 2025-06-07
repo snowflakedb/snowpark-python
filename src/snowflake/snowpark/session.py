@@ -664,6 +664,8 @@ class Session:
         )
         if self._generate_multiline_queries:
             self._enable_multiline_queries()
+        else:
+            self._disable_multiline_queries()
 
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
@@ -788,14 +790,18 @@ class Session:
     def _enable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
+        self._generate_multiline_queries = True
         analyzer_utils.NEW_LINE = "\n"
         analyzer_utils.TAB = "    "
+        analyzer_utils.UUID_FORMAT = "-- {}\n"
 
     def _disable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
+        self._generate_multiline_queries = False
         analyzer_utils.NEW_LINE = ""
         analyzer_utils.TAB = ""
+        analyzer_utils.UUID_FORMAT = ""
 
     def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
         """
