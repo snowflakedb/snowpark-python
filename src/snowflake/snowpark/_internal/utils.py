@@ -9,6 +9,7 @@ import datetime
 import decimal
 import functools
 import hashlib
+import heapq
 import importlib
 import io
 import itertools
@@ -19,12 +20,13 @@ import random
 import re
 import string
 import sys
+import time
 import threading
 import traceback
 import uuid
 import zipfile
 from enum import Enum, IntEnum, auto, unique
-from functools import lru_cache
+from functools import lru_cache, wraps
 from itertools import count
 from json import JSONEncoder
 from random import Random
@@ -1831,3 +1833,70 @@ def get_sorted_key_for_version(version_str):
     return tuple(
         -1 if str_contains_alphabet(num) else int(num) for num in version_str.split(".")
     )
+
+
+def ttl_cache(ttl_seconds: float):
+    """
+    A decorator that caches function results with a time-to-live (TTL) expiration.
+
+    Args:
+        ttl_seconds (float): Time-to-live in seconds for cached items
+    """
+
+    def decorator(func):
+        cache = {}
+        expiry_heap = []  # heap of (expiry_time, cache_key)
+        cache_lock = threading.RLock()
+
+        def _make_cache_key(*args, **kwargs) -> int:
+            """Create a hashable cache key from function arguments."""
+            key = (args, tuple(sorted(kwargs.items())))
+            try:
+                # Try to create a simple tuple key
+                return hash(key)
+            except TypeError:
+                # If args contain unhashable types, convert to string representation
+                return hash(str(key))
+
+        def _cleanup_expired(current_time: float):
+            """Remove expired entries from cache and heap."""
+            # Clean up expired entries from the heap and cache
+            while expiry_heap:
+                expiry_time, cache_key = expiry_heap[0]
+                if expiry_time >= current_time:
+                    break
+                heapq.heappop(expiry_heap)
+                if cache_key in cache:
+                    del cache[cache_key]
+
+        def _clear_cache():
+            with cache_lock:
+                cache.clear()
+                expiry_heap.clear()
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            cache_key = _make_cache_key(*args, **kwargs)
+            current_time = time.time()
+
+            with cache_lock:
+                _cleanup_expired(current_time)
+
+                if cache_key in cache:
+                    return cache[cache_key]
+
+                result = func(*args, **kwargs)
+
+                cache[cache_key] = result
+                expiry_time = current_time + ttl_seconds
+                heapq.heappush(expiry_heap, (expiry_time, cache_key))
+
+                return result
+
+        # Exposes the cache for testing
+        wrapper._cache = cache
+        wrapper.clear_cache = _clear_cache
+
+        return wrapper
+
+    return decorator
