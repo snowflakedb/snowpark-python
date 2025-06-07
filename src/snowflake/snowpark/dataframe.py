@@ -593,6 +593,9 @@ class DataFrame:
         self._session = session
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
+            print(  # noqa: T201: we need to print here for the experiment debugging. TODO: delete this line later.
+                f"[WUFAN DEBUG] {self._plan.attributes}"
+            )
         else:
             self._plan = None
 
