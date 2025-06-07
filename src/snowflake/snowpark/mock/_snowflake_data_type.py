@@ -1,9 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Any, Dict, Iterable, NamedTuple, Optional, Union
-
-from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
+from typing import Any, Dict, Iterable, NamedTuple, Optional, Union, TYPE_CHECKING
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
@@ -28,10 +26,16 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
+if TYPE_CHECKING:
+    import snowflake.connector.options.installed_pandas as installed_pandas
+    from snowflake.snowpark.mock._options import pandas as pd
+
+    PandasDataframeType = object if not installed_pandas else pd.DataFrame
+    PandasSeriesType = object if not installed_pandas else pd.Series
+
+
 # pandas is an optional requirement for local test, so make snowpark compatible with env where pandas
 # not installed, here we redefine the base class to avoid ImportError
-PandasDataframeType = object if not installed_pandas else pd.DataFrame
-PandasSeriesType = object if not installed_pandas else pd.Series
 
 # https://docs.snowflake.com/en/sql-reference/parameters#label-timestamp-type-mapping
 # SNOW-1630258 for local testing session parameters support
@@ -47,25 +51,19 @@ _TIMESTAMP_TYPE_TIMEZONE_MAPPING = {
 
 def infer_sp_type_from_python_type(p: Any) -> DataType:
     """helper function to map python types (using pandas) to Snowpark types."""
-    from pandas.core.dtypes.common import (
-        is_bool_dtype,
-        is_float_dtype,
-        is_integer_dtype,
-        is_object_dtype,
-        is_string_dtype,
-    )
+    from snowflake.snowpark.mock._options import pandas as pd
 
     # TODO SNOW-1826001: refactor this with Snowpark pandas to avoid redundancy.
 
-    if is_object_dtype(p):
+    if pd.api.types.is_object_dtype(p):
         return VariantType()
-    if is_string_dtype(p):
+    if pd.api.types.is_string_dtype(p):
         return StringType()
-    if is_bool_dtype(p):
+    if pd.api.types.is_bool_dtype(p):
         return BooleanType()
-    if is_integer_dtype(p):
+    if pd.api.types.is_integer_dtype(p):
         return LongType()
-    if is_float_dtype(p):
+    if pd.api.types.is_float_dtype(p):
         return DoubleType()
     return VariantType()
 
@@ -164,6 +162,8 @@ SNOW_DATA_TYPE_CONVERSION_DICT = {
 def isna_helper(obj: Any) -> bool:
     """Small helper function to detect whether object is considered NULL. Needed because for
     lists, tuples, ... pandas isna() does not handle correctly."""
+    from snowflake.snowpark.mock._options import pandas as pd
+
     if isinstance(obj, Iterable):
         return False
     return pd.isna(obj)
@@ -378,7 +378,27 @@ def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
     return None
 
 
-class TableEmulator(PandasDataframeType):
+# Late pandas detection - avoid importing pandas at module level
+# Set up base classes that will be resolved when actually needed
+
+
+def _get_base_classes():
+    """Get the appropriate base classes for TableEmulator and ColumnEmulator"""
+    try:
+        from snowflake.snowpark.mock._options import pandas as pd, installed_pandas
+
+        if installed_pandas:
+            return pd.DataFrame, pd.Series
+    except Exception:
+        pass
+    return object, object
+
+
+# Get base classes once when needed
+DataFrameBase, SeriesBase = _get_base_classes()
+
+
+class TableEmulator(DataFrameBase):
     _metadata = [
         "sf_types",
         "sf_types_by_col_index",
@@ -401,12 +421,16 @@ class TableEmulator(PandasDataframeType):
         sf_types_by_col_index: Optional[Dict[int, ColumnType]] = None,
         **kwargs,
     ) -> None:
-        if TableEmulator.__base__ == object:
+        from snowflake.snowpark.mock._options import installed_pandas
+
+        if not installed_pandas:
             raise RuntimeError(
                 "Local Testing requires pandas as dependency, "
                 "please make sure pandas is installed in the environment.\n"
             )
+
         super().__init__(*args, **kwargs)
+
         self.sf_types = {} if not sf_types else sf_types
         # TODO: SNOW-976145, move to index based approach to store col type mapping
         self.sf_types_by_col_index = (
@@ -467,6 +491,8 @@ def get_number_precision_scale(t: DataType):
 def add_date_and_number(
     col1: "ColumnEmulator", col2: "ColumnEmulator"
 ) -> Optional["ColumnEmulator"]:
+    from snowflake.snowpark.mock._options import pandas as pd
+
     """If one column is DateType and another column is numeric, round and add the numeric to days"""
     if isinstance(col2.sf_type.datatype, DateType):
         col1, col2 = col2, col1
@@ -493,7 +519,7 @@ def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
     return ColumnEmulator([value] * len)
 
 
-class ColumnEmulator(PandasSeriesType):
+class ColumnEmulator(SeriesBase):
     _metadata = ["sf_type", "_null_rows_idxs"]
 
     @property
@@ -505,13 +531,17 @@ class ColumnEmulator(PandasSeriesType):
         return TableEmulator
 
     def __init__(self, *args, **kwargs) -> None:
-        if ColumnEmulator.__base__ == object:
+        from snowflake.snowpark.mock._options import installed_pandas
+
+        if not installed_pandas:
             raise RuntimeError(
                 "Local Testing requires pandas as dependency, "
                 "please make sure pandas is installed in the environment.\n"
             )
+
         sf_type = kwargs.pop("sf_type", None)
         super().__init__(*args, **kwargs)
+
         self._sf_type: ColumnType = sf_type
         # record which rows should be marked as null instead of None
         # snowflake SubfieldString has this behavior
@@ -534,9 +564,9 @@ class ColumnEmulator(PandasSeriesType):
             # due to ColumnEmulator inheriting from a pandas Series.
             nullable = any([isna_helper(obj) for obj in self.values])
 
-            from pandas.core.dtypes.common import is_object_dtype
+            from snowflake.snowpark.mock._options import pandas as pd
 
-            if is_object_dtype(self.dtype) and len(self) != 0:
+            if pd.api.types.is_object_dtype(self.dtype) and len(self) != 0:
                 # Infer from data when object type for the type to become more specific.
                 return ColumnType(
                     infer_sp_type_from_python_type(type(self.iloc[0])), nullable
