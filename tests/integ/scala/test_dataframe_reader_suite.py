@@ -1721,6 +1721,10 @@ def test_pattern(session, mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="Local testing does not support file.put",
 )
+@pytest.mark.xfail(
+    reason="SNOW-2138003: Param difference between environments",
+    strict=False,
+)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_pattern_with_infer(session, mode):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
