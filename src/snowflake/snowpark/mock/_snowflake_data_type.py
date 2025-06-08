@@ -55,15 +55,15 @@ def infer_sp_type_from_python_type(p: Any) -> DataType:
 
     # TODO SNOW-1826001: refactor this with Snowpark pandas to avoid redundancy.
 
-    if pd.api.types.is_object_dtype(p):
+    if pd.core.dtypes.common.is_object_dtype(p):
         return VariantType()
-    if pd.api.types.is_string_dtype(p):
+    if pd.core.dtypes.common.is_string_dtype(p):
         return StringType()
-    if pd.api.types.is_bool_dtype(p):
+    if pd.core.dtypes.common.is_bool_dtype(p):
         return BooleanType()
-    if pd.api.types.is_integer_dtype(p):
+    if pd.core.dtypes.common.is_integer_dtype(p):
         return LongType()
-    if pd.api.types.is_float_dtype(p):
+    if pd.core.dtypes.common.is_float_dtype(p):
         return DoubleType()
     return VariantType()
 
@@ -564,9 +564,9 @@ class ColumnEmulator(SeriesBase):
             # due to ColumnEmulator inheriting from a pandas Series.
             nullable = any([isna_helper(obj) for obj in self.values])
 
-            from snowflake.snowpark.mock._options import pandas as pd
+            from pandas.core.dtypes.common import is_object_dtype
 
-            if pd.api.types.is_object_dtype(self.dtype) and len(self) != 0:
+            if is_object_dtype(self.dtype) and len(self) != 0:
                 # Infer from data when object type for the type to become more specific.
                 return ColumnType(
                     infer_sp_type_from_python_type(type(self.iloc[0])), nullable

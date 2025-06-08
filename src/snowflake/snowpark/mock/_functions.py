@@ -2137,7 +2137,8 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
         )
     from snowflake.snowpark.mock._options import pandas
 
-    pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
+    # Don't reset index, to preserve original indices from filtered DataFrames
+    pdf = pandas.concat(columns, axis=1)
     result = pdf.T.apply(
         lambda c: None
         if c.isnull().values.any()
