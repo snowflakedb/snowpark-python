@@ -589,6 +589,17 @@ def process_file_path(file_path: str) -> str:
     return file_path
 
 
+def _ensure_pandas_types_initialized():
+    """Ensure pandas types are loaded if pandas is available"""
+    global PandasSeriesType, PandasDataFrameType
+    if get_installed_pandas() and (
+        PandasSeriesType is None or PandasDataFrameType is None
+    ):
+        snowpark_types = get_snowpark_types()
+        PandasDataFrameType = snowpark_types.PandasDataFrameType
+        PandasSeriesType = snowpark_types.PandasSeriesType
+
+
 def extract_return_input_types(
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
@@ -613,13 +624,7 @@ def extract_return_input_types(
               then just use the types inferred from type hints.
     """
 
-    global PandasSeriesType, PandasDataFrameType
-    if get_installed_pandas() and (
-        PandasSeriesType is None or PandasDataFrameType is None
-    ):
-        snowpark_types = get_snowpark_types()
-        PandasDataFrameType = snowpark_types.PandasDataFrameType
-        PandasSeriesType = snowpark_types.PandasSeriesType
+    _ensure_pandas_types_initialized()
 
     (
         return_type_from_type_hints,
@@ -1347,8 +1352,14 @@ def create_python_udf_or_sp(
         and registration_type in {RegistrationType.UDTF, RegistrationType.SPROC}
     ):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
-    elif get_installed_pandas() and isinstance(return_type, PandasDataFrameType):
-        return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
+    elif get_installed_pandas():
+        # Ensure pandas types are loaded before isinstance check
+        _ensure_pandas_types_initialized()
+
+        if isinstance(return_type, PandasDataFrameType):
+            return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
+        else:
+            return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
