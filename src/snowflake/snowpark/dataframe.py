@@ -1678,11 +1678,13 @@ class DataFrame:
                 left_cols = string_col_names
             else:
                 left_cols = ["*"]
-            join_plan = TableFunctionJoin(
-                self._plan,
-                func_expr,
-                left_cols=left_cols,
-                right_cols=table_func_col_names,
+            join_plan = self._session._analyzer.resolve(
+                TableFunctionJoin(
+                    self._plan,
+                    func_expr,
+                    left_cols=left_cols,
+                    right_cols=table_func_col_names,
+                )
             )
 
         # AST.

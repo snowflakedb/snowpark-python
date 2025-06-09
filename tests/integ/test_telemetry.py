@@ -406,6 +406,8 @@ def test_drop_duplicates_api_calls(session):
 
 @pytest.mark.parametrize("use_simplified_query_generation", [True, False])
 def test_drop_api_calls(session, use_simplified_query_generation):
+    if not session.sql_simplifier_enabled and use_simplified_query_generation:
+        pytest.skip("SELECT * EXCLUDE is only supported with SQL Simplifier")
     df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
     original = session.conf.get("use_simplified_query_generation")
     try:
@@ -696,6 +698,8 @@ def test_count_api_calls(session):
 
 @pytest.mark.parametrize("use_simplified_query_generation", [True, False])
 def test_random_split(session, use_simplified_query_generation):
+    if not session.sql_simplifier_enabled and use_simplified_query_generation:
+        pytest.skip("SELECT * EXCLUDE is only supported with SQL Simplifier")
     original = session.conf.get("use_simplified_query_generation")
     try:
         session.conf.set(
