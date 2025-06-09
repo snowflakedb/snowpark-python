@@ -2898,9 +2898,10 @@ def test_register_artifact_repository_negative(session):
                 resource_constraint={"architecture": "x86"},
             )
         except SnowparkSQLException as ex:
-            assert (
-                "Cannot create or execute a function with resource_constraint annotation on a standard warehouse."
-                in str(ex)
+            assert "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
+            ) or "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
             )
 
 

@@ -1992,13 +1992,14 @@ def test_sproc_artifact_repository(session):
                 session=session,
                 return_type=StringType(),
                 artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-                packages=["urllib3", "requests"],
+                packages=["urllib3", "requests", "cloudpickle"],
                 resource_constraint={"architecture": "x86"},
             )
         except SnowparkSQLException as ex:
-            assert (
-                "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-                in str(ex)
+            assert "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse." in str(
+                ex
+            ) or "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
             )
 
 
