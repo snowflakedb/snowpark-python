@@ -3744,8 +3744,8 @@ def concat(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     return _call_function("concat", *columns, _emit_ast=_emit_ast)
 
 
-@publicapi
 @pyspark_migration_helper(migration_strategy="Use concat_ws_ignore_nulls instead.")
+@publicapi
 def concat_ws(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Concatenates two or more strings, or concatenates two or more binary values. If any of the values is null, the result is also null.
     The CONCAT_WS operator requires at least two arguments, and uses the first argument to separate all following arguments.
@@ -3775,7 +3775,7 @@ def concat_ws(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def _concat_ws_ignore_nulls(
+def concat_ws_ignore_nulls(
     sep: str, *cols: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
     """Concatenates two or more strings, or concatenates two or more binary values. Null values are ignored.
@@ -7143,10 +7143,11 @@ def array_construct_compact(*cols: ColumnOrName, _emit_ast: bool = True) -> Colu
     return _call_function("array_construct_compact", *cs, _emit_ast=_emit_ast)
 
 
-@publicapi
 @pyspark_migration_helper(
-    migration_strategy="Arrays are 1-indexed in PySpark, but 0-indexed in Snowpark."
+    migration_strategy="1. In Pyspark, the first argument is the array, but in Snowpark, it is the variant.\n"
+    "2. In Snowpark, if the trying to pass a string as the first argument, it must be passed by lit('str_val').cast(VariantType())"
 )
+@publicapi
 def array_contains(
     variant: ColumnOrName, array: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
@@ -7173,10 +7174,10 @@ def array_contains(
     return _call_function("array_contains", v, a, _emit_ast=_emit_ast)
 
 
-@publicapi
 @pyspark_migration_helper(
     migration_strategy="The position argument `pos` is 1-based in PySpark, but 0-based in Snowpark."
 )
+@publicapi
 def array_insert(
     array: ColumnOrName,
     pos: ColumnOrName,
@@ -7224,10 +7225,12 @@ def array_insert(
     return _call_function("array_insert", a, p, e, _emit_ast=_emit_ast)
 
 
-@publicapi
 @pyspark_migration_helper(
-    migration_strategy="The position value is 1-based in PySpark, but 0-based in Snowpark. When value is not found, PySpark returns 0, but Snowpark returns NULL."
+    migration_strategy="1. The position value is 1-based in PySpark, but 0-based in Snowpark. When value is not found, PySpark returns 0, but Snowpark returns NULL.\n"
+    "2. The first argument is the value to find in Snowpark, but in PySpark, it is the array.\n"
+    "3. If the value to be found is a string, it must be passed by lit('str_val').cast(VariantType())"
 )
+@publicapi
 def array_position(
     variant: ColumnOrName, array: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
@@ -9169,8 +9172,8 @@ Row(K=4, PERCENTILE=None)]
     return _call_function("percentile_cont", percentile, _emit_ast=_emit_ast)
 
 
-@publicapi
 @pyspark_migration_helper(migration_strategy="Use greatest_ignore_nulls instead.")
+@publicapi
 def greatest(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the largest value from a list of expressions.
