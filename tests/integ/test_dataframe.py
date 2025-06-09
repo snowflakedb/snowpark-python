@@ -3376,6 +3376,9 @@ def test_append_existing_table(session, local_testing_mode):
     reason="This test failed because of parameters setting, skip for now",
 )
 def test_dynamic_table_join_table_function(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
     class TestVolumeModels:
         def process(self, s1: str, s2: float):
             yield (1,)
@@ -3458,6 +3461,9 @@ def test_dynamic_table_join_table_function(session):
     reason="This test failed because of parameters setting, skip for now",
 )
 def test_dynamic_table_join_table_function_with_more_layers(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
     class TestVolumeModels:
         def process(self, s1: str, s2: float):
             yield (1,)
@@ -3542,6 +3548,9 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
     reason="This test failed because of parameters setting, skip for now",
 )
 def test_dynamic_table_join_table_function_nested(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
     class TestVolumeModels:
         def process(self, s1: str, s2: float):
             yield (1,)

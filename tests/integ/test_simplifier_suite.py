@@ -159,39 +159,33 @@ def test_distinct_set_operator(session, distinct_table, action, operator):
         df2 = session.table(distinct_table)
 
         df = action(df1, df2.distinct())
-        assert (
-            Utils.normalize_sql(df.queries["queries"][0])
-            == f"""( SELECT * FROM {distinct_table}){operator}( SELECT DISTINCT * FROM {distinct_table})"""
+        assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
+            f"""( SELECT * FROM {distinct_table}){operator}( SELECT DISTINCT * FROM {distinct_table})"""
         )
 
         df = action(df1.distinct(), df2)
-        assert (
-            Utils.normalize_sql(df.queries["queries"][0])
-            == f"""( SELECT DISTINCT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table})"""
+        assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
+            f"""( SELECT DISTINCT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table})"""
         )
 
         df = action(df1, df2).distinct()
-        assert (
-            Utils.normalize_sql(df.queries["queries"][0])
-            == f"""SELECT DISTINCT * FROM ( ( SELECT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table}) )"""
+        assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
+            f"""SELECT DISTINCT * FROM ( ( SELECT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table}) )"""
         )
 
         df = action(df1, df2.distinct()).distinct()
-        assert (
-            Utils.normalize_sql(df.queries["queries"][0])
-            == f"""SELECT DISTINCT * FROM ( ( SELECT * FROM {distinct_table}){operator}( SELECT DISTINCT * FROM {distinct_table}) )"""
+        assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
+            f"""SELECT DISTINCT * FROM ( ( SELECT * FROM {distinct_table}){operator}( SELECT DISTINCT * FROM {distinct_table}) )"""
         )
 
         df = action(df1.distinct(), df2).distinct()
-        assert (
-            Utils.normalize_sql(df.queries["queries"][0])
-            == f"""SELECT DISTINCT * FROM ( ( SELECT DISTINCT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table}) )"""
+        assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
+            f"""SELECT DISTINCT * FROM ( ( SELECT DISTINCT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table}) )"""
         )
 
         df = action(df1.distinct(), df2.distinct()).distinct()
-        assert (
-            Utils.normalize_sql(df.queries["queries"][0])
-            == f"""SELECT DISTINCT * FROM ( ( SELECT DISTINCT * FROM {distinct_table}){operator}( SELECT DISTINCT * FROM {distinct_table}) )"""
+        assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
+            f"""SELECT DISTINCT * FROM ( ( SELECT DISTINCT * FROM {distinct_table}){operator}( SELECT DISTINCT * FROM {distinct_table}) )"""
         )
     finally:
         session.conf.set("use_simplified_query_generation", original)
@@ -746,37 +740,32 @@ def test_order_by(setup_reduce_cast, session, simplifier_table):
     integer_literal_postfix = (
         "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
     )
-    assert (
-        Utils.normalize_sql(df1.queries["queries"][-1])
-        == f'SELECT * FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, ("B" + 1{integer_literal_postfix}) ASC NULLS FIRST'
+    assert Utils.normalize_sql(df1.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, ("B" + 1{integer_literal_postfix}) ASC NULLS FIRST'
     )
 
     # flatten
     df2 = df.select("a", "b").sort("a", "b")
-    assert (
-        Utils.normalize_sql(df2.queries["queries"][-1])
-        == f'SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    assert Utils.normalize_sql(df2.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
     # no flatten because c is a new column
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).sort("a", "b", "c")
-    assert (
-        Utils.normalize_sql(df3.queries["queries"][-1])
-        == f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
+    assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
     )
 
     # no flatten because a and be are changed
     df4 = df.select((col("a") + 1).as_("a"), ((col("b") + 1).as_("b"))).sort("a", "b")
-    assert (
-        Utils.normalize_sql(df4.queries["queries"][-1])
-        == f'SELECT * FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
     # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
     df5 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).sort("a", "b")
-    assert (
-        Utils.normalize_sql(df5.queries["queries"][-1])
-        == f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
 
@@ -788,74 +777,71 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
 
     # flatten
     df1 = df.filter((col("a") > 1) & (col("b") > 2))
-    assert (
-        Utils.normalize_sql(df1.queries["queries"][-1])
-        == f'SELECT * FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+    assert Utils.normalize_sql(df1.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # flatten
     df2 = df.select("a", "b").filter((col("a") > 1) & (col("b") > 2))
-    assert (
-        Utils.normalize_sql(df2.queries["queries"][-1])
-        == f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+    assert Utils.normalize_sql(df2.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # no flatten because c is a new column
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
         (col("a") > 1) & (col("b") > 2) & (col("c") < 1)
     )
-    assert (
-        Utils.normalize_sql(df3.queries["queries"][-1])
-        == f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
+    assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
     )
 
     # no flatten because a and be are changed
     df4 = df.select((col("a") + 1).as_("a"), (col("b") + 1).as_("b")).filter(
         (col("a") > 1) & (col("b") > 2)
     )
-    assert (
-        Utils.normalize_sql(df4.queries["queries"][-1])
-        == f'SELECT * FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+    assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     df5 = df4.select("a")
-    assert (
-        Utils.normalize_sql(df5.queries["queries"][-1])
-        == f'SELECT "A" FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+    assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A" FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
     df6 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).filter(
         col("a") > 1
     )
-    assert (
-        Utils.normalize_sql(df6.queries["queries"][-1])
-        == f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) WHERE ("A" > 1{integer_literal_postfix})'
+    assert Utils.normalize_sql(df6.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) WHERE ("A" > 1{integer_literal_postfix})'
     )
 
 
 def test_limit(setup_reduce_cast, session, simplifier_table):
     df = session.table(simplifier_table)
     df = df.limit(10)
-    assert (
-        Utils.normalize_sql(df.queries["queries"][-1]).lower()
-        == f"select * from {simplifier_table.lower()} limit 10"
+    assert Utils.normalize_sql(
+        df.queries["queries"][-1]
+    ).lower() == Utils.normalize_sql(
+        f"select * from {simplifier_table.lower()} limit 10"
     )
 
     df = session.sql(f"select * from {simplifier_table}")
     df = df.limit(10)
     # we don't know if the original sql already has top/limit clause using a subquery is necessary.
     #  or else there will be SQL compile error.
-    assert (
-        Utils.normalize_sql(df.queries["queries"][-1]).lower()
-        == f"select * from ( select * from {simplifier_table.lower()} ) limit 10"
+    assert Utils.normalize_sql(
+        df.queries["queries"][-1]
+    ).lower() == Utils.normalize_sql(
+        f"select * from ( select * from {simplifier_table.lower()} ) limit 10"
     )
 
     df = session.sql(f"select * from {simplifier_table}")
     df = df.limit(0)
-    assert (
-        Utils.normalize_sql(df.queries["queries"][-1]).lower()
-        == f"select * from ( select * from {simplifier_table.lower()} ) limit 0"
+    assert Utils.normalize_sql(
+        df.queries["queries"][-1]
+    ).lower() == Utils.normalize_sql(
+        f"select * from ( select * from {simplifier_table.lower()} ) limit 0"
     )
 
     # test for non-select sql statement
@@ -873,15 +859,13 @@ def test_filter_order_limit_together(setup_reduce_cast, session, simplifier_tabl
         "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
     )
 
-    assert (
-        Utils.normalize_sql(df1.queries["queries"][-1])
-        == f'SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1{integer_literal_postfix}) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
+    assert Utils.normalize_sql(df1.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A", "B" FROM {simplifier_table} WHERE ("B" > 1{integer_literal_postfix}) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
     )
 
     df2 = df1.select("a")
-    assert (
-        Utils.normalize_sql(df2.queries["queries"][-1])
-        == f'SELECT "A" FROM {simplifier_table} WHERE ("B" > 1{integer_literal_postfix}) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
+    assert Utils.normalize_sql(df2.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A" FROM {simplifier_table} WHERE ("B" > 1{integer_literal_postfix}) ORDER BY "A" ASC NULLS FIRST LIMIT 5'
     )
 
 
@@ -892,69 +876,58 @@ def test_order_limit_filter(setup_reduce_cast, session, simplifier_table):
         "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
     )
 
-    assert (
-        Utils.normalize_sql(df1.queries["queries"][-1])
-        == f'SELECT * FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1 ) WHERE ("B" > 1{integer_literal_postfix})'
+    assert Utils.normalize_sql(df1.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1 ) WHERE ("B" > 1{integer_literal_postfix})'
     )
 
     df2 = df1.select("a")
-    assert (
-        Utils.normalize_sql(df2.queries["queries"][-1])
-        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1 ) WHERE ("B" > 1{integer_literal_postfix})'
+    assert Utils.normalize_sql(df2.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST LIMIT 1 ) WHERE ("B" > 1{integer_literal_postfix})'
     )
 
 
 def test_limit_window(session, simplifier_table):
     df = session.table(simplifier_table)
     df1 = df.select("a", "b").limit(1).select("a", "b", row_number().over())
-    assert (
-        Utils.normalize_sql(df1.queries["queries"][-1])
-        == f'SELECT "A", "B", row_number() OVER ( ) FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1 )'
+    assert Utils.normalize_sql(df1.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A", "B", row_number() OVER ( ) FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1 )'
     )
 
     df2 = df1.select("a")
-    assert (
-        Utils.normalize_sql(df2.queries["queries"][-1])
-        == f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1 )'
+    assert Utils.normalize_sql(df2.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A" FROM ( SELECT "A", "B" FROM {simplifier_table} LIMIT 1 )'
     )
 
 
 def test_limit_offset(session, simplifier_table):
     df = session.table(simplifier_table)
     df = df.limit(10, offset=1)
-    assert (
-        Utils.normalize_sql(df.queries["queries"][-1])
-        == f"SELECT * FROM {simplifier_table} LIMIT 10 OFFSET 1"
+    assert Utils.normalize_sql(df.queries["queries"][-1]) == Utils.normalize_sql(
+        f"SELECT * FROM {simplifier_table} LIMIT 10 OFFSET 1"
     )
 
     df2 = df.limit(6)
-    assert (
-        Utils.normalize_sql(df2.queries["queries"][-1])
-        == f"SELECT * FROM {simplifier_table} LIMIT 6 OFFSET 1"
+    assert Utils.normalize_sql(df2.queries["queries"][-1]) == Utils.normalize_sql(
+        f"SELECT * FROM {simplifier_table} LIMIT 6 OFFSET 1"
     )
 
     df3 = df.limit(5, offset=2)
     print(df3.queries)
-    assert (
-        Utils.normalize_sql(df3.queries["queries"][-1])
-        == f"SELECT * FROM ( SELECT * FROM {simplifier_table} LIMIT 10 OFFSET 1 ) "
-        f"LIMIT 5 OFFSET 2"
+    assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
+        f"SELECT * FROM ( SELECT * FROM {simplifier_table} LIMIT 10 OFFSET 1 ) LIMIT 5 OFFSET 2"
     )
 
     df4 = session.sql(f"select * from {simplifier_table}")
     df4 = df4.limit(10)
     # we don't know if the original sql already has top/limit clause using a subquery is necessary.
     #  or else there will be SQL compile error.
-    assert (
-        Utils.normalize_sql(df4.queries["queries"][-1])
-        == f"SELECT * FROM ( select * from {simplifier_table} ) LIMIT 10"
+    assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
+        f"SELECT * FROM ( select * from {simplifier_table} ) LIMIT 10"
     )
 
     df5 = df4.limit(5, offset=20)
-    assert (
-        Utils.normalize_sql(df5.queries["queries"][-1])
-        == f"SELECT * FROM ( SELECT * FROM ( select * from {simplifier_table} ) LIMIT 10 ) "
-        f"LIMIT 5 OFFSET 20"
+    assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
+        f"SELECT * FROM ( SELECT * FROM ( select * from {simplifier_table} ) LIMIT 10 ) LIMIT 5 OFFSET 20"
     )
 
 
@@ -1187,39 +1160,33 @@ def test_unpivot(session, simplifier_table):
 def test_select_star(session, simplifier_table):
     df = session.table(simplifier_table)
     df1 = df.select("*")
-    assert (
-        Utils.normalize_sql(df1.queries["queries"][0])
-        == f"SELECT * FROM {simplifier_table}"
+    assert Utils.normalize_sql(df1.queries["queries"][0]) == Utils.normalize_sql(
+        f"SELECT * FROM {simplifier_table}"
     )
 
     df2 = df.select(df["*"])
-    assert (
-        Utils.normalize_sql(df2.queries["queries"][0])
-        == f'SELECT "A", "B" FROM {simplifier_table}'
+    assert Utils.normalize_sql(df2.queries["queries"][0]) == Utils.normalize_sql(
+        f'SELECT "A", "B" FROM {simplifier_table}'
     )
 
     df3 = df.select("*", "a")
-    assert (
-        Utils.normalize_sql(df3.queries["queries"][0])
-        == f'SELECT *, "A" FROM ( SELECT * FROM {simplifier_table} )'
+    assert Utils.normalize_sql(df3.queries["queries"][0]) == Utils.normalize_sql(
+        f'SELECT *, "A" FROM ( SELECT * FROM {simplifier_table} )'
     )
 
     df4 = df.select(df["*"], "a")
-    assert (
-        Utils.normalize_sql(df4.queries["queries"][0])
-        == f'SELECT "A","B", "A" FROM ( SELECT * FROM {simplifier_table} )'
+    assert Utils.normalize_sql(df4.queries["queries"][0]) == Utils.normalize_sql(
+        f'SELECT "A","B", "A" FROM ( SELECT * FROM {simplifier_table} )'
     )
 
     df5 = df3.select("b")
-    assert (
-        Utils.normalize_sql(df5.queries["queries"][0])
-        == f'SELECT "B" FROM ( SELECT *, "A" FROM ( SELECT * FROM {simplifier_table} ) )'
+    assert Utils.normalize_sql(df5.queries["queries"][0]) == Utils.normalize_sql(
+        f'SELECT "B" FROM ( SELECT *, "A" FROM ( SELECT * FROM {simplifier_table} ) )'
     )
 
     df6 = df4.select("b")
-    assert (
-        Utils.normalize_sql(df6.queries["queries"][0])
-        == f'SELECT "B" FROM ( SELECT "A","B", "A" FROM ( SELECT * FROM {simplifier_table} ) )'
+    assert Utils.normalize_sql(df6.queries["queries"][0]) == Utils.normalize_sql(
+        f'SELECT "B" FROM ( SELECT "A","B", "A" FROM ( SELECT * FROM {simplifier_table} ) )'
     )
 
     with pytest.raises(SnowparkSQLException, match="ambiguous column name 'A'"):
@@ -1289,6 +1256,8 @@ def test_drop_using_exclude(session, large_simplifier_table, df_from):
         drop_ab_query = f'SELECT * EXCLUDE ("A", "B") FROM ( select * from {large_simplifier_table} )'
     else:
         raise ValueError("Invalid df_from value")
+    drop_a_query = Utils.normalize_sql(drop_a_query)
+    drop_ab_query = Utils.normalize_sql(drop_ab_query)
 
     original = session.conf.get("use_simplified_query_generation")
     try:
@@ -1333,62 +1302,52 @@ def test_flattening_for_exclude(session, large_simplifier_table):
 
         # select
         df1 = df.select("a", "b", "c").drop("a")
-        assert (
-            Utils.normalize_sql(df1.queries["queries"][0])
-            == f'SELECT * EXCLUDE ("A") FROM ( SELECT "A", "B", "C" FROM {large_simplifier_table} )'
+        assert Utils.normalize_sql(df1.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT * EXCLUDE ("A") FROM ( SELECT "A", "B", "C" FROM {large_simplifier_table} )'
         )
         df2 = df.drop("a").select("b", "c").drop("b")
-        assert (
-            Utils.normalize_sql(df2.queries["queries"][0])
-            == f'SELECT * EXCLUDE ("B") FROM ( SELECT "B", "C" FROM ( SELECT * EXCLUDE ("A") FROM {large_simplifier_table} ) )'
+        assert Utils.normalize_sql(df2.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT * EXCLUDE ("B") FROM ( SELECT "B", "C" FROM ( SELECT * EXCLUDE ("A") FROM {large_simplifier_table} ) )'
         )
 
         # filter
         df3 = df.filter(col("a") > 1).drop("a")
-        assert (
-            Utils.normalize_sql(df3.queries["queries"][0])
-            == f'SELECT * EXCLUDE ("A") FROM {large_simplifier_table} WHERE ("A" > 1)'
+        assert Utils.normalize_sql(df3.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT * EXCLUDE ("A") FROM {large_simplifier_table} WHERE ("A" > 1)'
         )
         df4 = df.drop("a").filter(col("a") > 1).drop("b")
-        assert (
-            Utils.normalize_sql(df4.queries["queries"][0])
-            == f'SELECT * EXCLUDE ("A", "B") FROM {large_simplifier_table} WHERE ("A" > 1)'
+        assert Utils.normalize_sql(df4.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT * EXCLUDE ("A", "B") FROM {large_simplifier_table} WHERE ("A" > 1)'
         )
 
         # sort
         df5 = df.sort("a").drop("a")
-        assert (
-            Utils.normalize_sql(df5.queries["queries"][0])
-            == f'SELECT * EXCLUDE ("A") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
+        assert Utils.normalize_sql(df5.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT * EXCLUDE ("A") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
         )
         df6 = df.drop("b").sort("a").drop("a")
-        assert (
-            Utils.normalize_sql(df6.queries["queries"][0])
-            == f'SELECT * EXCLUDE ("A", "B") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
+        assert Utils.normalize_sql(df6.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT * EXCLUDE ("A", "B") FROM {large_simplifier_table} ORDER BY "A" ASC NULLS FIRST'
         )
 
         # limit
         df7 = df.limit(10).drop("a")
-        assert (
-            Utils.normalize_sql(df7.queries["queries"][0])
-            == f'SELECT * EXCLUDE ("A") FROM {large_simplifier_table} LIMIT 10'
+        assert Utils.normalize_sql(df7.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT * EXCLUDE ("A") FROM {large_simplifier_table} LIMIT 10'
         )
         df8 = df.drop("a").limit(10).drop("b")
-        assert (
-            Utils.normalize_sql(df8.queries["queries"][0])
-            == f'SELECT * EXCLUDE ("A", "B") FROM {large_simplifier_table} LIMIT 10'
+        assert Utils.normalize_sql(df8.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT * EXCLUDE ("A", "B") FROM {large_simplifier_table} LIMIT 10'
         )
 
         # distinct
         df9 = df.distinct().drop("a")
-        assert (
-            Utils.normalize_sql(df9.queries["queries"][0])
-            == f'SELECT DISTINCT * EXCLUDE ("A") FROM {large_simplifier_table}'
+        assert Utils.normalize_sql(df9.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT DISTINCT * EXCLUDE ("A") FROM {large_simplifier_table}'
         )
         df10 = df.drop("a").distinct().drop("b")
-        assert (
-            Utils.normalize_sql(df10.queries["queries"][0])
-            == f'SELECT DISTINCT * EXCLUDE ("A", "B") FROM {large_simplifier_table}'
+        assert Utils.normalize_sql(df10.queries["queries"][0]) == Utils.normalize_sql(
+            f'SELECT DISTINCT * EXCLUDE ("A", "B") FROM {large_simplifier_table}'
         )
 
     finally:
@@ -1519,6 +1478,7 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
         "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
     )
     simplified_query = simplified_query.format_map({"POSTFIX": integer_literal_postfix})
+    simplified_query = Utils.normalize_sql(simplified_query)
 
     Utils.check_answer(operation(df1), operation(df2))
     assert Utils.normalize_sql(operation(df2).queries["queries"][0]) == simplified_query
@@ -1587,6 +1547,7 @@ def test_select_after_orderby(
         "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
     )
     simplified_query = simplified_query.format_map({"POSTFIX": integer_literal_postfix})
+    simplified_query = Utils.normalize_sql(simplified_query)
 
     assert Utils.normalize_sql(operation(df2).queries["queries"][0]) == simplified_query
     if execute_sql:
@@ -1635,17 +1596,23 @@ def test_select_limit_orderby(session):
     Utils.check_answer(df1, [Row(3, "b"), Row(5, "a")])
     # sql simplification is not applied, and order by clause is attached at end
     expected_query = """SELECT * FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING) ) LIMIT 2 ) ORDER BY "A" ASC NULLS FIRST"""
-    assert Utils.normalize_sql(df1.queries["queries"][0]) == expected_query
+    assert Utils.normalize_sql(df1.queries["queries"][0]) == Utils.normalize_sql(
+        expected_query
+    )
 
     df2 = df.select("a", "b").sort(col("a")).limit(2)
     Utils.check_answer(df2, [Row(3, "b"), Row(5, "a")])
     # sql simplification is applied, order by is in front of the limit
     expected_query = """SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING) ) ORDER BY "A" ASC NULLS FIRST LIMIT 2"""
-    assert Utils.normalize_sql(df2.queries["queries"][0]) == expected_query
+    assert Utils.normalize_sql(df2.queries["queries"][0]) == Utils.normalize_sql(
+        expected_query
+    )
 
     df3 = df.select("a", "b").limit(2, offset=1).sort(col("a"))
     expected_query = """SELECT * FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING) ) LIMIT 2 OFFSET 1 ) ORDER BY "A" ASC NULLS FIRST"""
-    assert Utils.normalize_sql(df3.queries["queries"][0]) == expected_query
+    assert Utils.normalize_sql(df3.queries["queries"][0]) == Utils.normalize_sql(
+        expected_query
+    )
 
 
 @pytest.mark.parametrize(
@@ -1749,8 +1716,8 @@ def test_select_distinct(
         df1 = operation(df)
         if expected_result is not None:
             Utils.check_answer(df1, expected_result, sort=sort_results)
-        assert Utils.normalize_sql(df1.queries["queries"][0]) == expected_query(
-            distinct_table
+        assert Utils.normalize_sql(df1.queries["queries"][0]) == Utils.normalize_sql(
+            expected_query(distinct_table)
         )
     finally:
         session.conf.set("use_simplified_query_generation", original)
