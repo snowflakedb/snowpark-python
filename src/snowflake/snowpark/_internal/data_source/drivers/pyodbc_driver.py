@@ -6,7 +6,6 @@ import datetime
 import decimal
 from typing import List, Any
 import logging
-
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark.types import (
