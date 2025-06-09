@@ -158,9 +158,10 @@ from snowflake.snowpark.modin.plugin.io.factories import (  # isort: skip  # noq
 if MODIN_IS_AT_LEAST_0_33_0:
     modin_factories.SnowflakeOnSnowflakeFactory = PandasOnSnowflakeFactory
     Engine.add_option("Snowflake")
-    Backend.register_backend(
-        "Snowflake", Execution(engine="Snowflake", storage_format="Snowflake")
-    )
+    if "Snowflake" not in Backend.get_active_backends():
+        Backend.register_backend(
+            "Snowflake", Execution(engine="Snowflake", storage_format="Snowflake")
+        )
     Backend.put("snowflake")
 
     from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402
@@ -333,14 +334,14 @@ if MODIN_IS_AT_LEAST_0_33_0:
                 attr_name, getattr(cls, attr_name)
             )
             # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
-            # backend, we must use the __wrapped__ property of the originally-defined attribute to avoid
+            # backend, we must use the _wrapped_method_for_casting property of the originally-defined attribute to avoid
             # infinite recursion.
-            # Do not check for __wrapped__ if this was defined as a Snowflake extension, since we use
-            # decorators to raise NotImplementedError and apply exceptions.
+            # Do not check for _wrapped_method_for_casting if this was already defined as a Snowflake extension,
+            # since we use decorators to raise NotImplementedError and apply exceptions.
             if attr_name not in cls._extensions["Snowflake"] and hasattr(
-                attr_value, "__wrapped__"
+                attr_value, "_wrapped_method_for_casting"
             ):
-                attr_value = attr_value.__wrapped__
+                attr_value = attr_value._wrapped_method_for_casting
 
             register_method(attr_name, backend="Snowflake")(
                 try_add_telemetry_to_attribute(attr_name, attr_value)
@@ -390,10 +391,12 @@ if MODIN_IS_AT_LEAST_0_33_0:
         attr_value = _GENERAL_EXTENSIONS[defined_backend].get(
             attr_name, getattr(modin.pandas, attr_name)
         )
-        # Do not check for __wrapped__ if this was defined as a Snowflake extension, since we use
+        # Do not check for _wrapped_method_for_casting if this was defined as a Snowflake extension, since we use
         # decorators to raise NotImplementedError and apply exceptions.
-        if defined_backend != "Snowflake" and hasattr(attr_value, "__wrapped__"):
-            attr_value = attr_value.__wrapped__
+        if defined_backend != "Snowflake" and hasattr(
+            attr_value, "_wrapped_method_for_casting"
+        ):
+            attr_value = attr_value._wrapped_method_for_casting
         # Do not add telemetry to any method that is mirrored from native pandas
         if (
             inspect.isfunction(attr_value)
