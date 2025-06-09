@@ -3273,43 +3273,6 @@ class Session:
                     # TODO: Implement here write_pandas correctly.
                     success, ci_output = True, []
                 else:
-                    # Ensure pandas types are available before calling connector's write_pandas
-                    # This prevents lazy loading issues that cause timestamp columns to be detected as LongType
-                    pandas = get_pandas()
-                    if pandas:
-                        try:
-                            import numpy
-
-                            # Force loading of pandas types to prevent lazy loading issues during type detection
-                            _ = (
-                                pandas.DatetimeTZDtype,
-                                pandas.IntervalDtype,
-                                pandas.PeriodDtype,
-                            )
-                            _ = pandas.Float32Dtype, pandas.Float64Dtype
-                            _ = (
-                                pandas.Int8Dtype,
-                                pandas.Int16Dtype,
-                                pandas.Int32Dtype,
-                                pandas.Int64Dtype,
-                            )
-                            _ = (
-                                pandas.UInt8Dtype,
-                                pandas.UInt16Dtype,
-                                pandas.UInt32Dtype,
-                                pandas.UInt64Dtype,
-                            )
-                            _ = (
-                                numpy.datetime64,
-                                numpy.float64,
-                                numpy.int64,
-                                numpy.timedelta64,
-                                numpy.bool_,
-                            )
-                        except (ImportError, AttributeError):
-                            # If types can't be loaded, continue without type loading
-                            pass
-
                     success, _, _, ci_output = write_pandas(
                         self._conn._conn,
                         df,

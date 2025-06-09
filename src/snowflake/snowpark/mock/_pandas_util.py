@@ -45,20 +45,6 @@ def _extract_schema_and_data_from_pandas_df(
     import numpy
     from snowflake.snowpark.mock._options import pandas as pd
 
-    # Ensure pandas types are fully loaded before checking them
-    def _ensure_pandas_types_available():
-        """Ensure pandas types are available for isinstance checks"""
-        # Force loading of pandas types by accessing them
-        _ = pd.DatetimeTZDtype
-        _ = pd.IntervalDtype
-        _ = pd.PeriodDtype
-        _ = pd.Float32Dtype, pd.Float64Dtype
-        _ = pd.Int8Dtype, pd.Int16Dtype, pd.Int32Dtype, pd.Int64Dtype
-        _ = pd.UInt8Dtype, pd.UInt16Dtype, pd.UInt32Dtype, pd.UInt64Dtype
-        _ = numpy.datetime64, numpy.float64, numpy.int64, numpy.timedelta64, numpy.bool_
-
-    _ensure_pandas_types_available()
-
     # PANDAS_INTEGER_TYPES defined here to avoid module level referencing pandas lib
     # as pandas is optional to snowpark-python
     PANDAS_INTEGER_TYPES = (

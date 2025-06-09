@@ -42,6 +42,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark.mock._udf_utils import coerce_variant_input, remove_null_wrapper
 from snowflake.snowpark.mock._util import ImportContext, get_fully_qualified_name
+from snowflake.snowpark.mock._window_utils import (
+    EntireWindowIndexer,
+    RowFrameIndexer,
+    is_rank_related_window_function,
+)
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 if TYPE_CHECKING:
@@ -429,10 +434,6 @@ def handle_range_frame_indexing(
     if order_spec:
         from snowflake.snowpark.mock._options import pandas as pd
 
-        # Use factory function to get proper indexer class
-        from snowflake.snowpark.mock._window_utils import _get_entire_window_indexer
-
-        EntireWindowIndexer = _get_entire_window_indexer()
         ordered_windows = [
             handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
             for win in res.rolling(EntireWindowIndexer())
@@ -518,10 +519,6 @@ def handle_range_frame_indexing(
 
                 windows.append(win[start_idx : end_idx + 1])
     else:  # If order by is not specified, just use the entire window
-        # Use factory function to get proper indexer class
-        from snowflake.snowpark.mock._window_utils import _get_entire_window_indexer
-
-        EntireWindowIndexer = _get_entire_window_indexer()
         windows = res.rolling(EntireWindowIndexer())
     return windows
 
@@ -2571,13 +2568,6 @@ def calculate_expression(
 
         return output_data
     if isinstance(exp, WindowExpression):
-        # Lazy import to avoid importing pandas at module level
-        from snowflake.snowpark.mock._window_utils import (
-            _get_entire_window_indexer,
-            _get_row_frame_indexer,
-            is_rank_related_window_function,
-        )
-
         window_function = exp.window_function
         window_spec = exp.window_spec
 
@@ -2642,8 +2632,6 @@ def calculate_expression(
                 if not isinstance(windows, list):
                     pd_index = list(windows.count().index)
             else:
-                # Create indexer class dynamically to avoid module-level pandas import
-                EntireWindowIndexer = _get_entire_window_indexer()
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
@@ -2652,8 +2640,6 @@ def calculate_expression(
                 pd_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
-            # Create indexer class dynamically to avoid module-level pandas import
-            RowFrameIndexer = _get_row_frame_indexer()
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
             res = res.rolling(indexer)
             res_index = list(res.count().index)
