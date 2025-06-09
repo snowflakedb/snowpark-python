@@ -92,7 +92,7 @@ def pytest_collection_modifyitems(config, items):
     host = conn_params.get("host") or conn_params.get("HOST")
     if any(platform in host.split(".") for platform in ["gcp", "azure"]):
         skip = pytest.mark.skip(reason="Skipping doctest for Azure and GCP deployment")
-        disabled_doctests = ["ai_filter", "ai_classify"]
+        disabled_doctests = ["ai_filter", "ai_classify", "ai_similarity"]
         for item in items:
             # identify doctest items
             if isinstance(item, DoctestItem):
