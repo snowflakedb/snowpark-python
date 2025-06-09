@@ -192,13 +192,3 @@ def test_double_quoted_column_name_oracledb(session):
             Notes="This is a case-sensitive example.",
         )
     ]
-
-
-def test_case_sensitive_option(session):
-    df = session.read.dbapi(create_connection_oracledb, table="case_table")
-    assert df.collect() == [
-        Row(
-            Same_Word_Different_Case="sensitive_value",
-            SAME_WORD_DIFFERENT_CASE="insensitive_value",
-        )
-    ]

@@ -4,9 +4,6 @@
 from typing import List, Any
 import logging
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name_without_upper_casing,
-)
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark.types import (
@@ -103,9 +100,7 @@ class OracledbDriver(BaseDriver):
                 )
             else:
                 data_type = snow_type()
-            fields.append(
-                StructField(quote_name_without_upper_casing(name), data_type, null_ok)
-            )
+            fields.append(StructField(name, data_type, null_ok))
 
         return StructType(fields)
 

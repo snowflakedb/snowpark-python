@@ -4,9 +4,6 @@
 import logging
 from typing import List, Any, TYPE_CHECKING
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name_without_upper_casing,
-)
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Cursor,
 )
@@ -61,11 +58,7 @@ class DatabricksDriver(BaseDriver):
             if column_type.lower() == "timestamp":
                 # by default https://docs.databricks.com/aws/en/sql/language-manual/data-types/timestamp-type
                 data_type = TimestampType(TimestampTimeZone.LTZ)
-            all_columns.append(
-                StructField(
-                    quote_name_without_upper_casing(column_name), data_type, True
-                )
-            )
+            all_columns.append(StructField(column_name, data_type, True))
         return StructType(all_columns)
 
     def udtf_class_builder(
