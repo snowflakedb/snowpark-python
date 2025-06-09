@@ -1018,7 +1018,7 @@ class SelectStatement(Selectable):
             self._commented_sql = (
                 f"-- {self.from_.uuid}\n{self._sql_query}\n-- {self.from_.uuid}"
             )
-            return self._sql_query
+            return self._commented_sql
         self._commented_sql = self._generate_sql()
         self._sql_query = remove_comments(self._commented_sql, [self.from_.uuid])
         return self._commented_sql
