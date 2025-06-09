@@ -2847,6 +2847,10 @@ def test_register_artifact_repository(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stored proc env does not have permissions to look up warehouse details",
+)
+@pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
 def test_register_artifact_repository_negative(session):
@@ -2894,9 +2898,10 @@ def test_register_artifact_repository_negative(session):
                 resource_constraint={"architecture": "x86"},
             )
         except SnowparkSQLException as ex:
-            assert (
-                "Cannot create or execute a function with resource_constraint annotation on a standard warehouse."
-                in str(ex)
+            assert "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
+            ) or "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
             )
 
 
