@@ -404,9 +404,9 @@ class SnowflakePlan(LogicalPlan):
         referenced_ctes: Optional[Dict[WithQueryBlock, int]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
-        # This field records child UUIDs and their associated query indices
-        # to be used for generating query line intervals
-        child_uuids_and_query_idxs: Optional[List[Tuple[str, int]]] = None,
+        from_selectable_uuid: Optional[str] = None,
+        # This field take commented_sql from source plans to generate query line intervals
+        commented_sql: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -447,7 +447,7 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
-        self._uuid = str(uuid.uuid4())
+        self._uuid = from_selectable_uuid if from_selectable_uuid else str(uuid.uuid4())
         # Metadata for the plan
         self._metadata: PlanMetadata = infer_metadata(
             self.source_plan,
@@ -458,19 +458,27 @@ class SnowflakePlan(LogicalPlan):
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
         self.df_ast_id: Optional[int] = None
-        if child_uuids_and_query_idxs is not None:
-            last_query = self.queries[-1]
-            final_sql = remove_comments(
-                last_query.sql, [uuid for uuid, _ in child_uuids_and_query_idxs]
+        if commented_sql is not None:
+            from snowflake.snowpark._internal.analyzer.select_statement import (
+                Selectable,
             )
+
+            last_query = self.queries[-1]
+            child_uuids_and_query_idxs = []
+            for child in self.children_plan_nodes:
+                if isinstance(child, Selectable):
+                    child_uuids_and_query_idxs.append((child.uuid, 0))
+                elif isinstance(child, SnowflakePlan):
+                    child_uuids_and_query_idxs.append(
+                        (child.uuid, len(child.queries) - 1)
+                    )
             query_line_intervals = get_line_numbers(
-                last_query.sql,
+                commented_sql,
                 child_uuids_and_query_idxs,
                 self.uuid,
                 len(self.queries) - 1,
             )
             last_query.query_line_intervals = query_line_intervals
-            last_query.sql = final_sql
 
     @property
     def uuid(self) -> str:
@@ -763,9 +771,11 @@ class SnowflakePlanBuilder:
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
+        commented_sql = sql_generator(select_child.queries[-1].sql)
+        final_sql = remove_comments(commented_sql, [select_child.uuid])
         queries = select_child.queries[:-1] + [
             Query(
-                sql_generator(select_child.queries[-1].sql),
+                final_sql,
                 query_id_place_holder="",
                 is_ddl_on_temp_object=is_ddl_on_temp_object,
                 params=select_child.queries[-1].params,
@@ -779,7 +789,6 @@ class SnowflakePlanBuilder:
                 child.schema_query is not None
             ), "No schema query is available in child SnowflakePlan"
             new_schema_query = schema_query or sql_generator(child.schema_query)
-        child_uuids_and_query_idxs = [(select_child.uuid, len(queries) - 1)]
         return SnowflakePlan(
             queries,
             new_schema_query,
@@ -791,7 +800,7 @@ class SnowflakePlanBuilder:
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
             referenced_ctes=child.referenced_ctes,
-            child_uuids_and_query_idxs=child_uuids_and_query_idxs,
+            commented_sql=commented_sql,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -854,20 +863,20 @@ class SnowflakePlanBuilder:
                 select_left.referenced_ctes, select_right.referenced_ctes
             )
 
+        commented_sql = sql_generator(
+            select_left.queries[-1].sql, select_right.queries[-1].sql
+        )
+        final_sql = remove_comments(
+            commented_sql, [select_left.uuid, select_right.uuid]
+        )
         queries = merged_queries + [
             Query(
-                sql_generator(
-                    select_left.queries[-1].sql, select_right.queries[-1].sql
-                ),
+                final_sql,
                 params=[
                     *select_left.queries[-1].params,
                     *select_right.queries[-1].params,
                 ],
             )
-        ]
-        child_uuids_and_query_idxs = [
-            (select_left.uuid, len(select_left.queries) - 1),
-            (select_right.uuid, len(select_right.queries) - 1),
         ]
         return SnowflakePlan(
             queries,
@@ -878,7 +887,7 @@ class SnowflakePlanBuilder:
             api_calls=api_calls,
             session=self.session,
             referenced_ctes=referenced_ctes,
-            child_uuids_and_query_idxs=child_uuids_and_query_idxs,
+            commented_sql=commented_sql,
         )
 
     def query(
@@ -895,7 +904,7 @@ class SnowflakePlanBuilder:
             session=self.session,
             source_plan=source_plan,
             api_calls=api_calls,
-            child_uuids_and_query_idxs=[],
+            commented_sql=sql,
         )
 
     def large_local_relation_plan(
