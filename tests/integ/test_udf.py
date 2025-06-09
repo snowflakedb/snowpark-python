@@ -2847,6 +2847,10 @@ def test_register_artifact_repository(session):
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stored proc env does not have permissions to look up warehouse details",
+)
+@pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
 def test_register_artifact_repository_negative(session):
