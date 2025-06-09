@@ -280,6 +280,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/books.xml",
                 "resources/books2.xml",
                 "resources/broken.csv",
+                "resources/cat.jpeg",
                 "resources/diamonds.csv",
                 "resources/declared_namespace.xml",
                 "resources/dog.jpg",

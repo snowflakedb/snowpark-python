@@ -10,6 +10,10 @@
 - Added support for PostgreSQL in `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for Databricks in `DataFrameWriter.dbapi` (PrPr) for UDTF-based ingestion.
 - Added support to `DataFrameReader` to enable use of `PATTERN` when reading files with `INFER_SCHEMA` enabled.
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_similarity`
+  - `ai_summarize_agg` (originally `summarize_agg`)
+  - different config options for `ai_classify`
 
 #### Bug Fixes
 
