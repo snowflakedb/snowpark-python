@@ -1774,8 +1774,16 @@ class SetStatement(Selectable):
 
     @property
     def commented_sql(self) -> str:
-        if self._commented_sql is None:
-            self.sql_query
+        if not self._commented_sql:
+            self._commented_sql = (
+                self._generate_sql_with_comments()
+                if self._session._generate_multiline_queries
+                else self._generate_sql_without_comments()
+            )
+            self._sql_query = remove_comments(
+                self._commented_sql,
+                [operand.selectable.uuid for operand in self.set_operands],
+            )
         return self._commented_sql
 
     def _generate_sql_without_comments(self) -> str:
