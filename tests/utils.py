@@ -487,7 +487,13 @@ class Utils:
 
     @staticmethod
     def normalize_sql(sql_query: str) -> str:
-        return re.sub(r"\s+", " ", sql_query).strip()
+        # replace all whitespace with a single space
+        stripped_sql = re.sub(r"\s+", " ", sql_query).strip()
+        # remove space followed by parenthesis
+        stripped_sql = re.sub(r"\(\s+", "(", stripped_sql)
+        stripped_sql = re.sub(r"\s+\)", ")", stripped_sql)
+
+        return stripped_sql
 
 
 class TestData:
