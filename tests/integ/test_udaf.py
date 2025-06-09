@@ -634,7 +634,7 @@ def test_udaf_artifact_repository(session):
         return_type=StringType(),
         input_types=[IntegerType()],
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        packages=["urllib3", "requests"],
+        packages=["urllib3", "requests", "cloudpickle"],
     )
     df = session.create_dataframe([(1,)], schema=["a"])
     Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])
