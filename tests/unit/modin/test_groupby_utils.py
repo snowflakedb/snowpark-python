@@ -11,6 +11,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
+from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import OrderedDataFrame
 from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
     check_is_groupby_supported_by_snowflake,
     is_groupby_value_label_like,
@@ -24,6 +25,8 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 def create_series_query_compiler() -> SnowflakeQueryCompiler:
     mock_internal_frame = mock.create_autospec(InternalFrame)
     mock_internal_frame.data_columns_index = native_pd.Index(["A"], name="B")
+    mock_internal_frame.ordered_dataframe = mock.create_autospec(OrderedDataFrame)
+    mock_internal_frame.ordered_dataframe.row_count_upper_bound = 1
     fake_query_compiler = SnowflakeQueryCompiler(mock_internal_frame)
 
     return fake_query_compiler
@@ -32,6 +35,8 @@ def create_series_query_compiler() -> SnowflakeQueryCompiler:
 def create_df_query_compiler() -> SnowflakeQueryCompiler:
     mock_internal_frame = mock.create_autospec(InternalFrame)
     mock_internal_frame.data_columns_index = native_pd.Index(["B", "C"], name=None)
+    mock_internal_frame.ordered_dataframe = mock.create_autospec(OrderedDataFrame)
+    mock_internal_frame.ordered_dataframe.row_count_upper_bound = 2
     fake_query_compiler = SnowflakeQueryCompiler(mock_internal_frame)
 
     return fake_query_compiler

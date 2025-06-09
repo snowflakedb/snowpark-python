@@ -254,7 +254,7 @@ def test_tuple():
     [
         (np.array(["1", "-3.14", "7"]), "float64"),
         (np.array([-1, 0, 1], dtype=np.int8), "int64"),
-        (pd.array([-1, 0, 1, None], dtype=pd.Int64Dtype()), "float64"),
+        (native_pd.array([-1, 0, 1, None], dtype=pd.Int64Dtype()), "float64"),
     ],
 )
 @sql_count_checker(query_count=1)

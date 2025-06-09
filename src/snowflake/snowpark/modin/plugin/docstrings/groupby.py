@@ -89,7 +89,7 @@ engine_kwargs : dict, default None
 
 Returns
 -------
-{klass}
+:class:`~modin.pandas.{klass}`
 
 {examples}"""
 
@@ -207,7 +207,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Object with missing values filled.
 
         See also
@@ -951,7 +951,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Percentage changes within each group.
 
         Notes
@@ -1247,7 +1247,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Object with missing values filled.
 
         See also
@@ -1661,7 +1661,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             DataFrame or Series of boolean values, where a value is True if all elements
             are True within its respective group, False otherwise.
 
@@ -1710,7 +1710,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             DataFrame or Series of boolean values, where a value is True if any element
             is True within its respective group, False otherwise.
 
@@ -1753,7 +1753,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        DataFrame or Series
+        :class:`~modin.pandas.DataFrame` or :class:`~modin.pandas.Series`
             Number of rows in each group as a Series if as_index is True
             or a DataFrame if as_index is False.
 
@@ -1857,7 +1857,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        DataFrame
+        :class:`~modin.pandas.DataFrame`
         """
 
     def resample():
@@ -2466,7 +2466,7 @@ class DataFrameGroupBy:
         pass
 
 
-class SeriesGroupBy:
+class SeriesGroupBy(DataFrameGroupBy):
     def get_group(self):
         pass
 
@@ -2525,7 +2525,7 @@ class SeriesGroupBy:
 
         Returns
         -------
-        DataFrame or Series
+        :class:`~modin.pandas.DataFrame` or :class:`~modin.pandas.Series`
             Number of rows in each group as a Series if as_index is True
             or a DataFrame if as_index is False.
 
