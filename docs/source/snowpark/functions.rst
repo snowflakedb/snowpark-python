@@ -24,6 +24,7 @@ Functions
     add_months
     ai_agg
     ai_classify
+    ai_complete
     ai_filter
     ai_similarity
     ai_summarize_agg

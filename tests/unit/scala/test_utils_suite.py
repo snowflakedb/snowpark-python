@@ -287,6 +287,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/fias_house.xml",
                 "resources/fias_house.large.xml",
                 "resources/iris.csv",
+                "resources/kitchen.png",
                 "resources/malformed_no_closing_tag.xml",
                 "resources/malformed_not_self_closing.xml",
                 "resources/malformed_record.xml",
