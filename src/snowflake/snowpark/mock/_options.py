@@ -4,7 +4,26 @@
 
 import importlib
 
-from snowflake.connector.options import MissingOptionalDependency, MissingPandas
+
+class MissingOptionalDependency:
+    """Local implementation to avoid importing from snowflake.connector.options"""
+
+    _dep_name = "unknown"
+
+    def __init__(self, *args, **kwargs):  # noqa: FIR100
+        pass
+
+    def __getattr__(self, name):
+        raise RuntimeError(
+            f"Local Testing requires {self._dep_name} as dependency, "
+            f"please make sure {self._dep_name} is installed in the environment.\n"
+        )
+
+
+class MissingPandas(MissingOptionalDependency):
+    """Local implementation to avoid importing from snowflake.connector.options"""
+
+    _dep_name = "pandas"
 
 
 class _LazyPandasProxy:
