@@ -4,6 +4,7 @@
 #
 import copy
 import difflib
+from logging import getLogger
 import re
 import sys
 import uuid
@@ -31,6 +32,9 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
     TableFunctionJoin,
+)
+from snowflake.snowpark._internal.debug_utils import (
+    get_df_transform_trace_message,
 )
 
 if TYPE_CHECKING:
@@ -134,6 +138,8 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+_logger = getLogger(__name__)
+
 
 class SnowflakePlan(LogicalPlan):
     class Decorator:
@@ -147,7 +153,15 @@ class SnowflakePlan(LogicalPlan):
 
         @staticmethod
         def wrap_exception(func):
+            """This wrapper is used to wrap snowflake connector ProgrammingError into SnowparkSQLException.
+            It also adds additional debug information to the raised exception when possible.
+            """
+
             def wrap(*args, **kwargs):
+                from snowflake.snowpark.context import (
+                    _enable_dataframe_trace_on_error,
+                )
+
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
@@ -158,9 +172,35 @@ class SnowflakePlan(LogicalPlan):
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
+
+                    # extract df_ast_id, stmt_cache from args
+                    df_ast_id, stmt_cache = None, None
+                    for arg in args:
+                        if isinstance(arg, SnowflakePlan):
+                            df_ast_id = arg.df_ast_id
+                            stmt_cache = arg.session._ast_batch._bind_stmt_cache
+                            break
+                    df_transform_debug_trace = None
+                    try:
+                        if (
+                            _enable_dataframe_trace_on_error
+                            and df_ast_id is not None
+                            and stmt_cache is not None
+                        ):
+                            df_transform_debug_trace = get_df_transform_trace_message(
+                                df_ast_id, stmt_cache
+                            )
+                    except Exception as trace_error:
+                        # If we encounter an error when getting the df_transform_debug_trace,
+                        # we will ignore the error and not add the debug trace to the error message.
+                        _logger.info(
+                            f"Error when getting the df_transform_debug_trace: {trace_error}"
+                        )
+                        pass
+
                     if "unexpected 'as'" in e.msg.lower():
                         ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
-                            query
+                            query, debug_context=df_transform_debug_trace
                         )
                         raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
@@ -171,7 +211,7 @@ class SnowflakePlan(LogicalPlan):
                         )
                         if not match:  # pragma: no cover
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
+                                e, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                         col = match.group(1)
@@ -193,7 +233,9 @@ class SnowflakePlan(LogicalPlan):
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
-                                orig_col_name, query
+                                orig_col_name,
+                                query,
+                                debug_context=df_transform_debug_trace,
                             )
                             raise ne.with_traceback(tb) from None
                         elif (
@@ -210,7 +252,7 @@ class SnowflakePlan(LogicalPlan):
                             > 1
                         ):
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-                                col, col, query
+                                col, col, query, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                         else:
@@ -220,7 +262,7 @@ class SnowflakePlan(LogicalPlan):
                             )
                             if not match:  # pragma: no cover
                                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                    e
+                                    e, debug_context=df_transform_debug_trace
                                 )
                                 raise ne.with_traceback(tb) from None
                             col = match.group(1)
@@ -282,7 +324,7 @@ class SnowflakePlan(LogicalPlan):
 
                             e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
+                                e, debug_context=df_transform_debug_trace
                             )
                             raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42601" and "SELECT with no columns" in e.msg:
@@ -329,7 +371,7 @@ class SnowflakePlan(LogicalPlan):
                                     raise ne.with_traceback(tb) from None
 
                     ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                        e
+                        e, debug_context=df_transform_debug_trace
                     )
                     raise ne.with_traceback(tb) from None
 
