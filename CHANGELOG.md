@@ -37,6 +37,7 @@
   - Added support for ignoring surrounding whitespace in the XML element using `ignoreSurroundingWhitespace` option.
 - Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leads to a `SnowparkSQLException`. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
 - Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
 - Added a parameter `table_exists` to `DataFrameWriter.save_as_table` that allows specifying if a table already exists. This allows skipping a table lookup that can be expensive.
@@ -63,12 +64,16 @@
 #### New Features
 - Added support for **Hybrid Execution (PrPr)**. By running `from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()`, Snowpark pandas will automatically choose whether to run certain pandas operations locally or on Snowflake. This feature is disabled by default.
 
-
 #### Improvements
 
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
 - Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.where` when the `other` parameter is an unnamed `Series`.
+
 
 ## 1.32.0 (2025-05-15)
 
