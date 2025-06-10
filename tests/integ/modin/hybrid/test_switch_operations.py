@@ -44,19 +44,17 @@ def test_filtered_data(init_transaction_tables):
     # in-place operations that do not change the backend
     df_transactions["DATE"] = pd.to_datetime(df_transactions["DATE"])
     assert df_transactions.get_backend() == "Snowflake"
+    base_date = pd.Timestamp("2025-06-09").date()
     df_transactions_filter1 = df_transactions[
-        (
-            df_transactions["DATE"]
-            >= pd.Timestamp.today().date() - pd.Timedelta("7 days")
-        )
-        & (df_transactions["DATE"] < pd.Timestamp.today().date())
+        (df_transactions["DATE"] >= base_date - pd.Timedelta("7 days"))
+        & (df_transactions["DATE"] < base_date)
     ]
     assert df_transactions_filter1.get_backend() == "Snowflake"
     # The smaller dataframe does operations in pandas
     df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()["REVENUE"]
     assert df_transactions_filter1.get_backend() == "Pandas"
     df_transactions_filter2 = pd.read_snowflake(
-        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, current_date ) and Date < current_date"
+        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09'"
     )
     assert df_transactions_filter2.get_backend() == "Pandas"
     assert_array_equal(
