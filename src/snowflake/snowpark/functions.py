@@ -12704,15 +12704,17 @@ def ai_complete(
     # Build the function call arguments
     call_kwargs = {
         "model": model_col,
-        "prompt": prompt_col,
     }
 
     # Add file if provided
-    # TODO SNOW-2145504: remove workaround after prompt named arg is fixed
-    if file is not None and isinstance(prompt, str):
-        from snowflake.snowpark.functions import prompt as prompt_func
-
-        call_kwargs["prompt"] = prompt_func(prompt + " {0}", file)
+    if file is not None:
+        if isinstance(prompt, str) or isinstance(prompt._expr1, Literal):
+            call_kwargs["predicate"] = prompt_col
+            call_kwargs["file"] = file
+        else:
+            raise ValueError("prompt must be a string or a literal column")
+    else:
+        call_kwargs["prompt"] = prompt_col
 
     # Add model_parameters if provided
     if model_parameters is not None:
