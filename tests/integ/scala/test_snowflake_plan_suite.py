@@ -484,5 +484,5 @@ def test_invalid_identifier_error_message(session):
     with pytest.raises(SnowparkSQLException, match="invalid identifier 'B'") as ex:
         session.sql(
             """SELECT "B" FROM ( SELECT $1 AS "A" FROM  VALUES (1 :: INT))"""
-        ).select("C")
+        ).select("C").collect()
     assert "There are existing quoted column identifiers" not in str(ex.value)
