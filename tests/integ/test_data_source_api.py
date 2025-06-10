@@ -1220,3 +1220,48 @@ def test_unit_process_completed_futures_comprehensive():
     empty_set = set()
     process_completed_futures(empty_set)  # Should not raise any exceptions
     assert len(empty_set) == 0
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas not available")
+def test_case_sensitive_copy_into(session):
+    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    temp_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+    create_temp_stage = f"""create temp stage {temp_stage_name}"""
+    create_temp_table = (
+        f"""create temp table {temp_table_name} ("SAME_WORD_DIFFERENT_CASE" STRING)"""
+    )
+
+    session.sql(create_temp_table).collect()
+    session.sql(create_temp_stage).collect()
+
+    df = pandas.DataFrame(
+        [["sensitive_value"]], columns=["Same_Word_Different_Case"], dtype=object
+    )
+
+    parquet_buffer = BytesIO()
+    df.to_parquet(parquet_buffer)
+
+    parquet_buffer.seek(0)
+
+    try:
+        # Upload BytesIO directly to stage using put_stream
+        stage_file_path = f"@{temp_stage_name}/test_parquet.parquet"
+        session.file.put_stream(
+            parquet_buffer,
+            stage_file_path,
+            overwrite=True,
+        )
+        copy_into_table_query = f"""
+        COPY INTO {temp_table_name} FROM @{temp_stage_name}/test_parquet.parquet
+        FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
+        MATCH_BY_COLUMN_NAME=CASE_SENSITIVE
+        PURGE=TRUE
+        """
+        session.sql(copy_into_table_query).collect()
+
+        df = session.table(temp_table_name)
+        assert df.collect() == [Row(SAME_WORD_DIFFERENT_CASE=None)]
+
+    finally:
+        # proactively close the buffer to release memory
+        parquet_buffer.close()
