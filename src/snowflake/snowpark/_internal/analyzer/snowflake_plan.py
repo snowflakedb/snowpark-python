@@ -433,6 +433,25 @@ class SnowflakePlan(LogicalPlan):
                 if self.session._join_alias_fix
                 else defaultdict(dict)
             )
+        self._uuid = from_selectable_uuid if from_selectable_uuid else str(uuid.uuid4())
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            Selectable,
+        )
+
+        last_query = self.queries[-1]
+        child_uuids = []
+        for child in self.children_plan_nodes:
+            if isinstance(child, Selectable) or isinstance(child, SnowflakePlan):
+                child_uuids.append(child.uuid)
+
+        query_line_intervals = get_line_numbers(
+            last_query.sql,
+            child_uuids,
+            self.uuid,
+        )
+        final_sql = remove_comments(last_query.sql, child_uuids)
+        last_query.sql = final_sql
+        last_query.query_line_intervals = query_line_intervals
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
         # encode an id for CTE optimization. This is generated based on the main
@@ -445,7 +464,6 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
-        self._uuid = from_selectable_uuid if from_selectable_uuid else str(uuid.uuid4())
         # Metadata for the plan
         self._metadata: PlanMetadata = infer_metadata(
             self.source_plan,
@@ -456,23 +474,6 @@ class SnowflakePlan(LogicalPlan):
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
         self.df_ast_id: Optional[int] = None
-        from snowflake.snowpark._internal.analyzer.select_statement import (
-            Selectable,
-        )
-
-        last_query = self.queries[-1]
-        child_uuids = []
-        for child in self.children_plan_nodes:
-            if isinstance(child, Selectable) or isinstance(child, SnowflakePlan):
-                child_uuids.append(child.uuid)
-        query_line_intervals = get_line_numbers(
-            last_query.sql,
-            child_uuids,
-            self.uuid,
-        )
-        final_sql = remove_comments(last_query.sql, child_uuids)
-        last_query.sql = final_sql
-        last_query.query_line_intervals = query_line_intervals
 
     @property
     def uuid(self) -> str:
