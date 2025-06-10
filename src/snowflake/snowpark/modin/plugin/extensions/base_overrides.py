@@ -1733,6 +1733,8 @@ def where(
     if isinstance(self, Series):
         self._query_compiler._shape_hint = "column"
     if isinstance(other, Series):
+        if other.name is None and isinstance(self, Series):
+            other.name = self.name
         other._query_compiler._shape_hint = "column"
 
     if not isinstance(cond, BasePandasDataset):
