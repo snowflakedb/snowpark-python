@@ -311,3 +311,26 @@ def test_series_where_long_series_cond(index):
         native_ser,
         perform_where,
     )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_series_where_with_cond_and_unnamed_other_series():
+    native_df = native_pd.DataFrame(data={"a": [1, 2], "b": [3, None]})
+    snow_df = pd.DataFrame(native_df)
+
+    cond_native_ser = native_pd.Series(native_df["b"].isna())
+    cond_snow_ser = pd.Series(native_df["b"].isna())
+
+    other_native_ser = native_pd.Series(native_df["a"] * native_df["b"])
+    other_snow_ser = pd.Series(snow_df["a"] * snow_df["b"])
+
+    assert other_native_ser.name is None
+    assert other_snow_ser.name is None
+
+    eval_snowpark_pandas_result(
+        snow_df["a"],
+        native_df["a"],
+        lambda ser: ser.where(cond_snow_ser, other_snow_ser)
+        if isinstance(ser, pd.Series)
+        else ser.where(cond_native_ser, other_native_ser),
+    )
