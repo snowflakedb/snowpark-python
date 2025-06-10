@@ -917,7 +917,6 @@ def test_limit_offset(session, simplifier_table):
     )
 
     df3 = df.limit(5, offset=2)
-    print(df3.queries)
     assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
         f"SELECT * FROM ( SELECT * FROM {simplifier_table} LIMIT 10 OFFSET 1 ) LIMIT 5 OFFSET 2"
     )

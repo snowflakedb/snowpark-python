@@ -1013,7 +1013,7 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.has_projection:
             self._sql_query = self.from_.sql_query
             self._commented_sql = (
-                f"\n-- {self.from_.uuid}\n{self.from_.sql_query}\n-- {self.from_.uuid}"
+                f"-- {self.from_.uuid}\n{self.from_.sql_query}\n-- {self.from_.uuid}"
             )
             return self._sql_query
         self._commented_sql = self._generate_sql()
@@ -1027,7 +1027,7 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.has_projection:
             self._sql_query = self.from_.sql_query
             self._commented_sql = (
-                f"\n-- {self.from_.uuid}\n{self.from_.sql_query}\n-- {self.from_.uuid}"
+                f"-- {self.from_.uuid}\n{self.from_.sql_query}\n-- {self.from_.uuid}"
             )
             return self._commented_sql
         self._commented_sql = self._generate_sql()
