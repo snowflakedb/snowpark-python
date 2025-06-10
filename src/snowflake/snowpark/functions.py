@@ -177,6 +177,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     MultipleExpression,
     Star,
+    NamedFunctionExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.window_expression import (
@@ -10468,6 +10469,28 @@ def _call_function(
     )
 
 
+def _call_named_arguments_function(
+    name: str,
+    kwargs: Dict[str, ColumnOrLiteral],
+    api_call_source: Optional[str] = None,
+    _ast: proto.Expr = None,
+    _emit_ast: bool = True,
+) -> Column:
+
+    if _emit_ast and _ast is None:
+        _ast = build_function_expr(name, kwargs)
+
+    return Column(
+        NamedFunctionExpression(
+            name,
+            {k: Column._to_expr(v) for k, v in kwargs.items()},
+            api_call_source=api_call_source,
+        ),
+        _ast=_ast,
+        _emit_ast=_emit_ast,
+    )
+
+
 @publicapi
 def sproc(
     func: Optional[Callable] = None,
@@ -12096,17 +12119,17 @@ def prompt(
 @publicapi
 def ai_filter(
     predicate: ColumnOrLiteralStr,
-    file: Optional[ColumnOrLiteralStr] = None,
+    file: Optional[Column] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
     Classifies free-form prompt inputs into a boolean. Currently supports both text and image filtering.
 
     Args:
-        predicate: If you’re specifying an input string, it is string containing the text to be classified;
-            If you’re filtering on one file, it is a string containing the instructions to
+        predicate: If you're specifying an input string, it is string containing the text to be classified;
+            If you're filtering on one file, it is a string containing the instructions to
             classify the file input as either TRUE or FALSE.
-        file:The column that the file is classified by based on the instructions specified in ``predicate``.
+        file: The FILE type column that the file is classified by based on the instructions specified in ``predicate``.
             You can use IMAGE FILE as an input to the AI_FILTER function.
 
     Note:
@@ -12161,9 +12184,8 @@ def ai_filter(
         ast = (
             build_function_expr(sql_func_name, [predicate, file]) if _emit_ast else None
         )
-        expr_col = _to_col_if_lit(file, sql_func_name)
         return _call_function(
-            sql_func_name, predicate_col, expr_col, _ast=ast, _emit_ast=_emit_ast
+            sql_func_name, predicate_col, file, _ast=ast, _emit_ast=_emit_ast
         )
 
 
@@ -12189,7 +12211,7 @@ def ai_classify(
             - task_description: A explanation of the classification task that is 50 words or fewer.
                 This can help the model understand the context of the classification task and improve accuracy.
 
-            - output_mode: Set to `multi`` for multi-label classification. Defaults to `single` for single-label classification.
+            - output_mode: Set to ``multi`` for multi-label classification. Defaults to `single` for single-label classification.
 
             - examples: A list of example objects for few-shot learning. Each example must include:
 
@@ -12506,3 +12528,206 @@ def ai_similarity(
         return _call_function(
             sql_func_name, input1_col, input2_col, _ast=ast, _emit_ast=_emit_ast
         )
+
+
+@overload
+@publicapi
+def ai_complete(
+    model: str,
+    prompt: ColumnOrLiteralStr,
+    model_parameters: Optional[dict] = None,
+    response_format: Optional[dict] = None,
+    show_details: Optional[bool] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    ...
+
+
+@overload
+@publicapi
+def ai_complete(
+    model: str,
+    prompt: str,
+    file: Column,
+    model_parameters: Optional[dict] = None,
+    response_format: Optional[dict] = None,
+    show_details: Optional[bool] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    ...
+
+
+@publicapi
+def ai_complete(
+    model: str,
+    prompt: ColumnOrLiteralStr,
+    file: Optional[Column] = None,
+    model_parameters: Optional[dict] = None,
+    response_format: Optional[dict] = None,
+    show_details: Optional[bool] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Generates a response (completion) for a text prompt using a supported language model.
+
+    This function supports three main usage patterns:
+    1. String prompt only: AI_COMPLETE(model, prompt, ...)
+    2. Prompt with file: AI_COMPLETE(model, prompt, file, ...)
+    3. Prompt object: AI_COMPLETE(model, prompt_object, ...)
+
+    Args:
+        model: A string specifying the model to be used. Different input types have different supported models.
+            See details in `AI_COMPLETE <https://docs.snowflake.com/en/sql-reference/functions/ai_complete>`_.
+        prompt: A string prompt, or a Column object from :func:`prompt()`.
+        file: The FILE type column representing an image. When provided, prompt should be a string.
+        model_parameters: Optional object containing model hyperparameters:
+
+            - temperature: A value from 0 to 1 controlling randomness (default: ``0``)
+            - top_p: A value from 0 to 1 controlling diversity (default: ``0``)
+            - max_tokens: Maximum number of output tokens (default: ``4096``, max: ``8192``)
+            - guardrails: Enable Cortex Guard filtering (default: ``FALSE``)
+
+        response_format: Optional JSON schema that the response should follow for structured outputs.
+        show_details: Optional boolean flag to return detailed inference information (default: ``FALSE``).
+
+    Returns:
+        ``response_format`` and ``show_details`` are only supported for single string.
+        When ``show_details`` is ``FALSE`` and ``response_format`` is not specified: Returns a string containing the response.
+        When ``show_details`` is ``FALSE`` and ``response_format`` is specified: Returns an object following the provided format.
+        When ``show_details`` is ``TRUE``: Returns a JSON object with detailed inference information including
+        choices, created timestamp, model name, and token usage statistics.
+        See details in `AI_COMPLETE Returns <https://docs.snowflake.com/en/sql-reference/functions/ai_complete-single-string#returns>`_.
+
+    Examples::
+
+        >>> # Basic completion with string prompt
+        >>> df = session.range(1).select(
+        ...     ai_complete('snowflake-arctic', 'What are large language models?').alias("response")
+        ... )
+        >>> len(df.collect()[0][0]) > 10
+        True
+
+        >>> # Using model parameters
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='llama2-70b-chat',
+        ...         prompt='How does a snowflake get its unique pattern?',
+        ...         model_parameters={
+        ...             'temperature': 0.7,
+        ...             'max_tokens': 100
+        ...         }
+        ...     ).alias("response")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> len(result) > 0
+        True
+
+        >>> # With detailed output
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='mistral-large',
+        ...         prompt='Explain AI in one sentence.',
+        ...         show_details=True
+        ...     ).alias("detailed_response")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> 'choices' in result and 'usage' in result
+        True
+
+        >>> # Prompt with image processing
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/kitchen.png", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='claude-4-sonnet',
+        ...         prompt='Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances.',
+        ...         file=to_file('@mystage/kitchen.png'),
+        ...     )
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> "microwave" in result and "refrigerator" in result
+        True
+
+        >>> # Structured output with response format
+        >>> response_schema = {
+        ...     'type': 'json',
+        ...     'schema': {
+        ...         'type': 'object',
+        ...         'properties': {
+        ...             'sentiment': {'type': 'string'},
+        ...             'confidence': {'type': 'number'}
+        ...         },
+        ...         'required': ['sentiment', 'confidence']
+        ...     }
+        ... }
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='mistral-large2',
+        ...         prompt='Analyze the sentiment of this text: I love this product!',
+        ...         response_format=response_schema
+        ...     ).alias("structured_result")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> 'sentiment' in result and 'confidence' in result
+        True
+
+        >>> # Using prompt object from prompt() function
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='openai-gpt-4.1',
+        ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
+        ...     )
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> "microwave" in result and "refrigerator" in result
+        True
+    """
+    sql_func_name = "ai_complete"
+
+    args = [model, prompt]
+
+    if file is not None:
+        args.append(file)
+    if model_parameters is not None:
+        args.append(model_parameters)
+    if response_format is not None:
+        args.append(response_format)
+    if show_details is not None:
+        args.append(show_details)
+
+    ast = build_function_expr(sql_func_name, args) if _emit_ast else None
+
+    # Convert arguments to columns
+    model_col = lit(model)
+    prompt_col = _to_col_if_lit(prompt, sql_func_name)
+
+    # Build the function call arguments
+    call_kwargs = {
+        "model": model_col,
+        "prompt": prompt_col,
+    }
+
+    # Add file if provided
+    # TODO SNOW-2145504: remove workaround after prompt named arg is fixed
+    if file is not None and isinstance(prompt, str):
+        from snowflake.snowpark.functions import prompt as prompt_func
+
+        call_kwargs["prompt"] = prompt_func(prompt + " {0}", file)
+
+    # Add model_parameters if provided
+    if model_parameters is not None:
+        model_params_col = sql_expr(json.dumps(model_parameters).replace('"', "'"))
+        call_kwargs["model_parameters"] = model_params_col
+
+    # Add response_format if provided
+    if response_format is not None:
+        response_format_col = sql_expr(json.dumps(response_format).replace('"', "'"))
+        call_kwargs["response_format"] = response_format_col
+
+    # Add show_details if provided
+    if show_details is not None:
+        call_kwargs["show_details"] = sql_expr(str(show_details))
+
+    return _call_named_arguments_function(
+        sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
+    )
