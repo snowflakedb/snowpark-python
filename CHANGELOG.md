@@ -1,5 +1,13 @@
 # Release History
 
+## 1.34.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
+
 ## 1.33.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates

@@ -1592,6 +1592,10 @@ class TestFiles:
     def test_dog_image(self):
         return os.path.join(self.resources_path, "dog.jpg")
 
+    @property
+    def test_books_xsd(self):
+        return os.path.join(self.resources_path, "books.xsd")
+
 
 class TypeMap(NamedTuple):
     col_name: str

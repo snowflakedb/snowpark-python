@@ -1524,6 +1524,7 @@ class SnowflakePlanBuilder:
         ignore_surrounding_whitespace = options.get(
             "IGNORESURROUNDINGWHITESPACE", False
         )
+        row_validation_xsd_path = options.get("ROWVALIDATIONXSDPATH", "")
 
         if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
             raise ValueError(
@@ -1560,6 +1561,7 @@ class SnowflakePlanBuilder:
                 lit(null_value),
                 lit(charset),
                 lit(ignore_surrounding_whitespace),
+                lit(row_validation_xsd_path),
             ),
         )
 
