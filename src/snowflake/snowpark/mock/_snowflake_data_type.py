@@ -164,7 +164,6 @@ SNOW_DATA_TYPE_CONVERSION_DICT = {
 def isna_helper(obj: Any) -> bool:
     """Small helper function to detect whether object is considered NULL. Needed because for
     lists, tuples, ... pandas isna() does not handle correctly."""
-
     if isinstance(obj, Iterable):
         return False
     return pd.isna(obj)
@@ -468,7 +467,6 @@ def get_number_precision_scale(t: DataType):
 def add_date_and_number(
     col1: "ColumnEmulator", col2: "ColumnEmulator"
 ) -> Optional["ColumnEmulator"]:
-
     """If one column is DateType and another column is numeric, round and add the numeric to days"""
     if isinstance(col2.sf_type.datatype, DateType):
         col1, col2 = col2, col1
