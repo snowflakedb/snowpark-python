@@ -1346,20 +1346,16 @@ def create_python_udf_or_sp(
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
 
+    # Ensure pandas types are loaded before isinstance check
+    _ensure_pandas_types_initialized()
     if (
         isinstance(return_type, StructType)
         and not return_type.structured
         and registration_type in {RegistrationType.UDTF, RegistrationType.SPROC}
     ):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
-    elif get_installed_pandas():
-        # Ensure pandas types are loaded before isinstance check
-        _ensure_pandas_types_initialized()
-
-        if isinstance(return_type, PandasDataFrameType):
-            return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
-        else:
-            return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
+    elif get_installed_pandas() and isinstance(return_type, PandasDataFrameType):
+        return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
     else:
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]

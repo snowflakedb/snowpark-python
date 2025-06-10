@@ -7,7 +7,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
@@ -359,6 +358,8 @@ class AsyncJob:
             # The following section is copied from python connector.
             # Later we should expose it from python connector and reuse it.
             retry_pattern_pos = 0
+            from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
+
             while True:
                 status = self._session.connection.get_query_status(self.query_id)
                 if not self._session.connection.is_still_running(status):
