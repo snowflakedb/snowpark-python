@@ -1227,7 +1227,6 @@ def test_case_sensitive_copy_into(session):
     temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
     temp_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
     create_temp_stage = f"""create temp stage {temp_stage_name}"""
-    # create_temp_table = f"""create temp table {temp_table_name} ("Same_Word_Different_Case" STRING, "SAME_WORD_DIFFERENT_CASE" STRING)"""
     create_temp_table = (
         f"""create temp table {temp_table_name} ("SAME_WORD_DIFFERENT_CASE" STRING)"""
     )
@@ -1235,7 +1234,6 @@ def test_case_sensitive_copy_into(session):
     session.sql(create_temp_table).collect()
     session.sql(create_temp_stage).collect()
 
-    # df = pandas.DataFrame([['sensitive_value', 'insensitive_value']], columns=["Same_Word_Different_Case", "SAME_WORD_DIFFERENT_CASE"], dtype=object)
     df = pandas.DataFrame(
         [["sensitive_value"]], columns=["Same_Word_Different_Case"], dtype=object
     )
