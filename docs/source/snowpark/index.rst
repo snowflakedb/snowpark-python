@@ -9,18 +9,20 @@ Snowpark APIs
    column
    types
    row
-   functions 
-   window 
-   grouping 
+   functions
+   window
+   grouping
    table_function
    table
    async_job
    stored_procedures
+   stored_procedure_profiler
    udf
    udaf
    udtf
    observability
    files
+   catalog
    lineage
    context
    exceptions

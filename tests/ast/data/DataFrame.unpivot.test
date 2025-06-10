@@ -1,0 +1,242 @@
+## TEST CASE
+
+df = session.create_dataframe(
+    [(1, "electronics", 100, 200), (2, "clothes", 100, 300)],
+    schema=["empid", "dept", "jan", "feb"],
+)
+df = df.unpivot("sales", "month", ["jan", "feb"])
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.create_dataframe([(1, "electronics", 100, 200), (2, "clothes", 100, 300)], schema=["empid", "dept", "jan", "feb"])
+
+df = df.unpivot("sales", "month", ["jan", "feb"], False)
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  end_column: 9
+                  end_line: 28
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 9
+                      end_line: 28
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 28
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: "electronics"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 9
+                      end_line: 28
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 100
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 9
+                      end_line: 28
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 200
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  end_column: 9
+                  end_line: 28
+                  file: 2
+                  start_column: 13
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 9
+                      end_line: 28
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 9
+                      end_line: 28
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: "clothes"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 9
+                      end_line: 28
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 100
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 9
+                      end_line: 28
+                      file: 2
+                      start_column: 13
+                      start_line: 25
+                    }
+                    v: 300
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "empid"
+            vs: "dept"
+            vs: "jan"
+            vs: "feb"
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 28
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_unpivot {
+        column_list {
+          string_val {
+            src {
+              end_column: 57
+              end_line: 29
+              file: 2
+              start_column: 13
+              start_line: 29
+            }
+            v: "jan"
+          }
+        }
+        column_list {
+          string_val {
+            src {
+              end_column: 57
+              end_line: 29
+              file: 2
+              start_column: 13
+              start_line: 29
+            }
+            v: "feb"
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        name_column: "month"
+        src {
+          end_column: 57
+          end_line: 29
+          file: 2
+          start_column: 13
+          start_line: 29
+        }
+        value_column: "sales"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 2
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

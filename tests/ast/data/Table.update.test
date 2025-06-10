@@ -1,0 +1,1035 @@
+## TEST CASE
+
+df = Table(tables.table1, session)
+
+df.update({})
+
+df.update({"b": 0})
+
+df.update({"b": 1, "c": df.num})
+
+df.update({"b": 2}, df["num"] == 1)
+
+source_df = session.create_dataframe([1, 2, 3, 4], schema=["a"])
+
+df.update({"b": 3}, df["num"] == source_df.a, source_df)
+
+df.update({"b": 4}, df["num"] == source_df["a"], source_df, block=False)
+
+df.update({"b": 5}, df["num"] == source_df["a"], source_df, block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+## EXPECTED UNPARSER OUTPUT
+
+df = Table("table1", session)
+
+df.update({})
+
+df = Table("table1", session)
+
+df.update({"b": 0})
+
+df = Table("table1", session)
+
+df.update({"b": 1, "c": df["num"]})
+
+df = Table("table1", session)
+
+df.update({"b": 2}, condition=(df["num"] == 1))
+
+df = Table("table1", session)
+
+source_df = session.create_dataframe([1, 2, 3, 4], schema=["a"])
+
+df.update({"b": 3}, condition=(df["num"] == source_df["a"]), source=source_df)
+
+df = Table("table1", session)
+
+source_df = session.create_dataframe([1, 2, 3, 4], schema=["a"])
+
+df.update({"b": 4}, condition=(df["num"] == source_df["a"]), source=source_df, block=False)
+
+df = Table("table1", session)
+
+source_df = session.create_dataframe([1, 2, 3, 4], schema=["a"])
+
+df.update({"b": 5}, condition=(df["num"] == source_df["a"]), source=source_df, statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          table_init: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table_update {
+        block: true
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 21
+          end_line: 27
+          file: 2
+          start_column: 8
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 2
+  }
+}
+body {
+  eval {
+    bind_id: 2
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          table_init: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table_update {
+        assignments {
+          _1: "b"
+          _2 {
+            int64_val {
+              src {
+                end_column: 27
+                end_line: 29
+                file: 2
+                start_column: 8
+                start_line: 29
+              }
+            }
+          }
+        }
+        block: true
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 27
+          end_line: 29
+          file: 2
+          start_column: 8
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 3
+  }
+}
+body {
+  eval {
+    bind_id: 3
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          table_init: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table_update {
+        assignments {
+          _1: "b"
+          _2 {
+            int64_val {
+              src {
+                end_column: 40
+                end_line: 31
+                file: 2
+                start_column: 8
+                start_line: 31
+              }
+              v: 1
+            }
+          }
+        }
+        assignments {
+          _1: "c"
+          _2 {
+            dataframe_col {
+              col_name: "num"
+              df {
+                dataframe_ref {
+                  id: 1
+                }
+              }
+              src {
+                end_column: 38
+                end_line: 31
+                file: 2
+                start_column: 32
+                start_line: 31
+              }
+            }
+          }
+        }
+        block: true
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 40
+          end_line: 31
+          file: 2
+          start_column: 8
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 4
+  }
+}
+body {
+  eval {
+    bind_id: 4
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          table_init: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      table_update {
+        assignments {
+          _1: "b"
+          _2 {
+            int64_val {
+              src {
+                end_column: 43
+                end_line: 33
+                file: 2
+                start_column: 8
+                start_line: 33
+              }
+              v: 2
+            }
+          }
+        }
+        block: true
+        condition {
+          eq {
+            lhs {
+              dataframe_col {
+                col_name: "num"
+                df {
+                  dataframe_ref {
+                    id: 1
+                  }
+                }
+                src {
+                  end_column: 37
+                  end_line: 33
+                  file: 2
+                  start_column: 28
+                  start_line: 33
+                }
+              }
+            }
+            rhs {
+              int64_val {
+                src {
+                  end_column: 42
+                  end_line: 33
+                  file: 2
+                  start_column: 28
+                  start_line: 33
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 42
+              end_line: 33
+              file: 2
+              start_column: 28
+              start_line: 33
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 5
+  }
+}
+body {
+  eval {
+    bind_id: 5
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          table_init: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 2
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 3
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 4
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          end_column: 72
+          end_line: 35
+          file: 2
+          start_column: 20
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source_df"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table_update {
+        assignments {
+          _1: "b"
+          _2 {
+            int64_val {
+              src {
+                end_column: 64
+                end_line: 37
+                file: 2
+                start_column: 8
+                start_line: 37
+              }
+              v: 3
+            }
+          }
+        }
+        block: true
+        condition {
+          eq {
+            lhs {
+              dataframe_col {
+                col_name: "num"
+                df {
+                  dataframe_ref {
+                    id: 1
+                  }
+                }
+                src {
+                  end_column: 37
+                  end_line: 37
+                  file: 2
+                  start_column: 28
+                  start_line: 37
+                }
+              }
+            }
+            rhs {
+              dataframe_col {
+                col_name: "a"
+                df {
+                  dataframe_ref {
+                    id: 6
+                  }
+                }
+                src {
+                  end_column: 52
+                  end_line: 37
+                  file: 2
+                  start_column: 41
+                  start_line: 37
+                }
+              }
+            }
+            src {
+              end_column: 52
+              end_line: 37
+              file: 2
+              start_column: 28
+              start_line: 37
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        source {
+          dataframe_ref {
+            id: 6
+          }
+        }
+        src {
+          end_column: 64
+          end_line: 37
+          file: 2
+          start_column: 8
+          start_line: 37
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 7
+  }
+}
+body {
+  eval {
+    bind_id: 7
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          table_init: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 2
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 3
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 4
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          end_column: 72
+          end_line: 35
+          file: 2
+          start_column: 20
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source_df"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table_update {
+        assignments {
+          _1: "b"
+          _2 {
+            int64_val {
+              src {
+                end_column: 80
+                end_line: 39
+                file: 2
+                start_column: 8
+                start_line: 39
+              }
+              v: 4
+            }
+          }
+        }
+        condition {
+          eq {
+            lhs {
+              dataframe_col {
+                col_name: "num"
+                df {
+                  dataframe_ref {
+                    id: 1
+                  }
+                }
+                src {
+                  end_column: 37
+                  end_line: 39
+                  file: 2
+                  start_column: 28
+                  start_line: 39
+                }
+              }
+            }
+            rhs {
+              dataframe_col {
+                col_name: "a"
+                df {
+                  dataframe_ref {
+                    id: 6
+                  }
+                }
+                src {
+                  end_column: 55
+                  end_line: 39
+                  file: 2
+                  start_column: 41
+                  start_line: 39
+                }
+              }
+            }
+            src {
+              end_column: 55
+              end_line: 39
+              file: 2
+              start_column: 28
+              start_line: 39
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        source {
+          dataframe_ref {
+            id: 6
+          }
+        }
+        src {
+          end_column: 80
+          end_line: 39
+          file: 2
+          start_column: 8
+          start_line: 39
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 8
+  }
+}
+body {
+  eval {
+    bind_id: 8
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          table_init: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 2
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 3
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 72
+                  end_line: 35
+                  file: 2
+                  start_column: 20
+                  start_line: 35
+                }
+                v: 4
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          end_column: 72
+          end_line: 35
+          file: 2
+          start_column: 20
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "source_df"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table_update {
+        assignments {
+          _1: "b"
+          _2 {
+            int64_val {
+              src {
+                end_column: 129
+                end_line: 41
+                file: 2
+                start_column: 8
+                start_line: 41
+              }
+              v: 5
+            }
+          }
+        }
+        condition {
+          eq {
+            lhs {
+              dataframe_col {
+                col_name: "num"
+                df {
+                  dataframe_ref {
+                    id: 1
+                  }
+                }
+                src {
+                  end_column: 37
+                  end_line: 41
+                  file: 2
+                  start_column: 28
+                  start_line: 41
+                }
+              }
+            }
+            rhs {
+              dataframe_col {
+                col_name: "a"
+                df {
+                  dataframe_ref {
+                    id: 6
+                  }
+                }
+                src {
+                  end_column: 55
+                  end_line: 41
+                  file: 2
+                  start_column: 41
+                  start_line: 41
+                }
+              }
+            }
+            src {
+              end_column: 55
+              end_line: 41
+              file: 2
+              start_column: 28
+              start_line: 41
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        source {
+          dataframe_ref {
+            id: 6
+          }
+        }
+        src {
+          end_column: 129
+          end_line: 41
+          file: 2
+          start_column: 8
+          start_line: 41
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 9
+  }
+}
+body {
+  eval {
+    bind_id: 9
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

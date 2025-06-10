@@ -1,9 +1,10 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
+from snowflake.snowpark._internal.ast.utils import build_udf, with_src_position
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
     process_registration_inputs,
@@ -111,7 +112,31 @@ class MockUDFRegistration(UDFRegistration):
         is_permanent: bool = False,
         native_app_params: Optional[Dict[str, Any]] = None,
         copy_grants: bool = False,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedFunction:
+        ast, ast_id = None, None
+        if kwargs.get("_registered_object_name") is not None:
+            if _emit_ast:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.udf, stmt)
+                ast_id = stmt.uid
+
+            object_name = kwargs["_registered_object_name"]
+            udf = MockUserDefinedFunction(
+                func,
+                return_type,
+                input_types,
+                object_name,
+                strict=strict,
+                packages=packages,
+                use_session_imports=imports is None,
+                _ast=ast,
+                _ast_id=ast_id,
+            )
+            self._registry[object_name] = udf
+            return udf
+
         if is_permanent:
             self._session._conn.log_not_supported_error(
                 external_feature_name="udf",
@@ -120,7 +145,7 @@ class MockUDFRegistration(UDFRegistration):
             )
 
         with self._lock:
-            # get the udf name, return and input types
+            # Retrieve the UDF name, return and input types.
             (
                 udf_name,
                 is_pandas_udf,
@@ -143,6 +168,37 @@ class MockUDFRegistration(UDFRegistration):
                 udf_name, current_schema, current_database
             )
 
+            if _emit_ast:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.udf, stmt)
+                ast_id = stmt.uid
+                build_udf(
+                    ast,
+                    func,
+                    return_type,
+                    input_types,
+                    name,
+                    stage_location,
+                    imports,
+                    packages,
+                    replace,
+                    if_not_exists,
+                    parallel,
+                    max_batch_size,
+                    strict,
+                    secure,
+                    external_access_integrations,
+                    secrets,
+                    immutable,
+                    comment,
+                    statement_params=statement_params,
+                    source_code_display=source_code_display,
+                    is_permanent=is_permanent,
+                    session=self._session,
+                    _registered_object_name=udf_name,
+                    **kwargs,
+                )
+
             # allow registering pandas UDF from udf(),
             # but not allow registering non-pandas UDF from pandas_udf()
             if from_pandas_udf_function and not is_pandas_udf:
@@ -162,7 +218,10 @@ class MockUDFRegistration(UDFRegistration):
                 raise ValueError("options replace and if_not_exists are incompatible")
 
             if udf_name in self._registry and if_not_exists:
-                return self._registry[udf_name]
+                ans = self._registry[udf_name]
+                ans._ast = ast
+                ans._ast_id = ast_id
+                return ans
 
             if udf_name in self._registry and not replace:
                 raise SnowparkSQLException(
@@ -182,6 +241,8 @@ class MockUDFRegistration(UDFRegistration):
                 strict=strict,
                 packages=packages,
                 use_session_imports=imports is None,
+                _ast=ast,
+                _ast_id=ast_id,
             )
 
             if type(func) is tuple:  # update file registration

@@ -1,7 +1,8 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import time
+import traceback
 from typing import TYPE_CHECKING, List, Union
 
 import snowflake.snowpark
@@ -90,7 +91,17 @@ def analyze_attributes(
             session._conn._cursor.description, session._conn.max_string_size
         )
 
-    return session._get_result_attributes(sql)
+    # collect describe query details for telemetry
+    stack = traceback.extract_stack(limit=10)[:-1]
+    stack_trace = [frame.line for frame in stack] if len(stack) > 0 else None
+    start_time = time.time()
+    attributes = session._get_result_attributes(sql)
+    e2e_time = time.time() - start_time
+    session._conn._telemetry_client.send_describe_query_details(
+        session._session_id, sql, e2e_time, stack_trace
+    )
+
+    return attributes
 
 
 def convert_result_meta_to_attribute(

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -35,7 +35,9 @@ __all__ = [
     "WhenNotMatchedClause",
     "QueryRecord",
     "QueryHistory",
+    "QueryListener",
     "AsyncJob",
+    "StoredProcedureProfiler",
 ]
 
 
@@ -49,6 +51,7 @@ __version__ = ".".join(str(x) for x in VERSION if x is not None)
 
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import CaseExpr, Column
+from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
@@ -56,7 +59,7 @@ from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.file_operation import FileOperation, GetResult, PutResult
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryHistory, QueryListener, QueryRecord
 from snowflake.snowpark.relational_grouped_dataframe import (
     GroupingSets,
     RelationalGroupedDataFrame,

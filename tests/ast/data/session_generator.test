@@ -1,0 +1,367 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import seq1, seq8, uniform
+
+df1 = session.generator(col("A"), col("B"))
+
+df2 = session.generator(seq1(1), uniform(1, 10, 2), rowcount=3)
+
+df3 = session.generator(seq8(0), uniform(1, 10, 2), timelimit=1)
+
+## EXPECTED UNPARSER OUTPUT
+
+df1 = session.generator(col("A"), col("B"), rowcount=0, timelimit=0)
+
+df2 = session.generator(seq1(1), uniform(1, 10, 2), rowcount=3, timelimit=0)
+
+df3 = session.generator(seq8(0), uniform(1, 10, 2), rowcount=0, timelimit=1)
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      generator {
+        columns {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 40
+                    end_line: 27
+                    file: 2
+                    start_column: 32
+                    start_line: 27
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 40
+                end_line: 27
+                file: 2
+                start_column: 32
+                start_line: 27
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 50
+                    end_line: 27
+                    file: 2
+                    start_column: 42
+                    start_line: 27
+                  }
+                  v: "B"
+                }
+              }
+              src {
+                end_column: 50
+                end_line: 27
+                file: 2
+                start_column: 42
+                start_line: 27
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 51
+          end_line: 27
+          file: 2
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      generator {
+        columns {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "seq1"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 39
+                    end_line: 29
+                    file: 2
+                    start_column: 32
+                    start_line: 29
+                  }
+                  v: 1
+                }
+              }
+              src {
+                end_column: 39
+                end_line: 29
+                file: 2
+                start_column: 32
+                start_line: 29
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "uniform"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 58
+                    end_line: 29
+                    file: 2
+                    start_column: 41
+                    start_line: 29
+                  }
+                  v: 1
+                }
+              }
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 58
+                    end_line: 29
+                    file: 2
+                    start_column: 41
+                    start_line: 29
+                  }
+                  v: 10
+                }
+              }
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 58
+                    end_line: 29
+                    file: 2
+                    start_column: 41
+                    start_line: 29
+                  }
+                  v: 2
+                }
+              }
+              src {
+                end_column: 58
+                end_line: 29
+                file: 2
+                start_column: 41
+                start_line: 29
+              }
+            }
+          }
+          variadic: true
+        }
+        row_count: 3
+        src {
+          end_column: 71
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      generator {
+        columns {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "seq8"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 39
+                    end_line: 31
+                    file: 2
+                    start_column: 32
+                    start_line: 31
+                  }
+                }
+              }
+              src {
+                end_column: 39
+                end_line: 31
+                file: 2
+                start_column: 32
+                start_line: 31
+              }
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "uniform"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 58
+                    end_line: 31
+                    file: 2
+                    start_column: 41
+                    start_line: 31
+                  }
+                  v: 1
+                }
+              }
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 58
+                    end_line: 31
+                    file: 2
+                    start_column: 41
+                    start_line: 31
+                  }
+                  v: 10
+                }
+              }
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 58
+                    end_line: 31
+                    file: 2
+                    start_column: 41
+                    start_line: 31
+                  }
+                  v: 2
+                }
+              }
+              src {
+                end_column: 58
+                end_line: 31
+                file: 2
+                start_column: 41
+                start_line: 31
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 72
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+        time_limit_seconds: 1
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

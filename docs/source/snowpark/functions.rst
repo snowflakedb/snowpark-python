@@ -20,7 +20,13 @@ Functions
 
     abs
     acos
+    acosh
     add_months
+    ai_agg
+    ai_classify
+    ai_filter
+    ai_similarity
+    ai_summarize_agg
     any_value
     approx_count_distinct
     approx_percentile
@@ -35,21 +41,26 @@ Functions
     array_construct_compact
     array_contains
     array_distinct
+    array_except
     array_flatten
     array_generate_range
     array_insert
     array_intersection
+    array_join
     array_max
     array_min
     array_position
     array_prepend
     array_remove
+    array_reverse
     array_size
     array_slice
     array_sort
     array_to_string
+    array_union
     array_unique_agg
     arrays_overlap
+    arrays_zip
     as_array
     as_binary
     as_char
@@ -70,12 +81,22 @@ Functions
     asc_nulls_last
     ascii
     asin
+    asinh
     atan
+    atanh
     atan2
     avg
+    base64
+    base64_decode_string
+    base64_encode
+    bit_length
+    bitmap_bit_position
+    bitmap_bucket_number
+    bitmap_construct_agg
     bitnot
     bitshiftleft
     bitshiftright
+    build_stage_file_url
     builtin
     bround
     call_builtin
@@ -83,6 +104,7 @@ Functions
     call_table_function
     call_udf
     cast
+    cbrt
     ceil
     char
     charindex
@@ -92,6 +114,7 @@ Functions
     col
     collate
     collation
+    collect_list
     collect_set
     column
     concat
@@ -142,8 +165,11 @@ Functions
     desc_nulls_first
     desc_nulls_last
     div0
+    divnull
+    editdistance
     endswith
     equal_nan
+    equal_null
     exp
     explode
     explode_outer
@@ -152,6 +178,20 @@ Functions
     first_value
     flatten
     floor
+    fl_get_content_type
+    fl_get_etag
+    fl_get_file_type
+    fl_get_last_modified
+    fl_get_relative_path
+    fl_get_scoped_file_url
+    fl_get_size
+    fl_get_stage
+    fl_get_stage_file_url
+    fl_is_audio
+    fl_is_compressed
+    fl_is_document
+    fl_is_image
+    fl_is_video
     from_unixtime
     from_utc_timestamp
     function
@@ -162,11 +202,15 @@ Functions
     grouping
     grouping_id
     hash
+    hex
+    hex_encode
     hour
     iff
+    ifnull
     in_
     initcap
     insert
+    instr
     is_array
     is_binary
     is_boolean
@@ -198,16 +242,26 @@ Functions
     lit
     ln
     locate
+    localtimestamp
     log
+    log1p
+    log2
+    log10
     lower
     lpad
     ltrim
     make_interval
+    map_cat
+    map_concat
+    map_contains_key
+    map_keys
     max
+    max_by
     md5
     mean
     median
     min
+    min_by
     minute
     mode
     monotonically_increasing_id
@@ -216,8 +270,12 @@ Functions
     months_between
     negate
     next_day
+    normal
     not_
+    nth_value
     ntile
+    nullifzero
+    nvl
     object_agg
     object_construct
     object_construct_keep_null
@@ -225,21 +283,35 @@ Functions
     object_insert
     object_keys
     object_pick
+    octet_length
     pandas_udf
     pandas_udtf
     parse_json
     parse_xml
     percent_rank
+    percentile_approx
     percentile_cont
+    position
     pow
     previous_day
+    prompt
     quarter
     radians
+    randn
     random
     rank
     regexp_count
     regexp_extract
     regexp_replace
+    regr_avgx
+    regr_avgy
+    regr_count
+    regr_intercept
+    regr_r2
+    regr_slope
+    regr_sxx
+    regr_sxy
+    regr_syy
     repeat
     replace
     right
@@ -257,7 +329,9 @@ Functions
     sha2
     sin
     sinh
+    size
     skew
+    snowflake_cortex_sentiment
     snowflake_cortex_summarize
     sort_array
     soundex
@@ -292,6 +366,7 @@ Functions
     to_date
     to_decimal
     to_double
+    to_file
     to_geography
     to_geometry
     to_json
@@ -306,10 +381,12 @@ Functions
     trim
     trunc
     try_cast
+    try_to_binary
     typeof
     udaf
     udf
     udtf
+    unbase64
     uniform
     unix_timestamp
     upper

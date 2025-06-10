@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
-from typing import Optional, Union
+import typing
+from typing import Any, Optional, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -42,6 +44,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldInt,
     SubfieldString,
     UnresolvedAttribute,
+    Attribute,
     WithinGroup,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
@@ -60,6 +63,15 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Not,
     UnaryMinus,
     UnresolvedAlias,
+    _InternalAlias,
+)
+from snowflake.snowpark._internal.ast.utils import (
+    build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_python_val,
+    build_expr_from_snowpark_column_or_sql_str,
+    create_ast_for_column,
+    snowpark_expression_to_ast,
+    with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
@@ -70,13 +82,21 @@ from snowflake.snowpark._internal.type_utils import (
     LiteralType,
     type_string_to_type_object,
 )
-from snowflake.snowpark._internal.utils import parse_positional_args_to_list, quote_name
+from snowflake.snowpark._internal.utils import (
+    parse_positional_args_to_list,
+    publicapi,
+    quote_name,
+    split_snowflake_identifier_with_dot,
+)
 from snowflake.snowpark.types import (
     DataType,
     IntegerType,
     StringType,
     TimestampTimeZone,
     TimestampType,
+    ArrayType,
+    MapType,
+    StructType,
 )
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -95,7 +115,7 @@ def _to_col_if_lit(
     if isinstance(col, (Column, snowflake.snowpark.DataFrame, list, tuple, set)):
         return col
     elif isinstance(col, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
-        return Column(Literal(col))
+        return Column(Literal(col), _emit_ast=False)
     else:  # pragma: no cover
         raise TypeError(
             f"'{func_name}' expected Column, DataFrame, Iterable or LiteralType, got: {type(col)}"
@@ -117,7 +137,7 @@ def _to_col_if_str(col: ColumnOrName, func_name: str) -> "Column":
     if isinstance(col, Column):
         return col
     elif isinstance(col, str):
-        return Column(col)
+        return Column(col, _caller_name=None)
     else:
         raise TypeError(
             f"'{func_name.upper()}' expected Column or str, got: {type(col)}"
@@ -128,9 +148,9 @@ def _to_col_if_str_or_int(col: Union[ColumnOrName, int], func_name: str) -> "Col
     if isinstance(col, Column):
         return col
     elif isinstance(col, str):
-        return Column(col)
+        return Column(col, _caller_name=None)
     elif isinstance(col, int):
-        return Column(Literal(col))
+        return Column(Literal(col), _emit_ast=False)
     else:  # pragma: no cover
         raise TypeError(
             f"'{func_name.upper()}' expected Column, int or str, got: {type(col)}"
@@ -225,108 +245,365 @@ class Column:
     This class has methods for the most frequently used column transformations and operators. Module :mod:`snowflake.snowpark.functions` defines many functions to transform columns.
     """
 
+    # NOTE: For now assume Expression instances can be safely ignored when building AST
+    #       Expression logic can be eliminated entirely once phase 0 is integrated
+    #       Currently a breaking example can be created using the Column.isin method as it does not build the AST.
+    #       For example, running: df.filter(col("A").isin(1, 2, 3) & col("B")) would fail since the boolean operator
+    #       '&' would try to construct an AST using that of the new col("A").isin(1, 2, 3) column (which we currently
+    #       don't fill if the only argument provided in the Column constructor is 'expr1' of type Expression)
+    @publicapi
     def __init__(
-        self, expr1: Union[str, Expression], expr2: Optional[str] = None
+        self,
+        expr1: Union[str, Expression],
+        expr2: Optional[str] = None,
+        _ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
+        _caller_name: Optional[str] = "Column",
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
-        if expr2 is not None:
-            if isinstance(expr1, str) and isinstance(expr2, str):
-                if expr2 == "*":
-                    self._expression = Star([], df_alias=expr1)
-                else:
-                    self._expression = UnresolvedAttribute(
-                        quote_name(expr2), df_alias=expr1
-                    )
+        self._ast = _ast
+        self._expr1 = expr1
+        self._expr2 = expr2
+
+        def derive_qualified_name_expr(
+            expr: str, df_alias: Optional[str] = None
+        ) -> UnresolvedAttribute:
+            """Note that this method does not work for full column name like <db>.<schema>.<table>.column."""
+            parts = split_snowflake_identifier_with_dot(expr)
+            if len(parts) == 1:
+                return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
             else:
+                # According to https://docs.snowflake.com/en/user-guide/querying-semistructured#dot-notation,
+                # the json value on the path should be case-sensitive
+                return UnresolvedAttribute(
+                    f"{quote_name(parts[0])}:{'.'.join(quote_name(part, keep_case=True) for part in parts[1:])}",
+                    is_sql_text=True,
+                    df_alias=df_alias,
+                )
+
+        if expr2 is not None:
+            if not (isinstance(expr1, str) and isinstance(expr2, str)):
                 raise ValueError(
                     "When Column constructor gets two arguments, both need to be <str>"
                 )
+
+            if expr2 == "*":
+                self._expression = Star([], df_alias=expr1)
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr2, expr1)
+            else:
+                self._expression = UnresolvedAttribute(
+                    quote_name(expr2), df_alias=expr1
+                )
+
+            # Alias field should be from the parameter provided to DataFrame.alias(self, name: str)
+            # A column from the aliased DataFrame instance can be created using this alias like col(<df_alias>, <col_name>)
+            # In the IR we will need to store this alias to resolve which DataFrame instance the user is referring to
+            if self._ast is None and _emit_ast:
+                self._ast = create_ast_for_column(expr1, expr2, _caller_name)
+
         elif isinstance(expr1, str):
             if expr1 == "*":
                 self._expression = Star([])
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr1)
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
+
+            if self._ast is None and _emit_ast:
+                self._ast = create_ast_for_column(expr1, None, _caller_name)
+
         elif isinstance(expr1, Expression):
             self._expression = expr1
+
+            if self._ast is None and _emit_ast:
+                if hasattr(expr1, "_ast"):
+                    self._ast = expr1._ast
+                else:
+                    self._ast = snowpark_expression_to_ast(expr1)
+
         else:  # pragma: no cover
             raise TypeError("Column constructor only accepts str or expression.")
 
+        assert self._expression is not None
+
+    def __should_emit_ast_for_binary(self, other: Any) -> bool:
+        """Helper function to determine without a session whether AST should be generated or not based on
+        checking whether self and other have an AST."""
+        if isinstance(other, (Column, Expression)) and other._ast is None:
+            return False
+        return self._ast is not None
+
     def __getitem__(self, field: Union[str, int]) -> "Column":
         """Accesses an element of ARRAY column by ordinal position, or an element of OBJECT column by key."""
+
+        _emit_ast = self._ast is not None
+        expr = None
         if isinstance(field, str):
-            return Column(SubfieldString(self._expression, field))
+            if _emit_ast:
+                expr = proto.Expr()
+                ast = with_src_position(expr.column_apply__string)
+                ast.col.CopyFrom(self._ast)
+                ast.field = field
+            return Column(
+                SubfieldString(self._expression, field), _ast=expr, _emit_ast=_emit_ast
+            )
         elif isinstance(field, int):
-            return Column(SubfieldInt(self._expression, field))
+            if _emit_ast:
+                expr = proto.Expr()
+                ast = with_src_position(expr.column_apply__int)
+                ast.col.CopyFrom(self._ast)
+                ast.idx = field
+            return Column(
+                SubfieldInt(self._expression, field), _ast=expr, _emit_ast=_emit_ast
+            )
         else:
             raise TypeError(f"Unexpected item type: {type(field)}")
 
-    # overload operators
     def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Equal to."""
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.eq)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+
         right = Column._to_expr(other)
-        return Column(EqualTo(self._expression, right))
+        return Column(EqualTo(self._expression, right), _ast=expr, _emit_ast=_emit_ast)
 
     def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Not equal to."""
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.neq)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+
         right = Column._to_expr(other)
-        return Column(NotEqualTo(self._expression, right))
+        return Column(
+            NotEqualTo(self._expression, right), _ast=expr, _emit_ast=_emit_ast
+        )
 
     def __gt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than."""
-        return Column(GreaterThan(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.gt)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            GreaterThan(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __lt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than."""
-        return Column(LessThan(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.lt)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            LessThan(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __ge__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than or equal to."""
-        return Column(GreaterThanOrEqual(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.geq)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            GreaterThanOrEqual(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __le__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than or equal to."""
-        return Column(LessThanOrEqual(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.leq)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            LessThanOrEqual(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __add__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Plus."""
-        return Column(Add(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.add)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Add(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __radd__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Add(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.add)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Add(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __sub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Minus."""
-        return Column(Subtract(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.sub)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Subtract(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rsub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Subtract(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.sub)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Subtract(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __mul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Multiply."""
-        return Column(Multiply(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.mul)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Multiply(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rmul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Multiply(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.mul)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Multiply(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __truediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Divide."""
-        return Column(Divide(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.div)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Divide(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rtruediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Divide(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.div)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Divide(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __mod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        """Reminder."""
-        return Column(Remainder(self._expression, Column._to_expr(other)))
+        """Remainder."""
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.mod)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Remainder(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Remainder(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.mod)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Remainder(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __pow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Power."""
-        return Column(Pow(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.pow)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Pow(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
-        return Column(Pow(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.pow)
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            Pow(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def __bool__(self) -> bool:
         raise TypeError(
@@ -347,13 +624,17 @@ class Column:
     def __hash__(self):
         return hash(self._expression)
 
+    @publicapi
     def in_(
         self,
         *vals: Union[
             LiteralType,
             Iterable[LiteralType],
+            "Column",
+            Iterable["Column"],
             "snowflake.snowpark.DataFrame",
         ],
+        _emit_ast: bool = True,
     ) -> "Column":
         """Returns a conditional expression that you can pass to the :meth:`DataFrame.filter`
         or where :meth:`DataFrame.where` to perform the equivalent of a WHERE ... IN query
@@ -386,14 +667,27 @@ class Column:
             >>> df.select(df["a"].in_(lit(1), lit(2), lit(3)).alias("is_in_list")).collect()
             [Row(IS_IN_LIST=True), Row(IS_IN_LIST=True), Row(IS_IN_LIST=False)]
 
+            >>> # Use in with column object
+            >>> df2 = session.create_dataframe([[1, 1], [2, 4] ,[3, 0]], schema=["a", "b"])
+            >>> df2.select(df2["a"].in_(df2["b"]).alias("is_a_in_b")).collect()
+            [Row(IS_A_IN_B=True), Row(IS_A_IN_B=False), Row(IS_A_IN_B=False)]
+
         Args:
-            vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
+            vals: The literal values, the columns in the same DataFrame, or a :class:`DataFrame` instance to use
+                to check for membership against this column.
         """
+
         cols = parse_positional_args_to_list(*vals)
 
         # If cols is an empty list then in_ will always be False
         if not cols:
-            return Column(Literal(False))
+            ast = None
+            if _emit_ast:
+                ast = proto.Expr()
+                proto_ast = ast.column_in
+                proto_ast.col.CopyFrom(self._ast)
+
+            return Column(Literal(False), _ast=ast, _emit_ast=_emit_ast)
 
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
@@ -426,7 +720,10 @@ class Column:
         if len(cols) != 1 or not isinstance(value_expressions[0], ScalarSubquery):
 
             def validate_value(value_expr: Expression):
-                if isinstance(value_expr, Literal):
+                # literal and column
+                if isinstance(
+                    value_expr, (Literal, Attribute, UnresolvedAttribute, Cast)
+                ):
                     return
                 elif isinstance(value_expr, MultipleExpression):
                     for expr in value_expr.expressions:
@@ -442,115 +739,384 @@ class Column:
             for ve in value_expressions:
                 validate_value(ve)
 
-        return Column(InExpression(self._expression, value_expressions))
+        ast = None
+        if _emit_ast:
+            ast = proto.Expr()
+            proto_ast = ast.column_in
+            proto_ast.col.CopyFrom(self._ast)
+            for val in vals:
+                val_ast = proto_ast.values.add()
+                if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
+                    val._set_ast_ref(val_ast)
+                else:
+                    build_expr_from_python_val(val_ast, val)
 
+        return Column(
+            InExpression(self._expression, value_expressions),
+            _ast=ast,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
     def between(
         self,
         lower_bound: Union[ColumnOrLiteral, Expression],
         upper_bound: Union[ColumnOrLiteral, Expression],
+        _emit_ast: bool = True,
     ) -> "Column":
         """Between lower bound and upper bound."""
-        return (Column._to_expr(lower_bound) <= self) & (
+        expr = None
+        if _emit_ast and self._ast is not None:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_between)
+            ast.col.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.lower_bound, lower_bound)
+            build_expr_from_snowpark_column_or_python_val(ast.upper_bound, upper_bound)
+
+        ret = (Column._to_expr(lower_bound) <= self) & (
             self <= Column._to_expr(upper_bound)
         )
+        ret._ast = expr
+        return ret
 
-    def bitand(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
+    @publicapi
+    def bitand(
+        self, other: Union[ColumnOrLiteral, Expression], _emit_ast: bool = True
+    ) -> "Column":
         """Bitwise and."""
-        return Column(BitwiseAnd(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast and self._ast is not None:
+            expr = proto.Expr()
+            ast = with_src_position(expr.bit_and)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            BitwiseAnd(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def bitor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
+    @publicapi
+    def bitor(
+        self, other: Union[ColumnOrLiteral, Expression], _emit_ast: bool = True
+    ) -> "Column":
         """Bitwise or."""
-        return Column(BitwiseOr(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast and self._ast is not None:
+            expr = proto.Expr()
+            ast = with_src_position(expr.bit_or)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            BitwiseOr(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def bitxor(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
+    @publicapi
+    def bitxor(
+        self, other: Union[ColumnOrLiteral, Expression], _emit_ast: bool = True
+    ) -> "Column":
         """Bitwise xor."""
-        return Column(BitwiseXor(Column._to_expr(other), self._expression))
+        expr = None
+        if _emit_ast and self._ast is not None:
+            expr = proto.Expr()
+            ast = with_src_position(expr.bit_xor)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            BitwiseXor(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
+
+    # Note: For the operator overrides we always emit ast, it simply gets ignored in a call chain.
 
     def __neg__(self) -> "Column":
         """Unary minus."""
-        return Column(UnaryMinus(self._expression))
 
-    def equal_null(self, other: "Column") -> "Column":
+        expr = None
+        _emit_ast = self._ast is not None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.neg)
+            ast.operand.CopyFrom(self._ast)
+
+        return Column(UnaryMinus(self._expression), _ast=expr, _emit_ast=_emit_ast)
+
+    @publicapi
+    def equal_null(self, other: "Column", _emit_ast: bool = True) -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
-        return Column(EqualNullSafe(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := _emit_ast and self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_equal_null)
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            EqualNullSafe(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def equal_nan(self) -> "Column":
+    @publicapi
+    def equal_nan(self, _emit_ast: bool = True) -> "Column":
         """Is NaN."""
-        return Column(IsNaN(self._expression))
+        expr = None
+        if _emit_ast and self._ast is not None:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_equal_nan)
+            ast.col.CopyFrom(self._ast)
+        return Column(IsNaN(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
-    def is_null(self) -> "Column":
+    @publicapi
+    def is_null(self, _emit_ast: bool = True) -> "Column":
         """Is null."""
-        return Column(IsNull(self._expression))
+        expr = None
+        if _emit_ast and self._ast is not None:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_is_null)
+            ast.col.CopyFrom(self._ast)
+        return Column(IsNull(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
-    def is_not_null(self) -> "Column":
+    @publicapi
+    def is_not_null(self, _emit_ast: bool = True) -> "Column":
         """Is not null."""
-        return Column(IsNotNull(self._expression))
+        expr = None
+        if _emit_ast and self._ast is not None:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_is_not_null)
+            ast.col.CopyFrom(self._ast)
+        return Column(IsNotNull(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
-    def __and__(self, other: "Column") -> "Column":
+    def __and__(self, other: Union["Column", Any]) -> "Column":
         """And."""
-        return Column(And(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "and"))
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
 
-    def __rand__(self, other: "Column") -> "Column":
-        return Column(And(Column._to_expr(other), self._expression))  # pragma: no cover
+        return Column(
+            And(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def __or__(self, other: "Column") -> "Column":
+    def __rand__(self, other: Union["Column", Any]) -> "Column":
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "and"))
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            And(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )  # pragma: no cover
+
+    def __or__(self, other: Union["Column", Any]) -> "Column":
         """Or."""
-        return Column(Or(self._expression, Column._to_expr(other)))
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "or"))
+            ast.lhs.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
+        return Column(
+            Or(self._expression, Column._to_expr(other)), _ast=expr, _emit_ast=_emit_ast
+        )
 
-    def __ror__(self, other: "Column") -> "Column":
-        return Column(And(Column._to_expr(other), self._expression))  # pragma: no cover
+    def __ror__(self, other: Union["Column", Any]) -> "Column":
+        expr = None
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "or"))
+            build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
+            ast.rhs.CopyFrom(self._ast)
+        return Column(
+            And(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )  # pragma: no cover
 
     def __invert__(self) -> "Column":
         """Unary not."""
-        return Column(Not(self._expression))
+        expr = None
+        _emit_ast = self._ast is not None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(getattr(expr, "not"))
+            ast.operand.CopyFrom(self._ast)
 
-    def _cast(self, to: Union[str, DataType], try_: bool = False) -> "Column":
+        return Column(Not(self._expression), _ast=expr, _emit_ast=_emit_ast)
+
+    def _cast(
+        self,
+        to: Union[str, DataType],
+        try_: bool = False,
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
+        if add_fields and rename_fields:
+            raise ValueError(
+                "is_add and is_rename cannot be set to True at the same time"
+            )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
-        return Column(Cast(self._expression, to, try_))
 
-    def cast(self, to: Union[str, DataType]) -> "Column":
+        if isinstance(to, (ArrayType, MapType, StructType)):
+            to = to._as_nested()
+
+        if self._ast is None:
+            _emit_ast = False
+
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_try_cast if try_ else expr.column_cast)
+            ast.col.CopyFrom(self._ast)
+            to._fill_ast(ast.to)
+        return Column(
+            Cast(self._expression, to, try_, rename_fields, add_fields),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def cast(
+        self,
+        to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        return self._cast(to, False)
+        return self._cast(
+            to,
+            False,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
+        )
 
-    def try_cast(self, to: Union[str, DataType]) -> "Column":
+    @publicapi
+    def try_cast(
+        self,
+        to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
-        return self._cast(to, True)
+        return self._cast(
+            to,
+            True,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
+        )
 
-    def desc(self) -> "Column":
+    @publicapi
+    def desc(self, _emit_ast: bool = True) -> "Column":
         """Returns a Column expression with values sorted in descending order."""
-        return Column(SortOrder(self._expression, Descending()))
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_desc)
+            ast.col.CopyFrom(self._ast)
+            ast.null_order.null_order_default = True
+        return Column(
+            SortOrder(self._expression, Descending()), _ast=expr, _emit_ast=_emit_ast
+        )
 
-    def desc_nulls_first(self) -> "Column":
+    @publicapi
+    def desc_nulls_first(self, _emit_ast: bool = True) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted before non-null values)."""
-        return Column(SortOrder(self._expression, Descending(), NullsFirst()))
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_desc)
+            ast.col.CopyFrom(self._ast)
+            ast.null_order.null_order_nulls_first = True
+        return Column(
+            SortOrder(self._expression, Descending(), NullsFirst()),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def desc_nulls_last(self) -> "Column":
+    @publicapi
+    def desc_nulls_last(self, _emit_ast: bool = True) -> "Column":
         """Returns a Column expression with values sorted in descending order
         (null values sorted after non-null values)."""
-        return Column(SortOrder(self._expression, Descending(), NullsLast()))
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_desc)
+            ast.col.CopyFrom(self._ast)
+            ast.null_order.null_order_nulls_last = True
+        return Column(
+            SortOrder(self._expression, Descending(), NullsLast()),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def asc(self) -> "Column":
+    @publicapi
+    def asc(self, _emit_ast: bool = True) -> "Column":
         """Returns a Column expression with values sorted in ascending order."""
-        return Column(SortOrder(self._expression, Ascending()))
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_asc)
+            ast.col.CopyFrom(self._ast)
+            ast.null_order.null_order_default = True
+        return Column(
+            SortOrder(self._expression, Ascending()), _ast=expr, _emit_ast=_emit_ast
+        )
 
-    def asc_nulls_first(self) -> "Column":
+    @publicapi
+    def asc_nulls_first(self, _emit_ast: bool = True) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted before non-null values)."""
-        return Column(SortOrder(self._expression, Ascending(), NullsFirst()))
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_asc)
+            ast.col.CopyFrom(self._ast)
+            ast.null_order.null_order_nulls_first = True
+        return Column(
+            SortOrder(self._expression, Ascending(), NullsFirst()),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def asc_nulls_last(self) -> "Column":
+    @publicapi
+    def asc_nulls_last(self, _emit_ast: bool = True) -> "Column":
         """Returns a Column expression with values sorted in ascending order
         (null values sorted after non-null values)."""
-        return Column(SortOrder(self._expression, Ascending(), NullsLast()))
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_asc)
+            ast.col.CopyFrom(self._ast)
+            ast.null_order.null_order_nulls_last = True
+        return Column(
+            SortOrder(self._expression, Ascending(), NullsLast()),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def like(self, pattern: ColumnOrLiteralStr) -> "Column":
+    @publicapi
+    def like(self, pattern: ColumnOrLiteralStr, _emit_ast: bool = True) -> "Column":
         """Allows case-sensitive matching of strings based on comparison with a pattern.
 
         Args:
@@ -560,17 +1126,24 @@ class Column:
         For details, see the Snowflake documentation on
         `LIKE <https://docs.snowflake.com/en/sql-reference/functions/like.html#usage-notes>`_.
         """
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_string_like)
+            ast.col.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
         return Column(
-            Like(
-                self._expression,
-                Column._to_expr(pattern),
-            )
+            Like(self._expression, Column._to_expr(pattern)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
+    @publicapi
     def regexp(
         self,
         pattern: ColumnOrLiteralStr,
         parameters: Optional[ColumnOrLiteralStr] = None,
+        _emit_ast: bool = True,
     ) -> "Column":
         """Returns true if this Column matches the specified regular expression.
 
@@ -584,38 +1157,84 @@ class Column:
         :meth:`rlike` is an alias of :meth:`regexp`.
 
         """
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_regexp)
+            ast.col.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
+            if parameters is not None:
+                build_expr_from_snowpark_column_or_python_val(
+                    ast.parameters, parameters
+                )
+
         return Column(
             RegExp(
                 self._expression,
                 Column._to_expr(pattern),
                 None if parameters is None else Column._to_expr(parameters),
-            )
+            ),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
-    def startswith(self, other: ColumnOrLiteralStr) -> "Column":
+    @publicapi
+    def startswith(self, other: ColumnOrLiteralStr, _emit_ast: bool = True) -> "Column":
         """Returns true if this Column starts with another string.
 
         Args:
             other: A :class:`Column` or a ``str`` that is used to check if this column starts with it.
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
-        other = snowflake.snowpark.functions.lit(other)
-        return snowflake.snowpark.functions.startswith(self, other)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_string_starts_with)
+            ast.col.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.prefix, other)
+        other = (
+            other
+            if isinstance(other, Column)
+            else snowflake.snowpark.functions.lit(other)
+        )
+        return Column(
+            snowflake.snowpark.functions.startswith(self, other)._expression,
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
-    def endswith(self, other: ColumnOrLiteralStr) -> "Column":
+    @publicapi
+    def endswith(self, other: ColumnOrLiteralStr, _emit_ast: bool = True) -> "Column":
         """Returns true if this Column ends with another string.
 
         Args:
             other: A :class:`Column` or a ``str`` that is used to check if this column ends with it.
                 A ``str`` will be interpreted as a literal value instead of a column name.
         """
-        other = snowflake.snowpark.functions.lit(other)
-        return snowflake.snowpark.functions.endswith(self, other)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_string_ends_with)
+            ast.col.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.suffix, other)
 
+        other = (
+            other
+            if isinstance(other, Column)
+            else snowflake.snowpark.functions.lit(other)
+        )
+        return Column(
+            snowflake.snowpark.functions.endswith(self, other)._expression,
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
     def substr(
         self,
         start_pos: Union["Column", int],
         length: Union["Column", int],
+        _emit_ast: bool = True,
     ) -> "Column":
         """Returns a substring of this string column.
 
@@ -625,24 +1244,58 @@ class Column:
 
         :meth:`substring` is an alias of :meth:`substr`.
         """
-        return snowflake.snowpark.functions.substring(self, start_pos, length)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_string_substr)
+            ast.col.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.pos, start_pos)
+            build_expr_from_snowpark_column_or_python_val(ast.len, length)
 
-    def collate(self, collation_spec: str) -> "Column":
+        return Column(
+            snowflake.snowpark.functions.substring(self, start_pos, length)._expression,
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def collate(self, collation_spec: str, _emit_ast: bool = True) -> "Column":
         """Returns a copy of the original :class:`Column` with the specified ``collation_spec``
         property, rather than the original collation specification property.
 
         For details, see the Snowflake documentation on
         `collation specifications <https://docs.snowflake.com/en/sql-reference/collation.html#label-collation-specification>`_.
         """
-        return Column(Collate(self._expression, collation_spec))
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_string_collate)
+            ast.col.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(
+                ast.collation_spec, collation_spec
+            )
+        return Column(
+            Collate(self._expression, collation_spec), _ast=expr, _emit_ast=_emit_ast
+        )
 
-    def contains(self, string: ColumnOrName) -> "Column":
+    @publicapi
+    def contains(self, string: ColumnOrName, _emit_ast: bool = True) -> "Column":
         """Returns true if the column contains `string` for each row.
 
         Args:
             string: the string to search for in this column.
         """
-        return snowflake.snowpark.functions.contains(self, string)
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_string_contains)
+            ast.col.CopyFrom(self._ast)
+            build_expr_from_snowpark_column_or_python_val(ast.pattern, string)
+        return Column(
+            snowflake.snowpark.functions.contains(self, string)._expression,
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     def get_name(self) -> Optional[str]:
         """Returns the column name (if the column has a name)."""
@@ -658,31 +1311,77 @@ class Column:
     def __repr__(self):
         return f"Column({self._expression})"  # pragma: no cover
 
-    def as_(self, alias: str) -> "Column":
+    @publicapi
+    def as_(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias)
+        return self.name(alias, variant="as_", _emit_ast=_emit_ast)
 
-    def alias(self, alias: str) -> "Column":
+    @publicapi
+    def alias(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias)
+        return self.name(alias, variant="alias", _emit_ast=_emit_ast)
 
-    def name(self, alias: str) -> "Column":
+    def _alias(self, alias: str) -> "Column":
+        """Returns a new renamed Column called by functions that internally alias the result."""
+        return self.name(alias, variant="_alias", _emit_ast=False)
+
+    @publicapi
+    def name(
+        self,
+        alias: str,
+        variant: typing.Literal["as_", "alias", "name"] = "name",
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Returns a new renamed Column."""
-        expr = self._expression
+        expr = self._expression  # Snowpark expression
         if isinstance(expr, Alias):
             expr = expr.child
-        return Column(Alias(expr, quote_name(alias)))
+        ast_expr = None  # Snowpark IR expression
+        if _emit_ast and self._ast is not None:
+            ast_expr = proto.Expr()
+            ast = with_src_position(ast_expr.column_alias)
+            ast.col.CopyFrom(self._ast)
+            ast.name = alias
+            if variant == "as_":
+                ast.fn.column_alias_fn_as = True
+            elif variant == "alias":
+                ast.fn.column_alias_fn_alias = True
+            elif variant == "name":
+                ast.fn.column_alias_fn_name = True
 
-    def over(self, window: Optional[WindowSpec] = None) -> "Column":
+        if variant == "_alias":
+            return Column(
+                _InternalAlias(expr, quote_name(alias)),
+                _ast=ast_expr,
+                _emit_ast=_emit_ast,
+            )
+        return Column(
+            Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast
+        )
+
+    @publicapi
+    def over(
+        self, window: Optional[WindowSpec] = None, _emit_ast: bool = True
+    ) -> "Column":
         """
         Returns a window frame, based on the specified :class:`~snowflake.snowpark.window.WindowSpec`.
         """
+        ast = None
+        if _emit_ast:
+            ast = proto.Expr()
+            expr = with_src_position(ast.column_over)
+            expr.col.CopyFrom(self._ast)
+            if window:
+                expr.window_spec.CopyFrom(window._ast)
+
         if not window:
             window = Window._spec()
-        return window._with_aggregate(self._expression)
 
+        return window._with_aggregate(self._expression, ast=ast, _emit_ast=_emit_ast)
+
+    @publicapi
     def within_group(
-        self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]]
+        self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> "Column":
         """
         Returns a Column expression that adds a WITHIN GROUP clause
@@ -701,7 +1400,7 @@ class Column:
 
             >>> df = session.create_dataframe([(3, "v1"), (1, "v3"), (2, "v2")], schema=["a", "b"])
             >>> # create a DataFrame containing the values in "a" sorted by "b"
-            >>> df.select(array_agg("a").within_group("b").alias("new_column")).show()
+            >>> df.select(array_agg("a").within_group(col("b").asc()).alias("new_column")).show()
             ----------------
             |"NEW_COLUMN"  |
             ----------------
@@ -731,14 +1430,41 @@ class Column:
             ----------------
             <BLANKLINE>
         """
+        # Set up result Column AST representation.
+        expr = None
+        if _emit_ast:
+            expr = proto.Expr()
+            ast = with_src_position(expr.column_within_group)
+            ast.col.CopyFrom(self._ast)
+            ast.cols.variadic = not (
+                len(cols) == 1 and isinstance(cols[0], (list, tuple, set))
+            )
+
+        # populate columns to order aggregate expression results by
+        order_by_cols = []
+        for col in parse_positional_args_to_list(*cols):
+            if isinstance(col, Column):
+                if _emit_ast:
+                    assert col._ast is not None
+                    ast.cols.args.append(col._ast)
+                order_by_cols.append(col)
+            elif isinstance(col, str):
+                if _emit_ast:
+                    col_ast = ast.cols.args.add()
+                    col_ast.string_val.v = col
+                order_by_cols.append(Column(col))
+            else:
+                raise TypeError(
+                    f"'WITHIN_GROUP' expected Column or str, got: {type(col)}"
+                )
+
         return Column(
             WithinGroup(
                 self._expression,
-                [
-                    _to_col_if_str(col, "within_group")._expression
-                    for col in parse_positional_args_to_list(*cols)
-                ],
-            )
+                [order_by_col._expression for order_by_col in order_by_cols],
+            ),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     def _named(self) -> NamedExpression:
@@ -764,8 +1490,8 @@ class Column:
             return Literal(expr)
 
     @classmethod
-    def _expr(cls, e: str) -> "Column":
-        return cls(UnresolvedAttribute(e, is_sql_text=True))
+    def _expr(cls, e: str, ast: Optional[proto.Expr] = None) -> "Column":
+        return cls(UnresolvedAttribute(e, is_sql_text=True), _ast=ast)
 
     # Add these alias for user code migration
     isin = in_
@@ -804,11 +1530,24 @@ class CaseExpr(Column):
         [Row(CASE_WHEN_COLUMN=1), Row(CASE_WHEN_COLUMN=2), Row(CASE_WHEN_COLUMN=3)]
     """
 
-    def __init__(self, expr: CaseWhen) -> None:
-        super().__init__(expr)
+    @publicapi
+    def __init__(
+        self,
+        expr: CaseWhen,
+        _ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
+    ) -> None:
+        super().__init__(
+            expr, _is_qualified_name=_is_qualified_name, _ast=_ast, _emit_ast=_emit_ast
+        )
         self._branches = expr.branches
 
-    def when(self, condition: ColumnOrSqlExpr, value: ColumnOrLiteral) -> "CaseExpr":
+    @publicapi
+    def when(
+        self, condition: ColumnOrSqlExpr, value: ColumnOrLiteral, _emit_ast: bool = True
+    ) -> "CaseExpr":
         """
         Appends one more WHEN condition to the CASE expression.
 
@@ -817,6 +1556,12 @@ class CaseExpr(Column):
             value: A :class:`Column` expression or a literal value, which will be returned
                 if ``condition`` is true.
         """
+
+        if _emit_ast:
+            case_expr = with_src_position(self._ast.column_case_expr.cases.add())
+            build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
+            build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
+
         return CaseExpr(
             CaseWhen(
                 [
@@ -826,15 +1571,23 @@ class CaseExpr(Column):
                         Column._to_expr(value),
                     ),
                 ]
-            )
+            ),
+            _ast=self._ast,
+            _emit_ast=_emit_ast,
         )
 
-    def otherwise(self, value: ColumnOrLiteral) -> "CaseExpr":
+    @publicapi
+    def otherwise(self, value: ColumnOrLiteral, _emit_ast: bool = True) -> "CaseExpr":
         """Sets the default result for this CASE expression.
 
         :meth:`else_` is an alias of :meth:`otherwise`.
         """
-        return CaseExpr(CaseWhen(self._branches, Column._to_expr(value)))
+        if _emit_ast:
+            case_expr = with_src_position(self._ast.column_case_expr.cases.add())
+            build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
+        return CaseExpr(
+            CaseWhen(self._branches, Column._to_expr(value)), _ast=self._ast
+        )
 
     # This alias is to sync with snowpark scala
     else_ = otherwise

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This package contains all Snowpark client-side exceptions."""
@@ -34,6 +34,9 @@ class SnowparkClientException(Exception):
 
     def __str__(self):
         return self._pretty_msg
+
+    def __reduce__(self):
+        return (self.__class__, (self.message,), {"error_code": self.error_code})
 
 
 class _SnowparkInternalException(SnowparkClientException):
@@ -86,6 +89,7 @@ class SnowparkSQLException(SnowparkClientException):
         query: Optional[str] = None,
         sql_error_code: Optional[int] = None,
         raw_message: Optional[str] = None,
+        debug_context: Optional[str] = None,
     ) -> None:
         super().__init__(message, error_code=error_code)
 
@@ -94,10 +98,13 @@ class SnowparkSQLException(SnowparkClientException):
         self.query = query or getattr(self.conn_error, "query", None)
         self.sql_error_code = sql_error_code or getattr(self.conn_error, "errno", None)
         self.raw_message = raw_message or getattr(self.conn_error, "raw_msg", None)
+        self.debug_context = debug_context
 
         pretty_error_code = f"({self.error_code}): " if self.error_code else ""
         pretty_sfqid = f"{self.sfqid}: " if self.sfqid else ""
-        self._pretty_msg = f"{pretty_error_code}{pretty_sfqid}{self.message}"
+        self._pretty_msg = (
+            f"{pretty_error_code}{pretty_sfqid}{self.message}{self.debug_context or ''}"
+        )
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.message!r}, {self.error_code!r}, {self.sfqid!r})"

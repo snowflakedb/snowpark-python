@@ -1,12 +1,16 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import multiprocessing as mp
+import os
 import sys
+import time
+
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_file_format_statement,
     drop_file_format_if_exists_statement,
@@ -14,25 +18,69 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import ReadFileNode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+from snowflake.snowpark._internal.ast.utils import (
+    build_expr_from_python_val,
+    build_proto_from_struct_type,
+    build_table_name,
+    with_src_position,
+)
+from snowflake.snowpark._internal.data_source.datasource_partitioner import (
+    DataSourcePartitioner,
+)
+from snowflake.snowpark._internal.data_source.datasource_typing import Connection
+from snowflake.snowpark._internal.data_source.utils import (
+    worker_process,
+    process_parquet_queue_with_threads,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    DATA_SOURCE_SQL_COMMENT,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    _MAX_WORKER_SCALE,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import (
+    ColumnOrName,
+    convert_sf_to_sp_type,
+    convert_sp_to_sf_type,
+)
+from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.utils import (
+    STAGE_PREFIX,
+    XML_ROW_TAG_STRING,
+    XML_ROW_DATA_COLUMN_NAME,
+    XML_READER_FILE_PATH,
+    XML_READER_API_SIGNATURE,
+    XML_READER_SQL_COMMENT,
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
     get_aliased_option_name,
     get_copy_into_table_options,
+    get_stage_parts,
+    get_temp_type_for_object,
+    is_in_stored_procedure,
+    parse_positional_args_to_list_variadic,
+    private_preview,
+    publicapi,
     random_name_for_temp_object,
+    warning,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.exceptions import (
+    SnowparkSessionException,
+    SnowparkDataframeReaderException,
+)
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
-from snowflake.snowpark.types import StructType, VariantType
+from snowflake.snowpark.types import (
+    StructType,
+    VariantType,
+    StructField,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -58,6 +106,8 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+
+_MAX_RETRY_TIME = 3
 
 
 def _validate_stage_path(path: str) -> str:
@@ -313,9 +363,48 @@ class DataFrameReader:
             |Red      |Apple    |Large   |
             ------------------------------
             <BLANKLINE>
+
+    Example 13:
+        Reading an XML file with a row tag
+            >>> # Each XML record is extracted as a separate row,
+            >>> # and each field within that record becomes a separate column of type VARIANT
+            >>> _ = session.file.put("tests/resources/nested.xml", "@mystage", auto_compress=False)
+            >>> df = session.read.option("rowTag", "tag").xml("@mystage/nested.xml")
+            >>> df.show()
+            -----------------------
+            |"'test'"             |
+            -----------------------
+            |{                    |
+            |  "num": "1",        |
+            |  "obj": {           |
+            |    "bool": "true",  |
+            |    "str": "str2"    |
+            |  },                 |
+            |  "str": "str1"      |
+            |}                    |
+            -----------------------
+            <BLANKLINE>
+
+            >>> # Query nested fields using dot notation
+            >>> from snowflake.snowpark.functions import col
+            >>> df.select(
+            ...     "'test'.num", "'test'.str", col("'test'.obj"), col("'test'.obj.bool")
+            ... ).show()
+            ------------------------------------------------------------------------------------------------------
+            |\"\"\"'TEST'"":""NUM\"\"\"  |\"\"\"'TEST'"":""STR\"\"\"  |\"\"\"'TEST'"":""OBJ\"\"\"  |\"\"\"'TEST'"":""OBJ"".""BOOL\"\"\"  |
+            ------------------------------------------------------------------------------------------------------
+            |"1"                   |"str1"                |{                     |"true"                         |
+            |                      |                      |  "bool": "true",     |                               |
+            |                      |                      |  "str": "str2"       |                               |
+            |                      |                      |}                     |                               |
+            ------------------------------------------------------------------------------------------------------
+            <BLANKLINE>
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    @publicapi
+    def __init__(
+        self, session: "snowflake.snowpark.session.Session", _emit_ast: bool = True
+    ) -> None:
         self._session = session
         self._user_schema: Optional[StructType] = None
         self._cur_options: dict[str, Any] = {}
@@ -327,6 +416,13 @@ class DataFrameReader:
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
+        self.__format: Optional[str] = None
+
+        self._ast = None
+        if _emit_ast:
+            reader = proto.Expr()
+            with_src_position(reader.dataframe_reader)
+            self._ast = reader
 
     @property
     def _infer_schema(self):
@@ -368,7 +464,8 @@ class DataFrameReader:
 
         return metadata_project, metadata_schema
 
-    def table(self, name: Union[str, Iterable[str]]) -> Table:
+    @publicapi
+    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """Returns a Table that points to the specified table.
 
         This method is an alias of :meth:`~snowflake.snowpark.session.Session.table`.
@@ -376,9 +473,24 @@ class DataFrameReader:
         Args:
             name: Name of the table to use.
         """
-        return self._session.table(name)
 
-    def schema(self, schema: StructType) -> "DataFrameReader":
+        # AST.
+        stmt = None
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_table, stmt)
+            ast.reader.CopyFrom(self._ast)
+            build_table_name(ast.name, name)
+
+        table = self._session.table(name, _emit_ast=False)
+
+        if _emit_ast and stmt is not None:
+            table._ast_id = stmt.uid
+
+        return table
+
+    @publicapi
+    def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
         """Define the schema for CSV files that you want to read.
 
         Args:
@@ -387,11 +499,17 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
         """
+
+        # AST.
+        if _emit_ast and self._ast is not None:
+            build_proto_from_struct_type(schema, self._ast.dataframe_reader.schema)
+
         self._user_schema = schema
         return self
 
+    @publicapi
     def with_metadata(
-        self, *metadata_cols: Iterable[ColumnOrName]
+        self, *metadata_cols: Iterable[ColumnOrName], _emit_ast: bool = True
     ) -> "DataFrameReader":
         """Define the metadata columns that need to be selected from stage files.
 
@@ -406,13 +524,102 @@ class DataFrameReader:
                 external_feature_name="DataFrameReader.with_metadata",
                 raise_error=NotImplementedError,
             )
+
+        # AST.
+        if _emit_ast and self._ast is not None:
+            col_names, is_variadic = parse_positional_args_to_list_variadic(
+                *metadata_cols
+            )
+            self._ast.dataframe_reader.metadata_columns.variadic = is_variadic
+            for e in col_names:
+                build_expr_from_python_val(
+                    self._ast.dataframe_reader.metadata_columns.args.add(), e
+                )
+
         self._metadata_cols = [
             _to_col_if_str(col, "DataFrameReader.with_metadata")
             for col in metadata_cols
         ]
         return self
 
-    def csv(self, path: str) -> DataFrame:
+    @property
+    def _format(self) -> Optional[str]:
+        return self.__format
+
+    @_format.setter
+    def _format(self, value: str) -> None:
+        canon_format = value.strip().lower()
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
+        if canon_format not in allowed_formats:
+            raise ValueError(
+                f"Invalid format '{value}'. Supported formats are {allowed_formats}."
+            )
+        self.__format = canon_format
+
+    @publicapi
+    def format(
+        self,
+        format: Literal["csv", "json", "avro", "parquet", "orc", "xml"],
+        _emit_ast: bool = True,
+    ) -> "DataFrameReader":
+        """Specify the format of the file(s) to load.
+
+        Args:
+            format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
+
+        Returns:
+            a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
+        """
+        self._format = format
+        # AST.
+        if _emit_ast and self._ast is not None:
+            self._ast.dataframe_reader.format.value = self._format
+        return self
+
+    @publicapi
+    def load(self, path: Optional[str] = None, _emit_ast: bool = True) -> DataFrame:
+        """Specify the path of the file(s) to load.
+
+        Args:
+            path: The stage location of a file, or a stage location that has files.
+             This parameter is required for all formats except dbapi.
+
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
+        """
+        if self._format is None:
+            raise ValueError(
+                "Please specify the format of the file(s) to load using the format() method."
+            )
+
+        format_str = self._format.lower()
+        if format_str == "dbapi" and path is not None:
+            raise ValueError(
+                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+            )
+        if format_str != "dbapi" and path is None:
+            raise TypeError(
+                "DataFrameReader.load() missing 1 required positional argument: 'path'"
+            )
+        if format_str == "dbapi":
+            return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
+
+        loader = getattr(self, self._format, None)
+        if loader is not None:
+            res = loader(path, _emit_ast=False)
+            # AST.
+            if _emit_ast and self._ast is not None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.read_load, stmt)
+                ast.path = path
+                ast.reader.CopyFrom(self._ast)
+                res._ast_id = stmt.uid
+            return res
+
+        raise ValueError(f"Invalid format '{self._format}'.")
+
+    @publicapi
+    def csv(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
 
         Args:
@@ -452,7 +659,7 @@ class DataFrameReader:
                 if isinstance(exception, FileNotFoundError):
                     raise exception
                 # if infer schema query fails, use $1, VariantType as schema
-                logger.warn(
+                logger.warning(
                     f"Could not infer csv schema due to exception: {exception}. "
                     "\nUsing schema (C1, VariantType()) instead. Please use DataFrameReader.schema() "
                     "to specify user schema for the file."
@@ -466,12 +673,20 @@ class DataFrameReader:
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
+        # AST.
+        stmt = None
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_csv, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
                 self._session._analyzer.create_select_statement(
                     from_=self._session._analyzer.create_select_snowflake_plan(
-                        self._session._analyzer.plan_builder.read_file(
+                        ReadFileNode(
                             path,
                             self._file_type,
                             self._cur_options,
@@ -485,11 +700,13 @@ class DataFrameReader:
                     ),
                     analyzer=self._session._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             df = DataFrame(
                 self._session,
-                self._session._plan_builder.read_file(
+                ReadFileNode(
                     path,
                     self._file_type,
                     self._cur_options,
@@ -499,12 +716,16 @@ class DataFrameReader:
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         df._reader = self
         set_api_call_source(df, "DataFrameReader.csv")
+
         return df
 
-    def json(self, path: str) -> DataFrame:
+    @publicapi
+    def json(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the JSON file(s) to load.
 
         Args:
@@ -516,9 +737,20 @@ class DataFrameReader:
         # infer_schema is set to false by default for JSON
         if "INFER_SCHEMA" not in self._cur_options:
             self._cur_options["INFER_SCHEMA"] = False
-        return self._read_semi_structured_file(path, "JSON")
+        df = self._read_semi_structured_file(path, "JSON")
 
-    def avro(self, path: str) -> DataFrame:
+        # AST.
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_json, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.uid
+
+        return df
+
+    @publicapi
+    def avro(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the AVRO file(s) to load.
 
         Args:
@@ -533,9 +765,20 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified AVRO file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "AVRO")
+        df = self._read_semi_structured_file(path, "AVRO")
 
-    def parquet(self, path: str) -> DataFrame:
+        # AST.
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_avro, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.uid
+
+        return df
+
+    @publicapi
+    def parquet(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the PARQUET file(s) to load.
 
         Args:
@@ -550,9 +793,21 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified PARQUET file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "PARQUET")
 
-    def orc(self, path: str) -> DataFrame:
+        df = self._read_semi_structured_file(path, "PARQUET")
+
+        # AST.
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_parquet, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.uid
+
+        return df
+
+    @publicapi
+    def orc(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the ORC file(s) to load.
 
         Args:
@@ -567,9 +822,20 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified ORC file(s) in a Snowflake stage.
         """
-        return self._read_semi_structured_file(path, "ORC")
+        df = self._read_semi_structured_file(path, "ORC")
 
-    def xml(self, path: str) -> DataFrame:
+        # AST.
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_orc, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.uid
+
+        return df
+
+    @publicapi
+    def xml(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the XML file(s) to load.
 
         Args:
@@ -577,10 +843,72 @@ class DataFrameReader:
 
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified XML file(s) in a Snowflake stage.
-        """
-        return self._read_semi_structured_file(path, "XML")
 
-    def option(self, key: str, value: Any) -> "DataFrameReader":
+        Notes about reading XML files using a row tag:
+
+            - We support reading XML by specifying the element tag that represents a single record using the ``rowTag``
+              option. See Example 13 in :class:`DataFrameReader`.
+
+            - Each XML record is flattened into a single row, with each XML element or attribute mapped to a column.
+              All columns are represented with the variant type to accommodate heterogeneous or nested data. Therefore,
+              every column value has a size limit due to the variant type.
+
+            - The column names are derived from the XML element names. It will always be wrapped by single quotes.
+
+            - To parse the nested XML under a row tag, you can use dot notation ``.`` to query the nested fields in
+              a DataFrame. See Example 13 in :class:`DataFrameReader`.
+
+            - When ``rowTag`` is specified, the following options are supported for reading XML files
+              via :meth:`option()` or :meth:`options()`:
+
+              + ``mode``: Specifies the mode for dealing with corrupt XML records. The default value is ``PERMISSIVE``. The supported values are:
+
+                  - ``PERMISSIVE``: When it encounters a corrupt record, it sets all fields to null and includes a `columnNameOfCorruptRecord` column.
+
+                  - ``DROPMALFORMED``: Ignores the whole record that cannot be parsed correctly.
+
+                  - ``FAILFAST``: When it encounters a corrupt record, it raises an exception immediately.
+
+              + ``columnNameOfCorruptRecord``: Specifies the name of the column that contains the corrupt record.
+                The default value is '_corrupt_record'.
+
+              + ``ignoreNamespace``: remove namespace prefixes from XML element names when constructing result column names.
+                The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
+                it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
+                For example, for the following XML data with a row tag ``abc:def``:
+                ```
+                <abc:def><abc:xyz>0</abc:xyz></abc:def>
+                ```
+                the result column name is ``abc:xyz`` where ``abc`` is not stripped.
+
+              + ``attributePrefix``: The prefix to add to the attribute names. The default value is ``_``.
+
+              + ``excludeAttributes``: Whether to exclude attributes from the XML element. The default value is ``False``.
+
+              + ``valueTag``: The column name used for the value when there are attributes in an element that has no child elements.
+                The default value is ``_VALUE``.
+
+              + ``nullValue``: The value to treat as a null value. The default value is ``""``.
+
+              + ``charset``: The character encoding of the XML file. The default value is ``utf-8``.
+
+              + ``ignoreSurroundingWhitespace``: Whether or not whitespaces surrounding values should be skipped.
+                The default value is ``False``.
+        """
+        df = self._read_semi_structured_file(path, "XML")
+
+        # AST.
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_xml, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.uid
+
+        return df
+
+    @publicapi
+    def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameReader":
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
@@ -594,11 +922,21 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
+
+        # AST.
+        if _emit_ast and self._ast is not None:
+            t = self._ast.dataframe_reader.options.add()
+            t._1 = key
+            build_expr_from_python_val(t._2, value)
+
         aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
         return self
 
-    def options(self, configs: Dict) -> "DataFrameReader":
+    @publicapi
+    def options(
+        self, configs: Optional[Dict] = None, _emit_ast: bool = True, **kwargs
+    ) -> "DataFrameReader":
         """Sets multiple specified options in the DataFrameReader.
 
         This method is the same as the :meth:`option` except that you can set multiple options in one call.
@@ -607,12 +945,23 @@ class DataFrameReader:
             configs: Dictionary of the names of options (e.g. ``compression``,
                 ``skip_header``, etc.) and their corresponding values.
         """
+        if configs and kwargs:
+            raise ValueError(
+                "Cannot set options with both a dictionary and keyword arguments. Please use one or the other."
+            )
+        if configs is None:
+            if not kwargs:
+                raise ValueError("No options were provided")
+            configs = kwargs
+
         for k, v in configs.items():
-            self.option(k, v)
+            self.option(k, v, _emit_ast=_emit_ast)
         return self
 
     def _infer_schema_for_file_format(
-        self, path: str, format: str
+        self,
+        path: str,
+        format: str,
     ) -> Tuple[List, List, List, Exception]:
         format_type_options, _ = get_copy_into_table_options(self._cur_options)
 
@@ -622,10 +971,33 @@ class DataFrameReader:
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
-        infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", None)
+        infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", {})
+
+        # When pattern is set we should only consider files that match the pattern during schema inference
+        # If no files match fallback to trying to read all files.
+        infer_path = path
+        if (
+            pattern := self._cur_options.get("PATTERN", None)
+        ) and "FILES" not in infer_schema_options:
+            # matches has schema (name, size, md5, last_modified)
+            # Name is fully qualified with stage path
+            matches = self._session._conn.run_query(
+                f"list {path} pattern = '{pattern}'"
+            )["data"]
+
+            if len(matches):
+                # Constuct a list of file prefixes not including the stage
+                files = [m[0].partition("/")[2] for m in matches]
+                infer_schema_options["FILES"] = files
+
+                # Reconstruct path using just stage and any qualifiers
+                stage, _ = get_stage_parts(path)
+                infer_path = path.partition(stage)[0] + stage
+
         infer_schema_query = infer_schema_statement(
-            path, file_format_name, infer_schema_options
+            infer_path, file_format_name, infer_schema_options or None
         )
+
         try:
             if use_temp_file_format:
                 self._session._conn.run_query(
@@ -700,6 +1072,32 @@ class DataFrameReader:
 
         return new_schema, schema_to_cast, read_file_transformations, None
 
+    def _get_schema_from_user_input(
+        self, user_schema: StructType
+    ) -> Tuple[List, List, List]:
+        """This function accept a user input structtype and return schemas needed for reading semi-structured file"""
+        schema_to_cast = []
+        transformations = []
+        new_schema = []
+        for field in user_schema.fields:
+            name = quote_name_without_upper_casing(field._name)
+            new_schema.append(
+                Attribute(
+                    name,
+                    field.datatype,
+                    field.nullable,
+                )
+            )
+            identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
+            schema_to_cast.append((identifier, field._name))
+            transformations.append(sql_expr(identifier))
+        self._infer_schema_transformations = transformations
+        self._infer_schema_target_columns = StructType._from_attributes(
+            new_schema
+        ).names
+        read_file_transformations = [t._expression.sql for t in transformations]
+        return new_schema, schema_to_cast, read_file_transformations
+
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
@@ -715,7 +1113,7 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema:
+        if self._user_schema and format.lower() != "json":
             raise ValueError(f"Read {format} does not support user schema")
         path = _validate_stage_path(path)
         self._file_path = path
@@ -724,7 +1122,19 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
-        if self._infer_schema:
+        use_user_schema = False
+
+        if self._user_schema:
+            (
+                new_schema,
+                schema_to_cast,
+                read_file_transformations,
+            ) = self._get_schema_from_user_input(self._user_schema)
+            schema = new_schema
+            self._cur_options["INFER_SCHEMA"] = False
+            use_user_schema = True
+
+        elif self._infer_schema:
             (
                 new_schema,
                 schema_to_cast,
@@ -736,12 +1146,57 @@ class DataFrameReader:
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
+        if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
+            warning(
+                "rowTag",
+                "rowTag for reading XML file is in private preview since 1.31.0. Do not use it in production.",
+            )
+
+            if is_in_stored_procedure():  # pragma: no cover
+                # create a temp stage for udtf import files
+                # we have to use "temp" object instead of "scoped temp" object in stored procedure
+                # so we need to upload the file to the temp stage first to use register_from_file
+                temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
+                sql_create_temp_stage = f"create temp stage if not exists {temp_stage} {XML_READER_SQL_COMMENT}"
+                self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                    _emit_ast=False
+                )
+                self._session._conn.upload_file(
+                    XML_READER_FILE_PATH,
+                    temp_stage,
+                    compress_data=False,
+                    overwrite=True,
+                    skip_upload_on_content_match=True,
+                )
+                python_file_path = f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(XML_READER_FILE_PATH)}"
+            else:
+                python_file_path = XML_READER_FILE_PATH
+
+            # create udtf
+            handler_name = "XMLReader"
+            _, input_types = get_types_from_type_hints(
+                (XML_READER_FILE_PATH, handler_name), TempObjectType.TABLE_FUNCTION
+            )
+            output_schema = StructType(
+                [StructField(XML_ROW_DATA_COLUMN_NAME, VariantType(), True)]
+            )
+            xml_reader_udtf = self._session.udtf.register_from_file(
+                python_file_path,
+                handler_name,
+                output_schema=output_schema,
+                input_types=input_types,
+                packages=["snowflake-snowpark-python", "lxml<6"],
+                replace=True,
+            )
+        else:
+            xml_reader_udtf = None
+
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
                 self._session._analyzer.create_select_statement(
                     from_=self._session._analyzer.create_select_snowflake_plan(
-                        self._session._plan_builder.read_file(
+                        ReadFileNode(
                             path,
                             format,
                             self._cur_options,
@@ -750,16 +1205,19 @@ class DataFrameReader:
                             transformations=read_file_transformations,
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
+                            use_user_schema=use_user_schema,
+                            xml_reader_udtf=xml_reader_udtf,
                         ),
                         analyzer=self._session._analyzer,
                     ),
                     analyzer=self._session._analyzer,
                 ),
+                _emit_ast=False,
             )
         else:
             df = DataFrame(
                 self._session,
-                self._session._plan_builder.read_file(
+                ReadFileNode(
                     path,
                     format,
                     self._cur_options,
@@ -768,8 +1226,263 @@ class DataFrameReader:
                     transformations=read_file_transformations,
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
+                    use_user_schema=use_user_schema,
+                    xml_reader_udtf=xml_reader_udtf,
                 ),
+                _emit_ast=False,
             )
         df._reader = self
-        set_api_call_source(df, f"DataFrameReader.{format.lower()}")
+        if xml_reader_udtf:
+            set_api_call_source(df, XML_READER_API_SIGNATURE)
+        else:
+            set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+    @private_preview(version="1.29.0")
+    @publicapi
+    def dbapi(
+        self,
+        create_connection: Callable[[], "Connection"],
+        *,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        max_workers: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 1000,
+        custom_schema: Optional[Union[str, StructType]] = None,
+        predicates: Optional[List[str]] = None,
+        session_init_statement: Optional[Union[str, List[str]]] = None,
+        udtf_configs: Optional[dict] = None,
+        fetch_merge_count: int = 1,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """
+        Reads data from a database table or query into a DataFrame using a DBAPI connection,
+        with support for optional partitioning, parallel processing, and query customization.
+
+        There are multiple methods to partition data and accelerate ingestion.
+        These methods can be combined to achieve optimal performance:
+
+        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
+        These must all be specified together, otherwise error will be raised.
+        2.Set max_workers to a proper positive integer.
+        This defines the maximum number of processes and threads used for parallel execution.
+        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+        4.Use predicates to defining WHERE conditions for partitions,
+        predicates will be ignored if column is specified to generate partition.
+        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
+        column name with table in external data source.
+
+        Args:
+            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
+                The callable must be picklable, as it will be passed to and executed in child processes.
+            table: The name of the table in the external data source.
+                This parameter cannot be used together with the `query` parameter.
+            query: A valid SQL query to be used as the data source in the FROM clause.
+                This parameter cannot be used together with the `table` parameter.
+            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
+                The column must be of a numeric type (e.g., int or float) or a date type.
+                When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
+            lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+                It must be provided when `column` is specified.
+            max_workers: number of processes and threads used for parallelism.
+            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
+                the query will never time out. The timeout behavior can also be configured within
+                the `create_connection` method when establishing the database connection, depending on the capabilities
+                of the DBMS and its driver.
+            fetch_size: The number of rows to fetch per batch from the external data source.
+                This determines how many rows are retrieved in each round trip,
+                which can improve performance for drivers with a low default fetch size.
+            custom_schema: a custom snowflake table schema to read data from external data source,
+                the column names should be identical to corresponded column names external data source.
+                This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING",
+                or StructType, for example: StructType([StructField("ID", IntegerType(), False), StructField("INT_COL", IntegerType(), False), StructField("TEXT_COL", StringType(), False)])
+            predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
+                Partitions will be retrieved in parallel.
+                If both `column` and `predicates` are specified, `column` takes precedence.
+            session_init_statement: One or more SQL statements executed before fetching data from
+                the external data source.
+                This can be used for session initialization tasks such as setting configurations.
+                For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
+                to avoid row locks and improve read performance.
+                The `session_init_statement` is executed only once at the beginning of each partition read.
+            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
+                If this parameter is provided, the workload will be executed within a Snowflake UDTF context.
+
+                The dictionary may include the following keys:
+
+                - external_access_integration (str, required): The name of the external access integration,
+                    which allows the UDTF to access external endpoints.
+
+                - imports (List[str], optional): A list of stage file names to import into the UDTF.
+                    Use this to include any private packages required by your `create_connection()` function.
+
+                - packages (List[str], optional): A list of package names (with optional version numbers)
+                    required as dependencies for your `create_connection()` function.
+            fetch_merge_count: The number of fetched batches to merge into a single Parquet file
+                before uploading it. This improves performance by reducing the number of
+                small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
+                Parquet file and uploaded separately.
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                df = session.read.dbapi(create_oracledb_connection, table=...)
+        """
+        if (not table and not query) or (table and query):
+            raise SnowparkDataframeReaderException(
+                "Either 'table' or 'query' must be provided, but not both."
+            )
+        table_or_query = table or query
+        is_query = True if table is None else False
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+        start_time = time.perf_counter()
+        if session_init_statement and isinstance(session_init_statement, str):
+            session_init_statement = [session_init_statement]
+        partitioner = DataSourcePartitioner(
+            create_connection,
+            table_or_query,
+            is_query,
+            column,
+            lower_bound,
+            upper_bound,
+            num_partitions,
+            query_timeout,
+            fetch_size,
+            custom_schema,
+            predicates,
+            session_init_statement,
+            fetch_merge_count,
+        )
+        struct_schema = partitioner.schema
+        partitioned_queries = partitioner.partitions
+
+        # udtf ingestion
+        if udtf_configs is not None:
+            if "external_access_integration" not in udtf_configs:
+                raise ValueError(
+                    "external_access_integration cannot be None when udtf ingestion is used. Please refer to https://docs.snowflake.com/en/sql-reference/sql/create-external-access-integration to create external access integration"
+                )
+            partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                [[query] for query in partitioned_queries], schema=["partition"]
+            ).write.save_as_table(partitions_table, table_type="temp")
+            df = partitioner.driver.udtf_ingestion(
+                self._session,
+                struct_schema,
+                partitions_table,
+                udtf_configs["external_access_integration"],
+                fetch_size=fetch_size,
+                imports=udtf_configs.get("imports", None),
+                packages=udtf_configs.get("packages", None),
+                _emit_ast=_emit_ast,
+            )
+            set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
+            return df
+
+        # parquet ingestion
+        snowflake_table_type = "TEMPORARY"
+        snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        create_table_sql = (
+            "CREATE "
+            f"{snowflake_table_type} "
+            "TABLE "
+            f"identifier(?) "
+            f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+            f"""{DATA_SOURCE_SQL_COMMENT}"""
+        )
+        params = (snowflake_table_name,)
+        logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
+        self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
+            statement_params=statements_params_for_telemetry, _emit_ast=False
+        )
+        # create temp stage
+        snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+        sql_create_temp_stage = (
+            f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
+            f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+        )
+        self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+            statement_params=statements_params_for_telemetry, _emit_ast=False
+        )
+
+        try:
+            processes = []
+
+            # Determine the number of processes to use
+            max_workers = max_workers or mp.cpu_count()
+
+            # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
+            partition_queue = mp.Queue()
+            # a queue of parquet BytesIO objects to be uploaded
+            # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
+            # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
+            parquet_queue = mp.Queue(_MAX_WORKER_SCALE * max_workers)
+            for partition_idx, query in enumerate(partitioned_queries):
+                partition_queue.put((partition_idx, query))
+
+            # Start worker processes
+            logger.debug(
+                f"Starting {max_workers} worker processes to fetch data from the data source."
+            )
+            for _worker_id in range(max_workers):
+                process = mp.Process(
+                    target=worker_process,
+                    args=(partition_queue, parquet_queue, partitioner.reader()),
+                )
+                process.start()
+                processes.append(process)
+
+            # Process BytesIO objects from queue and upload them using utility method
+            process_parquet_queue_with_threads(
+                session=self._session,
+                parquet_queue=parquet_queue,
+                processes=processes,
+                total_partitions=len(partitioned_queries),
+                snowflake_stage_name=snowflake_stage_name,
+                snowflake_table_name=snowflake_table_name,
+                max_workers=max_workers,
+                statements_params=statements_params_for_telemetry,
+                on_error="abort_statement",
+            )
+
+        except BaseException as exc:
+            # Graceful shutdown - terminate all processes
+            for process in processes:
+                if process.is_alive():
+                    process.terminate()
+                    process.join(timeout=5)
+
+            if isinstance(exc, SnowparkDataframeReaderException):
+                raise exc
+
+            raise SnowparkDataframeReaderException(
+                f"Error occurred while ingesting data from the data source: {exc!r}"
+            )
+
+        logger.debug("All data has been successfully loaded into the Snowflake table.")
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
+        )
+        # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
+        # with the new name for the temporary table into which the external db data was ingressed.
+        # Leaving this functionality as client-side only means capturing an AST specifically for
+        # this API in a new entity is not valuable from a server-side execution or AST perspective.
+        res_df = partitioner.driver.to_result_snowpark_df(
+            self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
+        )
+        set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
+        return res_df

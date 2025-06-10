@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Iterator
@@ -27,7 +27,6 @@ import decimal
 import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.exceptions import SnowparkFetchDataException
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
     ArrayType,
@@ -96,18 +95,18 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         if to_pandas_api == "to_pandas"
         else next(snowpark_df.to_pandas_batches())
     )
-    assert str(pandas_df.dtypes[0]) == "int8"
-    assert str(pandas_df.dtypes[1]) == "int16"
-    assert str(pandas_df.dtypes[2]) == "int32"
-    assert str(pandas_df.dtypes[3]) == "int64"
+    assert str(pandas_df.dtypes.iloc[0]) == "int8"
+    assert str(pandas_df.dtypes.iloc[1]) == "int16"
+    assert str(pandas_df.dtypes.iloc[2]) == "int32"
+    assert str(pandas_df.dtypes.iloc[3]) == "int64"
     assert (
-        str(pandas_df.dtypes[4]) == "int64"
+        str(pandas_df.dtypes.iloc[4]) == "int64"
     )  # When limits are not explicitly defined, rely on metadata information from GS.
     assert (
-        str(pandas_df.dtypes[5]) == "object"
+        str(pandas_df.dtypes.iloc[5]) == "object"
     )  # No cast so it's a string. dtype is "object".
     assert (
-        str(pandas_df.dtypes[6]) == "float64"
+        str(pandas_df.dtypes.iloc[6]) == "float64"
     )  # A 20-digit number is over int64 max. Convert to float64 in pandas.
 
     # Make sure timestamp is not accidentally converted to int
@@ -130,10 +129,10 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
             if pyarrow_major_version >= 13 and pandas_major_version >= 2
             else "datetime64[ns]"
         )
-        assert str(timestamp_pandas_df.dtypes[0]) == expected_dtype
+        assert str(timestamp_pandas_df.dtypes.iloc[0]) == expected_dtype
     else:
         # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
-        assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
+        assert str(timestamp_pandas_df.dtypes.iloc[0]) == "datetime64[ns]"
 
 
 def test_to_pandas_precision_for_number_38_0(session):
@@ -202,16 +201,25 @@ def test_to_pandas_non_select(session):
         PandasDF,
     )
 
-    # non SELECT statements will fail
-    def check_fetch_data_exception(query: str) -> None:
-        with pytest.raises(SnowparkFetchDataException) as ex_info:
-            session.sql(query).to_pandas()
-        assert "the input query can only be a SELECT statement" in str(ex_info.value)
+    def check_fetch_data_exception(query: str):
+        df = session.sql(query)
+        result = df.to_pandas()
+        assert df.columns == result.columns.to_list()
+        assert isinstance(result, PandasDF)
+        return result
 
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     check_fetch_data_exception("show tables")
-    check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
-    check_fetch_data_exception(f"drop table if exists {temp_table_name}")
+    res = check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
+    expected_res = pd.DataFrame(
+        [(f"Table {temp_table_name} successfully created.",)], columns=['"status"']
+    )
+    assert expected_res.equals(res)
+    res = check_fetch_data_exception(f"drop table if exists {temp_table_name}")
+    expected_res = pd.DataFrame(
+        [(f"{temp_table_name} successfully dropped.",)], columns=['"status"']
+    )
+    assert expected_res.equals(res)
 
     # to_pandas should work for the large dataframe
     # batch insertion will run "create" and "insert" first
@@ -271,7 +279,12 @@ def test_df_to_pandas_df(session):
                 "abc",
                 b"abc",
                 datetime.datetime(
-                    year=2023, month=10, day=30, hour=12, minute=12, second=12
+                    year=2023,
+                    month=10,
+                    day=30,
+                    hour=12,
+                    minute=12,
+                    second=12,
                 ),
             ]
         ],
@@ -297,7 +310,12 @@ def test_df_to_pandas_df(session):
             " gg": pd.Series(
                 [
                     datetime.datetime(
-                        year=2023, month=10, day=30, hour=12, minute=12, second=12
+                        year=2023,
+                        month=10,
+                        day=30,
+                        hour=12,
+                        minute=12,
+                        second=12,
                     )
                 ]
             ),
@@ -349,7 +367,7 @@ def test_df_to_pandas_df(session):
                 StructField("n", TimestampType()),
                 StructField("o", TimeType()),
                 StructField("p", VariantType()),
-                StructField("q", MapType(StringType(), StringType())),
+                StructField("q", MapType()),
             ]
         ),
     )

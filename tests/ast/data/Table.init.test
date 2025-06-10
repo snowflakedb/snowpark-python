@@ -1,0 +1,143 @@
+## TEST CASE
+
+df = Table(tables.table1, session)
+
+df = df.select("STR", col("A"))
+
+## EXPECTED UNPARSER OUTPUT
+
+df = Table("table1", session)
+
+df = df.select("STR", col("A"))
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          table_init: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 39
+                end_line: 27
+                file: 2
+                start_column: 13
+                start_line: 27
+              }
+              v: "STR"
+            }
+          }
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 38
+                    end_line: 27
+                    file: 2
+                    start_column: 30
+                    start_line: 27
+                  }
+                  v: "A"
+                }
+              }
+              src {
+                end_column: 38
+                end_line: 27
+                file: 2
+                start_column: 30
+                start_line: 27
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 39
+          end_line: 27
+          file: 2
+          start_column: 13
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 2
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

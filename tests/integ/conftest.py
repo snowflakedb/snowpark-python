@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 import os
+from logging import getLogger
 from typing import Dict
 
 import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
+from tests.ast.ast_test_utils import (
+    close_full_ast_validation_mode,
+    setup_full_ast_validation_mode,
+)
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import (
     TEST_SCHEMA,
@@ -20,6 +25,25 @@ from tests.utils import (
     running_on_jenkins,
     running_on_public_ci,
 )
+
+RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
+RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
+
+test_dir = os.path.dirname(__file__)
+test_data_dir = os.path.join(test_dir, "cassettes")
+
+_logger = getLogger(__name__)
+
+SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
+    "Authorization",
+    "x-amz-server-side-encryption-customer-key-MD5",
+    "x-amz-server-side-encryption-customer-key-md5",
+    "x-amz-server-side-encryption-customer-key",
+    "x-amz-server-side-encryption-customer-algorithm",
+    "x-amz-id-2",
+    "x-amz-request-id",
+    "x-amz-version-id",
+]
 
 
 def print_help() -> None:
@@ -47,7 +71,7 @@ def set_up_external_access_integration_resources(
         # prepare external access resource
         session.sql(
             f"""
-    CREATE OR REPLACE NETWORK RULE {rule1}
+    CREATE IF NOT EXISTS NETWORK RULE {rule1}
       MODE = EGRESS
       TYPE = HOST_PORT
       VALUE_LIST = ('www.google.com');
@@ -55,7 +79,7 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE NETWORK RULE {rule2}
+    CREATE IF NOT EXISTS NETWORK RULE {rule2}
       MODE = EGRESS
       TYPE = HOST_PORT
       VALUE_LIST = ('www.microsoft.com');
@@ -63,21 +87,21 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE SECRET {key1}
+    CREATE IF NOT EXISTS SECRET {key1}
       TYPE = GENERIC_STRING
       SECRET_STRING = 'replace-with-your-api-key';
     """
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE SECRET {key2}
+    CREATE IF NOT EXISTS SECRET {key2}
       TYPE = GENERIC_STRING
       SECRET_STRING = 'replace-with-your-api-key_2';
     """
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION {integration1}
+    CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration1}
       ALLOWED_NETWORK_RULES = ({rule1})
       ALLOWED_AUTHENTICATION_SECRETS = ({key1})
       ENABLED = true;
@@ -85,7 +109,7 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION {integration2}
+    CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration2}
       ALLOWED_NETWORK_RULES = ({rule2})
       ALLOWED_AUTHENTICATION_SECRETS = ({key2})
       ENABLED = true;
@@ -102,22 +126,42 @@ def set_up_external_access_integration_resources(
         # we can remove the exception once the integration is available on GCP
         pass
 
+    session.sql(
+        "CREATE API INTEGRATION IF NOT EXISTS "
+        "SNOWPARK_PYTHON_TEST_INTEGRATION API_PROVIDER = pypi "
+        "ENABLED = TRUE"
+    ).collect()
 
-def clean_up_external_access_integration_resources(
-    session, rule1, rule2, key1, key2, integration1, integration2
-):
-    session.sql(f"drop network rule if exists {rule1}").collect()
-    session.sql(f"drop network rule if exists {rule2}").collect()
-    session.sql(f"drop secret if exists {key1}").collect()
-    session.sql(f"drop secret if exists {key2}").collect()
-    session.sql(f"drop integration if exists {integration1}").collect()
-    session.sql(f"drop integration if exists {integration2}").collect()
+    session.sql(
+        "CREATE ARTIFACT REPOSITORY IF NOT EXISTS "
+        f'{CONNECTION_PARAMETERS["database"]}.{CONNECTION_PARAMETERS["schema"]}.SNOWPARK_PYTHON_TEST_REPOSITORY '
+        "TYPE = pip API_INTEGRATION = SNOWPARK_PYTHON_TEST_INTEGRATION"
+    ).collect()
+
+
+def clean_up_external_access_integration_resources():
     CONNECTION_PARAMETERS.pop("external_access_rule1", None)
     CONNECTION_PARAMETERS.pop("external_access_rule2", None)
     CONNECTION_PARAMETERS.pop("external_access_key1", None)
     CONNECTION_PARAMETERS.pop("external_access_key2", None)
     CONNECTION_PARAMETERS.pop("external_access_integration1", None)
     CONNECTION_PARAMETERS.pop("external_access_integration2", None)
+
+
+def set_up_dataframe_processor_parameters(
+    session, dataframe_processor_pkg_version, dataframe_processor_location
+):
+    def set_param_value(param, value):
+        if value is not None:
+            try:
+                session.sql(
+                    f"alter session set {param} = '{value}';", _emit_ast=False
+                ).collect(_emit_ast=False)
+            except Exception as ex:
+                _logger.error(f"Failed to set {param}, ex={ex}")
+
+    set_param_value("DATAFRAME_PROCESSOR_PKG_VERSION", dataframe_processor_pkg_version)
+    set_param_value("DATAFRAME_PROCESSOR_LOCATION", dataframe_processor_location)
 
 
 @pytest.fixture(scope="session")
@@ -149,15 +193,22 @@ def connection(db_parameters, local_testing_mode):
         _keys = [
             "user",
             "password",
+            "private_key_file",
             "host",
             "port",
             "database",
+            "schema",
             "account",
             "protocol",
             "role",
+            "warehouse",
         ]
         with snowflake.connector.connect(
-            **{k: db_parameters[k] for k in _keys if k in db_parameters}
+            **{
+                k: db_parameters[k]
+                for k in _keys
+                if k in db_parameters and db_parameters[k] is not None
+            }
         ) as con:
             yield con
 
@@ -199,35 +250,55 @@ def session(
     sql_simplifier_enabled,
     local_testing_mode,
     cte_optimization_enabled,
-    multithreading_mode_enabled,
+    join_alias_fix,
+    ast_enabled,
+    dataframe_processor_pkg_version,
+    dataframe_processor_location,
+    validate_ast,
+    unparser_jar,
 ):
-    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
-    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
-    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
-    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
-    integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
-    integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+    set_ast_state(AstFlagSource.TEST, ast_enabled)
+    rule1 = "snowpark_python_test_rule1"
+    rule2 = "snowpark_python_test_rule2"
+    key1 = "snowpark_python_test_key1"
+    key2 = "snowpark_python_test_key2"
+    integration1 = "snowpark_python_test_integration1"
+    integration2 = "snowpark_python_test_integration2"
+
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
-        .config(
-            "session_parameters",
-            {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled},
-        )
         .create()
     )
+    set_up_dataframe_processor_parameters(
+        session, dataframe_processor_pkg_version, dataframe_processor_location
+    )
+
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
-    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+    session._join_alias_fix = join_alias_fix
+    session.ast_enabled = ast_enabled
+
+    if (RUNNING_ON_GH or RUNNING_ON_JENKINS) and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
-    yield session
-    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
-        clean_up_external_access_integration_resources(
-            session, rule1, rule2, key1, key2, integration1, integration2
+
+    if validate_ast:
+        full_ast_validation_listener = setup_full_ast_validation_mode(
+            session, db_parameters, unparser_jar
         )
-    session.close()
+
+    try:
+        yield session
+
+    finally:
+        if validate_ast:
+            close_full_ast_validation_mode(full_ast_validation_listener)
+
+        if (RUNNING_ON_GH or RUNNING_ON_JENKINS) and not local_testing_mode:
+            clean_up_external_access_integration_resources()
+        session.close()
 
 
 @pytest.fixture(scope="function")
@@ -238,12 +309,12 @@ def profiler_session(
     local_testing_mode,
     cte_optimization_enabled,
 ):
-    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
-    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
-    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
-    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
-    integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
-    integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+    rule1 = "snowpark_python_profiler_test_rule1"
+    rule2 = "snowpark_python_profiler_test_rule2"
+    key1 = "snowpark_python_profiler_test_key1"
+    key2 = "snowpark_python_profiler_test_key2"
+    integration1 = "snowpark_python_profiler_test_integration1"
+    integration2 = "snowpark_python_profiler_test_integration2"
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
@@ -251,16 +322,16 @@ def profiler_session(
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
-    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+    if RUNNING_ON_GH and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
-    yield session
-    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
-        clean_up_external_access_integration_resources(
-            session, rule1, rule2, key1, key2, integration1, integration2
-        )
-    session.close()
+    try:
+        yield session
+    finally:
+        if RUNNING_ON_GH and not local_testing_mode:
+            clean_up_external_access_integration_resources()
+        session.close()
 
 
 @pytest.fixture(scope="function")
@@ -294,3 +365,13 @@ def temp_stage(session, resources_path, local_testing_mode):
     yield tmp_stage_name
     if not local_testing_mode:
         Utils.drop_stage(session, tmp_stage_name)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def clear_session_ast_batch_on_validate_ast(session, validate_ast):
+    """
+    After each test, flush the AST batch so it does not pollute the next test validation.
+    """
+    yield
+    if validate_ast:
+        session._ast_batch.flush()

@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 from unittest import mock
 
 import modin.pandas as pd
@@ -11,6 +12,24 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
+
+
+def setup_mock_qc() -> SnowflakeQueryCompiler:
+    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
+    mock_query_compiler.columnarize.return_value = mock_query_compiler
+
+    # Hybrid engine switching methods
+    # Actual values don't matter since we don't do any computation in unit tests, and AutoSwitchBackend
+    # is disabled in conftest.py.
+    if MODIN_IS_AT_LEAST_0_33_0:
+        mock_query_compiler.get_backend.return_value = "Snowflake"
+        mock_query_compiler.move_to_cost.return_value = 0
+        mock_query_compiler.move_to_me_cost.return_value = 0
+        mock_query_compiler.max_cost.return_value = 1000
+        mock_query_compiler.stay_cost.return_value = 0
+        mock_query_compiler._max_shape.return_value = (10, 10)
+    return mock_query_compiler
 
 
 @pytest.mark.parametrize(
@@ -71,8 +90,6 @@ def test_unsupported_general(general_method, kwargs):
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],
         ["filter", {}],
-        ["from_dict", {"data": ""}],
-        ["from_records", {"data": ""}],
         ["hist", {}],
         ["infer_objects", {}],
         ["interpolate", {}],
@@ -81,7 +98,6 @@ def test_unsupported_general(general_method, kwargs):
         ["kurtosis", {}],
         ["mode", {}],
         ["pipe", {"func": ""}],
-        ["pop", {"item": ""}],
         ["prod", {}],
         ["product", {}],
         ["query", {"expr": ""}],
@@ -96,7 +112,6 @@ def test_unsupported_general(general_method, kwargs):
         ["to_feather", {"path": ""}],
         ["to_gbq", {"destination_table": ""}],
         ["to_hdf", {"path_or_buf": "", "key": ""}],
-        ["to_html", {}],
         ["to_json", {}],
         ["to_latex", {}],
         ["to_markdown", {}],
@@ -107,20 +122,16 @@ def test_unsupported_general(general_method, kwargs):
         ["to_records", {}],
         ["to_sql", {"name": "", "con": ""}],
         ["to_stata", {"path": ""}],
-        ["to_string", {}],
         ["to_timestamp", {}],
         ["to_xarray", {}],
         ["to_xml", {}],
         ["transform", {"func": [[], {}]}],
         ["truncate", {}],
         ["xs", {"key": ""}],
-        ["__dataframe__", {}],
     ],
 )
 def test_unsupported_df(df_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = DataFrame(query_compiler=mock_query_compiler)
+    mock_df = DataFrame(query_compiler=setup_mock_qc())
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, df_method)(**kwargs)
@@ -136,7 +147,6 @@ def test_unsupported_df(df_method, kwargs):
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["autocorr", {}],
-        ["between", {"left": "", "right": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
         ["bool", {}],
         ["clip", {}],
@@ -151,7 +161,6 @@ def test_unsupported_df(df_method, kwargs):
         ["explode", {}],
         ["factorize", {}],
         ["filter", {}],
-        ["hist", {}],
         ["infer_objects", {}],
         ["interpolate", {}],
         ["item", {}],
@@ -160,7 +169,6 @@ def test_unsupported_df(df_method, kwargs):
         ["mode", {}],
         ["nbytes", {}],
         ["pipe", {"func": ""}],
-        ["pop", {"item": ""}],
         ["prod", {}],
         ["ravel", {}],
         ["reindex_like", {"other": ""}],
@@ -181,7 +189,6 @@ def test_unsupported_df(df_method, kwargs):
         ["to_period", {}],
         ["to_pickle", {"path": ""}],
         ["to_sql", {"name": "", "con": ""}],
-        ["to_string", {}],
         ["to_timestamp", {}],
         ["to_xarray", {}],
         ["transform", {"func": ""}],
@@ -191,9 +198,7 @@ def test_unsupported_df(df_method, kwargs):
     ],
 )
 def test_unsupported_series(series_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = Series(query_compiler=mock_query_compiler)
+    mock_df = Series(query_compiler=setup_mock_qc())
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, series_method)(**kwargs)

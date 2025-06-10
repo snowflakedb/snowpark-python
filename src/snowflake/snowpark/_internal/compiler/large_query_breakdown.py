@@ -1,10 +1,10 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
@@ -38,6 +38,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateDynamicTableCommand,
     CreateViewCommand,
+    Distinct,
     Pivot,
     Sample,
     Sort,
@@ -46,14 +47,15 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
-    InvalidNodesInBreakdownCategory,
+    NodeBreakdownCategory,
     SkipLargeQueryBreakdownCategory,
 )
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
+    extract_child_from_with_query_block,
     is_active_transaction,
-    replace_child,
-    update_resolvable_node,
+    is_with_query_block,
+    replace_child_and_update_ancestors,
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
@@ -255,35 +257,56 @@ class LargeQueryBreakdown:
             return [root]
 
         plans = []
-        final_partition_breakdown_summary = {}
+        self._current_breakdown_summary: Dict[str, Any] = {
+            CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value: 0,
+            CompilationStageTelemetryField.NUM_PIPELINE_BREAKER_USED.value: 0,
+            CompilationStageTelemetryField.NUM_RELAXED_BREAKER_USED.value: 0,
+        }
         while complexity_score > self.complexity_score_upper_bound:
             child, validity_statistics = self._find_node_to_breakdown(root)
+            self._update_current_breakdown_summary(validity_statistics)
+
             if child is None:
-                final_partition_breakdown_summary = {
-                    k.value: validity_statistics.get(k, 0)
-                    for k in InvalidNodesInBreakdownCategory
-                }
                 _logger.debug(
                     f"Could not find a valid node for partitioning. "
-                    f"Skipping with root {complexity_score=} {final_partition_breakdown_summary=}"
+                    f"Skipping with root {complexity_score=} {self._current_breakdown_summary=}"
                 )
                 break
 
-            partition = self._get_partitioned_plan(root, child)
+            partition = self._get_partitioned_plan(child)
             plans.append(partition)
             complexity_score = get_complexity_score(root)
 
-        final_partition_breakdown_summary[
-            CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value
-        ] = len(plans)
-        self._breakdown_summary.append(final_partition_breakdown_summary)
-
+        self._breakdown_summary.append(self._current_breakdown_summary)
         plans.append(root)
         return plans
 
+    def _update_current_breakdown_summary(
+        self, validity_statistics: Dict[NodeBreakdownCategory, int]
+    ) -> None:
+        """Method to update the breakdown summary based on the validity statistics of the current root."""
+        if validity_statistics.get(NodeBreakdownCategory.VALID_NODE, 0) > 0:
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value
+            ] += 1
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.NUM_PIPELINE_BREAKER_USED.value
+            ] += 1
+        elif validity_statistics.get(NodeBreakdownCategory.VALID_NODE_RELAXED, 0) > 0:
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value
+            ] += 1
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.NUM_RELAXED_BREAKER_USED.value
+            ] += 1
+        else:  # no valid nodes found
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.FAILED_PARTITION_SUMMARY.value
+            ] = {k.value: validity_statistics.get(k, 0) for k in NodeBreakdownCategory}
+
     def _find_node_to_breakdown(
         self, root: TreeNode
-    ) -> Tuple[Optional[TreeNode], Dict[InvalidNodesInBreakdownCategory, int]]:
+    ) -> Tuple[Optional[TreeNode], Dict[NodeBreakdownCategory, int]]:
         """This method traverses the plan tree and partitions the plan based if a valid partition node
         if found. The steps involved are:
 
@@ -307,7 +330,7 @@ class LargeQueryBreakdown:
                     validity_status, score = self._is_node_valid_to_breakdown(
                         child, root
                     )
-                    if validity_status == InvalidNodesInBreakdownCategory.VALID_NODE:
+                    if validity_status == NodeBreakdownCategory.VALID_NODE:
                         # If the score for valid node is higher than the last candidate,
                         # update the candidate node and score.
                         if score > candidate_score:
@@ -317,10 +340,7 @@ class LargeQueryBreakdown:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
 
-                    if (
-                        validity_status
-                        == InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
-                    ):
+                    if validity_status == NodeBreakdownCategory.VALID_NODE_RELAXED:
                         # Update the relaxed candidate node and score.
                         if score > relaxed_candidate_score:
                             relaxed_candidate_score = score
@@ -338,7 +358,7 @@ class LargeQueryBreakdown:
             current_node_validity_statistics,
         )
 
-    def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
+    def _get_partitioned_plan(self, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
         partitioned child and returns the plan. The steps involved are:
 
@@ -357,7 +377,9 @@ class LargeQueryBreakdown:
                 [temp_table_name],
                 None,
                 SaveMode.ERROR_IF_EXISTS,
-                child,
+                extract_child_from_with_query_block(child)
+                if is_with_query_block(child)
+                else child,
                 table_type="temp",
                 creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
             )
@@ -370,7 +392,7 @@ class LargeQueryBreakdown:
 
     def _is_node_valid_to_breakdown(
         self, node: TreeNode, root: TreeNode
-    ) -> Tuple[InvalidNodesInBreakdownCategory, int]:
+    ) -> Tuple[NodeBreakdownCategory, int]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
         Returns:
@@ -381,29 +403,29 @@ class LargeQueryBreakdown:
         """
         score = get_complexity_score(node)
         is_valid = True
-        validity_status = InvalidNodesInBreakdownCategory.VALID_NODE
+        validity_status = NodeBreakdownCategory.VALID_NODE
 
         # check score bounds
         if score < self.complexity_score_lower_bound:
             is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.SCORE_BELOW_LOWER_BOUND
+            validity_status = NodeBreakdownCategory.SCORE_BELOW_LOWER_BOUND
 
         if score > self.complexity_score_upper_bound:
             is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
+            validity_status = NodeBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
 
         # check pipeline breaker condition
         if is_valid and not self._is_node_pipeline_breaker(node):
             if self._is_relaxed_pipeline_breaker(node):
-                validity_status = InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
+                validity_status = NodeBreakdownCategory.VALID_NODE_RELAXED
             else:
                 is_valid = False
-                validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
+                validity_status = NodeBreakdownCategory.NON_PIPELINE_BREAKER
 
         # check external CTE ref condition
         if is_valid and self._contains_external_cte_ref(node, root):
             is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.EXTERNAL_CTE_REF
+            validity_status = NodeBreakdownCategory.EXTERNAL_CTE_REF
 
         if is_valid:
             _logger.debug(
@@ -477,6 +499,14 @@ class LargeQueryBreakdown:
         if isinstance(node, SelectStatement):
             return True
 
+        if isinstance(node, SnowflakePlan):
+            return node.source_plan is not None and self._is_relaxed_pipeline_breaker(
+                node.source_plan
+            )
+
+        if isinstance(node, SelectSnowflakePlan):
+            return self._is_relaxed_pipeline_breaker(node.snowflake_plan)
+
         return False
 
     def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
@@ -485,7 +515,9 @@ class LargeQueryBreakdown:
         If the node contains a SnowflakePlan, we check its source plan recursively.
         """
         # Pivot/Unpivot, Sort, and GroupBy+Aggregate are pipeline breakers.
-        if isinstance(node, (Pivot, Unpivot, Sort, Aggregate, WithQueryBlock)):
+        if isinstance(
+            node, (Pivot, Unpivot, Sort, Aggregate, WithQueryBlock, Distinct)
+        ):
             return True
 
         if isinstance(node, Sample):
@@ -501,9 +533,10 @@ class LargeQueryBreakdown:
             return True
 
         if isinstance(node, SelectStatement):
-            # SelectStatement is a pipeline breaker if it contains an order by clause since sorting
-            # is a pipeline breaker.
-            return node.order_by is not None
+            # SelectStatement is a pipeline breaker if
+            # - it contains an order by clause since sorting is a pipeline breaker.
+            # - it contains a distinct clause since distinct is a pipeline breaker.
+            return node.order_by is not None or node.distinct_
 
         if isinstance(node, SetStatement):
             # If the last operator applied in the SetStatement is a pipeline breaker, then the
@@ -556,20 +589,6 @@ class LargeQueryBreakdown:
         )
         temp_table_selectable.post_actions = [drop_table_query]
 
-        parents = self._parent_map[child]
-        updated_nodes = set()
-        for parent in parents:
-            replace_child(parent, child, temp_table_selectable, self._query_generator)
-
-        nodes_to_reset = list(parents)
-        while nodes_to_reset:
-            node = nodes_to_reset.pop()
-            if node in updated_nodes:
-                # Skip if the node is already updated.
-                continue
-
-            update_resolvable_node(node, self._query_generator)
-            updated_nodes.add(node)
-
-            parents = self._parent_map[node]
-            nodes_to_reset.extend(parents)
+        replace_child_and_update_ancestors(
+            child, temp_table_selectable, self._parent_map, self._query_generator
+        )

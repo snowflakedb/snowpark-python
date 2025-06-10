@@ -38,6 +38,16 @@ DataFrame
     DataFrame.to_snowflake
     DataFrame.to_snowpark
     DataFrame.cache_result
+    DataFrame.create_or_replace_view
+    DataFrame.create_or_replace_dynamic_table
+    DataFrame.to_view
+    DataFrame.to_dynamic_table
+    DataFrame.to_iceberg
+    DataFrame.get_backend
+    DataFrame.set_backend
+    DataFrame.move_to
+    DataFrame.pin_backend
+    DataFrame.unpin_backend
 
 .. rubric:: Conversion
 
@@ -229,3 +239,5 @@ DataFrame
     :toctree: pandas_api/
 
     DataFrame.to_csv
+    DataFrame.to_html
+    DataFrame.to_string

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -154,21 +154,19 @@ def test_value_counts_as_index(test_data, by, groupby_sort, sort, as_index):
         (["by", "bad_key"], ValueError),  # subset cannot overlap with grouping columns
     ],
 )
+@sql_count_checker(query_count=0)
 def test_value_counts_bad_subset(subset, exception_cls):
-    # for KeyError, 1 query always runs to validate the length of the by list
-    with SqlCounter(query_count=1 if exception_cls is KeyError else 0):
-        eval_snowpark_pandas_result(
-            *create_test_dfs(TEST_DATA[0]),
-            lambda x: x.groupby(by=["by"]).value_counts(subset=subset),
-            expect_exception=True,
-            expect_exception_type=exception_cls,
-            assert_exception_equal=False,
-        )
+    eval_snowpark_pandas_result(
+        *create_test_dfs(TEST_DATA[0]),
+        lambda x: x.groupby(by=["by"]).value_counts(subset=subset),
+        expect_exception=True,
+        expect_exception_type=exception_cls,
+        assert_exception_equal=False,
+    )
 
 
-# An additional query is needed to validate the length of the by list
 # A JOIN is needed to set the index to the by list
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_value_counts_series():
     by = ["a", "a", "b", "b", "a", "c"]
     native_ser = native_pd.Series(
@@ -180,8 +178,7 @@ def test_value_counts_series():
     )
 
 
-# 1 query always runs to validate the length of the by list
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_value_counts_bins_unimplemented():
     by = ["a", "a", "b", "b", "a", "c"]
     native_ser = native_pd.Series(

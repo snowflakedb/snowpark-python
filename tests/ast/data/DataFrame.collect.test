@@ -1,0 +1,516 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df.collect()
+
+df.collect(block=False)
+
+df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.collect(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
+
+df.collect_nowait()
+
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df.collect()
+
+df = session.table("table1")
+
+df.collect(block=False)
+
+df = session.table("table1")
+
+df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df = session.table("table1")
+
+df.collect(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False, log_on_exception=True, case_sensitive=False)
+
+df = session.table("table1")
+
+df.collect_nowait()
+
+df = session.table("table1")
+
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df = session.table("table1")
+
+df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_exception=True, case_sensitive=False)
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 20
+          end_line: 27
+          file: 2
+          start_column: 8
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 2
+  }
+}
+body {
+  eval {
+    bind_id: 2
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 31
+          end_line: 29
+          file: 2
+          start_column: 8
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 3
+  }
+}
+body {
+  eval {
+    bind_id: 3
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 67
+          end_line: 31
+          file: 2
+          start_column: 8
+          start_line: 31
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 4
+  }
+}
+body {
+  eval {
+    bind_id: 4
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        log_on_exception: true
+        src {
+          end_column: 125
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 5
+  }
+}
+body {
+  eval {
+    bind_id: 5
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        no_wait: true
+        src {
+          end_column: 27
+          end_line: 35
+          file: 2
+          start_column: 8
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 6
+  }
+}
+body {
+  eval {
+    bind_id: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        no_wait: true
+        src {
+          end_column: 74
+          end_line: 37
+          file: 2
+          start_column: 8
+          start_line: 37
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 7
+  }
+}
+body {
+  eval {
+    bind_id: 7
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        log_on_exception: true
+        no_wait: true
+        src {
+          end_column: 119
+          end_line: 39
+          file: 2
+          start_column: 8
+          start_line: 39
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 8
+  }
+}
+body {
+  eval {
+    bind_id: 8
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

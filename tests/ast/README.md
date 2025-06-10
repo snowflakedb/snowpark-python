@@ -8,6 +8,8 @@ All generated AST should be tested using this mechanism. To add a test, create a
 
 N.B. No eager evaluation is permitted, as any intermediate batches will not be observed. This can easily be changed if necessary, however.
 
+The src line no information is only captured when run with python 3.11+ because of bug fix/differences in frame line no across earlier python versions.
+
 ```python
 ## TEST CASE
 
@@ -33,8 +35,8 @@ pytest --update-expectations tests/ast
 For these tests to work, the Unparser must be built in the monorepo:
 ```bash
 cd my-monorepo-path
-cd Snowflake/unparser
-sbt assembly
+bazel build //Snowpark/frontend/unparser
 ```
 
-The location of the Unparser can be set either via the environment variable `SNOWPARK_UNPARSER_JAR` or via the _pytest_ commandline argument `--unparser-jar=<path>`.
+The location of the monorepo must be supplied in the environment variable `MONOREPO_DIR`.
+Alternatively, use `scripts/copy-remote-ast.sh` to copy the necessary artifacts from a cloud workspace.

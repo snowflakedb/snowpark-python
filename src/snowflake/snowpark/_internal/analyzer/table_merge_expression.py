@@ -1,8 +1,8 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     LogicalPlan,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 
 
 class MergeExpression(Expression):
@@ -38,10 +39,10 @@ class MergeExpression(Expression):
 
 class UpdateMergeExpression(MergeExpression):
     def __init__(
-        self, condition: Optional[Expression], assignments: Dict[Expression, Expression]
+        self, condition: Optional[Expression], assignments: Dict[str, ColumnOrLiteral]
     ) -> None:
         super().__init__(condition)
-        self.assignments = assignments
+        self._assignments = assignments
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -63,6 +64,15 @@ class UpdateMergeExpression(MergeExpression):
         )
         return complexity
 
+    @property
+    def assignments(self) -> Dict[Expression, Expression]:
+        from snowflake.snowpark.column import Column
+
+        return {
+            Column(k)._expression: Column._to_expr(v)
+            for k, v in self._assignments.items()
+        }
+
 
 class DeleteMergeExpression(MergeExpression):
     pass
@@ -72,12 +82,12 @@ class InsertMergeExpression(MergeExpression):
     def __init__(
         self,
         condition: Optional[Expression],
-        keys: List[Expression],
-        values: List[Expression],
+        keys: Iterable[str],
+        values: Iterable[ColumnOrLiteral],
     ) -> None:
         super().__init__(condition)
-        self.keys = keys
-        self.values = values
+        self._keys = keys
+        self._values = values
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -93,6 +103,18 @@ class InsertMergeExpression(MergeExpression):
             else complexity
         )
         return complexity
+
+    @property
+    def keys(self) -> List[Expression]:
+        from snowflake.snowpark.column import Column
+
+        return [Column(k)._expression for k in self._keys]
+
+    @property
+    def values(self) -> List[Expression]:
+        from snowflake.snowpark.column import Column
+
+        return [Column._to_expr(v) for v in self._values]
 
 
 class TableUpdate(LogicalPlan):

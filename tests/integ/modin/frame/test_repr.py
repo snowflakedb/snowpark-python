@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -8,6 +8,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark import QueryListener
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.integ.modin.conftest import IRIS_DF
@@ -36,7 +37,7 @@ _DATAFRAMES_TO_TEST = [
     ),
     (
         IRIS_DF,
-        6,
+        4,
     ),
     (
         native_pd.DataFrame(),
@@ -46,7 +47,7 @@ _DATAFRAMES_TO_TEST = [
         native_pd.DataFrame(
             {"A": list(range(10000)), "B": np.random.normal(size=10000)}
         ),
-        6,
+        4,
     ),
     (
         native_pd.DataFrame(columns=["A", "B", "C", "D", "C", "B", "A"]),
@@ -62,7 +63,7 @@ _DATAFRAMES_TO_TEST = [
         native_pd.DataFrame(
             data=np.zeros(shape=(300, 300)), columns=[f"x{i}" for i in range(300)]
         ),
-        6,
+        4,
     ),
 ]
 
@@ -102,7 +103,7 @@ def test_repr_html(native_df, expected_query_count):
     assert native_html == snow_html
 
 
-class ReprQueryListener:
+class ReprQueryListener(QueryListener):
     """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database
     if they are used for `repr` or `_repr_html_`.
 
@@ -121,7 +122,7 @@ class ReprQueryListener:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.session._conn.remove_query_listener(self)
 
-    def _add_query(self, query_record: QueryRecord):
+    def _notify(self, query_record: QueryRecord, **kwargs):
         # Any query for `repr` or `_repr_html_` will include
         # `<= 31` in the SQL text.
         if "<= 31" in query_record.sql_text:
@@ -193,7 +194,7 @@ class TestWithGlobalSettings:
         native_pd.set_option("display.max_rows", None)
         pd.set_option("display.max_rows", None)
 
-        with SqlCounter(select_count=2):
+        with SqlCounter(select_count=1):
             snow_str = repr(self.snow_df)
         native_str = repr(self.native_df)
 

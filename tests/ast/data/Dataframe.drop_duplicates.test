@@ -1,0 +1,283 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df1 = df.drop_duplicates()
+
+df2 = df.drop_duplicates("NUM")
+
+df3 = df.drop_duplicates("NUM", "STR")
+
+df4 = df.drop_duplicates(["NUM", "STR"])
+
+df5 = df.drop_duplicates([])
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df1 = df.drop_duplicates()
+
+df2 = df.drop_duplicates("NUM")
+
+df3 = df.drop_duplicates("NUM", "STR")
+
+df4 = df.drop_duplicates(["NUM", "STR"])
+
+df5 = df.drop_duplicates([])
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_drop_duplicates {
+        cols {
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 34
+          end_line: 27
+          file: 2
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_drop_duplicates {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 39
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
+              v: "NUM"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 39
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_drop_duplicates {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 46
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "NUM"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 46
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "STR"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 46
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_drop_duplicates {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 48
+                end_line: 33
+                file: 2
+                start_column: 14
+                start_line: 33
+              }
+              v: "NUM"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 48
+                end_line: 33
+                file: 2
+                start_column: 14
+                start_line: 33
+              }
+              v: "STR"
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 33
+          file: 2
+          start_column: 14
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_drop_duplicates {
+        cols {
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 36
+          end_line: 35
+          file: 2
+          start_column: 14
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df5"
+    }
+    uid: 6
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

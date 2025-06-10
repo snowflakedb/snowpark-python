@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -13,6 +13,7 @@ and if possible, whether this can be reconciled with upstream Modin.
 from __future__ import annotations
 
 import copy
+import functools
 import pickle as pkl
 import warnings
 from collections.abc import Sequence
@@ -23,10 +24,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas
 from modin.pandas import Series
-from modin.pandas.api.extensions import (
-    register_dataframe_accessor,
-    register_series_accessor,
-)
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas._libs import lib
@@ -66,6 +63,7 @@ from pandas.util._validators import (
     validate_percentile,
 )
 
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
@@ -88,50 +86,69 @@ _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
     "pct_change(axis=1) is invalid when one column is Timedelta another column is not."
 )
 
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.pandas.api.extensions import register_base_accessor
 
-def register_base_override(method_name: str):
-    """
-    Decorator function to override a method on BasePandasDataset. Since Modin does not provide a mechanism
-    for directly overriding methods on BasePandasDataset, we mock this by performing the override on
-    DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
-    to allow both the docstring extension and method dispatch to work properly.
-    """
+    register_base_override = functools.partial(
+        register_base_accessor, backend="Snowflake"
+    )
 
-    def decorator(base_method: Any):
-        parent_method = getattr(BasePandasDataset, method_name, None)
-        if isinstance(parent_method, property):
-            parent_method = parent_method.fget
-        # If the method was not defined on Series/DataFrame and instead inherited from the superclass
-        # we need to override it as well.
-        series_method = getattr(pd.Series, method_name, None)
-        if isinstance(series_method, property):
-            series_method = series_method.fget
-        if (
-            series_method is None
-            or series_method is parent_method
-            or parent_method is None
-        ):
-            register_series_accessor(method_name)(base_method)
-        df_method = getattr(pd.DataFrame, method_name, None)
-        if isinstance(df_method, property):
-            df_method = df_method.fget
-        if df_method is None or df_method is parent_method or parent_method is None:
-            register_dataframe_accessor(method_name)(base_method)
-        # Replace base method
-        setattr(BasePandasDataset, method_name, base_method)
-        return base_method
+    def register_base_not_implemented():
+        def decorator(base_method: Any):
+            return register_base_override(name=base_method.__name__)(
+                base_not_implemented()(base_method)
+            )
 
-    return decorator
+        return decorator
 
+else:  # pragma: no branch
+    from modin.pandas.api.extensions import (
+        register_dataframe_accessor,
+        register_series_accessor,
+    )
 
-def register_base_not_implemented():
-    def decorator(base_method: Any):
-        func = base_not_implemented()(base_method)
-        register_series_accessor(base_method.__name__)(func)
-        register_dataframe_accessor(base_method.__name__)(func)
-        return func
+    def register_base_override(method_name: str):
+        """
+        Decorator function to override a method on BasePandasDataset. Since Modin does not provide a mechanism
+        for directly overriding methods on BasePandasDataset, we mock this by performing the override on
+        DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
+        to allow both the docstring extension and method dispatch to work properly.
+        """
 
-    return decorator
+        def decorator(base_method: Any):
+            parent_method = getattr(BasePandasDataset, method_name, None)
+            if isinstance(parent_method, property):
+                parent_method = parent_method.fget
+            # If the method was not defined on Series/DataFrame and instead inherited from the superclass
+            # we need to override it as well.
+            series_method = getattr(pd.Series, method_name, None)
+            if isinstance(series_method, property):
+                series_method = series_method.fget
+            if (
+                series_method is None
+                or series_method is parent_method
+                or parent_method is None
+            ):
+                register_series_accessor(method_name)(base_method)
+            df_method = getattr(pd.DataFrame, method_name, None)
+            if isinstance(df_method, property):
+                df_method = df_method.fget
+            if df_method is None or df_method is parent_method or parent_method is None:
+                register_dataframe_accessor(method_name)(base_method)
+            # Replace base method
+            setattr(BasePandasDataset, method_name, base_method)
+            return base_method
+
+        return decorator
+
+    def register_base_not_implemented():
+        def decorator(base_method: Any):
+            func = base_not_implemented()(base_method)
+            register_series_accessor(base_method.__name__)(func)
+            register_dataframe_accessor(base_method.__name__)(func)
+            return func
+
+        return decorator
 
 
 # === UNIMPLEMENTED METHODS ===
@@ -258,11 +275,6 @@ def mode(self, axis=0, numeric_only=False, dropna=True):  # noqa: PR01, RT01, D2
 
 @register_base_not_implemented()
 def pipe(self, func, *args, **kwargs):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
-def pop(self, item):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -417,32 +429,6 @@ def to_pickle(
 
 
 @register_base_not_implemented()
-def to_string(
-    self,
-    buf=None,
-    columns=None,
-    col_space=None,
-    header=True,
-    index=True,
-    na_rep="NaN",
-    formatters=None,
-    float_format=None,
-    sparsify=None,
-    index_names=True,
-    justify=None,
-    max_rows=None,
-    min_rows=None,
-    max_cols=None,
-    show_dimensions=False,
-    decimal=".",
-    line_width=None,
-    max_colwidth=None,
-    encoding=None,
-):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def to_sql(
     self,
     name,
@@ -482,9 +468,11 @@ def truncate(
     pass  # pragma: no cover
 
 
-@register_base_not_implemented()
-def update(self, other) -> None:  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+if not MODIN_IS_AT_LEAST_0_33_0:
+
+    @register_base_not_implemented()
+    def update(self, other) -> None:  # noqa: PR01, RT01, D200
+        pass  # pragma: no cover
 
 
 @register_base_not_implemented()
@@ -852,17 +840,17 @@ def var(
     )
 
 
-def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
-    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
-    # a column named "_attrs"
-    self._query_compiler._attrs = copy.deepcopy(value)
+if not MODIN_IS_AT_LEAST_0_33_0:
 
+    def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+        # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+        # a column named "_attrs"
+        self._query_compiler._attrs = copy.deepcopy(value)
 
-def _get_attrs(self) -> dict:  # noqa: RT01, D200
-    return self._query_compiler._attrs
+    def _get_attrs(self) -> dict:  # noqa: RT01, D200
+        return self._query_compiler._attrs
 
-
-register_base_override("attrs")(property(_get_attrs, _set_attrs))
+    register_base_override("attrs")(property(_get_attrs, _set_attrs))
 
 
 @register_base_override("align")
@@ -879,6 +867,8 @@ def align(
     fill_axis: Axis = 0,
     broadcast_axis: Axis = None,
 ):  # noqa: PR01, RT01, D200
+    from modin.pandas.dataframe import DataFrame
+
     if method is not None or limit is not None or fill_axis != 0:
         raise NotImplementedError(
             f"The 'method', 'limit', and 'fill_axis' keywords in {self.__class__.__name__}.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead."
@@ -891,13 +881,42 @@ def align(
         raise ValueError(
             f"No axis named {axis} for object type {self.__class__.__name__}"
         )
+    if isinstance(self, Series) and axis == 1:
+        raise ValueError("No axis named 1 for object type Series")
+
+    is_lhs_dataframe_and_rhs_series = isinstance(self, pd.DataFrame) and isinstance(
+        other, pd.Series
+    )
+    is_lhs_series_and_rhs_dataframe = isinstance(self, pd.Series) and isinstance(
+        other, pd.DataFrame
+    )
+
+    if is_lhs_dataframe_and_rhs_series and axis is None:
+        raise ValueError("Must specify axis=0 or 1")
+    if (is_lhs_dataframe_and_rhs_series and axis == 1) or (
+        is_lhs_series_and_rhs_dataframe and axis is None
+    ):
+        raise NotImplementedError(
+            f"The Snowpark pandas {self.__class__.__name__}.align with {other.__class__.__name__} other does not "
+            f"support axis={axis}."
+        )
+
     query_compiler1, query_compiler2 = self._query_compiler.align(
         other, join=join, axis=axis, level=level, copy=copy, fill_value=fill_value
     )
-    return (
-        self._create_or_update_from_compiler(query_compiler1, False),
-        self._create_or_update_from_compiler(query_compiler2, False),
-    )
+    if is_lhs_dataframe_and_rhs_series:
+        return DataFrame(query_compiler=query_compiler1), Series(
+            query_compiler=query_compiler2
+        )
+    elif is_lhs_series_and_rhs_dataframe:
+        return Series(query_compiler=query_compiler1), DataFrame(
+            query_compiler=query_compiler2
+        )
+    else:
+        return (
+            self._create_or_update_from_compiler(query_compiler1, False),
+            self._create_or_update_from_compiler(query_compiler2, False),
+        )
 
 
 # Modin does not provide `MultiIndex` support and will default to pandas when `level` is specified,
@@ -1016,7 +1035,7 @@ def _dropna(
             )
             check = indices == -1
             if check.any():
-                raise KeyError(list(np.compress(check, subset)))
+                raise KeyError([k.item() for k in np.compress(check, subset)])
 
     new_query_compiler = self._query_compiler.dropna(
         axis=axis,
@@ -1581,6 +1600,8 @@ def drop_duplicates(
     """
     Return `BasePandasDataset` with duplicate rows removed.
     """
+    if keep not in ("first", "last", False):
+        raise ValueError('keep must be either "first", "last" or False')
     inplace = validate_bool_kwarg(inplace, "inplace")
     ignore_index = kwargs.get("ignore_index", False)
     subset = kwargs.get("subset", None)

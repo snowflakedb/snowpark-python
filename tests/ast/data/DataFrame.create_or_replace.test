@@ -1,0 +1,582 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+df.create_or_replace_view("test_view", statement_params={"foo": "bar"})
+
+df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
+
+# TODO: remove the suppress check in `copy_into_table()`.
+# session.file.put(local_file_name="test.json", stage_location="test", auto_compress=False)
+# df2 = session.read.option("INFER_SCHEMA", True).json("@test/test.json")
+
+df.copy_into_table(
+    ["test_db", "test_schema", tables.table2],
+    files=["file1", "file2"],
+    pattern="[A-Z]+",
+    validation_mode="RETURN_ERRORS",
+    target_columns=["n", "str"],
+    transformations=[col("n") * 10, col("str")],
+    format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"},
+    statement_params={"foo": "bar"},
+    force=True,
+)
+
+df3 = df.cache_result()
+
+df4 = df.cache_result(statement_params={"foo": "bar"})
+
+df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+res1 = df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+res2 = df.create_or_replace_view("test_view", statement_params={"foo": "bar"})
+
+res3 = df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
+
+df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
+
+df = session.table("table1")
+
+df3 = df.cache_result()
+
+df4 = df.cache_result(statement_params={"foo": "bar"})
+
+res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite")
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_create_or_replace_view {
+        comment {
+          value: "foo"
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        name {
+          name {
+            name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "test_view"
+            }
+          }
+        }
+        src {
+          end_column: 89
+          end_line: 27
+          file: 2
+          start_column: 8
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_create_or_replace_view {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        name {
+          name {
+            name_flat {
+              name: "test_view"
+            }
+          }
+        }
+        src {
+          end_column: 79
+          end_line: 29
+          file: 2
+          start_column: 8
+          start_line: 29
+        }
+        statement_params {
+          _1: "foo"
+          _2: "bar"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_create_or_replace_view {
+        comment {
+          value: "foo"
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        is_temp: true
+        name {
+          name {
+            name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "test_view"
+            }
+          }
+        }
+        src {
+          end_column: 94
+          end_line: 31
+          file: 2
+          start_column: 8
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_create_or_replace_view {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        is_temp: true
+        name {
+          name {
+            name_flat {
+              name: "test_view"
+            }
+          }
+        }
+        src {
+          end_column: 84
+          end_line: 33
+          file: 2
+          start_column: 8
+          start_line: 33
+        }
+        statement_params {
+          _1: "foo"
+          _2: "bar"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_copy_into_table {
+        copy_options {
+          _1: "force"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 49
+                file: 2
+                start_column: 8
+                start_line: 39
+              }
+              v: true
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        files: "file1"
+        files: "file2"
+        format_type_options {
+          _1: "COMPRESSION"
+          _2 {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 49
+                file: 2
+                start_column: 8
+                start_line: 39
+              }
+              v: "GZIP"
+            }
+          }
+        }
+        format_type_options {
+          _1: "RECORD_DELIMITER"
+          _2 {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 49
+                file: 2
+                start_column: 8
+                start_line: 39
+              }
+              v: "|"
+            }
+          }
+        }
+        pattern {
+          value: "[A-Z]+"
+        }
+        src {
+          end_column: 9
+          end_line: 49
+          file: 2
+          start_column: 8
+          start_line: 39
+        }
+        statement_params {
+          _1: "foo"
+          _2: "bar"
+        }
+        table_name {
+          name {
+            name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "table2"
+            }
+          }
+        }
+        target_columns: "n"
+        target_columns: "str"
+        transformations {
+          mul {
+            lhs {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 37
+                      end_line: 45
+                      file: 2
+                      start_column: 29
+                      start_line: 45
+                    }
+                    v: "n"
+                  }
+                }
+                src {
+                  end_column: 37
+                  end_line: 45
+                  file: 2
+                  start_column: 29
+                  start_line: 45
+                }
+              }
+            }
+            rhs {
+              int64_val {
+                src {
+                  end_column: 42
+                  end_line: 45
+                  file: 2
+                  start_column: 29
+                  start_line: 45
+                }
+                v: 10
+              }
+            }
+            src {
+              end_column: 42
+              end_line: 45
+              file: 2
+              start_column: 29
+              start_line: 45
+            }
+          }
+        }
+        transformations {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "col"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 54
+                  end_line: 45
+                  file: 2
+                  start_column: 44
+                  start_line: 45
+                }
+                v: "str"
+              }
+            }
+            src {
+              end_column: 54
+              end_line: 45
+              file: 2
+              start_column: 44
+              start_line: 45
+            }
+          }
+        }
+        validation_mode {
+          value: "RETURN_ERRORS"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 6
+  }
+}
+body {
+  eval {
+    bind_id: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_cache_result {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        object_name {
+          name {
+            name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_TABLE_xxx\""
+            }
+          }
+        }
+        src {
+          end_column: 31
+          end_line: 51
+          file: 2
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_cache_result {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        object_name {
+          name {
+            name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_TABLE_xxx\""
+            }
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 53
+          file: 2
+          start_column: 14
+          start_line: 53
+        }
+        statement_params {
+          _1: "foo"
+          _2: "bar"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 8
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_create_or_replace_dynamic_table {
+        comment {
+          value: "foo"
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        lag: "1 hour"
+        mode {
+          save_mode_overwrite: true
+        }
+        name {
+          name {
+            name_flat {
+              name: "test_dyn_table"
+            }
+          }
+        }
+        src {
+          end_column: 110
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
+        warehouse: "test_wh"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 9
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

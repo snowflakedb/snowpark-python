@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import functools
 import numbers
 import random
@@ -184,7 +185,7 @@ def test_series_loc_get_basic(series, key):
     expect_high_count = len(series) > 100
     high_count_reason = None
     if expect_high_count:
-        query_count += 10
+        query_count += 6
         high_count_reason = "SNOW-998609: Snowpark pandas Series wrapping another series results in duplicate queries"
 
     # returns single element for series
@@ -772,12 +773,12 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
         s.loc[_row_key] = _item
 
     query_count = 1
-    # 5 extra queries: sum of two cases below
+    # 4 extra queries: sum of two cases below
     if item_type.startswith("index") and key_type.startswith("index"):
-        query_count = 6
-    # 4 extra queries: 1 query to convert item index to pandas in loc_set_helper, 2 for iter, and 1 for to_list
-    elif item_type.startswith("index"):
         query_count = 5
+    # 3 extra queries: 1 query to convert item index to pandas in loc_set_helper, 1 for iter, and 1 for to_list
+    elif item_type.startswith("index"):
+        query_count = 4
     # 1 extra query to convert to series to setitem
     elif key_type.startswith("index"):
         query_count = 2

@@ -33,8 +33,10 @@ DataFrame
     DataFrame.create_or_replace_dynamic_table
     DataFrame.createOrReplaceTempView
     DataFrame.createOrReplaceView
+    DataFrame.createTempView
     DataFrame.create_or_replace_temp_view
     DataFrame.create_or_replace_view
+    DataFrame.create_temp_view
     DataFrame.crossJoin
     DataFrame.cross_join
     DataFrame.crosstab
@@ -63,6 +65,8 @@ DataFrame
     DataFrame.orderBy
     DataFrame.order_by
     DataFrame.pivot
+    DataFrame.print_schema
+    DataFrame.printSchema
     DataFrame.randomSplit
     DataFrame.random_split
     DataFrame.rename

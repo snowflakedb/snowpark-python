@@ -1,0 +1,180 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df1 = df.flatten("STR", "path", True, False)
+
+df2 = df.flatten(col("NUM"), recursive=True, mode="ARRAY")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df1 = df.flatten("STR", "path", True, False, "BOTH")
+
+df2 = df.flatten(col("NUM"), None, False, True, "ARRAY")
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_flatten {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        input {
+          string_val {
+            src {
+              end_column: 52
+              end_line: 27
+              file: 2
+              start_column: 14
+              start_line: 27
+            }
+            v: "STR"
+          }
+        }
+        mode {
+          flatten_mode_both: true
+        }
+        outer: true
+        path {
+          value: "path"
+        }
+        src {
+          end_column: 52
+          end_line: 27
+          file: 2
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_flatten {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        input {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "col"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 35
+                  end_line: 29
+                  file: 2
+                  start_column: 25
+                  start_line: 29
+                }
+                v: "NUM"
+              }
+            }
+            src {
+              end_column: 35
+              end_line: 29
+              file: 2
+              start_column: 25
+              start_line: 29
+            }
+          }
+        }
+        mode {
+          flatten_mode_array: true
+        }
+        recursive: true
+        src {
+          end_column: 66
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

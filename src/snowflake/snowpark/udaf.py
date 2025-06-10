@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined aggregate functions (UDAFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udaf.UDAFRegistration` for details and sample code."""
@@ -10,8 +10,14 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
+from snowflake.snowpark._internal.ast.utils import (
+    build_udaf,
+    build_udaf_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -19,6 +25,7 @@ from snowflake.snowpark._internal.open_telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    RegistrationType,
     check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -30,9 +37,11 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     parse_positional_args_to_list,
+    publicapi,
+    warning,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, MapType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -66,6 +75,8 @@ class UserDefinedAggregateFunction:
         return_type: DataType,
         input_types: List[DataType],
         packages: Optional[List[Union[str, ModuleType]]] = None,
+        _ast: Optional[proto.Udaf] = None,
+        _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -77,9 +88,15 @@ class UserDefinedAggregateFunction:
 
         self._packages = packages
 
+        # If None, no ast will be emitted. Else, passed whenever udf is invoked.
+        self._ast = _ast
+        self._ast_id = _ast_id
+
+    @publicapi
     def __call__(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        _emit_ast: bool = True,
     ) -> Column:
         exprs = []
         for c in parse_positional_args_to_list(*cols):
@@ -92,7 +109,13 @@ class UserDefinedAggregateFunction:
                     f"The inputs of UDAF {self.name} must be Column or column name"
                 )
 
-        return Column(self._create_udaf_expression(exprs))
+        udaf_expr = None
+        if _emit_ast and self._ast is not None:
+            assert self._ast_id is not None, "Need to assign UDAF an ID."
+            udaf_expr = proto.Expr()
+            build_udaf_apply(udaf_expr, self._ast_id, *cols)
+
+        return Column(self._create_udaf_expression(exprs), _ast=udaf_expr)
 
     def _create_udaf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         if len(exprs) != len(self._input_types):
@@ -105,6 +128,7 @@ class UserDefinedAggregateFunction:
             exprs,
             self._return_type,
             api_call_source="UserDefinedAggregateFunction.__call__",
+            is_aggregate_function=True,
         )
 
 
@@ -312,10 +336,12 @@ class UDAFRegistration:
         """
         func_args = [convert_sp_to_sf_type(t) for t in udaf_obj._input_types]
         return self._session.sql(
-            f"describe function {udaf_obj.name}({','.join(func_args)})"
+            f"describe function {udaf_obj.name}({','.join(func_args)})",
+            _emit_ast=False,
         )
 
     # TODO: Support strict/secure once the server side supports these keywords in Python UDAF
+    @publicapi
     def register(
         self,
         handler: Type,
@@ -337,6 +363,9 @@ class UDAFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         immutable: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
         """
@@ -414,6 +443,11 @@ class UDAFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE FUNCTION.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
@@ -422,7 +456,10 @@ class UDAFRegistration:
         with open_telemetry_udf_context_manager(
             self.register, handler=handler, name=name
         ):
-            if not isinstance(handler, type):
+            if (
+                not isinstance(handler, type)
+                and kwargs.get("_registered_object_name") is None
+            ):
                 raise TypeError(
                     f"Invalid handler: expecting a class type, but get {type(handler)}"
                 )
@@ -435,7 +472,7 @@ class UDAFRegistration:
                 parallel,
             )
 
-            native_app_params = kwargs.get("native_app_params", None)
+            native_app_params = kwargs.pop("native_app_params", None)
 
             # register udaf
             return self._do_register_udaf(
@@ -459,8 +496,13 @@ class UDAFRegistration:
                 comment=comment,
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
+                _emit_ast=_emit_ast,
+                **kwargs,
             )
 
+    @publicapi
     def register_from_file(
         self,
         file_path: str,
@@ -484,6 +526,10 @@ class UDAFRegistration:
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
         immutable: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedAggregateFunction:
         """
         Registers a Python class as a Snowflake Python UDAF from a Python or zip file,
@@ -569,6 +615,11 @@ class UDAFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE FUNCTION.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -617,6 +668,10 @@ class UDAFRegistration:
                 immutable=immutable,
                 comment=comment,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
+                _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udaf(
@@ -643,8 +698,28 @@ class UDAFRegistration:
         is_permanent: bool = False,
         immutable: bool = False,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedAggregateFunction:
-        # get the udaf name, return and input types
+        ast, ast_id = None, None
+        if kwargs.get("_registered_object_name") is not None:
+            if _emit_ast:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.udaf, stmt)
+                ast_id = stmt.uid
+
+            return UserDefinedAggregateFunction(
+                handler,
+                kwargs["_registered_object_name"],
+                return_type,
+                input_types,
+                _ast=ast,
+                _ast_id=ast_id,
+            )
+
+        # Retrieve the UDAF name, return and input types.
         (
             udaf_name,
             _,
@@ -660,6 +735,42 @@ class UDAFRegistration:
             input_types,
             name,
         )
+
+        if isinstance(return_type, MapType):
+            if return_type.structured:
+                warning(
+                    "_do_register_udaf",
+                    "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object.",
+                )
+                return_type = StructType()
+
+        # Capture original parameters.
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.udaf, stmt)
+            ast_id = stmt.uid
+            build_udaf(
+                ast,
+                handler,
+                return_type=return_type,
+                input_types=input_types,
+                name=name,
+                stage_location=stage_location,
+                imports=imports,
+                packages=packages,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                parallel=parallel,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                is_permanent=is_permanent,
+                session=self._session,
+                _registered_object_name=udaf_name,
+                **kwargs,
+            )
 
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
@@ -687,6 +798,7 @@ class UDAFRegistration:
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
+            artifact_repository=artifact_repository,
         )
 
         runtime_version_from_requirement = None
@@ -712,6 +824,7 @@ class UDAFRegistration:
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
+                registration_type=RegistrationType.UDAF,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -725,6 +838,8 @@ class UDAFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),
@@ -746,6 +861,14 @@ class UDAFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedAggregateFunction(
-            handler, udaf_name, return_type, input_types, packages=packages
+        udaf = UserDefinedAggregateFunction(
+            handler,
+            udaf_name,
+            return_type,
+            input_types,
+            packages=packages,
+            _ast=ast,
+            _ast_id=ast_id,
         )
+
+        return udaf

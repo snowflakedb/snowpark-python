@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This module contains BasePandasDataset docstrings that override modin's docstrings."""
@@ -33,7 +33,7 @@ cold     fish      0
          spider    8
 Name: legs, dtype: int64
 
->>> s.{stat_func}()
+>>> s.{stat_func}()  # doctest: +SKIP
 {default_output}"""
 
 _max_examples: str = _shared_docs["stat_func_example"].format(
@@ -68,22 +68,22 @@ _sum_examples += """
 
 By default, the sum of an empty or all-NA Series is ``0``.
 
->>> pd.Series([], dtype="float64").sum()  # min_count=0 is the default
+>>> pd.Series([], dtype="float64").sum()  # min_count=0 is the default  # doctest: +SKIP
 0.0
 
 This can be controlled with the ``min_count`` parameter. For example, if
 you'd like the sum of an empty series to be NaN, pass ``min_count=1``.
 
->>> pd.Series([], dtype="float64").sum(min_count=1)
+>>> pd.Series([], dtype="float64").sum(min_count=1)  # doctest: +SKIP
 nan
 
 Thanks to the ``skipna`` parameter, ``min_count`` handles all-NA and
 empty series identically.
 
->>> pd.Series([np.nan]).sum()
+>>> pd.Series([np.nan]).sum()  # doctest: +SKIP
 0.0
 
->>> pd.Series([np.nan]).sum(min_count=1)
+>>> pd.Series([np.nan]).sum(min_count=1)  # doctest: +SKIP
 nan"""
 
 _num_doc = """
@@ -226,7 +226,8 @@ _name1 = "Series"
 _name2 = "DataFrame"
 _axis_descr = "{index (0), columns (1)}"
 
-
+# running doctests with numpy 2.0+ will use np.True_ instead of python builtin True, so
+# we need to skip tests that produce a scalar
 _bool_doc = """
 {desc}
 
@@ -270,9 +271,9 @@ Examples
 --------
 **Series**
 
->>> pd.Series([True, True]).all()
+>>> pd.Series([True, True]).all()  # doctest: +SKIP
 True
->>> pd.Series([True, False]).all()
+>>> pd.Series([True, False]).all()  # doctest: +SKIP
 False
 
 **DataFrames**
@@ -301,7 +302,7 @@ dtype: bool
 
 Or ``axis=None`` for whether every value is True.
 
->>> df.all(axis=None)
+>>> df.all(axis=None)  # doctest: +SKIP
 False
 """
 
@@ -330,9 +331,9 @@ Examples
 For Series input, the output is a scalar indicating whether any element
 is True.
 
->>> pd.Series([False, False]).any()
+>>> pd.Series([False, False]).any()  # doctest: +SKIP
 False
->>> pd.Series([True, False]).any()
+>>> pd.Series([True, False]).any()  # doctest: +SKIP
 True
 
 **DataFrame**
@@ -377,7 +378,7 @@ dtype: bool
 
 Aggregating over the entire DataFrame with ``axis=None``.
 
->>> df.any(axis=None)
+>>> df.any(axis=None)  # doctest: +SKIP
 True
 
 `any` for an empty DataFrame is an empty Series.
@@ -413,9 +414,6 @@ class BasePandasDataset:
     Since both objects share the same underlying representation, and the algorithms
     are the same, we use this object to define the general behavior of those objects
     and then use those objects to define the output type.
-
-    TelemetryMeta is a metaclass that automatically add telemetry decorators to classes/instance methods.
-    See TelemetryMeta for details. Note: Its subclasses will inherit this metaclass.
     """
 
     def abs():
@@ -489,6 +487,22 @@ class BasePandasDataset:
             2   10   20   30   40
             3   60   70   80   90
             4  600  700  800  900
+
+            Align on columns:
+
+            >>> left, right = df.align(other, join="outer", axis=1)
+            >>> left
+               A  B   C  D  E
+            1  4  2 NaN  1  3
+            2  9  7 NaN  6  8
+            >>> right
+                 A    B    C    D   E
+            2   10   20   30   40 NaN
+            3   60   70   80   90 NaN
+            4  600  700  800  900 NaN
+
+            We can also align on the index:
+
             >>> left, right = df.align(other, join="outer", axis=0)
             >>> left
                  D    B    E    A
@@ -502,6 +516,22 @@ class BasePandasDataset:
             2   10.0   20.0   30.0   40.0
             3   60.0   70.0   80.0   90.0
             4  600.0  700.0  800.0  900.0
+
+            Finally, the default axis=None will align on both index and columns:
+
+            >>> left, right = df.align(other, join="outer", axis=None)
+            >>> left
+                 A    B   C    D    E
+            1  4.0  2.0 NaN  1.0  3.0
+            2  9.0  7.0 NaN  6.0  8.0
+            3  NaN  NaN NaN  NaN  NaN
+            4  NaN  NaN NaN  NaN  NaN
+            >>> right
+                   A      B      C      D   E
+            1    NaN    NaN    NaN    NaN NaN
+            2   10.0   20.0   30.0   40.0 NaN
+            3   60.0   70.0   80.0   90.0 NaN
+            4  600.0  700.0  800.0  900.0 NaN
         """
 
     @doc(
@@ -1634,7 +1664,7 @@ class BasePandasDataset:
 
         With scalar integers.
 
-        >>> df.iloc[0, 1]
+        >>> df.iloc[0, 1]  # doctest: +SKIP
         2
 
         With lists of integers.
@@ -1807,7 +1837,7 @@ class BasePandasDataset:
 
         Single label for row and column
 
-        >>> df.loc['cobra', 'shield']
+        >>> df.loc['cobra', 'shield']  # doctest: +SKIP
         2
 
         Slice with labels for row and single label for column. As mentioned
@@ -1977,7 +2007,7 @@ class BasePandasDataset:
 
         Single tuple for the index with a single label for the column
 
-        >>> df.loc[('cobra', 'mark i'), 'shield']
+        >>> df.loc[('cobra', 'mark i'), 'shield']  # doctest: +SKIP
         2
 
         Slice from index tuple to single label
@@ -2314,6 +2344,43 @@ class BasePandasDataset:
     def pop():
         """
         Return item and drop from frame. Raise KeyError if not found.
+
+        Parameters
+        ----------
+            item : label
+                Label of column to be popped.
+
+        Returns
+        -------
+            Series
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([('falcon', 'bird', 389.0),
+        ...                    ('parrot', 'bird', 24.0),
+        ...                    ('lion', 'mammal', 80.5),
+        ...                    ('monkey', 'mammal', np.nan)],
+        ...                   columns=('name', 'class', 'max_speed'))
+        >>> df
+             name   class  max_speed
+        0  falcon    bird      389.0
+        1  parrot    bird       24.0
+        2    lion  mammal       80.5
+        3  monkey  mammal        NaN
+
+        >>> df.pop('class')
+        0      bird
+        1      bird
+        2    mammal
+        3    mammal
+        Name: class, dtype: object
+
+        >>> df
+             name  max_speed
+        0  falcon      389.0
+        1  parrot       24.0
+        2    lion       80.5
+        3  monkey        NaN
         """
 
     def pow():

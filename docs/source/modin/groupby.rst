@@ -2,7 +2,7 @@
 GroupBy
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.plugin.extensions.groupby_overrides
+.. currentmodule:: modin.pandas.groupby
 .. rubric:: :doc:`All supported groupby APIs <supported/groupby_supported>`
 
 .. rubric:: Indexing, iteration
@@ -52,6 +52,7 @@ GroupBy
     DataFrameGroupBy.median
     DataFrameGroupBy.min
     DataFrameGroupBy.nunique
+    DataFrameGroupBy.pct_change
     DataFrameGroupBy.quantile
     DataFrameGroupBy.rank
     DataFrameGroupBy.shift
@@ -84,6 +85,7 @@ GroupBy
     SeriesGroupBy.median
     SeriesGroupBy.min
     SeriesGroupBy.nunique
+    SeriesGroupBy.pct_change
     SeriesGroupBy.quantile
     SeriesGroupBy.rank
     SeriesGroupBy.shift

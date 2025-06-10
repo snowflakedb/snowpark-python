@@ -73,10 +73,6 @@ html_theme_path = [
     "_themes",
 ]
 
-# Override default RTD css to get a larger width
-# def setup(app):
-#   app.add_stylesheet('theme_overrides.css')
-
 html_theme_options = {
     # 'analytics_id': 'UA-XXXXXXX-1',
 }
@@ -287,34 +283,35 @@ class ModinAutosummary(Autosummary):
             return list(map(process_modin_accessors, items))
         return items
 
+def process_signature(app, what, name, obj, options, signature, return_annotation):
+
+    # Names to remove from signature (AST related):
+    names_to_remove = ['_emit_ast', '_ast']
+
+    def remove_from_signature(signature, name_to_remove):
+        if name_to_remove not in signature:
+            return signature
+
+        if signature.startswith('(') and signature.endswith(')'):
+            # temporarily remove parentheses, add after removing name_to_remove parts.
+            signature = signature[1:-1]
+            parts = [p for p in signature.split(',') if name_to_remove not in p]
+            signature = ','.join(parts)
+
+            return f'({signature})'
+        else:
+            return signature
+
+    if signature:
+        for name_to_remove in names_to_remove:
+            signature = remove_from_signature(signature, name_to_remove)
+
+    return (signature, return_annotation)
 
 def setup(app):
     # Make sure modin.pandas namespace is properly set up
     import modin.pandas as pd
     import snowflake.snowpark.modin.plugin
-    # Monkeypatch dt/str to make sure their children are resolvable by autosummary-generate.
-    # Without this monkeypatch, the autosummary-generate (which runs before any custom documenter
-    # classes can take effect) will report an error like the following for every child of Series.str
-    # and Series.dt:
-    #
-    # WARNING: [autosummary] failed to import modin.pandas.Series.str.slice.
-    # Possible hints:
-    # * AttributeError: 'property' object has no attribute 'slice'
-    # * ImportError: 
-    # * ModuleNotFoundError: No module named 'modin.pandas.Series'
-    #
-    # Because we're replacing the `property` object, we also need to set the __doc__ of the new
-    # values of Series.str/dt to make sure autodoc can pick them up. The custom ModinAttributeDocumenter
-    # class allows the top-level Series.str/dt objects to be properly documented.
-    #
-    # TODO SNOW-1063347: check whether this is still needed after removing series.py since upstream
-    # modin uses CachedAccessor wrapper for str/dt rather than a property
-    old_series_dt = pd.Series.dt
-    old_series_str = pd.Series.str
-    pd.Series.dt = pd.series_utils.DatetimeProperties
-    pd.Series.str = pd.series_utils.StringMethods
-    pd.Series.dt.__doc__ = old_series_dt.__doc__
-    pd.Series.str.__doc__ = old_series_str.__doc__
     # Like pandas, we need to do some pre-processing for accessor methods/properties like
     # pd.Series.str.replace and pd.Series.dt.date in order to resolve the parent class correctly.
     # https://github.com/pandas-dev/pandas/blob/bbe0e531383358b44e94131482e122bda43b33d7/doc/source/conf.py#L792
@@ -322,6 +319,10 @@ def setup(app):
     app.add_autodocumenter(ModinAccessorMethodDocumenter)
     app.add_autodocumenter(ModinAccessorAttributeDocumenter)
     app.add_directive("autosummary", ModinAutosummary)
+
+    # For Snowpark IR, in phase0 a hidden parameter _emit_ast is introduced. Once phase1 completes,
+    # this parameter will be removed. Automatically remove _emit_ast for now from docs to avoid confusion.
+    app.connect("autodoc-process-signature", process_signature)
 
 
 # We overwrite the existing "autosummary" directive in order to properly resolve names for modin
@@ -368,5 +369,6 @@ def linkcode_resolve(domain, info):
         linespec = ""
     return (
         f"https://github.com/snowflakedb/snowpark-python/blob/"
-        f"v{release}/{os.path.relpath(fn, start=os.pardir)}{linespec}"
+        f"v{release}/{os.path.relpath(fn)}{linespec}"
     )
+

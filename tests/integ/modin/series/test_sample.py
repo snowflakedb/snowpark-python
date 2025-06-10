@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -39,7 +39,7 @@ def test_series_sample_n(data, n, ignore_index):
 
 
 @pytest.mark.parametrize("n", [None, 0, 1, 8, 10, 20])
-@sql_count_checker(query_count=5, join_count=1)
+@sql_count_checker(query_count=4, join_count=1)
 def test_series_sample_n_replace(n, ignore_index):
     s = pd.Series(range(100, 110)).sample(n=n, replace=True, ignore_index=ignore_index)
     assert len(s) == (n if n is not None else 1)
@@ -55,7 +55,7 @@ def test_series_sample_frac(frac, ignore_index):
 
 
 @pytest.mark.parametrize("frac", [None, 0, 0.1, 0.5, 0.8, 1, 1.1, 1.5, 1.8, 2])
-@sql_count_checker(query_count=4, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_series_sample_frac_reply(frac, ignore_index):
     s = pd.Series(range(100, 110)).sample(
         frac=frac, replace=True, ignore_index=ignore_index

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -10,11 +10,13 @@ import platform
 import random
 import string
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from typing import List, NamedTuple, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union
+from threading import Thread
+from unittest import mock
+import re
 
 import pytest
 import pytz
@@ -94,6 +96,7 @@ if RUNNING_ON_JENKINS:
 STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
 STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_FDN_TABLES",
     "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
     "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
     "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
@@ -121,7 +124,8 @@ def iceberg_supported(session, local_testing_mode):
 def structured_types_enabled_session(session):
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session set {param}=true").collect()
-    yield session
+    with mock.patch("snowflake.snowpark.context._use_structured_type_semantics", True):
+        yield session
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session unset {param}").collect()
 
@@ -138,17 +142,17 @@ def running_on_jenkins() -> bool:
 
 def multithreaded_run(num_threads: int = 5) -> None:
     """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
-    from tests.conftest import MULTITHREADING_TEST_MODE_ENABLED
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if MULTITHREADING_TEST_MODE_ENABLED:
-                with ThreadPoolExecutor(max_workers=num_threads) as executor:
-                    for _ in range(num_threads):
-                        executor.submit(func, *args, **kwargs)
-            else:
-                func(*args, **kwargs)
+            all_threads = []
+            for _ in range(num_threads):
+                job = Thread(target=func, args=args, kwargs=kwargs)
+                all_threads.append(job)
+                job.start()
+            for thread in all_threads:
+                thread.join()
 
         return wrapper
 
@@ -373,9 +377,19 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
-        statement_params=None,
+        statement_params: Optional[Dict[str, str]] = None,
         float_equality_threshold=0.0,
     ) -> None:
+
+        # Check that statement_params are passed as Dict[str, str].
+        assert statement_params is None or (
+            isinstance(statement_params, dict)
+            and all(
+                isinstance(k, str) and isinstance(v, str)
+                for k, v in statement_params.items()
+            )
+        )
+
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
@@ -404,7 +418,12 @@ class Utils:
             Utils.assert_rows(actual_rows, expected_rows, float_equality_threshold)
 
     @staticmethod
-    def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
+    def verify_schema(
+        sql: str,
+        expected_schema: StructType,
+        session: Session,
+        max_string_size: int = None,
+    ) -> None:
         session._run_query(sql)
         result_meta = session._conn._cursor.description
 
@@ -415,16 +434,17 @@ class Utils:
                 == field.column_identifier.quoted_name
             )
             assert meta.is_nullable == field.nullable
-            assert (
-                convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[meta.type_code],
-                    meta.precision,
-                    meta.scale,
-                    meta.internal_size,
-                    session._conn.max_string_size,
-                )
-                == field.datatype
+
+            sp_type = convert_sf_to_sp_type(
+                FIELD_ID_TO_NAME[meta.type_code],
+                meta.precision,
+                meta.scale,
+                meta.internal_size,
+                max_string_size or session._conn.max_string_size,
             )
+            assert (
+                sp_type == field.datatype
+            ), f"{sp_type=} is not equal to {field.datatype=}"
 
     @staticmethod
     def is_active_transaction(session: Session) -> bool:
@@ -464,6 +484,16 @@ class Utils:
         assert (
             len(query_details.collect()) > 0
         ), f"query tag '{query_tag}' not present in query history for given session"
+
+    @staticmethod
+    def normalize_sql(sql_query: str) -> str:
+        # replace all whitespace with a single space
+        stripped_sql = re.sub(r"\s+", " ", sql_query).strip()
+        # remove space followed by parenthesis
+        stripped_sql = re.sub(r"\(\s+", "(", stripped_sql)
+        stripped_sql = re.sub(r"\s+\)", ")", stripped_sql)
+
+        return stripped_sql
 
 
 class TestData:
@@ -616,6 +646,15 @@ class TestData:
                 schema=["flo", "int", "boo", "str"],
             )
         )
+
+    @classmethod
+    def null_data4(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                [Decimal(1), None],
+                [None, Decimal(2)],
+            ]
+        ).to_df(["a", "b"])
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
@@ -1297,6 +1336,7 @@ class TestData:
                 (1, "electronics", 100, 200, 300, 100),
                 (2, "clothes", 100, 300, 150, 200),
                 (3, "cars", 200, 400, 100, 50),
+                (4, "appliances", 100, None, 100, 50),
             ],
             schema=["empid", "dept", "jan", "feb", "mar", "apr"],
         )
@@ -1365,6 +1405,10 @@ class TestFiles:
     @functools.cached_property
     def test_file_csv_special_format(self):
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
+
+    @property
+    def test_file_csv_timestamps(self):
+        return os.path.join(self.resources_path, "testCSVformattedTime.csv")
 
     @property
     def test_file_excel(self):
@@ -1496,6 +1540,58 @@ class TestFiles:
     def test_concat_file2_csv(self):
         return os.path.join(self.resources_path, "test_concat_file2.csv")
 
+    @property
+    def test_books_xml(self):
+        return os.path.join(self.resources_path, "books.xml")
+
+    @property
+    def test_books2_xml(self):
+        return os.path.join(self.resources_path, "books2.xml")
+
+    @property
+    def test_house_xml(self):
+        return os.path.join(self.resources_path, "fias_house.xml")
+
+    @property
+    def test_house_large_xml(self):
+        return os.path.join(self.resources_path, "fias_house.large.xml")
+
+    @property
+    def test_xxe_xml(self):
+        return os.path.join(self.resources_path, "xxe.xml")
+
+    @property
+    def test_nested_xml(self):
+        return os.path.join(self.resources_path, "nested.xml")
+
+    @property
+    def test_malformed_no_closing_tag_xml(self):
+        return os.path.join(self.resources_path, "malformed_no_closing_tag.xml")
+
+    @property
+    def test_malformed_not_self_closing_xml(self):
+        return os.path.join(self.resources_path, "malformed_not_self_closing.xml")
+
+    @property
+    def test_malformed_record_xml(self):
+        return os.path.join(self.resources_path, "malformed_record.xml")
+
+    @property
+    def test_xml_declared_namespace(self):
+        return os.path.join(self.resources_path, "declared_namespace.xml")
+
+    @property
+    def test_xml_undeclared_namespace(self):
+        return os.path.join(self.resources_path, "undeclared_namespace.xml")
+
+    @property
+    def test_null_value_xml(self):
+        return os.path.join(self.resources_path, "null_value.xml")
+
+    @property
+    def test_dog_image(self):
+        return os.path.join(self.resources_path, "dog.jpg")
+
 
 class TypeMap(NamedTuple):
     col_name: str
@@ -1564,3 +1660,30 @@ def check_tracing_span_answers(results: list, expected_answer: tuple):
             if check_tracing_span_single_answer(result[1], expected_answer[1]):
                 return True
     return False
+
+
+def local_to_utc_offset_in_hours():
+    """In tests on CI UTC is assumed. However, when comparing dates these are returned in local timezone format.
+    Adjust expectations with this localization function.
+    Returns difference between UTC and current, local timezone."""
+    offset = datetime.now(timezone.utc).astimezone().tzinfo.utcoffset(datetime.now())
+    if offset.days < 0:
+        return -(24 - offset.seconds / 3600)
+    else:
+        return offset.seconds / 3600
+
+
+def add_to_time(t: datetime.time, delta: timedelta) -> time:
+    """datetime.time does not support +, implement this here."""
+    now = datetime.now()
+    dt = datetime(
+        now.year,
+        now.month,
+        now.day,
+        hour=t.hour,
+        minute=t.minute,
+        second=t.second,
+        microsecond=t.microsecond,
+    )
+    ans = dt + delta
+    return time(ans.hour, ans.minute, ans.second, ans.microsecond)

@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import pytest
 
 from tests.integ.modin.frame.test_head_tail import eval_result_and_query_with_no_join

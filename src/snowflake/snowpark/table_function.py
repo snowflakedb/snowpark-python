@@ -1,10 +1,11 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """Contains table function related classes."""
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
     NamedArgumentsTableFunction,
@@ -13,11 +14,20 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionPartitionSpecDefinition,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark._internal.utils import quote_name, validate_object_name
+from snowflake.snowpark._internal.utils import (
+    publicapi,
+    quote_name,
+    validate_object_name,
+)
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
 from ._internal.analyzer.snowflake_plan import SnowflakePlan
+from ._internal.ast.utils import (
+    build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_col_name,
+    with_src_position,
+)
 
 
 class TableFunctionCall:
@@ -30,10 +40,13 @@ class TableFunctionCall:
     instance of this class.
     """
 
+    @publicapi
     def __init__(
         self,
         func_name: Union[str, Iterable[str]],
         *func_arguments: ColumnOrName,
+        _ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
         **func_named_arguments: ColumnOrName,
     ) -> None:
         if func_arguments and func_named_arguments:
@@ -51,15 +64,18 @@ class TableFunctionCall:
         self._order_by = None
         self._aliases: Optional[Iterable[str]] = None
         self._api_call_source = None
+        self._ast = _ast
 
     def _set_api_call_source(self, api_call_source):
         self._api_call_source = api_call_source
 
+    @publicapi
     def over(
         self,
         *,
         partition_by: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
         order_by: Optional[Union[ColumnOrName, Iterable[ColumnOrName]]] = None,
+        _emit_ast: bool = True,
     ) -> "TableFunctionCall":
         """Specify the partitioning plan for this table function call when you lateral join this table function.
 
@@ -78,8 +94,52 @@ class TableFunctionCall:
         Note that if this function is called but both ``partition_by`` and ``order_by`` are ``None``, the table function call will put all input rows into a single partition.
         If this function isn't called at all, the Snowflake database will use implicit partitioning.
         """
+
+        # create_order_by_expression has check in it, call here first.
+        if isinstance(order_by, (str, Column)):
+            order_by_tuple = (order_by,)
+        elif order_by is not None:
+            order_by_tuple = tuple(order_by)
+        else:
+            order_by_tuple = None
+        if order_by_tuple:
+            if len(order_by_tuple) > 0:
+                for e in order_by_tuple:
+                    _create_order_by_expression(e)
+        # End code for check.
+
+        ast = None
+        if _emit_ast and self._ast is not None:
+            ast = proto.Expr()
+            expr = with_src_position(ast.table_fn_call_over)
+            expr.lhs.CopyFrom(self._ast)
+            if partition_by is not None:
+                if isinstance(partition_by, (str, Column)):
+                    expr.partition_by.variadic = True
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.partition_by.args.add(), partition_by
+                    )
+                else:
+                    expr.partition_by.variadic = False
+                    for partition_clause in partition_by:
+                        build_expr_from_snowpark_column_or_col_name(
+                            expr.partition_by.args.add(), partition_clause
+                        )
+            if order_by is not None:
+                if isinstance(order_by, (str, Column)):
+                    expr.order_by.variadic = True
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.order_by.args.add(), order_by
+                    )
+                else:
+                    expr.order_by.variadic = False
+                    for order_clause in order_by:
+                        build_expr_from_snowpark_column_or_col_name(
+                            expr.order_by.args.add(), order_clause
+                        )
+
         new_table_function = TableFunctionCall(
-            self.name, *self.arguments, **self.named_arguments
+            self.name, *self.arguments, _ast=ast, **self.named_arguments
         )
         new_table_function._over = True
 
@@ -113,7 +173,8 @@ class TableFunctionCall:
             new_table_function._order_by = order_spec
         return new_table_function
 
-    def alias(self, *aliases: str) -> "TableFunctionCall":
+    @publicapi
+    def alias(self, *aliases: str, _emit_ast: bool = True) -> "TableFunctionCall":
         """Alias the output columns from the output of this table function call.
 
         Args:
@@ -122,11 +183,21 @@ class TableFunctionCall:
         Raises:
             ValueError: Raises error when the aliases are not unique after being canonicalized.
         """
+        ast = None
+        if _emit_ast:
+            ast = proto.Expr()
+            expr = with_src_position(ast.table_fn_call_alias)
+            expr.lhs.CopyFrom(self._ast)
+            expr.aliases.variadic = True
+            for arg in aliases:
+                build_expr_from_python_val(expr.aliases.args.add(), arg)
+
         canon_aliases = [quote_name(col) for col in aliases]
         if len(set(canon_aliases)) != len(aliases):
             raise ValueError("All output column names after aliasing must be unique.")
 
         self._aliases = canon_aliases
+        self._ast = ast
         return self
 
     as_ = alias

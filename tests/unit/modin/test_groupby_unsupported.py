@@ -1,13 +1,13 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import pytest
 
 
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        (lambda se: se.groupby("A").__iter__(), "_iter"),
         (lambda se: se.groupby("A").__len__(), "__len__"),
         (lambda se: se.groupby("A").__bytes__(), "__bytes__"),
         (lambda se: se.groupby("A").corrwith, "corrwith"),
@@ -25,11 +25,8 @@ import pytest
         (lambda se: se.groupby("A").nlargest(4), "nlargest"),
         (lambda se: se.groupby("A").nsmallest(4), "nsmallest"),
         (lambda se: se.groupby("A").nth(5), "nth"),
-        (lambda se: se.groupby("A").unique(), "unique"),
         (lambda se: se.groupby("A").ohlc(), "ohlc"),
-        (lambda se: se.groupby("A").pct_change(), "pct_change"),
         (lambda se: se.groupby("A").prod(), "prod"),
-        (lambda se: se.groupby("A").resample("3T"), "resample"),
         (lambda se: se.groupby("A").rolling(2), "rolling"),
         (lambda se: se.groupby("A").sample(n=1, random_state=1), "sample"),
         (lambda se: se.groupby("A").sem(), "sem"),
@@ -52,7 +49,6 @@ def test_series_groupby_unsupported_methods_raises(
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        (lambda df: df.groupby("A").__iter__(), "_iter"),
         (lambda df: df.groupby("A").__len__(), "__len__"),
         (lambda df: df.groupby("A").__bytes__(), "__bytes__"),
         (lambda df: df.groupby("A").corrwith, "corrwith"),
@@ -67,9 +63,7 @@ def test_series_groupby_unsupported_methods_raises(
         (lambda df: df.groupby("A").ngroup(), "ngroup"),
         (lambda df: df.groupby("A").nth(5), "nth"),
         (lambda df: df.groupby("A").ohlc(), "ohlc"),
-        (lambda df: df.groupby("A").pct_change(), "pct_change"),
         (lambda df: df.groupby("A").prod(), "prod"),
-        (lambda df: df.groupby("A").resample("3T"), "resample"),
         (lambda df: df.groupby("A").rolling(2), "rolling"),
         (lambda df: df.groupby("A").sample(n=1, random_state=1), "sample"),
         (lambda df: df.groupby("A").sem(), "sem"),

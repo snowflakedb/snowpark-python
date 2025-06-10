@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -47,12 +47,17 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     Query,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryClient
+from snowflake.snowpark._internal.telemetry import (
+    TelemetryClient,
+    get_plan_telemetry_metrics,
+)
 from snowflake.snowpark._internal.utils import (
     create_rlock,
     create_thread_local,
     escape_quotes,
+    is_ast_enabled,
     get_application_name,
     get_version,
     is_in_stored_procedure,
@@ -63,7 +68,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
@@ -182,7 +187,7 @@ class ServerConnection:
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
         self._telemetry_client = TelemetryClient(self._conn)
-        self._query_listener: Set[QueryHistory] = set()
+        self._query_listeners: Set[QueryListener] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
@@ -228,13 +233,13 @@ class ServerConnection:
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = get_version()
 
-    def add_query_listener(self, listener: QueryHistory) -> None:
+    def add_query_listener(self, listener: QueryListener) -> None:
         with self._lock:
-            self._query_listener.add(listener)
+            self._query_listeners.add(listener)
 
-    def remove_query_listener(self, listener: QueryHistory) -> None:
+    def remove_query_listener(self, listener: QueryListener) -> None:
         with self._lock:
-            self._query_listener.remove(listener)
+            self._query_listeners.remove(listener)
 
     def close(self) -> None:
         if self._conn:
@@ -262,14 +267,13 @@ class ServerConnection:
         rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
-    @SnowflakePlan.Decorator.wrap_exception
     def get_result_attributes(self, query: str) -> List[Attribute]:
         return convert_result_meta_to_attribute(
             self._run_new_describe(self._cursor, query), self.max_string_size
         )
 
     def _run_new_describe(
-        self, cursor: SnowflakeCursor, query: str
+        self, cursor: SnowflakeCursor, query: str, **kwargs: dict
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
         result_metadata = run_new_describe(cursor, query)
 
@@ -277,7 +281,7 @@ class ServerConnection:
             for listener in filter(
                 lambda listener: hasattr(listener, "include_describe")
                 and listener.include_describe,
-                self._query_listener,
+                self._query_listeners,
             ):
                 thread_id = (
                     threading.get_ident()
@@ -287,7 +291,7 @@ class ServerConnection:
                 query_record = QueryRecord(
                     cursor.sfqid, query, True, thread_id=thread_id
                 )
-                listener._add_query(query_record)
+                listener._notify(query_record, **kwargs)
 
         return result_metadata
 
@@ -404,10 +408,10 @@ class ServerConnection:
                 raise ex
 
     def notify_query_listeners(
-        self, query_record: QueryRecord, is_error: bool = False
+        self, query_record: QueryRecord, is_error: bool = False, **kwargs
     ) -> None:
         with self._lock:
-            for listener in self._query_listener:
+            for listener in self._query_listeners:
                 # if listener is not set to record error query, skip
                 if is_error and not getattr(listener, "include_error", False):
                     continue
@@ -418,22 +422,32 @@ class ServerConnection:
                         query_record.is_describe,
                         thread_id=threading.get_ident(),
                     )
-                    listener._add_query(new_record)
+                    listener._notify(new_record, **kwargs)
                 else:
-                    listener._add_query(query_record)
+                    listener._notify(query_record, **kwargs)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
+        notify_kwargs = {}
+        if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
-        except Error as err:
+        except Exception as ex:
+            notify_kwargs["requestId"] = None
+            notify_kwargs["exception"] = ex
+            sfqid = ex.sfqid if isinstance(ex, Error) else None
+            err_query = ex.query if isinstance(ex, Error) else query
             self.notify_query_listeners(
-                QueryRecord(err.sfqid, err.query), is_error=True
+                QueryRecord(sfqid, err_query, False), is_error=True, **notify_kwargs
             )
-            raise err
+            raise ex
+
+        notify_kwargs["requestId"] = str(results_cursor._request_id)
         self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
+            QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
         return results_cursor
 
@@ -478,6 +492,7 @@ class ServerConnection:
         num_statements: Optional[int] = None,
         ignore_results: bool = False,
         async_post_actions: Optional[List[Query]] = None,
+        to_arrow: bool = False,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -513,7 +528,10 @@ class ServerConnection:
             if ignore_results:
                 return {"data": None, "sfqid": results_cursor.sfqid}
             return self._to_data_or_iter(
-                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+                results_cursor=results_cursor,
+                to_pandas=to_pandas,
+                to_iter=to_iter,
+                to_arrow=to_arrow,
             )
         else:
             return AsyncJob(
@@ -533,6 +551,7 @@ class ServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
+        to_arrow: bool = False,
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
         if to_iter:
@@ -565,6 +584,12 @@ class ServerConnection:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
                     str(ex)
                 )
+        elif to_arrow:
+            data_or_iter = (
+                results_cursor.fetch_arrow_batches()
+                if to_iter
+                else results_cursor.fetch_arrow_all(True)
+            )
         else:
             data_or_iter = (
                 iter(results_cursor) if to_iter else results_cursor.fetchall()
@@ -577,6 +602,7 @@ class ServerConnection:
         plan: SnowflakePlan,
         to_pandas: bool = False,
         to_iter: bool = False,
+        to_arrow: bool = False,
         block: bool = True,
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
@@ -604,10 +630,11 @@ class ServerConnection:
             data_type=data_type,
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
+            to_arrow=to_arrow,
         )
         if not block:
             return result_set
-        elif to_pandas:
+        elif to_pandas or to_arrow:
             return result_set["data"]
         else:
             if to_iter:
@@ -630,6 +657,7 @@ class ServerConnection:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         ignore_results: bool = False,
+        to_arrow: bool = False,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -687,6 +715,7 @@ class ServerConnection:
                     params=params,
                     ignore_results=ignore_results,
                     async_post_actions=post_actions,
+                    to_arrow=to_arrow,
                     **kwargs,
                 )
 
@@ -696,6 +725,13 @@ class ServerConnection:
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
+                # Only send dataframe AST on the last query.
+                if DATAFRAME_AST_PARAMETER in kwargs:
+                    dataframe_ast = kwargs[DATAFRAME_AST_PARAMETER]
+                    del kwargs[DATAFRAME_AST_PARAMETER]
+                else:
+                    dataframe_ast = None
+
                 for i, query in enumerate(main_queries):
                     if isinstance(query, BatchInsertQuery):
                         self.run_batch_insert(query.sql, query.rows, **kwargs)
@@ -704,10 +740,13 @@ class ServerConnection:
                         final_query = query.sql
                         for holder, id_ in placeholders.items():
                             final_query = final_query.replace(holder, id_)
+                        if i == len(main_queries) - 1 and dataframe_ast:
+                            kwargs[DATAFRAME_AST_PARAMETER] = dataframe_ast
+                        is_final_query = i == len(main_queries) - 1
                         result = self.run_query(
                             final_query,
                             to_pandas,
-                            to_iter and (i == len(main_queries) - 1),
+                            to_iter and is_final_query,
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
@@ -717,6 +756,7 @@ class ServerConnection:
                             params=query.params,
                             ignore_results=ignore_results,
                             async_post_actions=post_actions,
+                            to_arrow=to_arrow and is_final_query,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -728,6 +768,8 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
+                if DATAFRAME_AST_PARAMETER in kwargs:
+                    del kwargs[DATAFRAME_AST_PARAMETER]
                 for action in post_actions:
                     self.run_query(
                         action.sql,
@@ -737,6 +779,12 @@ class ServerConnection:
                         case_sensitive=case_sensitive,
                         **kwargs,
                     )
+
+            if plan.session._collect_snowflake_plan_telemetry_at_critical_path:
+                self._telemetry_client.send_plan_metrics_telemetry(
+                    session_id=self.get_session_id(),
+                    data=get_plan_telemetry_metrics(plan),
+                )
 
         if result is None:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()

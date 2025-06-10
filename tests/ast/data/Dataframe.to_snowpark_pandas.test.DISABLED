@@ -1,0 +1,188 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+snowpark_pandas_df = df.to_snowpark_pandas()
+
+snowpark_pandas_df = df.to_snowpark_pandas(index_col="A")
+
+snowpark_pandas_df = df.to_snowpark_pandas(columns=["B", "A"])
+
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"], columns=["C", "B"])
+
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+snowpark_pandas_df = df.to_snowpark_pandas()
+
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"])
+
+snowpark_pandas_df = df.to_snowpark_pandas(columns=["B", "A"])
+
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"], columns=["C", "B"])
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      to_snowpark_pandas {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 73
+          end_line: 27
+          file: 2
+          start_column: 29
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "snowpark_pandas_df"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      to_snowpark_pandas {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        index_col: "A"
+        src {
+          end_column: 88
+          end_line: 29
+          file: 2
+          start_column: 29
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "snowpark_pandas_df"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      to_snowpark_pandas {
+        columns: "B"
+        columns: "A"
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 93
+          end_line: 31
+          file: 2
+          start_column: 29
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "snowpark_pandas_df"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      to_snowpark_pandas {
+        columns: "C"
+        columns: "B"
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        index_col: "A"
+        src {
+          end_column: 110
+          end_line: 33
+          file: 2
+          start_column: 29
+          start_line: 33
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "snowpark_pandas_df"
+    }
+    uid: 5
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 31
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

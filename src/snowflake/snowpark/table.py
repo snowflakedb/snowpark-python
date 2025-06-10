@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -8,6 +8,7 @@ from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -19,9 +20,18 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
+from snowflake.snowpark._internal.ast.utils import (
+    build_expr_from_dict_str_str,
+    build_expr_from_snowpark_column,
+    build_expr_from_snowpark_column_or_python_val,
+    with_src_position,
+    DATAFRAME_AST_PARAMETER,
+    build_table_name,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
+from snowflake.snowpark._internal.utils import publicapi
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
@@ -72,8 +82,11 @@ class WhenMatchedClause:
             specified condition. For example, ``col("a") == 1``.
     """
 
-    def __init__(self, condition: Optional[Column] = None) -> None:
+    def __init__(
+        self, condition: Optional[Column] = None, _emit_ast: bool = True
+    ) -> None:
         self._condition_expr = condition._expression if condition is not None else None
+        self._condition = condition
         self._clause = None
 
     def update(self, assignments: Dict[str, ColumnOrLiteral]) -> "WhenMatchedClause":
@@ -115,10 +128,7 @@ class WhenMatchedClause:
                 else "delete",
                 "WhenMatchedClause",
             )
-        self._clause = UpdateMergeExpression(
-            self._condition_expr,
-            {Column(k)._expression: Column._to_expr(v) for k, v in assignments.items()},
-        )
+        self._clause = UpdateMergeExpression(self._condition_expr, assignments)
         return self
 
     def delete(self):
@@ -169,8 +179,11 @@ class WhenNotMatchedClause:
             specified condition.
     """
 
-    def __init__(self, condition: Optional[Column] = None) -> None:
+    def __init__(
+        self, condition: Optional[Column] = None, _emit_ast: bool = True
+    ) -> None:
         self._condition_expr = condition._expression if condition is not None else None
+        self._condition = condition
         self._clause = None
 
     def insert(
@@ -199,6 +212,7 @@ class WhenNotMatchedClause:
             >>> target_df = session.create_dataframe([(10, "old"), (10, "too_old"), (11, "old")], schema=schema)
             >>> target_df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
             >>> target = session.table("my_table")
+
             >>> source = session.create_dataframe([(12, "new")], schema=schema)
             >>> target.merge(source, target["key"] == source["key"], [when_not_matched().insert([source["key"], source["value"]])])
             MergeResult(rows_inserted=1, rows_updated=0, rows_deleted=0)
@@ -222,11 +236,11 @@ class WhenNotMatchedClause:
                 "insert", "WhenNotMatchedClause"
             )
         if isinstance(assignments, dict):
-            keys = [Column(k)._expression for k in assignments.keys()]
-            values = [Column._to_expr(v) for v in assignments.values()]
+            keys = list(assignments.keys())
+            values = list(assignments.values())
         else:
             keys = []
-            values = [Column._to_expr(v) for v in assignments]
+            values = list(assignments)
         self._clause = InsertMergeExpression(self._condition_expr, keys, values)
         return self
 
@@ -266,12 +280,22 @@ class Table(DataFrame):
     with the name of the table in Snowflake. See examples in :meth:`Session.table`.
     """
 
+    @publicapi
     def __init__(
         self,
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         is_temp_table_for_cleanup: bool = False,
+        _ast_stmt: Optional[proto.Bind] = None,
+        _emit_ast: bool = True,
     ) -> None:
+        if _ast_stmt is None and session is not None and _emit_ast:
+            _ast_stmt = session._ast_batch.bind()
+            ast = with_src_position(_ast_stmt.expr.table, _ast_stmt)
+            build_table_name(ast.name, table_name)
+            ast.variant.table_init = True
+            ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
+
         snowflake_table_plan = SnowflakeTable(
             table_name,
             session=session,
@@ -286,7 +310,7 @@ class Table(DataFrame):
             )
         else:
             plan = snowflake_table_plan
-        super().__init__(session, plan)
+        super().__init__(session, plan, _ast_stmt=_ast_stmt, _emit_ast=_emit_ast)
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
@@ -296,8 +320,21 @@ class Table(DataFrame):
         # created from Session object
         set_api_call_source(self, "Table.__init__")
 
+    def _copy_without_ast(self):
+        return Table(
+            self.table_name,
+            session=self._session,
+            is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
+            _emit_ast=False,
+        )
+
     def __copy__(self) -> "Table":
-        return Table(self.table_name, self._session, self._is_temp_table_for_cleanup)
+        return Table(
+            self.table_name,
+            session=self._session,
+            is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
+            _emit_ast=self._session.ast_enabled,
+        )
 
     def __enter__(self):
         return self
@@ -305,6 +342,7 @@ class Table(DataFrame):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.drop_table()
 
+    @publicapi
     def sample(
         self,
         frac: Optional[float] = None,
@@ -312,6 +350,7 @@ class Table(DataFrame):
         *,
         seed: Optional[int] = None,
         sampling_method: Optional[str] = None,
+        _emit_ast: bool = True,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a percentage of rows to be returned.
 
@@ -336,7 +375,7 @@ class Table(DataFrame):
 
         """
         if sampling_method is None and seed is None:
-            return super().sample(frac=frac, n=n)
+            return super().sample(frac=frac, n=n, _emit_ast=_emit_ast)
         DataFrame._validate_sample_input(frac, n)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
@@ -349,6 +388,21 @@ class Table(DataFrame):
             )
 
         from snowflake.snowpark.mock._connection import MockServerConnection
+
+        stmt = None
+        if _emit_ast:
+            # AST.
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.table_sample, stmt)
+            if frac:
+                ast.probability_fraction.value = frac
+            if n:
+                ast.num.value = n
+            if seed:
+                ast.seed.value = seed
+            if sampling_method:
+                ast.sampling_method.value = sampling_method
+            self._set_ast_ref(ast.df)
 
         if isinstance(self._session._conn, MockServerConnection):
             if sampling_method in ("SYSTEM", "BLOCK"):
@@ -365,7 +419,8 @@ class Table(DataFrame):
                         sample_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
-                )
+                ),
+                _ast_stmt=stmt,
             )
 
         # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
@@ -373,9 +428,10 @@ class Table(DataFrame):
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} ROWS"
         seed_text = f" SEED ({seed})" if seed is not None else ""
         sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
-        return self._session.sql(sql_text)
+        return self._session.sql(sql_text, _ast_stmt=stmt)
 
     @overload
+    @publicapi
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -384,10 +440,12 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> UpdateResult:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -396,9 +454,11 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.AsyncJob":
         ...  # pragma: no cover
 
+    @publicapi
     def update(
         self,
         assignments: Dict[str, ColumnOrLiteral],
@@ -407,6 +467,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[UpdateResult, "snowflake.snowpark.AsyncJob"]:
         """
         Updates rows in the Table with specified ``assignments`` and returns a
@@ -460,6 +521,30 @@ class Table(DataFrame):
                 condition is not None
             ), "condition should also be provided if source is provided"
 
+        kwargs = {}
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.table_update, stmt)
+            self._set_ast_ref(ast.df)
+            if assignments is not None:
+                for k, v in assignments.items():
+                    t = ast.assignments.add()
+                    t._1 = k
+                    build_expr_from_snowpark_column_or_python_val(t._2, v)
+            if condition is not None:
+                build_expr_from_snowpark_column(ast.condition, condition)
+            if source is not None:
+                source._set_ast_ref(ast.source)
+            if statement_params is not None:
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
+            ast.block = block
+
+            self._session._ast_batch.eval(stmt)
+
+            # Flush AST and encode it as part of the query.
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+
         new_df = self._with_plan(
             TableUpdate(
                 self.table_name,
@@ -471,17 +556,21 @@ class Table(DataFrame):
                 _disambiguate(self, source, create_join_type("left"), [])[1]._plan
                 if source
                 else None,
-            )
+            ),
+            _ast_stmt=stmt,
         )
+
         add_api_call(new_df, "Table.update")
         result = new_df._internal_collect_with_tag(
             statement_params=statement_params,
             block=block,
             data_type=snowflake.snowpark.async_job._AsyncResultType.UPDATE,
+            **kwargs,
         )
         return _get_update_result(result) if block else result
 
     @overload
+    @publicapi
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -489,10 +578,12 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> DeleteResult:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -500,9 +591,11 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.AsyncJob":
         ...  # pragma: no cover
 
+    @publicapi
     def delete(
         self,
         condition: Optional[Column] = None,
@@ -510,6 +603,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[DeleteResult, "snowflake.snowpark.AsyncJob"]:
         """
         Deletes rows in a Table and returns a :class:`DeleteResult`,
@@ -558,6 +652,25 @@ class Table(DataFrame):
                 condition is not None
             ), "condition should also be provided if source is provided"
 
+        kwargs = {}
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.table_delete, stmt)
+            self._set_ast_ref(ast.df)
+            if condition is not None:
+                build_expr_from_snowpark_column(ast.condition, condition)
+            if source is not None:
+                source._set_ast_ref(ast.source)
+            if statement_params is not None:
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
+            ast.block = block
+
+            self._session._ast_batch.eval(stmt)
+
+            # Flush AST and encode it as part of the query.
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+
         new_df = self._with_plan(
             TableDelete(
                 self.table_name,
@@ -565,17 +678,20 @@ class Table(DataFrame):
                 _disambiguate(self, source, create_join_type("left"), [])[1]._plan
                 if source
                 else None,
-            )
+            ),
+            _ast_stmt=stmt,
         )
         add_api_call(new_df, "Table.delete")
         result = new_df._internal_collect_with_tag(
             statement_params=statement_params,
             block=block,
             data_type=snowflake.snowpark.async_job._AsyncResultType.DELETE,
+            **kwargs,
         )
         return _get_delete_result(result) if block else result
 
     @overload
+    @publicapi
     def merge(
         self,
         source: DataFrame,
@@ -584,10 +700,12 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> MergeResult:
         ...  # pragma: no cover
 
     @overload
+    @publicapi
     def merge(
         self,
         source: DataFrame,
@@ -596,9 +714,11 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
+        _emit_ast: bool = True,
     ) -> "snowflake.snowpark.AsyncJob":
         ...  # pragma: no cover
 
+    @publicapi
     def merge(
         self,
         source: DataFrame,
@@ -607,6 +727,7 @@ class Table(DataFrame):
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        _emit_ast: bool = True,
     ) -> Union[MergeResult, "snowflake.snowpark.AsyncJob"]:
         """
         Merges this :class:`Table` with :class:`DataFrame` source on the specified
@@ -662,21 +783,101 @@ class Table(DataFrame):
                 )
             merge_exprs.append(c._clause)
 
+        kwargs = {}
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.table_merge, stmt)
+            self._set_ast_ref(ast.df)
+            source._set_ast_ref(ast.source)
+            build_expr_from_snowpark_column_or_python_val(ast.join_expr, join_expr)
+
+            for value in clauses:
+                if value is not None and value._clause is not None:
+                    matched_clause = ast.clauses.add()
+                    if isinstance(value, WhenMatchedClause):
+                        if isinstance(value._clause, UpdateMergeExpression):
+                            matched_clause.merge_update_when_matched_clause.Clear()
+                            assignments = value._clause._assignments
+                            if assignments is not None:
+                                for k, v in assignments.items():
+                                    t = (
+                                        matched_clause.merge_update_when_matched_clause.update_assignments.add()
+                                    )
+                                    build_expr_from_snowpark_column_or_python_val(
+                                        t._1, k
+                                    )
+                                    build_expr_from_snowpark_column_or_python_val(
+                                        t._2, v
+                                    )
+                            if value._condition is not None:
+                                build_expr_from_snowpark_column_or_python_val(
+                                    matched_clause.merge_update_when_matched_clause.condition,
+                                    value._condition,
+                                )
+                        elif isinstance(value._clause, DeleteMergeExpression):
+                            matched_clause.merge_delete_when_matched_clause.Clear()
+                            if value._condition is not None:
+                                build_expr_from_snowpark_column_or_python_val(
+                                    # build_expr_from_snowpark_column_or_python_val(
+                                    matched_clause.merge_delete_when_matched_clause.condition,
+                                    value._condition,
+                                )
+                    elif isinstance(value, WhenNotMatchedClause):
+                        if isinstance(value._clause, InsertMergeExpression):
+                            matched_clause.merge_insert_when_not_matched_clause.Clear()
+                            if value._clause._keys is not None:
+                                for k in value._clause._keys:
+                                    t = (
+                                        matched_clause.merge_insert_when_not_matched_clause.insert_keys.add()
+                                    )
+                                    build_expr_from_snowpark_column_or_python_val(t, k)
+                            if value._clause._values is not None:
+                                for v in value._clause._values:
+                                    t = (
+                                        matched_clause.merge_insert_when_not_matched_clause.insert_values.add()
+                                    )
+                                    build_expr_from_snowpark_column_or_python_val(t, v)
+                            if value._condition is not None:
+                                build_expr_from_snowpark_column_or_python_val(
+                                    matched_clause.merge_insert_when_not_matched_clause.condition,
+                                    value._condition,
+                                )
+                    else:
+                        raise TypeError(
+                            f"{type(value)} is not a valid type for merge clause AST."
+                        )
+
+            if statement_params is not None:
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
+            ast.block = block
+
+            self._session._ast_batch.eval(stmt)
+
+            # Flush AST and encode it as part of the query.
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+
         new_df = self._with_plan(
             TableMerge(
                 self.table_name,
                 _disambiguate(self, source, create_join_type("left"), [])[1]._plan,
                 join_expr._expression,
                 merge_exprs,
-            )
+            ),
+            _ast_stmt=stmt,
         )
         add_api_call(new_df, "Table.update")
         result = new_df._internal_collect_with_tag(
             statement_params=statement_params,
             block=block,
             data_type=snowflake.snowpark.async_job._AsyncResultType.MERGE,
+            **kwargs,
         )
-        if not block:
+
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        # Note that local testing mode is non-blocking regardless of block specified.
+        if not block and not isinstance(self._session._conn, MockServerConnection):
             result._inserted = inserted
             result._updated = updated
             result._deleted = deleted
@@ -691,18 +892,35 @@ class Table(DataFrame):
             else result
         )
 
-    def drop_table(self) -> None:
+    @publicapi
+    def drop_table(self, _emit_ast: bool = True) -> None:
         """Drops the table from the Snowflake database.
 
         Note that subsequent operations such as :meth:`DataFrame.select`, :meth:`DataFrame.collect` on this ``Table`` instance and the derived DataFrame will raise errors because the underlying
         table in the Snowflake database no longer exists.
         """
+
         from snowflake.snowpark.mock._connection import MockServerConnection
+
+        kwargs = {}
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.table_drop_table, stmt)
+            self._set_ast_ref(ast.df)
+            self._session._ast_batch.eval(stmt)
+
+            # Flush AST and encode it as part of the query.
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
         if isinstance(self._session._conn, MockServerConnection):
             # only mock connection has entity_registry
-            self._session._conn.entity_registry.drop_table(self.table_name)
+            self._session._conn.entity_registry.drop_table(
+                self.table_name,
+                **kwargs,
+            )
         else:
             self._session.sql(
-                f"drop table {self.table_name}"
-            )._internal_collect_with_tag_no_telemetry()
+                f"drop table {self.table_name}",
+                _ast_stmt=stmt,
+            )._internal_collect_with_tag_no_telemetry(**kwargs)

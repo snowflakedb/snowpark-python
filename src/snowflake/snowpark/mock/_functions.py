@@ -1,10 +1,12 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import base64
 import binascii
 import datetime
+import decimal
 import json
+import logging
 import math
 import numbers
 import operator
@@ -68,6 +70,8 @@ _DEFAULT_OUTPUT_FORMAT = {
     TimeType: "HH24:MI:SS",
     TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
 }
+
+_logger = logging.getLogger(__name__)
 
 
 class MockedFunction:
@@ -232,11 +236,17 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(
         column.sf_type.datatype, _NumericType
     ):  # TODO: figure out where 5 is coming from
-        return ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
-    res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
+        res = ColumnEmulator(data=round(column.min(), 5), sf_type=column.sf_type)
+    else:
+        res = ColumnEmulator(data=column.dropna().min(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
-            return ColumnEmulator(data=[None], sf_type=column.sf_type)
+            # If original column had na values then na is an expected output
+            column_has_na = (
+                column[column.apply(lambda x: x is not None)].isna().values.any()
+            )
+            if not column_has_na:
+                return ColumnEmulator(data=[None], sf_type=column.sf_type)
         return ColumnEmulator(data=res, sf_type=column.sf_type)
     except TypeError:  # math.isnan throws TypeError if res[0] is not a number
         return ColumnEmulator(data=res, sf_type=column.sf_type)
@@ -245,11 +255,17 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
 @patch("max")
 def mock_max(column: ColumnEmulator) -> ColumnEmulator:
     if isinstance(column.sf_type.datatype, _NumericType):
-        return ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
-    res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
+        res = ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
+    else:
+        res = ColumnEmulator(data=column.dropna().max(), sf_type=column.sf_type)
     try:
         if math.isnan(res[0]):
-            return ColumnEmulator(data=[None], sf_type=column.sf_type)
+            # If original column had na values then na is an expected output
+            column_has_na = (
+                column[column.apply(lambda x: x is not None)].isna().values.any()
+            )
+            if not column_has_na:
+                return ColumnEmulator(data=[None], sf_type=column.sf_type)
         return ColumnEmulator(data=res, sf_type=column.sf_type)
     except TypeError:
         return ColumnEmulator(data=res, sf_type=column.sf_type)
@@ -329,9 +345,83 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
     notna = column[~column.isna()]
     res = notna.mean()
+    if isinstance(res_type, DecimalType):
+        fmt_string = f"{{:.{res_type.scale}f}}"
+        res_formatted = fmt_string.format(res)
+        res = decimal.Decimal(res_formatted)
+    return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
+
+
+@patch("stddev")
+def mock_stddev(column: ColumnEmulator) -> ColumnEmulator:
+    if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
+        raise SnowparkLocalTestingException(
+            f"Cannot compute stddev on a column of type {column.sf_type.datatype}"
+        )
+
+    if isinstance(column.sf_type.datatype, NullType) or column.isna().all():
+        return ColumnEmulator(data=[None], sf_type=ColumnType(NullType(), True))
+    elif isinstance(column.sf_type.datatype, _IntegralType):
+        res_type = DecimalType(38, 6)
+    elif isinstance(column.sf_type.datatype, DecimalType):
+        precision, scale = (
+            column.sf_type.datatype.precision,
+            column.sf_type.datatype.scale,
+        )
+        precision = max(38, column.sf_type.datatype.precision + 12)
+        if scale <= 6:
+            scale = scale + 6
+        elif scale < 12:
+            scale = 12
+        res_type = DecimalType(precision, scale)
+    else:
+        assert isinstance(column.sf_type.datatype, _FractionalType)
+        res_type = FloatType()
+
+    notna = column[~column.isna()]
+    res = notna.std()
     if isinstance(res_type, Decimal):
         res = round(res, scale)
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
+
+
+@patch("approx_percentile_accumulate")
+def mock_approx_percentile_accumulate(
+    column: Union[TableEmulator, ColumnEmulator]
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("approx_percentile_estimate")
+def mock_approx_percentile_estimate(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("covar_samp")
+def mock_covar_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("corr")
+def mock_corr_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
 @patch("count_distinct")
@@ -368,7 +458,7 @@ def mock_median(column: ColumnEmulator) -> ColumnEmulator:
     else:
         return_type = column.sf_type.datatype
     return ColumnEmulator(
-        data=round(column.median(), 5),
+        data=round(column.median(), 5) if column.size else [None],
         sf_type=ColumnType(return_type, column.sf_type.nullable),
     )
 
@@ -406,6 +496,15 @@ def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
         data=[list(columns_data.dropna())],
         sf_type=ColumnType(ArrayType(), False),
     )
+
+
+@patch("array_construct")
+def mock_array_construct(*columns):
+    if len(columns) == 0:
+        data = [[]]
+    else:
+        data = pandas.concat(columns, axis=1).apply(lambda x: list(x), axis=1)
+    return ColumnEmulator(data, sf_type=ColumnType(ArrayType(), False))
 
 
 @patch("listagg")
@@ -558,6 +657,22 @@ def mock_current_time(column_index):
     now = datetime.datetime.now()
     return ColumnEmulator(
         data=[now.time()] * len(column_index), sf_type=ColumnType(TimeType(), False)
+    )
+
+
+@patch("hour")
+def mock_hour(expr):
+    return ColumnEmulator(
+        data=[None if value is None else value.hour for value in expr],
+        sf_type=ColumnType(LongType(), False),
+    )
+
+
+@patch("minute")
+def mock_minute(expr):
+    return ColumnEmulator(
+        data=[None if value is None else value.minute for value in expr],
+        sf_type=ColumnType(LongType(), False),
     )
 
 
@@ -829,7 +944,11 @@ def _to_timestamp(
 
     import dateutil.parser
 
-    fmt = [fmt] * len(column) if not isinstance(fmt, ColumnEmulator) else fmt
+    fmt = (
+        ColumnEmulator([fmt] * len(column), index=column.index)
+        if not isinstance(fmt, ColumnEmulator)
+        else fmt
+    )
 
     def convert_timestamp(row):
         _fmt = fmt[row.name]
@@ -983,6 +1102,7 @@ def mock_to_timestamp_ntz(
             TimestampType(TimestampTimeZone.NTZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 
@@ -1002,6 +1122,7 @@ def mock_to_timestamp_ltz(
             TimestampType(TimestampTimeZone.LTZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 
@@ -1019,6 +1140,7 @@ def mock_to_timestamp_tz(
             TimestampType(TimestampTimeZone.TZ), column.sf_type.nullable
         ),
         dtype=object,
+        index=column.index,
     )
 
 
@@ -1279,6 +1401,10 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
                 return x != 0
 
         new_col = column.apply(lambda x: try_convert(convert_num_to_bool, try_cast, x))
+        new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
+        return new_col
+    elif isinstance(column.sf_type.datatype, VariantType):
+        new_col = column.apply(lambda x: try_convert(bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
     elif isinstance(column.sf_type.datatype, VariantType):
@@ -1949,7 +2075,7 @@ def mock_get(
 ) -> ColumnEmulator:
     def get(obj, key):
         try:
-            if isinstance(obj, list):
+            if isinstance(obj, list) and key < len(obj):
                 return obj[key]
             elif isinstance(obj, dict):
                 return obj.get(key, None)
@@ -1992,7 +2118,7 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
                 "concat_ws expects a seperator column and one or more value column(s) to be passed in."
             )
         )
-    pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
+    pdf = pandas.concat(columns, axis=1)
     result = pdf.T.apply(
         lambda c: None
         if c.isnull().values.any()
@@ -2033,7 +2159,7 @@ def cast_column_to(
         target_data_type, _IntegralType
     ):  # includes ByteType, ShortType, IntegerType, LongType
         res = mock_to_decimal(col, try_cast=try_cast)
-        res.set_sf_type(ColumnType(target_data_type, nullable=True))
+        res.sf_type = ColumnType(target_data_type, nullable=True)
         return res
     if isinstance(target_data_type, BinaryType):
         return mock_to_binary(col, try_cast=try_cast)
@@ -2084,10 +2210,36 @@ def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator
 
 
 def _rank(raw_input, dense=False):
-    method = "dense" if dense else "min"
-    return (
-        raw_input[raw_input.sorted_by].apply(tuple, 1).rank(method=method).astype(int)
-    )
+    """
+    Returns a series containing the rank of a row within an ordered TableEmulator.
+    Args:
+        raw_input: The TableEmulator to apply the rank to.
+        dense: When dense is false ranks are skipped when there are repeated values. When set to true
+            ranks are not skipped. eg.
+            -----------------------------------
+            |"VALUE"  |"RANK"  |"DENSE_RANK"  |
+            -----------------------------------
+            |1        |1       |1             |
+            |1        |1       |1             |
+            |2        |3       |2             |
+            |3        |4       |3             |
+            -----------------------------------
+    """
+    final_values = []
+    rank = 0
+    index = 0
+    previous = None
+    for value in raw_input[raw_input.sorted_by].apply(tuple, 1):
+        index += 1
+        if value != previous:
+            if dense:
+                rank = rank + 1
+            else:
+                rank = index
+        previous = value
+        final_values.append(rank)
+
+    return pandas.Series(final_values, index=raw_input.index)
 
 
 @patch("rank", pass_input_data=True, pass_row_index=True)

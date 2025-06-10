@@ -38,6 +38,7 @@ Snowpark Session
       Session.append_query_tag
       Session.call
       Session.cancel_all
+      Session.catalog
       Session.clear_imports
       Session.clear_packages
       Session.close
@@ -46,6 +47,8 @@ Snowpark Session
       Session.create_dataframe
       Session.flatten
       Session.generator
+      Session.getActiveSession
+      Session.get_active_session
       Session.get_current_account
       Session.get_current_database
       Session.get_current_role

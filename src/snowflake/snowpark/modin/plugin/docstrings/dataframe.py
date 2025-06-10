@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This module contains DataFrame docstrings that override modin's docstrings."""
@@ -600,6 +600,7 @@ class DataFrame(BasePandasDataset):
         """
 
     def applymap():
+        # TODO SNOW-1818207 unskip tests once package resolution is fixed
         """
         Apply a function to a Dataframe elementwise.
 
@@ -713,7 +714,7 @@ class DataFrame(BasePandasDataset):
     agg = aggregate
 
     def apply():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
+        # TODO SNOW-1818207 unskip tests once package resolution is fixed
         """
         Apply a function along an axis of the DataFrame.
 
@@ -822,7 +823,7 @@ class DataFrame(BasePandasDataset):
 
         Using a reducing function on ``axis=1``:
 
-        >>> df.apply(np.sum, axis=1)  # doctest: +SKIP
+        >>> df.apply(np.sum, axis=1)
         0     2
         1    10
         2    13
@@ -830,7 +831,7 @@ class DataFrame(BasePandasDataset):
 
         Returning a list-like object will result in a Series:
 
-        >>> df.apply(lambda x: [1, 2], axis=1)  # doctest: +SKIP
+        >>> df.apply(lambda x: [1, 2], axis=1)
         0    [1, 2]
         1    [1, 2]
         2    [1, 2]
@@ -1023,7 +1024,6 @@ class DataFrame(BasePandasDataset):
         """
 
     def transform():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call ``func`` on self producing a Snowpark pandas DataFrame with the same axis shape as self.
 
@@ -1057,7 +1057,7 @@ class DataFrame(BasePandasDataset):
         0     1     3
         1     2     4
         2     3     5
-        >>> df.transform(lambda x: x + 1, axis=1)  # doctest: +SKIP
+        >>> df.transform(lambda x: x + 1, axis=1)
            col1  col2
         0     2     4
         1     3     5
@@ -1065,11 +1065,11 @@ class DataFrame(BasePandasDataset):
 
         Apply a numpy ufunc to every value in the DataFrame.
 
-        >>> df.transform(np.square, axis=1)  # doctest: +SKIP
+        >>> df.transform(np.square, axis=1)
            col1  col2
-        0     1     9
-        1     4    16
-        2     9    25
+        0   1.0   9.0
+        1   4.0  16.0
+        2   9.0  25.0
         """
 
     def transpose():
@@ -1469,7 +1469,7 @@ class DataFrame(BasePandasDataset):
         >>> exactly_equal
             1   2
         0  10  20
-        >>> df.equals(exactly_equal)
+        >>> df.equals(exactly_equal)  # doctest: +SKIP
         True
 
         DataFrames df and different_column_type have the same element
@@ -1480,7 +1480,7 @@ class DataFrame(BasePandasDataset):
         >>> different_column_type
            1.0  2.0
         0   10   20
-        >>> df.equals(different_column_type)
+        >>> df.equals(different_column_type)  # doctest: +SKIP
         True
 
         DataFrames df and different_data_type have different types for the
@@ -1491,7 +1491,7 @@ class DataFrame(BasePandasDataset):
         >>> different_data_type
               1     2
         0  10.0  20.0
-        >>> df.equals(different_data_type)
+        >>> df.equals(different_data_type)  # doctest: +SKIP
         False
         """
 
@@ -1684,12 +1684,151 @@ class DataFrame(BasePandasDataset):
     @classmethod
     def from_dict():
         """
-        Construct ``DataFrame`` from dict of array-like or dicts.
+        Construct DataFrame from dict of array-like or dicts.
+
+        Creates DataFrame object from dictionary by columns or by index allowing dtype specification.
+
+        Parameters
+        ----------
+        data : dict
+            Of the form {field : array-like} or {field : dict}.
+        orient : {‘columns’, ‘index’, ‘tight’}, default ‘columns’
+            The “orientation” of the data. If the keys of the passed dict should be the columns of the resulting DataFrame, pass ‘columns’ (default). Otherwise if the keys should be rows, pass ‘index’. If ‘tight’, assume a dict with keys [‘index’, ‘columns’, ‘data’, ‘index_names’, ‘column_names’].
+
+            Added in version 1.4.0: ‘tight’ as an allowed value for the orient argument
+
+        dtype : dtype, default None
+            Data type to force after DataFrame construction, otherwise infer.
+        columns : list, default None
+            Column labels to use when orient='index'. Raises a ValueError if used with orient='columns' or orient='tight'.
+
+        Returns
+        -------
+        DataFrame
+
+        See also
+        --------
+        DataFrame.from_records
+            DataFrame from structured ndarray, sequence of tuples or dicts, or DataFrame.
+        DataFrame
+            DataFrame object creation using constructor.
+        DataFrame.to_dict
+            Convert the DataFrame to a dictionary.
+
+        Examples
+        --------
+
+        By default the keys of the dict become the DataFrame columns:
+
+        >>> data = {'col_1': [3, 2, 1, 0], 'col_2': ['a', 'b', 'c', 'd']}
+        >>> pd.DataFrame.from_dict(data)
+           col_1 col_2
+        0      3     a
+        1      2     b
+        2      1     c
+        3      0     d
+
+        Specify orient='index' to create the DataFrame using dictionary keys as rows:
+
+        >>> data = {'row_1': [3, 2, 1, 0], 'row_2': ['a', 'b', 'c', 'd']}
+        >>> pd.DataFrame.from_dict(data, orient='index')
+               0  1  2  3
+        row_1  3  2  1  0
+        row_2  a  b  c  d
+
+        When using the ‘index’ orientation, the column names can be specified manually:
+
+        >>> pd.DataFrame.from_dict(data, orient='index',
+        ...                        columns=['A', 'B', 'C', 'D'])
+               A  B  C  D
+        row_1  3  2  1  0
+        row_2  a  b  c  d
+
+        Specify orient='tight' to create the DataFrame using a ‘tight’ format:
+
+        >>> data = {'index': [('a', 'b'), ('a', 'c')],
+        ...         'columns': [('x', 1), ('y', 2)],
+        ...         'data': [[1, 3], [2, 4]],
+        ...         'index_names': ['n1', 'n2'],
+        ...         'column_names': ['z1', 'z2']}
+        >>> pd.DataFrame.from_dict(data, orient='tight') # doctest: +NORMALIZE_WHITESPACE
+        z1     x  y
+        z2     1  2
+        n1 n2
+        a  b   1  3
+           c   2  4
         """
 
     def from_records():
         """
-        Convert structured or record ndarray to ``DataFrame``.
+        Convert structured or record ndarray to DataFrame.
+
+        Creates a DataFrame object from a structured ndarray, sequence of tuples or dicts, or DataFrame.
+
+        Parameters
+        ----------
+        data : structured ndarray, sequence of tuples or dicts, or DataFrame
+            Structured input data.
+
+            Deprecated since version 2.1.0: Passing a DataFrame is deprecated.
+
+        index : str, list of fields, array-like
+            Field of array to use as the index, alternately a specific set of input labels to use.
+        exclude : sequence, default None
+            Columns or fields to exclude.
+        columns : sequence, default None
+            Column names to use. If the passed data do not have names associated with them, this argument provides names for the columns. Otherwise this argument indicates the order of the columns in the result (any names not found in the data will become all-NA columns).
+        coerce_float : bool, default False
+            Attempt to convert values of non-string, non-numeric objects (like decimal.Decimal) to floating point, useful for SQL result sets.
+        nrows : int, default None
+            Number of rows to read if data is an iterator.
+
+        Returns
+        -------
+        DataFrame
+
+        See also
+        --------
+        DataFrame.from_dict
+            DataFrame from dict of array-like or dicts.
+        DataFrame
+            DataFrame object creation using constructor.
+
+        Examples
+        --------
+        Data can be provided as a structured ndarray:
+
+        >>> data = np.array([(3, 'a'), (2, 'b'), (1, 'c'), (0, 'd')],
+        ...                 dtype=[('col_1', 'i4'), ('col_2', 'U1')])
+        >>> pd.DataFrame.from_records(data)
+           col_1 col_2
+        0      3     a
+        1      2     b
+        2      1     c
+        3      0     d
+
+        Data can be provided as a list of dicts:
+
+        >>> data = [{'col_1': 3, 'col_2': 'a'},
+        ...         {'col_1': 2, 'col_2': 'b'},
+        ...         {'col_1': 1, 'col_2': 'c'},
+        ...         {'col_1': 0, 'col_2': 'd'}]
+        >>> pd.DataFrame.from_records(data)
+           col_1 col_2
+        0      3     a
+        1      2     b
+        2      1     c
+        3      0     d
+
+        Data can be provided as a list of tuples with corresponding columns:
+
+        >>> data = [(3, 'a'), (2, 'b'), (1, 'c'), (0, 'd')]
+        >>> pd.DataFrame.from_records(data, columns=['col_1', 'col_2'])
+           col_1 col_2
+        0      3     a
+        1      2     b
+        2      1     c
+        3      0     d
         """
 
     def ge():
@@ -1845,7 +1984,7 @@ class DataFrame(BasePandasDataset):
 
         Print the first row's index and the row as a Series.
         >>> index_and_row = next(df.iterrows())
-        >>> index_and_row
+        >>> index_and_row  # doctest: +SKIP
         (0, int      1.0
         float    1.5
         Name: 0, dtype: float64)
@@ -3982,7 +4121,7 @@ class DataFrame(BasePandasDataset):
 
         Squeezing all axes will project directly into a scalar:
 
-        >>> df_0a.squeeze()
+        >>> df_0a.squeeze()  # doctest: +SKIP
         1
         """
 
@@ -4067,6 +4206,124 @@ class DataFrame(BasePandasDataset):
     def to_html():
         """
         Render a ``DataFrame`` as an HTML table.
+
+        Parameters
+        ----------
+        buf : str, Path or StringIO-like, optional, default None
+            Buffer to write to. If None, the output is returned as a string.
+
+        columns : array-like, optional, default None
+            The subset of columns to write. Writes all columns by default.
+
+        col_space : str or int, list or dict of int or str, optional
+            The minimum width of each column in CSS length units. An int is assumed to be px units..
+
+        header : bool, optional
+            Whether to print column labels, default True.
+
+        index : bool, optional, default True
+            Whether to print index (row) labels.
+
+        na_rep : str, optional, default ‘NaN’
+            String representation of NaN to use.
+
+        formatters : list, tuple or dict of one-param. functions, optional
+            Formatter functions to apply to columns’ elements by position or name. The result of each function must be a unicode string. List/tuple must be of length equal to the number of columns.
+
+        float_format : one-parameter function, optional, default None
+            Formatter function to apply to columns’ elements if they are floats. This function must return a unicode string and will be applied only to the non-NaN elements, with NaN being handled by na_rep.
+
+        sparsify : bool, optional, default True
+            Set to False for a DataFrame with a hierarchical index to print every multiindex key at each row.
+
+        index_names : bool, optional, default True
+            Prints the names of the indexes.
+
+        justify : str, default None
+            How to justify the column labels. If None uses the option from the print configuration (controlled by set_option), ‘right’ out of the box. Valid values are
+            - left
+            - right
+            - center
+            - justify
+            - justify-all
+            - start
+            - end
+            - inherit
+            - match-parent
+            - initial
+            - unset.
+
+        max_rows : int, optional
+            Maximum number of rows to display in the console.
+
+        max_cols : int, optional
+            Maximum number of columns to display in the console.
+
+        show_dimensions : bool, default False
+            Display DataFrame dimensions (number of rows by number of columns).
+
+        decimal : str, default ‘.’
+            Character recognized as decimal separator, e.g. ‘,’ in Europe.
+
+        bold_rows : bool, default True
+            Make the row labels bold in the output.
+
+        classes : str or list or tuple, default None
+            CSS class(es) to apply to the resulting html table.
+
+        escape : bool, default True
+            Convert the characters <, >, and & to HTML-safe sequences.
+
+        notebook : {True, False}, default False
+            Whether the generated HTML is for IPython Notebook.
+
+        border : int
+            A border=border attribute is included in the opening <table> tag. Default pd.options.display.html.border.
+
+        table_id : str, optional
+            A css id is included in the opening <table> tag if specified.
+
+        render_links : bool, default False
+            Convert URLs to HTML links.
+
+        encoding : str, default “utf-8”
+            Set character encoding.
+
+        Returns
+        -------
+        str or None
+            If buf is None, returns the result as a string. Otherwise returns None.
+
+        See also
+        --------
+        to_string
+            Convert DataFrame to a string.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame(data={'col1': [1, 2], 'col2': [4, 3]})
+        >>> html_string = '''<table border="1" class="dataframe">
+        ...   <thead>
+        ...     <tr style="text-align: right;">
+        ...       <th></th>
+        ...       <th>col1</th>
+        ...       <th>col2</th>
+        ...     </tr>
+        ...   </thead>
+        ...   <tbody>
+        ...     <tr>
+        ...       <th>0</th>
+        ...       <td>1</td>
+        ...       <td>4</td>
+        ...     </tr>
+        ...     <tr>
+        ...       <th>1</th>
+        ...       <td>2</td>
+        ...       <td>3</td>
+        ...     </tr>
+        ...   </tbody>
+        ... </table>'''
+        >>> assert html_string == df.to_html()
         """
 
     def to_parquet():
@@ -4080,6 +4337,101 @@ class DataFrame(BasePandasDataset):
     def to_records():
         """
         Convert ``DataFrame`` to a NumPy record array.
+        """
+
+    def to_string():
+        """
+        Render a DataFrame to a console-friendly tabular output.
+
+        Parameters
+        ----------
+        buf : str, Path or StringIO-like, optional, default None
+            Buffer to write to. If None, the output is returned as a string.
+
+        columns : array-like, optional, default None
+            The subset of columns to write. Writes all columns by default.
+
+        col_space : int, list or dict of int, optional
+            The minimum width of each column. If a list of ints is given every integers corresponds with one column. If a dict is given, the key references the column, while the value defines the space to use..
+
+        header : bool or list of str, optional
+            Write out the column names. If a list of columns is given, it is assumed to be aliases for the column names.
+
+        index : bool, optional, default True
+            Whether to print index (row) labels.
+
+        na_rep : str, optional, default ‘NaN’
+            String representation of NaN to use.
+
+        formatters : list, tuple or dict of one-param. functions, optional
+            Formatter functions to apply to columns’ elements by position or name. The result of each function must be a unicode string. List/tuple must be of length equal to the number of columns.
+
+        float_format : one-parameter function, optional, default None
+            Formatter function to apply to columns’ elements if they are floats. This function must return a unicode string and will be applied only to the non-NaN elements, with NaN being handled by na_rep.
+
+        sparsify : bool, optional, default True
+            Set to False for a DataFrame with a hierarchical index to print every multiindex key at each row.
+
+        index_names : bool, optional, default True
+            Prints the names of the indexes.
+
+        justify : str, default None
+            How to justify the column labels. If None uses the option from the print configuration (controlled by set_option), ‘right’ out of the box. Valid values are
+            - left
+            - right
+            - center
+            - justify
+            - justify-all
+            - start
+            - end
+            - inherit
+            - match-parent
+            - initial
+            - unset.
+
+        max_rows : int, optional
+            Maximum number of rows to display in the console.
+
+        max_cols : int, optional
+            Maximum number of columns to display in the console.
+
+        show_dimensions : bool, default False
+            Display DataFrame dimensions (number of rows by number of columns).
+
+        decimal : str, default ‘.’
+            Character recognized as decimal separator, e.g. ‘,’ in Europe.
+
+        line_width : int, optional
+            Width to wrap a line in characters.
+
+        min_rows : int, optional
+            The number of rows to display in the console in a truncated repr (when number of rows is above max_rows).
+
+        max_colwidth : int, optional
+            Max width to truncate each column in characters. By default, no limit.
+
+        encoding : str, default “utf-8”
+            Set character encoding.
+
+        Returns
+        -------
+        str or None
+            If buf is None, returns the result as a string. Otherwise returns None.
+
+        See also
+        --------
+        to_html
+            Convert DataFrame to HTML.
+
+        Examples
+        --------
+        >>> d = {'col1': [1, 2, 3], 'col2': [4, 5, 6]}
+        >>> df = pd.DataFrame(d)
+        >>> print(df.to_string())
+           col1  col2
+        0     1     4
+        1     2     5
+        2     3     6
         """
 
     def to_stata():
@@ -4164,7 +4516,7 @@ class DataFrame(BasePandasDataset):
         You can also specify the mapping type.
 
         >>> from collections import OrderedDict, defaultdict
-        >>> df.to_dict(into=OrderedDict)  # doctest: +NORMALIZE_WHITESPACE
+        >>> df.to_dict(into=OrderedDict)  # doctest: +SKIP
         OrderedDict([('col1', OrderedDict([('row1', 1), ('row2', 2)])),
                      ('col2', OrderedDict([('row1', 0.5), ('row2', 0.75)]))])
 
@@ -4677,7 +5029,77 @@ class DataFrame(BasePandasDataset):
 
     def map():
         """
-        Apply a function to the `DataFrame` elementwise.
+        Apply a function to a Dataframe elementwise.
+
+        Added in version 2.1.0: DataFrame.applymap was deprecated and renamed to DataFrame.map.
+
+        This method applies a function that accepts and returns a scalar to every element of a DataFrame.
+
+        Parameters
+        ----------
+        func : callable
+            Python function, returns a single value from a single value.
+        na_action : {None, ‘ignore’}, default None
+            If ‘ignore’, propagate NaN values, without passing them to func.
+        **kwargs
+            Additional keyword arguments to pass as keywords arguments to func.
+
+        Returns
+        -------
+        DataFrame
+            Transformed DataFrame.
+
+        See also
+        --------
+        DataFrame.apply
+            Apply a function along input axis of DataFrame.
+        DataFrame.replace
+            Replace values given in to_replace with value.
+        Series.map
+            Apply a function elementwise on a Series.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([[1, 2.12], [3.356, 4.567]])
+        >>> df
+               0      1
+        0  1.000  2.120
+        1  3.356  4.567
+
+        >>> df.map(lambda x: len(str(x)))
+           0  1
+        0  3  4
+        1  5  5
+
+        Like Series.map, NA values can be ignored:
+
+        >>> df_copy = df.copy()
+        >>> df_copy.iloc[0, 0] = pd.NA
+        >>> df_copy.map(lambda x: len(str(x)), na_action='ignore')  # doctest: +SKIP
+             0  1
+        0  NaN  4
+        1  5.0  5
+
+        It is also possible to use map with functions that are not lambda functions:
+
+        >>> df.map(round, ndigits=1)
+             0    1
+        0  1.0  2.1
+        1  3.4  4.6
+
+        Note that a vectorized version of func often exists, which will be much faster. You could square each number elementwise.
+
+        >>> df.map(lambda x: x**2)
+                   0          1
+        0   1.000000   4.494400
+        1  11.262736  20.857489
+
+        But it’s better to avoid map in that case.
+
+        >>> df ** 2
+                   0          1
+        0   1.000000   4.494400
+        1  11.262736  20.857489
         """
 
     def mask():
@@ -5097,9 +5519,19 @@ class DataFrame(BasePandasDataset):
 
     def __dataframe__():
         """
-        Get a Modin DataFrame that implements the dataframe exchange protocol.
+        Get an object that implements the dataframe interchange protocol for this dataframe.
 
         See more about the protocol in https://data-apis.org/dataframe-protocol/latest/index.html.
+
+        Like `DataFrame.to_pandas`, this method this methods triggers a query
+        evaluation and pulls data to the local machine.
+
+        If this dataframe has columns of `Timedelta` type or columns containing
+        list objects, the interchange dataframe that this method returns will
+        raise `NotImplementedError` if you try to check those columns'
+        datatypes, to e.g. convert the interchange dataframe to pandas with
+        `pandas.api.interchange.from_dataframe`. This limitation comes from
+        pandas itself.
 
         Parameters
         ----------

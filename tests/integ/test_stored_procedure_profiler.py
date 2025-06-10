@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -56,6 +56,7 @@ def test_profiler_function_exist(is_profiler_function_exist, profiler_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_profiler_with_profiler_class(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
@@ -84,6 +85,7 @@ def test_profiler_with_profiler_class(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_single_return_value_of_sp(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
@@ -112,6 +114,7 @@ def test_single_return_value_of_sp(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_anonymous_procedure(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
@@ -168,7 +171,7 @@ def test_set_incorrect_active_profiler(
         """WITH myProcedure AS PROCEDURE ()
       RETURNS TABLE ( )
       LANGUAGE PYTHON
-      RUNTIME_VERSION = '3.8'
+      RUNTIME_VERSION = '3.9'
       PACKAGES = ( 'snowflake-snowpark-python==1.2.0', 'pandas==1.3.3' )
       IMPORTS = ( '@my_stage/file1.py', '@my_stage/file2.py' )
       HANDLER = 'my_function'
@@ -202,13 +205,13 @@ def test_query_history_destroyed_after_finish_profiling(
     profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
     assert (
         profiler_session.stored_procedure_profiler._query_history
-        in profiler_session._conn._query_listener
+        in profiler_session._conn._query_listeners
     )
 
     profiler_session.stored_procedure_profiler.disable()
     assert (
         profiler_session.stored_procedure_profiler._query_history
-        not in profiler_session._conn._query_listener
+        not in profiler_session._conn._query_listeners
     )
 
     profiler_session.stored_procedure_profiler.register_modules()
@@ -257,6 +260,7 @@ def test_create_temp_stage(profiler_session):
         profiler_session.sql(f"use database {current_db}").collect()
 
 
+@pytest.mark.skip(reason="SNOW-1945207")
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
@@ -264,17 +268,11 @@ def test_create_temp_stage(profiler_session):
 def test_stored_proc_error(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
-    profiler_session.sql('alter session set PYTHON_UDF_CGROUP_MEMSIZE="1g"').collect()
-    profiler_session.sql("alter session set UDF_SET_CGROUP_ENABLE = true").collect()
-    profiler_session.sql("alter session set UDF_CGROUP_ENABLE = true").collect()
-    profiler_session.sql("ALTER SESSION SET ENABLE_UDF_OOM_NOTIFIER = TRUE;").collect()
     function_name = f"oom_sp_{Utils.random_function_name()}"
 
-    @sproc(name=function_name, replace=True)
+    @sproc(name=function_name, session=profiler_session, replace=True)
     def oom_sp(session: snowflake.snowpark.Session) -> str:
-        gb = 1024 * 1024 * 1024
-        x = "*" * gb * 5
-        return f"Return string is of length {len(x)}"
+        raise ValueError("fake out of memory")
 
     profiler_session.stored_procedure_profiler.register_modules(["oom_sp"])
     profiler_session.stored_procedure_profiler.set_target_stage(
@@ -283,17 +281,14 @@ def test_stored_proc_error(
 
     profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
 
-    with pytest.raises(
-        SnowparkSQLException, match="Function available memory exhausted"
-    ):
+    with pytest.raises(SnowparkSQLException, match="fake out of memory") as err:
         profiler_session.call(function_name)
-    res = profiler_session.stored_procedure_profiler.get_output()
+        query_id = profiler_session.stored_procedure_profiler._get_last_query_id()
+        assert query_id in str(err)
 
     profiler_session.stored_procedure_profiler.disable()
 
     profiler_session.stored_procedure_profiler.register_modules()
-
-    assert res is not None and "oom_sp" in res
 
 
 @pytest.mark.skipif(

@@ -1,4 +1,8 @@
 #
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
+#
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import json
@@ -10,14 +14,12 @@ from typing import Optional
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
-from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
+from snowflake.snowpark.column import CaseExpr
 from snowflake.snowpark.functions import (
     cast,
-    coalesce,
     col,
     get,
     get_path,
-    is_null,
     lit,
     object_construct,
     parse_json,
@@ -33,7 +35,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     append_columns,
     generate_column_identifier_random,
     pandas_lit,
-    unquote_name_if_quoted,
 )
 from snowflake.snowpark.types import ArrayType, MapType, StringType, VariantType
 
@@ -49,8 +50,6 @@ UNPIVOT_OBJ_NAME_COLUMN = "UNPIVOT_OBJ_NAME"
 
 VALUE_COLUMN_FOR_SINGLE_ROW = '\'{"0":"NULL","row":0}\''
 ROW_KEY = "row"
-# the value used to replace the NULL for unpivot columns
-UNPIVOT_NULL_REPLACE_VALUE = "NULL_REPLACE"
 UNPIVOT_ORDERING_COLUMN_PREFIX = "UNPIVOT_ORDERING_"
 UNPIVOT_SINGLE_INDEX_PREFIX = "UNPIVOT_SINGLE_INDEX"
 
@@ -368,13 +367,7 @@ def _prepare_unpivot_internal(
             json.dumps([i, pandas_label, generate_column_identifier_random()])
         )
         normalize_unpivot_select_list.append(
-            # Replace NULLs in the column with value UNPIVOT_NULL_REPLACE_VALUE. The column is cast to
-            # variant column first, so that we can replace NULLs with a value without considering the column
-            # data type.
-            coalesce(
-                to_variant(snowflake_quoted_identifier),
-                to_variant(pandas_lit(UNPIVOT_NULL_REPLACE_VALUE)),
-            ).as_(serialized_name)
+            to_variant(snowflake_quoted_identifier).as_(serialized_name)
         )
         unpivot_columns.append(serialized_name)
 
@@ -387,8 +380,8 @@ def _prepare_unpivot_internal(
     #                              UNPIVOT_IDX [0, "abc", "sxi8"]     [1, "123", "uhkz"]   abc  123 state
     # 0   {"0":"one","1":"there","row":-1}                "A"  1.000000000000000e+00     A  1.0    CA
     # 1    {"0":"one","1":"there","row":0}                "A"  1.000000000000000e+00     A  1.0    CA
-    # 2       {"0":"two","1":"be","row":1}                "B"         "NULL_REPLACE"     B  NaN    WA
-    # 3  {"0":"two","1":"dragons","row":2}     "NULL_REPLACE"  3.000000000000000e+00  None  3.0    NY
+    # 2       {"0":"two","1":"be","row":1}                "B"                   None     B  NaN    WA
+    # 3  {"0":"two","1":"dragons","row":2}               None  3.000000000000000e+00  None  3.0    NY
 
     # STEP 2) Perform an unpivot which flattens the original data columns into a single name and value rows
     # grouped by the temporary transpose index column.  In the earlier example, this would flatten the non-index
@@ -419,37 +412,14 @@ def _prepare_unpivot_internal(
     # 2    {"0":"one","1":"there","row":0}     A  1.0    CA  [0, "abc", "sxi8"]                    "A"
     # 3    {"0":"one","1":"there","row":0}     A  1.0    CA  [1, "123", "uhkz"]  1.000000000000000e+00
     # 4       {"0":"two","1":"be","row":1}     B  NaN    WA  [0, "abc", "sxi8"]                    "B"
-    # 5       {"0":"two","1":"be","row":1}     B  NaN    WA  [1, "123", "uhkz"]         "NULL_REPLACE"
-    # 6  {"0":"two","1":"dragons","row":2}  None  3.0    NY  [0, "abc", "sxi8"]         "NULL_REPLACE"
+    # 5       {"0":"two","1":"be","row":1}     B  NaN    WA  [1, "123", "uhkz"]                   None
+    # 6  {"0":"two","1":"dragons","row":2}  None  3.0    NY  [0, "abc", "sxi8"]                   None
     # 7  {"0":"two","1":"dragons","row":2}  None  3.0    NY  [1, "123", "uhkz"]  3.000000000000000e+00
     assert (
         len(original_frame.data_column_snowflake_quoted_identifiers) > 0
     ), "no data column to unpivot"
 
-    # Replace the null value back by checking if the value in the origin data column is null and also the
-    # unpivot name column value is original data column name.
-    case_conditions: list[SnowparkColumn] = []
-    for origin_data_column, serialized_name in zip(
-        original_frame.data_column_snowflake_quoted_identifiers, unpivot_columns
-    ):
-        unquoted_serialized_name = unquote_name_if_quoted(serialized_name)
-        case_conditions.append(
-            (
-                col(unpivot_value_quoted_snowflake_identifier)
-                == pandas_lit(UNPIVOT_NULL_REPLACE_VALUE)
-            )
-            & is_null(origin_data_column)
-            & (
-                col(unpivot_name_quoted_snowflake_identifier)
-                == pandas_lit(unquoted_serialized_name)
-            )
-        )
-    case_expr: CaseExpr = when(case_conditions[0], pandas_lit(None))
-    for case_condition in case_conditions[1:]:
-        case_expr = case_expr.when(case_condition, pandas_lit(None))
-
-    # add otherwise clause
-    case_column = case_expr.otherwise(col(unpivot_value_quoted_snowflake_identifier))
+    case_column = col(unpivot_value_quoted_snowflake_identifier)
     unpivot_value_column = (
         value_column_name
         if not is_single_row
@@ -674,9 +644,9 @@ def clean_up_unpivot(
     #       L1         L2 col_ordermg7c row_orderiq3v independent              dependent                        UNPIVOT_IDX   abc  123 state    UNPIVOT_VARIABLE          UNPIVOT_VALUE  __row_position__
     # 0  "one"    "there"             0             0       "abc"                    "A"    {"0":"one","1":"there","row":0}     A  1.0    CA  [0, "abc", "z851"]                    "A"                 0
     # 1  "two"       "be"             0             1       "abc"                    "B"       {"0":"two","1":"be","row":1}     B  NaN    WA  [0, "abc", "z851"]                    "B"                 1
-    # 2  "two"  "dragons"             0             2       "abc"                   None  {"0":"two","1":"dragons","row":2}  None  3.0    NY  [0, "abc", "z851"]         "NULL_REPLACE"                 2
+    # 2  "two"  "dragons"             0             2       "abc"                   None  {"0":"two","1":"dragons","row":2}  None  3.0    NY  [0, "abc", "z851"]                   None                 2
     # 3  "one"    "there"             1             0       "123"  1.000000000000000e+00    {"0":"one","1":"there","row":0}     A  1.0    CA  [1, "123", "kuxa"]  1.000000000000000e+00                 3
-    # 4  "two"       "be"             1             1       "123"                   None       {"0":"two","1":"be","row":1}     B  NaN    WA  [1, "123", "kuxa"]         "NULL_REPLACE"                 4
+    # 4  "two"       "be"             1             1       "123"                   None       {"0":"two","1":"be","row":1}     B  NaN    WA  [1, "123", "kuxa"]                   None                 4
     # 5  "two"  "dragons"             1             2       "123"  3.000000000000000e+00  {"0":"two","1":"dragons","row":2}  None  3.0    NY  [1, "123", "kuxa"]  3.000000000000000e+00                 5
     return new_internal_frame
 
@@ -783,7 +753,6 @@ def _simple_unpivot(
 
     suffix_to_unpivot_map: dict[str, str] = {}
     cast_suffix = generate_column_identifier_random()
-    null_replace_value = UNPIVOT_NULL_REPLACE_VALUE + "_" + cast_suffix
 
     for c in unpivot_quoted_columns:
         # Rename the columns to unpivot
@@ -793,12 +762,8 @@ def _simple_unpivot(
                 pandas_labels=[unquoted_col_name],
             )[0]
         )
-        # coalesce the values to unpivot and preserve null values This code
-        # can be removed when UNPIVOT_INCLUDE_NULLS is enabled
         unpivot_columns_normalized_types.append(
-            coalesce(to_variant(c), to_variant(pandas_lit(null_replace_value))).alias(
-                renamed_quoted_unpivot_col
-            )
+            to_variant(c).alias(renamed_quoted_unpivot_col)
         )
         renamed_quoted_unpivot_cols.append(renamed_quoted_unpivot_col)
         # create the column name mapper which is passed to unpivot
@@ -813,8 +778,8 @@ def _simple_unpivot(
     ##################################################
     #               abc_tavu             123_tavu
     # 0                  "A"                  "1"
-    # 1  "NULL_REPLACE_tavu"                  "2"
-    # 2                  "C"  "NULL_REPLACE_tavu"
+    # 1                 None                  "2"
+    # 2                  "C"                 None
 
     # Perform the unpivot
     ordered_dataframe = ordered_dataframe.unpivot(
@@ -830,24 +795,18 @@ def _simple_unpivot(
     #      variable                value
     # 0      123                  "1"
     # 1      123                  "2"
-    # 2      123  "NULL_REPLACE_tavu"
+    # 2      123                 None
     # 3      abc                  "A"
     # 4      abc                  "C"
-    # 5      abc  "NULL_REPLACE_tavu"
+    # 5      abc                 None
 
     corrected_value_column_name = (
         ordered_dataframe.generate_snowflake_quoted_identifiers(
             pandas_labels=["corrected_value_" + generate_column_identifier_random()],
         )[0]
     )
-    corrected_null_replace_case_expr: CaseExpr = when(
-        (col(value_quoted) == pandas_lit(null_replace_value)), pandas_lit(None)
-    )
 
-    # add otherwise clause to complete the normalization of values
-    corrected_null_replace_column = corrected_null_replace_case_expr.otherwise(
-        col(value_quoted)
-    ).alias(corrected_value_column_name)
+    value_column = col(value_quoted).alias(corrected_value_column_name)
 
     # Reorder the resulting expression to match pandas based on the original column order,
     # which is now in the "variable" column
@@ -855,7 +814,7 @@ def _simple_unpivot(
         ordered_dataframe._get_active_column_snowflake_quoted_identifiers()
     )
     ordered_dataframe = ordered_dataframe.select(
-        *unpivoted_columns, ordering_column_case_expr, corrected_null_replace_column
+        *unpivoted_columns, ordering_column_case_expr, value_column
     ).sort(OrderingColumn(ordering_column_name))
     ordered_dataframe = ordered_dataframe.ensure_row_position_column()
 
@@ -864,11 +823,11 @@ def _simple_unpivot(
     ###########################################################################################
     #   variable                value  UNPIVOT_ORDERING_ corrected_value_8ofo  __row_position__
     # 0      abc                  "A"                  0                  "A"                 0
-    # 1      abc  "NULL_REPLACE_tavu"                  0                 None                 1
+    # 1      abc                 None                  0                 None                 1
     # 2      abc                  "C"                  0                  "C"                 2
     # 3      123                  "1"                  1                  "1"                 3
     # 4      123                  "2"                  1                  "2"                 4
-    # 5      123  "NULL_REPLACE_tavu"                  1                 None                 5
+    # 5      123                 None                  1                 None                 5
 
     final_pandas_labels = id_col_names + [pandas_var_name, pandas_value_name]
 

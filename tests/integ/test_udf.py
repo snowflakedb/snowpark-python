@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -9,6 +9,9 @@ import json
 import logging
 import math
 import os
+import re
+import sys
+from textwrap import dedent
 from typing import Callable
 
 import pytest
@@ -46,6 +49,7 @@ from typing import Dict, List, Optional, Union
 
 from snowflake.connector.version import VERSION as SNOWFLAKE_CONNECTOR_VERSION
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
@@ -1277,11 +1281,11 @@ def test_udf_negative(session, local_testing_mode):
     assert "Invalid function: not a function or callable" in str(ex_info)
 
     # if return_type is specified, it must be passed passed with keyword argument
-    with pytest.raises(TypeError) as ex_info:
+    with pytest.raises(
+        TypeError,
+        match=re.escape("udf() takes from 0 to 1 positional arguments but 2") + ".*",
+    ):
         udf(f, IntegerType())
-    assert "udf() takes from 0 to 1 positional arguments but 2 were given" in str(
-        ex_info
-    )
 
     udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
@@ -1294,11 +1298,11 @@ def test_udf_negative(session, local_testing_mode):
     if not local_testing_mode:
         with pytest.raises(SnowparkSQLException) as ex_info:
             session.sql("select f(1)").collect()
-        assert "Unknown function" in str(ex_info)
+        assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df1.select(call_udf("f", "x")).collect()
-    assert "Unknown function" in str(ex_info)
+    assert "Unknown function" in str(ex_info.value)
 
     with pytest.raises(SnowparkInvalidObjectNameException) as ex_info:
         udf(
@@ -1307,7 +1311,7 @@ def test_udf_negative(session, local_testing_mode):
             input_types=[IntegerType()],
             name="invalid name",
         )
-    assert "The object name 'invalid name' is invalid" in str(ex_info)
+    assert "The object name 'invalid name' is invalid" in str(ex_info.value)
 
     # incorrect data type
     udf2 = udf(lambda x: int(x), return_type=IntegerType(), input_types=[IntegerType()])
@@ -1315,13 +1319,13 @@ def test_udf_negative(session, local_testing_mode):
         df1.select(udf2("x")).collect()
     assert (
         local_testing_mode
-        or "Numeric value" in str(ex_info)
-        and "is not recognized" in str(ex_info)
+        or "Numeric value" in str(ex_info.value)
+        and "is not recognized" in str(ex_info.value)
     )
     df2 = session.create_dataframe([1, None]).to_df("x")
     with pytest.raises(SnowparkSQLException) as ex_info:
         df2.select(udf2("x")).collect()
-    assert "Python Interpreter Error" in str(ex_info)
+    assert "Python Interpreter Error" in str(ex_info.value)
 
     with pytest.raises(TypeError) as ex_info:
 
@@ -1641,7 +1645,7 @@ def test_udf_replace(session):
             input_types=[IntegerType(), IntegerType()],
             replace=False,
         )
-    assert "SQL compilation error" in str(ex_info)
+    assert "SQL compilation error" in str(ex_info.value)
 
     # Expect second UDF version to still be there.
     Utils.check_answer(
@@ -2804,3 +2808,130 @@ def test_access_snowflake_import_directory(session, resources_path):
 
     # clean
     session.clear_imports()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_register_artifact_repository(session):
+    def test_urllib() -> str:
+        import urllib3
+
+        return str(urllib3.exceptions.HTTPError("test"))
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+
+    try:
+        # Test function registration
+        udf(
+            func=test_urllib,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests", "cloudpickle"],
+        )
+
+        # Test UDF call
+        df = session.create_dataframe([1]).to_df(["a"])
+        Utils.check_answer(df.select(call_udf(temp_func_name)), [Row("test")])
+    finally:
+        session._run_query(f"drop function if exists {temp_func_name}(int)")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stored proc env does not have permissions to look up warehouse details",
+)
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_register_artifact_repository_negative(session):
+    def test_nop() -> str:
+        pass
+
+    temp_func_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
+    with pytest.raises(Exception, match="Unknown resource constraint key"):
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests"],
+            resource_constraint={"cpu": "x86"},
+        )
+
+    with pytest.raises(
+        Exception, match="Unknown value 'risc-v' for key 'architecture'"
+    ):
+        udf(
+            func=test_nop,
+            name=temp_func_name,
+            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+            packages=["urllib3", "requests"],
+            resource_constraint={"architecture": "risc-v"},
+        )
+
+    warehouse_info = (
+        session.sql(
+            f"show warehouses like '{unquote_if_quoted(session.get_current_warehouse())}'"
+        )
+        .select('"is_current"', '"resource_constraint"')
+        .collect()
+    )
+    active, resource_constraint = warehouse_info[0]
+
+    # Only test error case on ARM warehouse. X86 warehouse will have a resource constraint
+    if len(warehouse_info) == 1 and active == "Y" and resource_constraint is None:
+        try:
+            udf(
+                func=test_nop,
+                name=temp_func_name,
+                artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+                packages=["urllib3", "requests"],
+                resource_constraint={"architecture": "x86"},
+            )
+        except SnowparkSQLException as ex:
+            assert "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
+            ) or "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
+            )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udf_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import urllib3
+    def test_urllib() -> str:
+        import urllib3
+
+        return str(urllib3.exceptions.HTTPError("test"))
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_udf.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    ar_udf = session.udf.register_from_file(
+        file_path,
+        "test_urllib",
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        packages=["urllib3", "requests"],
+    )
+    df = session.create_dataframe([1]).to_df(["a"])
+    Utils.check_answer(df.select(ar_udf()), [Row("test")])

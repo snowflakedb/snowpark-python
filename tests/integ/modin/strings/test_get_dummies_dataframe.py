@@ -1,6 +1,8 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import re
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -38,9 +40,7 @@ def test_get_dummies_madeup(simple_pandas_df, prefix, prefix_sep):
         snow_df, columns=["COL_1"], prefix=prefix, prefix_sep=prefix_sep
     )
 
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 @sql_count_checker(query_count=1)
@@ -53,9 +53,7 @@ def test_get_dummies_prefix_and_column_same(simple_pandas_df):
 
     snow_get_dummies = pd.get_dummies(snow_df, columns=["COL_1"], prefix="COL_1")
 
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 @sql_count_checker(query_count=1)
@@ -66,9 +64,7 @@ def test_get_dummies_no_prefix_column(simple_pandas_df):
 
     snow_get_dummies = pd.get_dummies(snow_df)
 
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 @sql_count_checker(query_count=1)
@@ -88,9 +84,7 @@ def test_get_dummies_with_numeric_column_names(prefix, prefix_sep):
         snow_df, columns=[1], prefix=prefix, prefix_sep=prefix_sep
     )
 
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 @sql_count_checker(query_count=1, join_count=1)
@@ -111,9 +105,7 @@ def test_get_dummies_pandas(prefix_sep):
         snow_df, prefix=["col1", "col2"], prefix_sep=prefix_sep
     )
 
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 @pytest.mark.parametrize("sort_column", ["A", "C", "D"])
@@ -147,9 +139,7 @@ def test_get_dummies_pandas_no_row_pos_col(sort_column):
         prefix_sep="/",
     )
 
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 @pytest.mark.parametrize("sort_column", ["A", "C"])
@@ -179,9 +169,7 @@ def test_get_dummies_pandas_no_row_pos_col_duplicate_values(sort_column):
         prefix_sep="/",
     )
 
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 @sql_count_checker(query_count=1, join_count=2)
@@ -210,9 +198,7 @@ def test_get_dummies_multiple_columns():
         prefix=["colA", "colB", "colD"],
         prefix_sep="_",
     )
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 # https://snowflakecomputing.atlassian.net/browse/SNOW-1050112
@@ -232,6 +218,9 @@ def test_get_dummies_pandas_after_read_snowflake(session):
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     snowpark_df.write.save_as_table(table_name, table_type="temp")
     snow_df = pd.read_snowflake(table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    snow_df = snow_df.sort_values(snow_df.columns.to_list())
+    pandas_df = pandas_df.sort_values(pandas_df.columns.to_list())
 
     assert (
         snow_df._query_compiler._modin_frame.index_column_snowflake_quoted_identifiers
@@ -252,9 +241,9 @@ def test_get_dummies_pandas_after_read_snowflake(session):
         prefix_sep="/",
     )
 
-    assert_snowpark_pandas_equal_to_pandas(
-        snow_get_dummies, pandas_get_dummies, check_dtype=False
-    )
+    # The column D is of type int8 in snowpark and int64 in pandas.
+    pandas_get_dummies["D"] = pandas_get_dummies["D"].astype(np.int8)
+    assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
 @sql_count_checker(query_count=0)
@@ -289,3 +278,63 @@ def test_get_dummies_pandas_negative_duplicated_columns():
             columns=["A"],
             prefix=["col1", "col2"],
         )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.parametrize("kwargs", [{"dummy_na": False}, {}])
+@pytest.mark.parametrize(
+    "data", [["a", "a", None, "c"], ["a", "a", "c", "c"], ["a", "NULL"], [None, "NULL"]]
+)
+def test_get_dummies_null_values(kwargs, data):
+    df = native_pd.DataFrame({"col1": data, "col2": data})
+    expected = native_pd.get_dummies(df, **kwargs)
+    actual = pd.get_dummies(pd.DataFrame(df), **kwargs)
+    assert_snowpark_pandas_equal_to_pandas(actual, expected)
+
+
+@sql_count_checker(query_count=1)
+def test_get_dummies_with_duplicate_column_names():
+    # Bug fix for SNOW-1945131: get_dummies fails when pivot column names are duplicated
+    # due to same value being present in both the columns.
+    native_df = native_pd.DataFrame(
+        {"col1": ["a", "b", "b"], "col2": ["a", "b", None], "col3": ["b", None, None]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    for col in native_df.columns:
+        snow_df = pd.get_dummies(snow_df, columns=[col])
+        native_df = native_pd.get_dummies(native_df, columns=[col])
+    assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
+
+
+@sql_count_checker(query_count=1)
+def test_get_dummies_exclude_columns():
+    native_df = native_pd.DataFrame({"col1": ["a", "b", "b"], "col2": ["a", "b", None]})
+    snow_df = pd.DataFrame(native_df)
+    snow_df = pd.get_dummies(snow_df, columns=["col2"])
+    native_df = native_pd.get_dummies(native_df, columns=["col2"])
+    assert_snowpark_pandas_equal_to_pandas(snow_df, native_df)
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "columns, prefix",
+    [
+        (["A", "B"], ["p1"]),
+        (["A", "B"], ["p1", "p1", "p3"]),
+        (["A", "B"], []),
+        (None, []),
+        (None, ["p1"]),
+    ],
+)
+def test_get_dummies_prefix_length_mismatch_negative(columns, prefix):
+    native_df = native_pd.DataFrame({"A": ["a", "b", "b"], "B": ["a", "b", None]})
+    col_len = 2 if columns is None else len(columns)
+    error_msg = re.escape(
+        f"Length of 'prefix' ({len(prefix)}) did not match the length of the columns being encoded ({col_len})."
+    )
+    with pytest.raises(ValueError, match=error_msg):
+        native_pd.get_dummies(native_df, columns=columns, prefix=prefix)
+
+    snow_df = pd.DataFrame(native_df)
+    with pytest.raises(ValueError, match=error_msg):
+        pd.get_dummies(snow_df, columns=columns, prefix=prefix)

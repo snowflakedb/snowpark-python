@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -24,6 +24,7 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col, lit, table_function
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType, LongType
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.utils import IS_IN_STORED_PROC, Utils
 
 if sys.version_info <= (3, 9):
@@ -309,11 +310,11 @@ def test_create_scoped_temp_table(session):
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
         inner_select_sql = (
-            f" SELECT  *  FROM {table_name}"
+            f" SELECT * FROM {table_name}"
             if session._sql_simplifier_enabled
-            else f" SELECT  *  FROM ({table_name})"
+            else f" SELECT * FROM ({table_name})"
         )
-        assert (
+        assert Utils.normalize_sql(
             session._plan_builder.save_as_table(
                 table_name=[temp_table_name],
                 column_names=None,
@@ -334,7 +335,8 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ({inner_select_sql})"
+        ) == Utils.normalize_sql(
+            f"CREATE TEMPORARY TABLE {temp_table_name} AS SELECT * FROM ({inner_select_sql} )"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (
@@ -432,3 +434,55 @@ def test_create_scoped_temp_table(session):
 
     finally:
         Utils.drop_table(session, table_name)
+
+
+def test_invalid_identifier_error_message(session):
+    df = session.create_dataframe([[1, 2, 3]], schema=['"abc"', '"abd"', '"def"'])
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.select("abc").collect()
+    assert ex.value.sql_error_code == 904
+    assert "invalid identifier 'ABC'" in str(ex.value)
+    assert (
+        "There are existing quoted column identifiers: ['\"abc\"', '\"abd\"', '\"def\"']"
+        in str(ex.value)
+    )
+    assert "Do you mean '\"abc\"'?" in str(ex.value)
+
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.select("_ab").collect()
+    assert "invalid identifier '_AB'" in str(ex.value)
+    assert (
+        "There are existing quoted column identifiers: ['\"abc\"', '\"abd\"', '\"def\"']"
+        in str(ex.value)
+    )
+    assert "Do you mean '\"abd\"' or '\"abc\"'?" in str(ex.value)
+
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.select('"abC"').collect()
+    assert "invalid identifier '\"abC\"'" in str(ex.value)
+    assert (
+        "There are existing quoted column identifiers: ['\"abc\"', '\"abd\"', '\"def\"']"
+        in str(ex.value)
+    )
+    assert "Do you mean" not in str(ex.value)
+
+    df = session.create_dataframe([list(range(20))], schema=[str(i) for i in range(20)])
+    with pytest.raises(
+        SnowparkSQLException, match="There are existing quoted column identifiers:*..."
+    ) as ex:
+        df.select("20").collect()
+
+    # Describing an invalid schema has correct context
+    df = session.create_dataframe([1, 2, 3], schema=["A"])
+    with pytest.raises(
+        SnowparkSQLException, match="There are existing quoted column identifiers:*..."
+    ) as ex:
+        df.select("B").schema
+    assert "There are existing quoted column identifiers: ['\"A\"']" in str(ex.value)
+
+    # session.sql does not have schema query so no context is available
+    with pytest.raises(SnowparkSQLException, match="invalid identifier 'B'") as ex:
+        session.sql(
+            """SELECT "B" FROM ( SELECT $1 AS "A" FROM  VALUES (1 :: INT))"""
+        ).select("C")
+    assert "There are existing quoted column identifiers" not in str(ex.value)

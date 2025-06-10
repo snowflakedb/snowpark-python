@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import hashlib
@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SelectFromFileNode,
+    SnowflakeTable,
+    WithQueryBlock,
+)
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 if TYPE_CHECKING:
@@ -45,27 +49,75 @@ def find_duplicate_subtrees(
 
     This function is used to only include nodes that should be converted to CTEs.
     """
-    id_count_map = defaultdict(int)
+    id_node_map = defaultdict(list)
     id_parents_map = defaultdict(set)
-    id_complexity_map = defaultdict(int)
+    # set of encoded node ids which are ineligible to be deduplicated
+    # during this process
+    invalid_ids_for_deduplication = set()
+
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        Selectable,
+        SelectStatement,
+        SelectableEntity,
+        SelectSnowflakePlan,
+    )
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
+    def is_simple_select_entity(node: "TreeNode") -> bool:
+        """
+        Check if the current node is a simple select on top of a SelectEntity or a
+        SnowflakeTable, for example:
+            select * from TABLE.
+        """
+        if isinstance(node, SelectableEntity):
+            return True
+        if (
+            isinstance(node, SelectStatement)
+            and (node.projection is None)
+            and isinstance(node.from_, SelectableEntity)
+        ):
+            return True
+
+        if isinstance(node, SnowflakePlan) and (node.source_plan is not None):
+            if isinstance(node.source_plan, SnowflakeTable):
+                return True
+
+            if isinstance(node.source_plan, (SnowflakePlan, Selectable)):
+                return is_simple_select_entity(node.source_plan)
+
+        if isinstance(node, SelectSnowflakePlan):
+            return is_simple_select_entity(node.snowflake_plan)
+
+        return False
+
+    def is_select_from_file_node(node: "TreeNode") -> bool:
+        """
+        Check if the current node is a SelectFromFileNode. Currently, we do not support
+        deduplication for SelectFromFileNode due to SNOW-1911967.
+        """
+        if isinstance(node, SnowflakePlan) and (node.source_plan is not None):
+            return isinstance(node.source_plan, SelectFromFileNode)
+
+        if isinstance(node, SelectSnowflakePlan):
+            return is_select_from_file_node(node.snowflake_plan)
+
+        return False
 
     def traverse(root: "TreeNode") -> None:
         """
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
+        # Top down level order traversal to populate the
+        # id_parents_map and encoded id_node_map
         current_level = [root]
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
-                id_count_map[node.encoded_node_id_with_query] += 1
-                if propagate_complexity_hist and (
-                    node.encoded_node_id_with_query not in id_complexity_map
-                ):
-                    # if propagate_complexity_hist is true, and the complexity score is not
-                    # recorded for the current node id, record the complexity
-                    id_complexity_map[
-                        node.encoded_node_id_with_query
-                    ] = get_complexity_score(node)
+                id_node_map[node.encoded_node_id_with_query].append(node)
+
+                if is_select_from_file_node(node):
+                    invalid_ids_for_deduplication.add(node.encoded_node_id_with_query)
+
                 for child in node.children_plan_nodes:
                     id_parents_map[child.encoded_node_id_with_query].add(
                         node.encoded_node_id_with_query
@@ -73,17 +125,37 @@ def find_duplicate_subtrees(
                     next_level.append(child)
             current_level = next_level
 
+        # Bottom-up level order traversal to mark parent nodes
+        # invalid for deduplication
+        current_level = list(invalid_ids_for_deduplication)
+        while len(current_level) > 0:
+            next_level = []
+            for child_id in current_level:
+                for parent_id in id_parents_map[child_id]:
+                    invalid_ids_for_deduplication.add(parent_id)
+                    next_level.append(parent_id)
+            current_level = next_level
+
     def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
         # when a sql query is a select statement, its encoded_node_id_with_query
         # contains _, which is used to separate the query id and node type name.
-        is_valid_candidate = "_" in encoded_node_id_with_query
-        if not is_valid_candidate:
+        if "_" not in encoded_node_id_with_query:
             return False
 
-        is_duplicate_node = id_count_map[encoded_node_id_with_query] > 1
+        # when a node is a select * from entity, then we do not create a CTE
+        # on top of it even it is duplicated.
+        if is_simple_select_entity(id_node_map[encoded_node_id_with_query][0]):
+            return False
+
+        # when a node is marked to be considered invalid for any reason
+        # we do not create a CTE on top of it even it is duplicated.
+        if encoded_node_id_with_query in invalid_ids_for_deduplication:
+            return False
+
+        is_duplicate_node = len(id_node_map[encoded_node_id_with_query]) > 1
         if is_duplicate_node:
             is_any_parent_unique_node = any(
-                id_count_map[id] == 1
+                len(id_node_map[id]) == 1
                 for id in id_parents_map[encoded_node_id_with_query]
             )
             if is_any_parent_unique_node:
@@ -97,7 +169,7 @@ def find_duplicate_subtrees(
     traverse(root)
     duplicated_node_ids = {
         encoded_node_id_with_query
-        for encoded_node_id_with_query in id_count_map
+        for encoded_node_id_with_query in id_node_map
         if is_duplicate_subtree(encoded_node_id_with_query)
     }
 
@@ -105,7 +177,7 @@ def find_duplicate_subtrees(
         return (
             duplicated_node_ids,
             get_duplicated_node_complexity_distribution(
-                duplicated_node_ids, id_complexity_map, id_count_map
+                duplicated_node_ids, id_node_map
             ),
         )
     else:
@@ -114,8 +186,7 @@ def find_duplicate_subtrees(
 
 def get_duplicated_node_complexity_distribution(
     duplicated_node_id_set: Set[str],
-    id_complexity_map: Dict[str, int],
-    id_count_map: Dict[str, int],
+    id_node_map: Dict[str, List["TreeNode"]],
 ) -> List[int]:
     """
     Calculate the complexity distribution for the detected repeated node. The complexity are categorized as following:
@@ -131,8 +202,8 @@ def get_duplicated_node_complexity_distribution(
     """
     node_complexity_dist = [0] * 7
     for node_id in duplicated_node_id_set:
-        complexity_score = id_complexity_map[node_id]
-        repeated_count = id_count_map[node_id]
+        complexity_score = get_complexity_score(id_node_map[node_id][0])
+        repeated_count = len(id_node_map[node_id])
         if complexity_score <= 10000:
             node_complexity_dist[0] += repeated_count
         elif 10000 < complexity_score <= 100000:
@@ -151,7 +222,7 @@ def get_duplicated_node_complexity_distribution(
     return node_complexity_dist
 
 
-def encode_query_id(node) -> Optional[str]:
+def encode_query_id(node: "TreeNode") -> Optional[str]:
     """
     Encode the query and its query parameter into an id using sha256.
 

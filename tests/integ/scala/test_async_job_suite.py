@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -113,6 +113,26 @@ def test_async_to_pandas_common(session):
     Utils.check_answer(
         session.create_dataframe(res), session.create_dataframe(expected_res)
     )
+
+    # Non-select cases
+
+    # show regions does not work in stored proc test
+    if not IS_IN_STORED_PROC:
+        non_select = session.sql("show regions")
+        expected = session.create_dataframe(non_select.to_pandas())
+        actual = session.create_dataframe(non_select.to_pandas(block=False).result())
+        assert non_select.columns == actual.columns
+        Utils.check_answer(expected, actual)
+
+    try:
+        table_name = Utils.random_table_name()
+        df = session.sql(f"create temporary table {table_name} (A int)")
+        Utils.check_answer(
+            session.create_dataframe(df.to_pandas(block=False).result()),
+            [Row(f"Table {table_name} successfully created.")],
+        )
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Requires large result")
@@ -474,8 +494,8 @@ def test_async_job_to_df(session, create_async_job_from_query_id):
 
 
 def test_async_job_result_wait_no_result(session):
-    async_job = session.sql("select system$wait(3)").collect_nowait()
     t0 = time()
+    async_job = session.sql("select system$wait(3)").collect_nowait()
     result = async_job.result("no_result")
     t1 = time()
     assert t1 - t0 >= 3.0

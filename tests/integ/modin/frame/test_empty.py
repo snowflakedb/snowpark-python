@@ -1,7 +1,6 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 
 import modin.pandas as pd
 import numpy as np
@@ -28,7 +27,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
         ({"A": [np.nan]}, "np nan column"),
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_dataframe_empty_param(dataframe_input, test_case_name):
     eval_snowpark_pandas_result(
         pd.DataFrame(dataframe_input),

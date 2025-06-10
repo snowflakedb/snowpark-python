@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -1010,10 +1010,11 @@ def test_negative_test_join_of_join(session):
         df_j = df_l.join(df_r, df_l["c1"] == df_r["c1"])
         df_j_clone = copy.copy(df_j)
 
+        # TODO SNOW-2060042: Determine whether df_l["c1"] and df_r["c1"] should be treated as ambiguous,
+        #  or if there's enough context to resolve them unambiguously.
         with pytest.raises(SnowparkSQLAmbiguousJoinException) as ex_info:
             df_j.join(df_j_clone, df_l["c1"] == df_r["c1"]).collect()
         assert "reference to the column 'C1' is ambiguous" in ex_info.value.message
-
     finally:
         session.table(table_name1).drop_table()
 
@@ -1280,7 +1281,7 @@ def test_select_all_on_join_result(session):
     df = df_left.join(df_right)
 
     assert (
-        df.select("*")._show_string(10)
+        df.select("*")._show_string(10, _emit_ast=session.ast_enabled)
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -1289,7 +1290,7 @@ def test_select_all_on_join_result(session):
 """
     )
     assert (
-        df.select(df["*"])._show_string(10)
+        df.select(df["*"])._show_string(10, _emit_ast=session.ast_enabled)
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -1298,7 +1299,9 @@ def test_select_all_on_join_result(session):
 """
     )
     assert (
-        df.select(df_left["*"], df_right["*"])._show_string(10)
+        df.select(df_left["*"], df_right["*"])._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """-------------------------
 |"A"  |"B"  |"C"  |"D"  |
 -------------------------
@@ -1308,7 +1311,9 @@ def test_select_all_on_join_result(session):
     )
 
     assert (
-        df.select(df_right["*"], df_left["*"])._show_string(10)
+        df.select(df_right["*"], df_left["*"])._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """-------------------------
 |"C"  |"D"  |"A"  |"B"  |
 -------------------------
@@ -1325,7 +1330,7 @@ def test_select_left_right_on_join_result(session):
     df = df_left.join(df_right)
     # Select left or right
     assert (
-        df.select(df_left["*"])._show_string(10)
+        df.select(df_left["*"])._show_string(10, _emit_ast=session.ast_enabled)
         == """-------------
 |"A"  |"B"  |
 -------------
@@ -1334,7 +1339,7 @@ def test_select_left_right_on_join_result(session):
 """
     )
     assert (
-        df.select(df_right["*"])._show_string(10)
+        df.select(df_right["*"])._show_string(10, _emit_ast=session.ast_enabled)
         == """-------------
 |"C"  |"D"  |
 -------------
@@ -1351,7 +1356,9 @@ def test_select_left_right_combination_on_join_result(session):
     df = df_left.join(df_right)
     # Select left["*"] and right['c']
     assert (
-        df.select(df_left["*"], df_right["c"])._show_string(10)
+        df.select(df_left["*"], df_right["c"])._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """-------------------
 |"A"  |"B"  |"C"  |
 -------------------
@@ -1360,7 +1367,9 @@ def test_select_left_right_combination_on_join_result(session):
 """
     )
     assert (
-        df.select(df_left["*"], df_right.c)._show_string(10)
+        df.select(df_left["*"], df_right.c)._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """-------------------
 |"A"  |"B"  |"C"  |
 -------------------
@@ -1370,7 +1379,9 @@ def test_select_left_right_combination_on_join_result(session):
     )
     # select left["*"] and left["a"]
     assert (
-        df.select(df_left["*"], df_left["a"].as_("l_a"))._show_string(10)
+        df.select(df_left["*"], df_left["a"].as_("l_a"))._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """---------------------
 |"A"  |"B"  |"L_A"  |
 ---------------------
@@ -1380,7 +1391,9 @@ def test_select_left_right_combination_on_join_result(session):
     )
     # select right["*"] and right["c"]
     assert (
-        df.select(df_right["*"], df_right["c"].as_("R_C"))._show_string(10)
+        df.select(df_right["*"], df_right["c"].as_("R_C"))._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """---------------------
 |"C"  |"D"  |"R_C"  |
 ---------------------
@@ -1391,7 +1404,9 @@ def test_select_left_right_combination_on_join_result(session):
 
     # select right["*"] and left["a"]
     assert (
-        df.select(df_right["*"], df_left["a"])._show_string(10)
+        df.select(df_right["*"], df_left["a"])._show_string(
+            10, _emit_ast=session.ast_enabled
+        )
         == """-------------------
 |"C"  |"D"  |"A"  |
 -------------------
@@ -1412,9 +1427,9 @@ def test_select_columns_on_join_result_with_conflict_name(
     # Get all columns
     # The result column name will be like:
     # |"l_Z36B_A" |"B" |"r_ztcn_A" |"D" |
-    assert len(re.search('"l_.*_A"', df1.schema.fields[0].name).group(0)) > 0
+    assert len(re.search('"l_.*A"', df1.schema.fields[0].name).group(0)) > 0
     assert df1.schema.fields[1].name == "B"
-    assert len(re.search('"r_.*_A"', df1.schema.fields[2].name).group(0)) > 0
+    assert len(re.search('"r_.*A"', df1.schema.fields[2].name).group(0)) > 0
     assert df1.schema.fields[3].name == "D"
     assert df1.collect() == [Row(1, 2, 3, 4)]
 
@@ -1422,25 +1437,25 @@ def test_select_columns_on_join_result_with_conflict_name(
     # Get right-left conflict columns
     # The result column column name will be like:
     # |"r_v3Ms_A"  |"l_Xb7d_A"  |
-    assert len(re.search('"r_.*_A"', df2.schema.fields[0].name).group(0)) > 0
-    assert len(re.search('"l_.*_A"', df2.schema.fields[1].name).group(0)) > 0
+    assert len(re.search('"r_.*A"', df2.schema.fields[0].name).group(0)) > 0
+    assert len(re.search('"l_.*A"', df2.schema.fields[1].name).group(0)) > 0
     assert df2.collect() == [Row(3, 1)]
 
     df3 = df.select(df_left.a, df_right.a)
     # Get left-right conflict columns
     # The result column column name will be like:
     # |"l_v3Ms_A"  |"r_Xb7d_A"  |
-    assert len(re.search('"l_.*_A"', df3.schema.fields[0].name).group(0)) > 0
-    assert len(re.search('"r_.*_A"', df3.schema.fields[1].name).group(0)) > 0
+    assert len(re.search('"l_.*A"', df3.schema.fields[0].name).group(0)) > 0
+    assert len(re.search('"r_.*A"', df3.schema.fields[1].name).group(0)) > 0
     assert df3.collect() == [Row(1, 3)]
 
     df4 = df.select(df_right["*"], df_left.a)
     # Get rightAll-left conflict columns
     # The result column column name will be like:
     # |"r_ClxT_A"  |"D"  |"l_q8l5_A"  |
-    assert len(re.search('"r_.*_A"', df4.schema.fields[0].name).group(0)) > 0
+    assert len(re.search('"r_.*A"', df4.schema.fields[0].name).group(0)) > 0
     assert df4.schema.fields[1].name == "D"
-    assert len(re.search('"l_.*_A"', df4.schema.fields[2].name).group(0)) > 0
+    assert len(re.search('"l_.*A"', df4.schema.fields[2].name).group(0)) > 0
     assert df4.collect() == [Row(3, 4, 1)]
 
 
@@ -1451,6 +1466,8 @@ def test_select_columns_on_join_result_with_conflict_name(
 def test_nested_join_diamond_shape_error(
     session,
 ):  # TODO: local testing match error behavior
+    if session._join_alias_fix:
+        pytest.skip("this is fixed with join alias fix")
     """This is supposed to work but currently we don't handle it correctly. We should fix this with a good design."""
     df1 = session.create_dataframe([[1]], schema=["a"])
     df2 = session.create_dataframe([[1]], schema=["a"])
@@ -1464,6 +1481,52 @@ def test_nested_join_diamond_shape_error(
         match="The reference to the column 'A' is ambiguous.",
     ):
         df5.collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1235716: match error behavior",
+)
+def test_nested_join_diamond_shape(
+    session,
+):  # TODO: local testing match error behavior
+    origin = session._join_alias_fix
+    try:
+        session._join_alias_fix = True
+        df1 = session.create_dataframe([[1]], schema=["a"])
+        df2 = session.create_dataframe([[1]], schema=["a"])
+        df3 = df1.join(df2, df1["a"] == df2["a"])
+        df4 = df3.select(df1["a"].as_("a"))
+        # df1["a"] and df4["a"] has the same expr_id in map expr_to_alias. When they join, only one will be in df5's alias
+        # map. It leaves the other one resolved to "a" instead of the alias.
+        df5 = df1.join(df4, df1["a"] == df4["a"])  # (df1) JOIN ((df1 JOIN df2)->df4)
+        Utils.check_answer(df5, [Row(1, 1)])
+        # show issues schema query, this triggers a different execution path than collect
+        df5.show()
+
+        # df5 is from left df 1, right df4, df4 is from left df1, right df2
+        df6 = df5.select(df4.a.alias("a"))
+        # df7 is from left df6, right df2, df6 is from left df1, right df4, df4 is from left df1, right df2
+        # valid select from two direct children
+        df7 = df6.join(df2, df6["a"] == df2["a"]).select(df2["a"], df6["a"])
+        df7.show()
+        Utils.check_answer(df7, [Row(1, 1)])
+
+        # negative case: df1 shows up in both 4 and 6, can not be decided
+        with pytest.raises(
+            SnowparkSQLException
+        ):  # SNOW-1736729 for err message matching
+            df_invalid = df6.join(df4, df1["a"] == df6["a"])
+            df_invalid.show()
+
+        with pytest.raises(
+            SnowparkSQLException
+        ):  # SNOW-1736729 for err message matching
+            # df1 shows up in both 4 and 6, can not be decided
+            df_invalid = df6.join(df4).select(df1["a"])
+            df_invalid.show()
+    finally:
+        session._join_alias_fix = origin
 
 
 def test_nested_join_diamond_shape_workaround(session):

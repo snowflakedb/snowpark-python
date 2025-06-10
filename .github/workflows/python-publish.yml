@@ -26,7 +26,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
-        python-version: '3.x'
+        python-version: '3.11'
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -34,6 +34,10 @@ jobs:
     - name: Install protoc
       shell: bash
       run: .github/scripts/install_protoc.sh
+    - name: Install tox
+      run: python -m pip install tox
+    - name: Build protobuf Python files
+      run: python -m tox -e protoc
     - name: Build package
       run: python -m build
     - name: List artifacts

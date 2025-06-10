@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -88,7 +88,7 @@ class FlattenFunction(TableFunctionExpression):
         self.path = path
         self.outer = outer
         self.recursive = recursive
-        self.mode = mode
+        self.mode = mode.upper()
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

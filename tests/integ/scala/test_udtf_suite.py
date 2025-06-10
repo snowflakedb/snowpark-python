@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     StructType,
     Variant,
 )
+
 from tests.utils import Utils
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -45,16 +46,19 @@ wordcount_table_name = Utils.random_table_name()
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup_data(session):
+def setup_data(session, validate_ast):
     df = session.sql(
         "SELECT $1 AS \"C1\", $2 AS \"C2\" FROM  VALUES ('w1 w2', 'g1'), ('w1 w1 w1', 'g2')"
     )
-    df.write.save_as_table(wordcount_table_name)
+    df.write.save_as_table(
+        wordcount_table_name,
+        mode="ignore" if validate_ast else "errorifexists",
+    )
     yield
     Utils.drop_table(session, wordcount_table_name)
 
 
-def test_basic_udtf_word_count_without_end_partition(session):
+def test_basic_udtf_word_count_without_end_partition(session, validate_ast):
     func_name = Utils.random_function_name()
 
     class MyWordCount:
@@ -63,15 +67,21 @@ def test_basic_udtf_word_count_without_end_partition(session):
             return counter.items()
 
     wordcount_udtf = session.udtf.register(
-        MyWordCount, ["word", "count"], name=func_name, is_permanent=False, replace=True
-    )
-
-    wordcount_udtf_with_statemenet_params = session.udtf.register(
         MyWordCount,
         ["word", "count"],
         name=func_name,
         is_permanent=False,
-        replace=True,
+        replace=not validate_ast,
+        if_not_exists=validate_ast,
+    )
+
+    wordcount_udtf_with_statement_params = session.udtf.register(
+        MyWordCount,
+        ["word", "count"],
+        name=func_name,
+        is_permanent=False,
+        replace=not validate_ast,
+        if_not_exists=validate_ast,
         statement_params={"SF_PARTNER": "FAKE_PARTNER"},
     )
 
@@ -87,7 +97,7 @@ def test_basic_udtf_word_count_without_end_partition(session):
         assert df2.columns == ["WORD", "COUNT"]
 
         df2_with_statement_params = session.table_function(
-            wordcount_udtf_with_statemenet_params(lit("w1 w2 w2 w3 w3 w3"))
+            wordcount_udtf_with_statement_params(lit("w1 w2 w2 w3 w3 w3"))
         )
         Utils.check_answer(
             df2_with_statement_params,

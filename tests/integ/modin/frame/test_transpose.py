@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -11,13 +11,7 @@ import pytest
 from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark._internal.utils import (
-    PIVOT_DEFAULT_ON_NULL_WARNING,
-    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
-)
-from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
-    UNPIVOT_NULL_REPLACE_VALUE,
-)
+
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
@@ -25,7 +19,6 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import running_on_public_ci
 
 transpose_and_double_transpose_parameterize = pytest.mark.parametrize(
     "transpose_operation, expected_query_count",
@@ -204,21 +197,12 @@ def test_dataframe_transpose_single_row(transpose_operation, expected_query_coun
         {"B": [1, 1, 1, 1, 1]},  # value all same
         {"None": [None]},
         {"none": [None, None, None]},
-        {UNPIVOT_NULL_REPLACE_VALUE: [np.nan, np.nan, np.nan]},
         {"NaT": [pd.NaT, pd.NaT, pd.NaT]},
         {"nan": [6.0, 7.1, np.nan]},
         {"A": [None, 1, 2, 3]},
         {"None": [None, 1, 1, None]},
         {"float": [1.1, 1.0 / 7]},
         {"str": ["abc", None, ("a", "c")]},
-        {
-            UNPIVOT_NULL_REPLACE_VALUE: [
-                None,
-                UNPIVOT_NULL_REPLACE_VALUE,
-                None,
-                UNPIVOT_NULL_REPLACE_VALUE,
-            ]
-        },
         {123: ["a", "b", "c"]},
         {False: [1, 2, 3], True: ["4", "5", "6"]},
         # Note that if no label is provided, a default integer label is created.
@@ -330,9 +314,10 @@ def test_dataframe_transpose_empty_with_failing_values():
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.T)
 
 
-@pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
-@pytest.mark.skip(
-    reason="SNOW-928130: Fallback converts non-json serializable to string type failed inteferred_type check"
+# This will succeed in pandas but fail in snowpark pandas
+@pytest.mark.xfail(
+    reason="SNOW-896985: Support non-JSON serializable types in dataframe",
+    strict=True,
 )
 @pytest.mark.parametrize(
     "col_label",
@@ -341,7 +326,10 @@ def test_dataframe_transpose_empty_with_failing_values():
         datetime.datetime(year=2023, month=9, day=29),
     ],
 )
-def test_dataframe_transpose_not_json_serializable_fallback(col_label, score_test_data):
+@sql_count_checker(query_count=0)
+def test_dataframe_transpose_not_json_serializable_unimplemented(
+    col_label, score_test_data
+):
     test_data = score_test_data.copy()
     test_data[col_label] = test_data["name"]
 
@@ -389,12 +377,3 @@ def test_dataframe_transpose_args_warning_log(caplog, score_test_data):
         "Transpose ignores args in Snowpark pandas API."
         in [r.msg for r in caplog.records]
     )
-
-
-@sql_count_checker(query_count=1, union_count=1)
-def test_transpose_does_not_raise_pivot_warning_snow_1344848(caplog):
-    # Test transpose, which calls snowflake.snowpark.dataframe.pivot() with
-    # the `values` parameter as None or a Snowpark DataFrame.
-    pd.DataFrame([1]).T.to_pandas()
-    assert PIVOT_DEFAULT_ON_NULL_WARNING not in caplog.text
-    assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING not in caplog.text

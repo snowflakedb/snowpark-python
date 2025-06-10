@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined functions (UDFs) in Snowpark. Please see `Python UDFs <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs>`_ for details.
@@ -19,8 +19,14 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
+from snowflake.snowpark._internal.ast.utils import (
+    build_udf,
+    build_udf_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import (
     open_telemetry_udf_context_manager,
@@ -28,6 +34,7 @@ from snowflake.snowpark._internal.open_telemetry import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    RegistrationType,
     check_python_runtime_version,
     check_register_args,
     cleanup_failed_permanent_registration,
@@ -38,7 +45,9 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    check_imports_type,
     parse_positional_args_to_list,
+    publicapi,
     warning,
 )
 from snowflake.snowpark.column import Column
@@ -77,6 +86,8 @@ class UserDefinedFunction:
         name: str,
         is_return_nullable: bool = False,
         packages: Optional[List[Union[str, ModuleType]]] = None,
+        _ast: Optional[proto.Udf] = None,
+        _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -88,9 +99,13 @@ class UserDefinedFunction:
         self._is_return_nullable = is_return_nullable
         self._packages = packages
 
+        # If None, no ast will be emitted. Else, passed whenever udf is invoked.
+        self._ast = _ast
+        self._ast_id = _ast_id
+
+    @publicapi
     def __call__(
-        self,
-        *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
+        self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> Column:
         if len(cols) >= 1 and isinstance(cols[0], (list, tuple)):
             warning(
@@ -110,7 +125,18 @@ class UserDefinedFunction:
                     f"The input of UDF {self.name} must be Column, column name, or a list of them"
                 )
 
-        return Column(self._create_udf_expression(exprs))
+        udf_expr = None
+        if _emit_ast and self._ast is not None:
+            assert (
+                self._ast is not None
+            ), "Need to ensure _emit_ast is True when registering UDF."
+            assert self._ast_id is not None, "Need to assign UDF an ID."
+            udf_expr = proto.Expr()
+            build_udf_apply(udf_expr, self._ast_id, *cols)
+
+        ans = Column(self._create_udf_expression(exprs), _emit_ast=False)
+        ans._ast = udf_expr
+        return ans
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         # len(exprs) can be less than len(self._input_types) if udf has
@@ -233,6 +259,7 @@ class UDFRegistration:
     ``dict``                                       :class:`~snowflake.snowpark.types.MapType`              OBJECT
     Dynamically mapped to the native Python type   :class:`~snowflake.snowpark.types.VariantType`          VARIANT
     ``dict``                                       :class:`~snowflake.snowpark.types.GeographyType`        GEOGRAPHY
+    ``dict``                                       :class:`~snowflake.snowpark.types.FileType`             FILE
     ``pandas.Series``                              :class:`~snowflake.snowpark.types.PandasSeriesType`     No SQL type
     ``pandas.DataFrame``                           :class:`~snowflake.snowpark.types.PandasDataFrameType`  No SQL type
     =============================================  ======================================================= ============
@@ -262,6 +289,10 @@ class UDFRegistration:
         TIMESTAMP_TZ), use :class:`~snowflake.snowpark.types.Timestamp` with
         :class:`~snowflake.snowpark.types.NTZ`, :class:`~snowflake.snowpark.types.LTZ`,
         :class:`~snowflake.snowpark.types.TZ` (e.g., ``Timestamp[NTZ]``).
+
+        5. Data with the FILE SQL type will be converted to a Python ``dict`` inside a UDF, with the
+        the `metadata <https://docs.snowflake.com/LIMITEDACCESS/sql-reference/data-types-unstructured#file-data-type>`_
+        related to the file.
 
     Example 1
         Create a temporary UDF from a lambda and apply it to a dataframe::
@@ -485,6 +516,7 @@ class UDFRegistration:
             f"describe function {udf_obj.name}({','.join(func_args)})"
         )
 
+    @publicapi
     def register(
         self,
         func: Callable,
@@ -509,6 +541,9 @@ class UDFRegistration:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
         """
@@ -596,13 +631,18 @@ class UDFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is created
                 using CREATE OR REPLACE FUNCTION.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         See Also:
         - :func:`~snowflake.snowpark.functions.udf`
         - :meth:`register_from_file`
         """
         with open_telemetry_udf_context_manager(self.register, func=func, name=name):
-            if not callable(func):
+            if not callable(func) and kwargs.get("_registered_object_name") is None:
                 raise TypeError(
                     "Invalid function: not a function or callable "
                     f"(__call__ is not defined): {type(func)}"
@@ -613,7 +653,7 @@ class UDFRegistration:
             )
 
             _from_pandas = kwargs.get("_from_pandas_udf_function", False)
-            native_app_params = kwargs.get("native_app_params", None)
+            native_app_params = kwargs.pop("native_app_params", None)
 
             # register udf
             return self._do_register_udf(
@@ -642,8 +682,13 @@ class UDFRegistration:
                 + ("[pandas_udf]" if _from_pandas else ""),
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
+                _emit_ast=_emit_ast,
+                **kwargs,
             )
 
+    @publicapi
     def register_from_file(
         self,
         file_path: str,
@@ -669,6 +714,10 @@ class UDFRegistration:
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedFunction:
         """
         Registers a Python function as a Snowflake Python UDF from a Python or zip file,
@@ -758,6 +807,11 @@ class UDFRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is created
                 using CREATE OR REPLACE FUNCTION.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -801,6 +855,10 @@ class UDFRegistration:
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
+                _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_udf(
@@ -831,8 +889,30 @@ class UDFRegistration:
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> UserDefinedFunction:
-        # get the udf name, return and input types
+        ast, ast_id = None, None
+        if kwargs.get("_registered_object_name") is not None:
+            if _emit_ast:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.udf, stmt)
+                ast_id = stmt.uid
+
+            return UserDefinedFunction(
+                func,
+                return_type,
+                input_types or [],
+                kwargs["_registered_object_name"],
+                _ast=ast,
+                _ast_id=ast_id,
+            )
+
+        check_imports_type(imports, "udf-level")
+
+        # Retrieve the UDF name, return and input types.
         (
             udf_name,
             is_pandas_udf,
@@ -843,6 +923,38 @@ class UDFRegistration:
         ) = process_registration_inputs(
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
+
+        # Capture original parameters.
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.udf, stmt)
+            ast_id = stmt.uid
+            build_udf(
+                ast,
+                func,
+                return_type=return_type,
+                input_types=input_types,
+                name=name,
+                stage_location=stage_location,
+                imports=imports,
+                packages=packages,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                parallel=parallel,
+                max_batch_size=max_batch_size,
+                strict=strict,
+                secure=secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                is_permanent=is_permanent,
+                session=self._session,
+                _registered_object_name=udf_name,
+                **kwargs,
+            )
 
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
@@ -881,6 +993,7 @@ class UDFRegistration:
             source_code_display=source_code_display,
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
+            artifact_repository=artifact_repository,
         )
 
         runtime_version_from_requirement = None
@@ -906,6 +1019,7 @@ class UDFRegistration:
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
+                registration_type=RegistrationType.UDF,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -921,6 +1035,8 @@ class UDFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
@@ -942,6 +1058,14 @@ class UDFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedFunction(
-            func, return_type, input_types, udf_name, packages=packages
+        udf = UserDefinedFunction(
+            func,
+            return_type,
+            input_types,
+            udf_name,
+            packages=packages,
+            _ast=ast,
+            _ast_id=ast_id,
         )
+
+        return udf

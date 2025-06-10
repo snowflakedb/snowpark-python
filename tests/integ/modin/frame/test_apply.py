@@ -1,8 +1,10 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
+import re
+import sys
 
 import modin.pandas as pd
 import numpy as np
@@ -25,18 +27,13 @@ from tests.integ.modin.series.test_apply_and_map import (
     create_func_with_return_type_hint,
 )
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
+from tests.utils import RUNNING_ON_GH, running_on_public_ci
 
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
 
@@ -96,7 +93,8 @@ def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
     snow_df = pd.DataFrame(data, columns=["A", "b"])
-    with SqlCounter(query_count=5):
+    # np.min is mapped to sql builtin function.
+    with SqlCounter(query_count=1 if func == np.min else 5):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=1))
 
 
@@ -334,6 +332,7 @@ def test_axis_1_return_not_json_serializable_label():
         snow_df.apply(lambda x: native_pd.DataFrame([1, 2]), axis=1).to_pandas()
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 def test_axis_1_apply_args_kwargs():
     def f(x, y, z=1) -> int:
         return x.sum() + y + z
@@ -612,14 +611,14 @@ def test_apply_bug_1650918(data, apply_func):
 
 TRANSFORM_TEST_MAP = [
     [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1, 16],
-    [[[0, 1, 2], [1, 2, 3]], np.exp, 16],
+    [[[0, 1, 2], [1, 2, 3]], np.exp, 1],
     [[[0, 1, 2], [1, 2, 3]], "exp", None],
     [[["Leonhard", "Jianzhun"]], lambda x: x + " is awesome!!", 11],
-    [[[1.3, 2.5]], np.sqrt, 11],
+    [[[1.3, 2.5]], np.sqrt, 1],
     [[[1.3, 2.5]], "sqrt", None],
-    [[[1.3, 2.5]], np.log, 11],
+    [[[1.3, 2.5]], np.log, 1],
     [[[1.3, 2.5]], "log", None],
-    [[[1.3, 2.5]], np.square, 11],
+    [[[1.3, 2.5]], np.square, 1],
     [[[1.3, 2.5]], "square", None],
     [[[1.5, float("nan")]], lambda x: np.sqrt(x), 11],
 ]
@@ -740,6 +739,8 @@ def test_bug_SNOW_1172448():
 
     df.to_snowflake(temp_table_name, index_label="index")
     df = pd.read_snowflake(temp_table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
 
     median_income = 187524.29
     std_income = 110086.85
@@ -749,7 +750,7 @@ def test_bug_SNOW_1172448():
         income = row["AMT_INCOME_TOTAL"]
         return (income - median_income) / std_income
 
-    with SqlCounter(query_count=6, join_count=3, udtf_count=1):
+    with SqlCounter(query_count=6, join_count=5, udtf_count=1):
         df["pct_income"] = df.apply(foo, axis=1)
         # trigger computation here.
         ans = len(df[df["pct_income"] > 0.5]) / len(df)
@@ -767,7 +768,7 @@ def test_bug_SNOW_1172448():
     ],
 )
 @sql_count_checker(
-    query_count=13,
+    query_count=11,
     udtf_count=1,
     join_count=3,
     high_count_expected=True,
@@ -886,7 +887,14 @@ import scipy.stats  # noqa: E402
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 7),
-        (["scipy>1.1", "numpy<2.0"], 7),
+        param(
+            ["scipy>1.1", "numpy<2.0"],
+            7,
+            marks=pytest.mark.skipif(
+                sys.version_info.major == 3 and sys.version_info.minor == 12,
+                reason="SNOW-2046982: test raises ModuleNotFoundError when run in python 3.12",
+            ),
+        ),
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],
@@ -961,3 +969,72 @@ def test_apply_axis1_with_dynamic_pivot_and_with_3rd_party_libraries_and_decorat
         native_ans = native_df.apply(func.func, axis=1)
 
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, native_ans)
+
+
+@pytest.mark.parametrize(
+    "func", [np.sum, np.min, np.max, np.mean, np.median, np.std, np.var]
+)
+@sql_count_checker(query_count=1)
+def test_apply_numpy_aggregate_functions(func):
+    native_df = native_pd.DataFrame(
+        {"A": [1, 2, 3, 4, 5], "B": [7, -20, 4.0, 7.0, None]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
+
+
+@pytest.mark.parametrize(
+    "func", [np.square, np.sin, np.sinh, np.sqrt, np.exp, np.log, np.log1p, np.absolute]
+)
+@sql_count_checker(query_count=1)
+def test_apply_numpy_universal_functions(func):
+    native_df = native_pd.DataFrame(
+        {"A": [1, 2, 3, 4, 5], "B": [7, 20, 4.0, 7.0, None]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDF/UDTF test")
+def test_udfs_and_udtfs_with_snowpark_object_error_msg():
+    expected_error_msg = re.escape(
+        "Snowpark pandas only allows native pandas and not Snowpark objects in `apply()`. "
+        + "Instead, try calling `to_pandas()` on any DataFrame or Series objects passed to `apply()`. See Limitations"
+        + "(https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations) section of"
+        + "the Snowpark pandas documentation for more details."
+    )
+    snow_df = pd.DataFrame([7, 8, 9])
+    with SqlCounter(
+        query_count=16,
+        high_count_expected=True,
+        high_count_reason="Series.apply has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # Series.apply
+            snow_df[0].apply(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(query_count=2):
+        with pytest.raises(
+            ValueError, match=expected_error_msg
+        ):  # DataFrame.apply axis=0
+            snow_df.apply(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(query_count=2):
+        with pytest.raises(
+            ValueError, match=expected_error_msg
+        ):  # DataFrame.apply axis=1
+            snow_df.apply(lambda row: snow_df.iloc[0, 0], axis=1)
+    with SqlCounter(query_count=2):
+        with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.transform
+            snow_df.transform(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(
+        query_count=16,
+        high_count_expected=True,
+        high_count_reason="DataFrame.map has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.map
+            snow_df.map(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(
+        query_count=16,
+        high_count_expected=True,
+        high_count_reason="Series.map has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # Series.map
+            snow_df[0].map(lambda row: snow_df.iloc[0, 0])

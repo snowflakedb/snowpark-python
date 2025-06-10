@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import os
@@ -12,7 +12,11 @@ import pytest
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    get_version,
+    parse_table_name,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
@@ -20,8 +24,8 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED,
-    _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING,
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
+    _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION,
     _active_sessions,
     _get_active_session,
     _get_active_sessions,
@@ -98,6 +102,60 @@ def test_update_query_tag(session):
     reason="SQL query not supported",
     run=False,
 )
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot alter session in SP")
+def test_collect_stacktrace_in_query_tag(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    original_collect_stacktrace_in_query_tag = session.conf.get(
+        "collect_stacktrace_in_query_tag"
+    )
+    try:
+        session.conf.set("collect_stacktrace_in_query_tag", False)
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = session.createDataFrame([[1, 2], [3, 4]], ["a", "b"])
+        with session.query_history() as history:
+            df.collect()
+        assert len(history.queries) == 4
+        assert history.queries[0].sql_text.startswith(
+            "CREATE  OR  REPLACE  SCOPED TEMPORARY"
+        )
+        assert history.queries[1].sql_text.startswith(
+            "INSERT  INTO SNOWPARK_TEMP_TABLE"
+        )
+        assert Utils.normalize_sql(history.queries[2].sql_text).startswith(
+            'SELECT "A", "B" FROM'
+        )
+        assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+
+        session.conf.set("collect_stacktrace_in_query_tag", True)
+        with session.query_history() as history:
+            df.collect()
+        assert len(history.queries) == 6
+        assert history.queries[0].sql_text.startswith(
+            "CREATE  OR  REPLACE  SCOPED TEMPORARY"
+        )
+        assert history.queries[1].sql_text.startswith("alter session set query_tag")
+        assert history.queries[2].sql_text.startswith(
+            "INSERT  INTO SNOWPARK_TEMP_TABLE"
+        )
+        assert history.queries[3].sql_text.startswith("alter session unset query_tag")
+        assert Utils.normalize_sql(history.queries[4].sql_text).startswith(
+            'SELECT "A", "B" FROM'
+        )
+        assert history.queries[5].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+        session.conf.set(
+            "collect_stacktrace_in_query_tag", original_collect_stacktrace_in_query_tag
+        )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
 def test_select_1(session):
     res = session.sql("select 1").collect()
     assert res == [Row(1)]
@@ -120,10 +178,27 @@ def test_active_session(session):
     assert not session._conn._conn.expired
 
 
+def test_session_version(session):
+    assert session.version == get_version()
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_active_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as session2:
         assert {session, session2} == _get_active_sessions()
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_get_active_session(session, db_parameters):
+    assert Session.get_active_session() == session
+    assert Session.getActiveSession() == session
+
+    with Session.builder.configs(db_parameters).create():
+        with pytest.raises(
+            SnowparkClientException, match="More than one active session is detected"
+        ) as ex:
+            Session.get_active_session()
+        assert ex.value.error_code == "1409"
 
 
 def test_get_or_create(session):
@@ -213,9 +288,19 @@ def test_create_session_in_sp(session):
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
-        with pytest.raises(SnowparkSessionException) as exec_info:
-            Session(session._conn)
-        assert exec_info.value.error_code == "1410"
+        if not session._conn._get_client_side_session_parameter(
+            "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
+        ):
+            with pytest.raises(SnowparkSessionException) as exec_info:
+                Session(session._conn)
+            assert exec_info.value.error_code == "1410"
+        with patch.object(
+            session._conn, "_get_client_side_session_parameter", return_value=True
+        ):
+            try:
+                Session(session._conn)
+            except SnowparkSessionException as e:
+                pytest.fail(f"Unexpected exception {e} was raised")
     finally:
         internal_utils.PLATFORM = original_platform
 
@@ -688,10 +773,12 @@ def test_cte_optimization_enabled_on_session(session, db_parameters):
 
     parameters = db_parameters.copy()
     parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING: not default_value
+        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: get_version()
+        if default_value
+        else ""
     }
     with Session.builder.configs(parameters).create() as new_session2:
-        assert new_session2.cte_optimization_enabled is not default_value
+        assert new_session2.cte_optimization_enabled is default_value
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
@@ -814,6 +901,7 @@ def test_get_session_stage(session):
         session.use_schema(current_schema)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="sproc disallows new connection creation")
 def test_session_atexit(db_parameters):
     exit_funcs = []
     with patch("atexit.register", lambda func: exit_funcs.append(func)):

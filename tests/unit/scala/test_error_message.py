@@ -1,7 +1,8 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import pytest
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -55,17 +56,16 @@ def test_df_cannot_drop_all_columns():
 
 
 def test_df_cannot_resolve_column_name_among():
-    col_name = "C1"
-    all_columns = ", ".join(["A1", "B1", "D1"])
+    left_columns = {"C1"}
+    right_columns = {"A1"}
     ex = SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
-        col_name, all_columns
+        left_columns, right_columns
     )
     assert type(ex) == SnowparkColumnException
     assert ex.error_code == "1102"
-    assert (
-        ex.message
-        == f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
-        f"not a column in the other DataFrame ({all_columns})."
+    assert ex.message == (
+        "Cannot union the DataFrames by column names. (C1) is in the right hand side, "
+        "but not the left. (A1) is in the left hand side, but not the right."
     )
 
 
@@ -136,17 +136,6 @@ def test_df_dataframe_is_not_qualified_for_scalar_query():
         ex.message
         == f"The DataFrame passed in to this function must have only one output column. "
         f"This DataFrame has {count} output columns: {columns}"
-    )
-
-
-def test_df_pivot_only_support_one_agg_expr():
-    ex = SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
-    assert type(ex) == SnowparkDataframeException
-    assert ex.error_code == "1109"
-    assert (
-        ex.message
-        == "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
-        "returned by the pivot() method."
     )
 
 
@@ -286,9 +275,10 @@ def test_sql_last_query_return_resultset():
     )
 
 
-def test_sql_python_report_unexpected_alias():
+@pytest.mark.parametrize("debug_context", [None, "debug_context"])
+def test_sql_python_report_unexpected_alias(debug_context):
     ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
-        "test query"
+        "test query", debug_context
     )
     assert type(ex) == SnowparkSQLUnexpectedAliasException
     assert ex.error_code == "1301"
@@ -298,12 +288,16 @@ def test_sql_python_report_unexpected_alias():
         "select() and agg(). You cannot use aliases for Columns in expressions."
     )
     assert ex.query == "test query"
+    assert ex.debug_context == debug_context
 
 
-def test_sql_python_report_invalid_id():
+@pytest.mark.parametrize("debug_context", [None, "debug_context"])
+def test_sql_python_report_invalid_id(debug_context):
     name = "C1"
     query = "test query"
-    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(name, query)
+    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
+        name, query, debug_context
+    )
     assert type(ex) == SnowparkSQLInvalidIdException
     assert ex.error_code == "1302"
     assert (
@@ -311,14 +305,18 @@ def test_sql_python_report_invalid_id():
         == f'The column specified in df("{name}") is not present in the output of the DataFrame.'
     )
     assert ex.query == query
+    assert ex.debug_context == debug_context
 
 
-def test_sql_report_join_ambiguous():
+@pytest.mark.parametrize("debug_context", [None, "debug_context"])
+def test_sql_report_join_ambiguous(debug_context):
     column = "A"
     c1 = column
     c2 = column
     query = "test query"
-    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(c1, c2, query)
+    ex = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
+        c1, c2, query, debug_context
+    )
     assert type(ex) == SnowparkSQLAmbiguousJoinException
     assert ex.error_code == "1303"
     assert (
@@ -331,6 +329,7 @@ def test_sql_report_join_ambiguous():
         f"the DataFrame.join() method for more details."
     )
     assert ex.query == query
+    assert ex.debug_context == debug_context
 
 
 def test_server_cannot_find_current_db_or_schema():

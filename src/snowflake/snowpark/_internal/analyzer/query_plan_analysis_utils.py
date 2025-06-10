@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from collections import Counter
@@ -28,6 +28,7 @@ class PlanNodeCategory(Enum):
     UNPIVOT = "unpivot"
     WINDOW = "window"
     GROUP_BY = "group_by"
+    DISTINCT = "distinct"
     PARTITION_BY = "partition_by"
     CASE_WHEN = "case_when"
     LITERAL = "literal"  # cover all literals like numbers, constant strings, etc

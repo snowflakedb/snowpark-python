@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import os
 
@@ -10,20 +10,15 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 
 
 @pytest.fixture(scope="function")
-def mock_server_connection(multithreading_mode_enabled):
-    options = {
-        "session_parameters": {
-            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled
-        }
-    }
-    s = MockServerConnection(options)
+def mock_server_connection():
+    s = MockServerConnection()
     yield s
     s.close()
 
 
 @pytest.fixture(scope="function")
 def session(mock_server_connection):
-    with Session(mock_server_connection) as s:
+    with Session.builder.config("local_testing", True).create() as s:
         yield s
 
 

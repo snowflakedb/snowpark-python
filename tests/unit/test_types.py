@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import decimal
@@ -43,6 +43,12 @@ from snowflake.snowpark._internal.type_utils import (
     retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
+    type_string_to_type_object,
+    is_likely_struct,
+    parse_struct_field_list,
+    split_top_level_comma_fields,
+    extract_bracket_content,
+    extract_nullable_keyword,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -683,6 +689,7 @@ def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
 @pytest.mark.parametrize(
     "value_str,datatype,expected_value",
     [
+        (None, None, None),
         ("1", IntegerType(), 1),
         ("True", BooleanType(), True),
         ("1.0", FloatType(), 1.0),
@@ -963,7 +970,28 @@ def test_convert_sp_to_sf_type():
     )
     assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
     assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
+    assert (
+        convert_sp_to_sf_type(ArrayType(IntegerType(), structured=True)) == "ARRAY(INT)"
+    )
+    assert (
+        convert_sp_to_sf_type(
+            ArrayType(IntegerType(), structured=True, contains_null=False)
+        )
+        == "ARRAY(INT NOT NULL)"
+    )
     assert convert_sp_to_sf_type(MapType()) == "OBJECT"
+    assert (
+        convert_sp_to_sf_type(MapType(StringType(), StringType(), structured=True))
+        == "MAP(STRING, STRING)"
+    )
+    assert (
+        convert_sp_to_sf_type(
+            MapType(
+                StringType(), StringType(), structured=True, value_contains_null=False
+            )
+        )
+        == "MAP(STRING, STRING NOT NULL)"
+    )
     assert convert_sp_to_sf_type(StructType()) == "OBJECT"
     assert convert_sp_to_sf_type(VariantType()) == "VARIANT"
     assert convert_sp_to_sf_type(GeographyType()) == "GEOGRAPHY"
@@ -1048,3 +1076,985 @@ def test_snow_type_to_dtype_str():
 
     with pytest.raises(TypeError, match="invalid DataType"):
         snow_type_to_dtype_str(None)
+
+
+@pytest.mark.parametrize(
+    "tpe, simple_string, json, type_name, json_value",
+    [
+        (DataType(), "data", '"data"', "data", "data"),
+        (BinaryType(), "binary", '"binary"', "binary", "binary"),
+        (BooleanType(), "boolean", '"boolean"', "boolean", "boolean"),
+        (ByteType(), "tinyint", '"byte"', "byte", "byte"),
+        (DateType(), "date", '"date"', "date", "date"),
+        (
+            DecimalType(20, 10),
+            "decimal(20,10)",
+            '"decimal(20,10)"',
+            "decimal",
+            "decimal(20,10)",
+        ),
+        (DoubleType(), "double", '"double"', "double", "double"),
+        (FloatType(), "float", '"float"', "float", "float"),
+        (IntegerType(), "int", '"integer"', "integer", "integer"),
+        (LongType(), "bigint", '"long"', "long", "long"),
+        (ShortType(), "smallint", '"short"', "short", "short"),
+        (StringType(), "string", '"string"', "string", "string"),
+        (VariantType(), "variant", '"variant"', "variant", "variant"),
+        (
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+            "struct<A:string,B:int>",
+            '{"fields":[{"name":"A","nullable":true,"type":"string"},{"name":"B","nullable":true,"type":"integer"}],"type":"struct"}',
+            "struct",
+            {
+                "type": "struct",
+                "fields": [
+                    {"name": "A", "type": "string", "nullable": True},
+                    {"name": "B", "type": "integer", "nullable": True},
+                ],
+            },
+        ),
+        (
+            StructField("AA", StringType()),
+            "AA:string",
+            '{"name":"AA","nullable":true,"type":"string"}',
+            "",
+            {
+                "name": "AA",
+                "type": "string",
+                "nullable": True,
+            },
+        ),
+        (TimestampType(), "timestamp", '"timestamp"', "timestamp", "timestamp"),
+        (
+            TimestampType(TimestampTimeZone.TZ),
+            "timestamp_tz",
+            '"timestamp_tz"',
+            "timestamp",
+            "timestamp_tz",
+        ),
+        (
+            TimestampType(TimestampTimeZone.LTZ),
+            "timestamp_ltz",
+            '"timestamp_ltz"',
+            "timestamp",
+            "timestamp_ltz",
+        ),
+        (
+            TimestampType(TimestampTimeZone.NTZ),
+            "timestamp_ntz",
+            '"timestamp_ntz"',
+            "timestamp",
+            "timestamp_ntz",
+        ),
+        (TimeType(), "time", '"time"', "time", "time"),
+        (
+            ArrayType(IntegerType()),
+            "array<int>",
+            '{"contains_null":true,"element_type":"integer","type":"array"}',
+            "array",
+            {
+                "contains_null": True,
+                "element_type": "integer",
+                "type": "array",
+            },
+        ),
+        (
+            ArrayType(ArrayType(IntegerType())),
+            "array<array<int>>",
+            '{"contains_null":true,"element_type":{"contains_null":true,"element_type":"integer","type":"array"},"type":"array"}',
+            "array",
+            {
+                "contains_null": True,
+                "element_type": {
+                    "contains_null": True,
+                    "element_type": "integer",
+                    "type": "array",
+                },
+                "type": "array",
+            },
+        ),
+        (
+            MapType(IntegerType(), StringType()),
+            "map<int,string>",
+            '{"key_type":"integer","type":"map","value_type":"string"}',
+            "map",
+            {
+                "key_type": "integer",
+                "type": "map",
+                "value_type": "string",
+            },
+        ),
+        (
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+            "map<string,map<int,string>>",
+            '{"key_type":"string","type":"map","value_type":{"key_type":"integer","type":"map","value_type":"string"}}',
+            "map",
+            {
+                "type": "map",
+                "key_type": "string",
+                "value_type": {
+                    "type": "map",
+                    "key_type": "integer",
+                    "value_type": "string",
+                },
+            },
+        ),
+        (
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            "struct<NESTED:struct<A:int,B:string>>",
+            '{"fields":[{"name":"NESTED","nullable":true,"type":{"fields":[{"name":"A","nullable":true,"type":"integer"},{"name":"B","nullable":true,"type":"string"}],"type":"struct"}}],"type":"struct"}',
+            "struct",
+            {
+                "type": "struct",
+                "fields": [
+                    {
+                        "name": "NESTED",
+                        "type": {
+                            "type": "struct",
+                            "fields": [
+                                {
+                                    "name": "A",
+                                    "type": "integer",
+                                    "nullable": True,
+                                },
+                                {
+                                    "name": "B",
+                                    "type": "string",
+                                    "nullable": True,
+                                },
+                            ],
+                        },
+                        "nullable": True,
+                    }
+                ],
+            },
+        ),
+        (
+            VectorType(int, 8),
+            "vector(int,8)",
+            '"vector(int,8)"',
+            "vector",
+            "vector(int,8)",
+        ),
+        (
+            VectorType(float, 8),
+            "vector(float,8)",
+            '"vector(float,8)"',
+            "vector",
+            "vector(float,8)",
+        ),
+        (
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+            "pandas<string,int,float>",
+            '{"fields":[{"name":"id","type":"string"},{"name":"col1","type":"integer"},{"name":"col2","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {"name": "id", "type": "string"},
+                    {"name": "col1", "type": "integer"},
+                    {"name": "col2", "type": "float"},
+                ],
+            },
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+            "pandas<array<array<int>>,int,float>",
+            '{"fields":[{"name":"","type":{"contains_null":true,"element_type":{"contains_null":true,"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {
+                        "name": "",
+                        "type": {
+                            "contains_null": True,
+                            "type": "array",
+                            "element_type": {
+                                "contains_null": True,
+                                "type": "array",
+                                "element_type": "integer",
+                            },
+                        },
+                    },
+                    {"name": "", "type": "integer"},
+                    {"name": "", "type": "float"},
+                ],
+            },
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasSeriesType(IntegerType()),
+            "pandas_series<int>",
+            '{"element_type":"integer","type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": "integer"},
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasSeriesType(None),
+            "pandas_series<>",
+            '{"element_type":null,"type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": None},
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+    ],
+)
+def test_datatype(tpe, simple_string, json, type_name, json_value):
+    if tpe is None:
+        pytest.skip("skip because pandas is not available")
+    assert tpe.simple_string() == simple_string
+    assert tpe.json_value() == json_value
+    assert tpe.json() == json
+    if isinstance(tpe, StructField):
+        with pytest.raises(
+            TypeError,
+            match="StructField does not have typeName. Use typeName on its type explicitly instead",
+        ):
+            tpe.type_name()
+    else:
+        assert tpe.type_name() == type_name
+
+    # test alias
+    assert tpe.simpleString() == simple_string
+    assert tpe.jsonValue() == json_value
+    if isinstance(tpe, StructField):
+        with pytest.raises(
+            TypeError,
+            match="StructField does not have typeName. Use typeName on its type explicitly instead",
+        ):
+            tpe.typeName()
+    else:
+        assert tpe.typeName() == type_name
+
+
+@pytest.mark.parametrize(
+    "datatype, tpe",
+    [
+        (
+            MapType,
+            MapType(IntegerType(), StringType()),
+        ),
+        (
+            MapType,
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+        ),
+        (
+            ArrayType,
+            ArrayType(IntegerType()),
+        ),
+        (
+            ArrayType,
+            ArrayType(ArrayType(IntegerType())),
+        ),
+        (
+            StructType,
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+        ),
+        (StructType, StructType([StructField("variant", VariantType())])),
+        (
+            StructField,
+            StructField("AA", StringType()),
+        ),
+        (
+            StructType,
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType()),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType(20, 10)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(int, 1)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(float, 8)),
+        ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+        )
+        if is_pandas_available
+        else (None, None),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+        )
+        if is_pandas_available
+        else (None, None),
+        (PandasSeriesType, PandasSeriesType(IntegerType()))
+        if is_pandas_available
+        else (None, None),
+        (PandasSeriesType, PandasSeriesType(None))
+        if is_pandas_available
+        else (None, None),
+    ],
+)
+def test_structtype_from_json(datatype, tpe):
+    if datatype is None:
+        pytest.skip("skip because pandas is not available")
+    json_dict = tpe.json_value()
+    new_obj = datatype.from_json(json_dict)
+    assert new_obj == tpe
+
+
+def test_from_json_wrong_data_type():
+    wrong_json = {
+        "name": "AA",
+        "type": "wrong_type",
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Cannot parse data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+    wrong_json = {
+        "name": "AA",
+        "type": {
+            "type": "wrong_type",
+            "key_type": "integer",
+            "value_type": "string",
+        },
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+
+def test_timestamp_json_round_trip():
+    timestamp_types = [
+        "timestamp",
+        "timestamp_tz",
+        "timestamp_ntz",
+        "timestamp_ltz",
+    ]
+
+    for ts in timestamp_types:
+        assert (
+            StructField.from_json(
+                {"name": "TS", "type": ts, "nullable": True}
+            ).json_value()["type"]
+            == ts
+        )
+
+
+def test_maptype_alias():
+    expected_key = StringType()
+    expected_value = IntegerType()
+    tpe = MapType(expected_key, expected_value)
+    assert tpe.valueType == expected_value
+    assert tpe.keyType == expected_key
+
+    assert tpe.valueType == tpe.value_type
+    assert tpe.keyType == tpe.key_type
+
+
+def test_type_string_to_type_object_basic_int():
+    dt = type_string_to_type_object("int")
+    assert isinstance(dt, IntegerType), f"Expected IntegerType, got {dt}"
+
+
+def test_type_string_to_type_object_smallint():
+    dt = type_string_to_type_object("smallint")
+    assert isinstance(dt, ShortType), f"Expected ShortType, got {dt}"
+
+
+def test_type_string_to_type_object_byteint():
+    dt = type_string_to_type_object("byteint")
+    assert isinstance(dt, ByteType), f"Expected ByteType, got {dt}"
+
+
+def test_type_string_to_type_object_bigint():
+    dt = type_string_to_type_object("bigint")
+    assert isinstance(dt, LongType), f"Expected LongType, got {dt}"
+
+
+def test_type_string_to_type_object_number_decimal():
+    # For number(precision, scale) => DecimalType
+    dt = type_string_to_type_object("number(10,2)")
+    assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
+    assert dt.precision == 10, f"Expected precision=10, got {dt.precision}"
+    assert dt.scale == 2, f"Expected scale=2, got {dt.scale}"
+    dt = type_string_to_type_object("decimal")
+    assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
+    assert dt.precision == 38, f"Expected precision=38, got {dt.precision}"
+    assert dt.scale == 0, f"Expected scale=0, got {dt.scale}"
+
+
+def test_type_string_to_type_object_numeric_decimal():
+    dt = type_string_to_type_object("numeric(20, 5)")
+    assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
+    assert dt.precision == 20, f"Expected precision=20, got {dt.precision}"
+    assert dt.scale == 5, f"Expected scale=5, got {dt.scale}"
+
+
+def test_type_string_to_type_object_decimal_spaces():
+    # Check spaces inside parentheses
+    dt = type_string_to_type_object("  decimal  (  2  ,  1  )  ")
+    assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
+    assert dt.precision == 2, f"Expected precision=2, got {dt.precision}"
+    assert dt.scale == 1, f"Expected scale=1, got {dt.scale}"
+
+
+def test_type_string_to_type_object_string_with_length():
+    dt = type_string_to_type_object("string(50)")
+    assert isinstance(dt, StringType), f"Expected StringType, got {dt}"
+    # Snowpark's StringType typically doesn't store length internally,
+    # but here, you're returning StringType(50) in your code, so let's check
+    if hasattr(dt, "length"):
+        assert dt.length == 50, f"Expected length=50, got {dt.length}"
+
+
+def test_type_string_to_type_object_text_with_length():
+    dt = type_string_to_type_object("text(100)")
+    assert isinstance(dt, StringType), f"Expected StringType, got {dt}"
+    if hasattr(dt, "length"):
+        assert dt.length == 100, f"Expected length=100, got {dt.length}"
+
+
+def test_type_string_to_type_object_timestamp():
+    dt = type_string_to_type_object("timestamp")
+    assert isinstance(dt, TimestampType)
+    assert dt.tz == TimestampTimeZone.DEFAULT
+    dt = type_string_to_type_object("timestamp_ntz")
+    assert isinstance(dt, TimestampType)
+    assert dt.tz == TimestampTimeZone.NTZ
+    dt = type_string_to_type_object("timestamp_tz")
+    assert isinstance(dt, TimestampType)
+    assert dt.tz == TimestampTimeZone.TZ
+    dt = type_string_to_type_object("timestamp_ltz")
+    assert isinstance(dt, TimestampType)
+    assert dt.tz == TimestampTimeZone.LTZ
+
+
+def test_type_string_to_type_object_array_of_int():
+    dt = type_string_to_type_object("array<int>")
+    assert isinstance(dt, ArrayType), f"Expected ArrayType, got {dt}"
+    assert isinstance(
+        dt.element_type, IntegerType
+    ), f"Expected element_type=IntegerType, got {dt.element_type}"
+
+
+def test_type_string_to_type_object_array_of_decimal():
+    dt = type_string_to_type_object("array<decimal(10,2)>")
+    assert isinstance(dt, ArrayType), f"Expected ArrayType, got {dt}"
+    assert isinstance(
+        dt.element_type, DecimalType
+    ), f"Expected element_type=DecimalType, got {dt.element_type}"
+    assert dt.element_type.precision == 10
+    assert dt.element_type.scale == 2
+
+    try:
+        type_string_to_type_object("array<decimal(10,2>")
+        raise AssertionError("Expected ValueError for not a supported type")
+    except ValueError as ex:
+        assert "is not a supported type" in str(
+            ex
+        ), f"Expected not a supported type, got: {ex}"
+
+
+def test_type_string_to_type_object_map_of_int_string():
+    dt = type_string_to_type_object("map<int, string>")
+    assert isinstance(dt, MapType), f"Expected MapType, got {dt}"
+    assert isinstance(
+        dt.key_type, IntegerType
+    ), f"Expected key_type=IntegerType, got {dt.key_type}"
+    assert isinstance(
+        dt.value_type, StringType
+    ), f"Expected value_type=StringType, got {dt.value_type}"
+
+
+def test_type_string_to_type_object_map_of_array_decimal():
+    dt = type_string_to_type_object("map< array<int>, decimal(12,5)>")
+    assert isinstance(dt, MapType), f"Expected MapType, got {dt}"
+    assert isinstance(
+        dt.key_type, ArrayType
+    ), f"Expected key_type=ArrayType, got {dt.key_type}"
+    assert isinstance(
+        dt.key_type.element_type, IntegerType
+    ), f"Expected key_type.element_type=IntegerType, got {dt.key_type.element_type}"
+    assert isinstance(
+        dt.value_type, DecimalType
+    ), f"Expected value_type=DecimalType, got {dt.value_type}"
+    assert dt.value_type.precision == 12
+    assert dt.value_type.scale == 5
+
+
+def test_type_string_to_type_object_explicit_struct_simple():
+    dt = type_string_to_type_object("struct<a: int, b: string>")
+    assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
+    assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
+
+    # Now assert exact StructField matches
+    expected_field_a = StructField("a", IntegerType(), nullable=True)
+    expected_field_b = StructField("b", StringType(), nullable=True)
+    assert (
+        dt.fields[0] == expected_field_a
+    ), f"Expected {expected_field_a}, got {dt.fields[0]}"
+    assert (
+        dt.fields[1] == expected_field_b
+    ), f"Expected {expected_field_b}, got {dt.fields[1]}"
+
+
+def test_type_string_to_type_object_explicit_struct_nested():
+    dt = type_string_to_type_object(
+        "struct<x: array<int>, y: map<string, decimal(5,2)>>"
+    )
+    assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
+    assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
+
+    # Check each field directly against StructField(...)
+    expected_field_x = StructField("x", ArrayType(IntegerType()), nullable=True)
+    expected_field_y = StructField(
+        "y", MapType(StringType(), DecimalType(5, 2)), nullable=True
+    )
+
+    assert (
+        dt.fields[0] == expected_field_x
+    ), f"Expected {expected_field_x}, got {dt.fields[0]}"
+    assert (
+        dt.fields[1] == expected_field_y
+    ), f"Expected {expected_field_y}, got {dt.fields[1]}"
+
+
+def test_type_string_to_type_object_unknown_type():
+    try:
+        type_string_to_type_object("unknown_type")
+        raise AssertionError("Expected ValueError for unknown type")
+    except ValueError as ex:
+        assert "unknown_type" in str(
+            ex
+        ), f"Error message doesn't mention 'unknown_type': {ex}"
+
+
+def test_type_string_to_type_object_mismatched_bracket_array():
+    try:
+        type_string_to_type_object("array<int")
+        raise AssertionError("Expected ValueError for mismatched bracket")
+    except ValueError as ex:
+        assert "Missing closing" in str(ex) or "Mismatched" in str(
+            ex
+        ), f"Expected bracket mismatch error, got: {ex}"
+
+
+def test_type_string_to_type_object_mismatched_bracket_map():
+    try:
+        print(type_string_to_type_object("map<int, string>>"))
+        raise AssertionError("Expected ValueError for mismatched bracket")
+    except ValueError as ex:
+        assert "Unexpected characters after closing '>' in" in str(
+            ex
+        ), f"Expected Unexpected characters after closing '>' error, got: {ex}"
+
+
+def test_type_string_to_type_object_bad_decimal():
+    try:
+        type_string_to_type_object("decimal(10,2,5)")
+        raise AssertionError("Expected ValueError for a malformed decimal argument")
+    except ValueError:
+        # "decimal(10,2,5)" doesn't match the DECIMAL_RE regex => unknown type => ValueError
+        pass
+
+
+def test_type_string_to_type_object_bad_struct_syntax():
+    try:
+        type_string_to_type_object("struct<x int, y: string")
+        raise AssertionError(
+            "Expected ValueError for mismatched bracket or parse error"
+        )
+    except ValueError as ex:
+        assert (
+            "Missing closing" in str(ex)
+            or "Mismatched" in str(ex)
+            or "syntax" in str(ex).lower()
+        ), f"Expected bracket or parse syntax error, got: {ex}"
+
+
+def test_type_string_to_type_object_implicit_struct_simple():
+    """
+    Verify that a comma-separated list of 'name: type' fields parses as a StructType,
+    even without 'struct<...>'.
+    """
+    dt = type_string_to_type_object("a: int, b: string")
+    assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
+    assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
+
+    expected_field_a = StructField("a", IntegerType(), nullable=True)
+    expected_field_b = StructField("b", StringType(), nullable=True)
+
+    assert (
+        dt.fields[0] == expected_field_a
+    ), f"Expected {expected_field_a}, got {dt.fields[0]}"
+    assert (
+        dt.fields[1] == expected_field_b
+    ), f"Expected {expected_field_b}, got {dt.fields[1]}"
+
+
+def test_type_string_to_type_object_implicit_struct_single_field():
+    """
+    Even a single 'name: type' with no commas should parse to StructType
+    if your parser logic treats it as an implicit struct.
+    """
+    dt = type_string_to_type_object("c: decimal(10,2)")
+    assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
+    assert len(dt.fields) == 1, f"Expected 1 field, got {len(dt.fields)}"
+
+    expected_field_c = StructField("c", DecimalType(10, 2), nullable=True)
+    assert (
+        dt.fields[0] == expected_field_c
+    ), f"Expected {expected_field_c}, got {dt.fields[0]}"
+
+
+def test_type_string_to_type_object_implicit_struct_nested():
+    """
+    Test an implicit struct with multiple fields,
+    including nested array/map types.
+    """
+    dt = type_string_to_type_object("arr: array<int>, kv: map<string, decimal(5,2)>")
+    assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
+    assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
+
+    expected_field_arr = StructField("arr", ArrayType(IntegerType()), nullable=True)
+    expected_field_kv = StructField(
+        "kv", MapType(StringType(), DecimalType(5, 2)), nullable=True
+    )
+
+    assert (
+        dt.fields[0] == expected_field_arr
+    ), f"Expected {expected_field_arr}, got {dt.fields[0]}"
+    assert (
+        dt.fields[1] == expected_field_kv
+    ), f"Expected {expected_field_kv}, got {dt.fields[1]}"
+
+
+def test_type_string_to_type_object_implicit_struct_with_spaces():
+    """
+    Test spacing variations. E.g. "  col1  :   int  ,  col2  :  map< string , decimal(5,2) >  ".
+    """
+    dt = type_string_to_type_object(
+        "  col1 :  int  ,  col2 :   map< string , decimal( 5 , 2 ) > "
+    )
+    assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
+    assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
+
+    expected_field_col1 = StructField("col1", IntegerType(), nullable=True)
+    expected_field_col2 = StructField(
+        "col2", MapType(StringType(), DecimalType(5, 2)), nullable=True
+    )
+
+    assert (
+        dt.fields[0] == expected_field_col1
+    ), f"Expected {expected_field_col1}, got {dt.fields[0]}"
+    assert (
+        dt.fields[1] == expected_field_col2
+    ), f"Expected {expected_field_col2}, got {dt.fields[1]}"
+
+
+def test_type_string_to_type_object_implicit_struct_inner_colon():
+    dt = type_string_to_type_object("struct struct<i: integer not null>")
+    assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
+    assert len(dt.fields) == 1, f"Expected 1 field, got {len(dt.fields)}"
+    expected_field_i = StructField(
+        "STRUCT",
+        StructType([StructField("I", IntegerType(), nullable=False)]),
+        nullable=True,
+    )
+    assert (
+        dt.fields[0] == expected_field_i
+    ), f"Expected {expected_field_i}, got {dt.fields[0]}"
+
+
+def test_type_string_to_type_object_implicit_struct_error():
+    """
+    Check a malformed implicit struct that should raise ValueError
+    (e.g. trailing comma or missing bracket for nested).
+    """
+    try:
+        type_string_to_type_object("a: int, b:")
+        raise AssertionError("Expected ValueError for malformed struct (b: )")
+    except ValueError as ex:
+        # We expect an error message about Empty type string
+        assert "Empty type string" in str(
+            ex
+        ), f"Expected error 'Empty type string', got: {ex}"
+
+    try:
+        type_string_to_type_object("arr: array<int, b: string")
+        raise AssertionError("Expected ValueError for mismatched bracket")
+    except ValueError as ex:
+        # We expect an error about bracket mismatch or missing '>'
+        assert "Missing closing" in str(
+            ex
+        ), f"Expected Missing closing error, got: {ex}"
+
+
+def test_extract_bracket_content_array_ok():
+    s = "array<int>"
+    # We expect to extract "int" from inside <...>
+    content = extract_bracket_content(s, keyword="array")
+    assert content == "int", f"Expected 'int', got {content}"
+
+
+def test_extract_bracket_content_map_spaces():
+    s = " map< int , string >"
+    content = extract_bracket_content(s, keyword="map")
+    assert content == "int , string", f"Expected 'int , string', got {content}"
+
+
+def test_extract_bracket_content_missing_closing():
+    s = "array<int"
+    try:
+        extract_bracket_content(s, keyword="array")
+        raise AssertionError("Expected ValueError for missing '>'")
+    except ValueError as ex:
+        assert (
+            "Missing closing" in str(ex) or "mismatched" in str(ex).lower()
+        ), f"Error does not mention missing bracket: {ex}"
+
+
+def test_extract_bracket_content_mismatched_extra_close():
+    s = "struct<a: int>>"
+    try:
+        extract_bracket_content(s, keyword="struct")
+        raise AssertionError("Expected ValueError for extra '>'")
+    except ValueError as ex:
+        assert "Unexpected characters after closing '>' in" in str(
+            ex
+        ), f"Error does not mention Unexpected characters after closing '>' in: {ex}"
+
+
+def test_split_top_level_comma_fields_no_brackets():
+    s = "int, string, decimal(10,2)"
+    parts = split_top_level_comma_fields(s)
+    assert parts == ["int", "string", "decimal(10,2)"], f"Got unexpected parts: {parts}"
+
+
+def test_split_top_level_comma_fields_nested_brackets():
+    s = "int, array<long>, decimal(10,2), map<int, array<string>>"
+    parts = split_top_level_comma_fields(s)
+    assert parts == [
+        "int",
+        "array<long>",
+        "decimal(10,2)",
+        "map<int, array<string>>",
+    ], f"Got unexpected parts: {parts}"
+
+
+def test_parse_struct_field_list_simple():
+    s = "a: int, b: string"
+    struct_type = parse_struct_field_list(s)
+    assert (
+        len(struct_type.fields) == 2
+    ), f"Expected 2 fields, got {len(struct_type.fields)}"
+    # Direct equality checks on each StructField
+    from snowflake.snowpark.types import StructField, IntegerType, StringType
+
+    assert struct_type.fields[0] == StructField("a", IntegerType(), nullable=True)
+    assert struct_type.fields[1] == StructField("b", StringType(), nullable=True)
+
+
+def test_parse_struct_field_list_malformed():
+    s = "col1: int, col2"
+    try:
+        parse_struct_field_list(s)
+        raise AssertionError("Expected ValueError for missing type in 'col2'")
+    except ValueError as ex:
+        assert (
+            "Cannot parse struct field definition" in str(ex)
+            or "missing" in str(ex).lower()
+        ), f"Unexpected error message: {ex}"
+
+
+def test_parse_struct_field_list_single_type_with_space():
+    s = "decimal(1, 2)"
+    assert parse_struct_field_list(s) is None, "Expected None for single type"
+
+
+def test_is_likely_struct_colon():
+    """
+    Strings with a top-level colon (outside any <...> or (...))
+    should return True.
+    """
+    s = "col: int"
+    assert is_likely_struct(s) is True
+
+
+def test_is_likely_struct_comma():
+    """
+    Strings with a top-level comma (outside brackets)
+    should return True (e.g. multiple fields).
+    """
+    s = "col1: int, col2: string"
+    assert is_likely_struct(s) is True
+
+
+def test_is_likely_struct_top_level_space():
+    """
+    Strings with a top-level space (and no colon/comma)
+    should return True (single field, e.g. 'arr array<int>').
+    """
+    s = "arr array<int>"
+    assert is_likely_struct(s) is True
+
+
+def test_is_likely_struct_no_space_colon_comma():
+    """
+    If there's no top-level space, colon, or comma,
+    we return False (likely a single-type definition like 'decimal(10,2)').
+    """
+    s = "decimal(10,2)"
+    assert is_likely_struct(s) is False
+
+
+def test_is_likely_struct_space_inside_brackets():
+    """
+    Spaces inside <...> should not trigger struct mode.
+    E.g. 'array< int >' has spaces inside brackets,
+    but no top-level space => should return False.
+    """
+    s = "array< int >"
+    assert is_likely_struct(s) is False
+
+
+def test_is_likely_struct_comma_inside_brackets():
+    """
+    Comma inside <...> is not top-level,
+    so it shouldn't make the string 'likely struct'.
+    Example: 'array<int, string>' is not a struct definition,
+    it's a single type definition for an array of multiple types
+    (though typically invalid in Snowpark, but let's test bracket logic).
+    """
+    s = "array<int, string>"
+    assert is_likely_struct(s) is False
+
+
+def test_is_likely_struct_colon_inside_brackets():
+    """
+    If a colon is inside brackets, e.g. 'map<int, struct<x: int>>',
+    that colon is not top-level => should return False.
+    """
+    s = "map<int, struct<x: int>>"
+    assert is_likely_struct(s) is False
+
+
+def test_is_likely_struct_complex_no_top_level_space():
+    """
+    Example: 'struct<x int, y int>' => top-level
+    colon/space are inside <...> => so top-level
+    has none => returns False.
+    But note if you want 'struct<x: int, y: int>',
+    you might parse it differently. This test ensures
+    bracket-depth logic works properly.
+    """
+    s = "struct<x int, y int>"
+    # top-level bracket depth covers entire string
+    # => no top-level space/colon/comma
+    assert is_likely_struct(s) is False
+
+
+def test_extract_nullable_keyword_no_not_null():
+    """
+    Verifies that if there's no NOT NULL keyword, the function
+    returns the original string and nullable=True.
+    """
+    base_str, is_nullable = extract_nullable_keyword("integer")
+    assert base_str == "integer"
+    assert is_nullable is True
+
+
+def test_extract_nullable_keyword_case_insensitive():
+    """
+    Verifies that NOT NULL is matched regardless of case,
+    and the returned base_str excludes that portion.
+    """
+    base_str, is_nullable = extract_nullable_keyword("INT NOT NULL")
+    assert base_str == "INT"
+    assert is_nullable is False
+
+
+def test_extract_nullable_keyword_weird_spacing():
+    """
+    Verifies that arbitrary spacing in 'not   null' is handled,
+    returning the correct base_str and nullable=False.
+    """
+    base_str, is_nullable = extract_nullable_keyword("decimal(10,2)  not    null")
+    assert base_str == "decimal(10,2)"
+    assert is_nullable is False
+
+
+def test_extract_nullable_keyword_random_case():
+    """
+    Verifies that random case usage like 'NoT nUlL' is detected,
+    returning nullable=False.
+    """
+    base_str, is_nullable = extract_nullable_keyword("decimal(10,2) NoT nUlL")
+    assert base_str == "decimal(10,2)"
+    assert is_nullable is False
+
+
+def test_extract_nullable_keyword_with_leading_trailing_spaces():
+    """
+    Verifies leading/trailing whitespace is stripped properly,
+    and the base_str excludes 'not null'.
+    """
+    base_str, is_nullable = extract_nullable_keyword("  decimal(10,2) not null   ")
+    assert base_str == "decimal(10,2)"
+    assert is_nullable is False
+
+
+def test_extract_nullable_keyword_mix_of_no_keywords():
+    """
+    If there's a keyword 'null' alone (no 'not'),
+    it's not recognized by this pattern, so we treat it as normal text.
+    """
+    base_str, is_nullable = extract_nullable_keyword("mytype null")
+    # This doesn't match 'NOT NULL', so it returns original string with is_nullable=True
+    assert base_str == "mytype null"
+    assert is_nullable is True

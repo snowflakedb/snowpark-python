@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import io
@@ -17,7 +17,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.functions import lit, when_matched
-from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry
 from snowflake.snowpark.mock._plan import MockExecutionPlan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
@@ -28,22 +27,16 @@ from snowflake.snowpark.session import Session
 from tests.utils import Utils
 
 
-@pytest.fixture(scope="function", autouse=True)
-def threadsafe_server_connection():
-    options = {
-        "session_parameters": {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
-    }
-    s = MockServerConnection(options)
-    yield s
-    s.close()
-
-
 @pytest.fixture(scope="function")
-def threadsafe_session(threadsafe_server_connection):
-    with Session(threadsafe_server_connection) as s:
+def threadsafe_session(mock_server_connection):
+    with Session(mock_server_connection) as s:
         yield s
 
 
+@pytest.mark.skipif(
+    pytest.param("local_testing_mode"),
+    reason="TODO SNOW-1826001: Bug in local testing mode.",
+)
 def test_table_update_merge_delete(threadsafe_session):
     table_name = Utils.random_table_name()
     num_threads = 10
@@ -168,8 +161,8 @@ def test_mocked_function_registry_created_once():
 
 
 @pytest.mark.parametrize("test_table", [True, False])
-def test_tabular_entity_registry(test_table, threadsafe_server_connection):
-    entity_registry = threadsafe_server_connection.entity_registry
+def test_tabular_entity_registry(test_table, mock_server_connection):
+    entity_registry = mock_server_connection.entity_registry
     num_threads = 10
 
     def write_read_and_drop_table():
@@ -189,7 +182,7 @@ def test_tabular_entity_registry(test_table, threadsafe_server_connection):
         empty_logical_plan = LogicalPlan()
         plan = MockExecutionPlan(empty_logical_plan, None)
 
-        entity_registry.create_or_replace_view(plan, view_name)
+        entity_registry.create_or_replace_view(plan, view_name, True)
 
         optional_view = entity_registry.read_view_if_exists(view_name)
         if optional_view is not None:
@@ -206,8 +199,8 @@ def test_tabular_entity_registry(test_table, threadsafe_server_connection):
             future.result()
 
 
-def test_stage_entity_registry_put_and_get(threadsafe_server_connection):
-    stage_registry = StageEntityRegistry(threadsafe_server_connection)
+def test_stage_entity_registry_put_and_get(mock_server_connection):
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     def put_and_get_file():
@@ -235,9 +228,9 @@ def test_stage_entity_registry_put_and_get(threadsafe_server_connection):
 
 
 def test_stage_entity_registry_upload_and_read(
-    threadsafe_session, threadsafe_server_connection
+    threadsafe_session, mock_server_connection
 ):
-    stage_registry = StageEntityRegistry(threadsafe_server_connection)
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     def upload_and_read_json(thread_id: int):
@@ -266,8 +259,8 @@ def test_stage_entity_registry_upload_and_read(
             future.result()
 
 
-def test_stage_entity_registry_create_or_replace(threadsafe_server_connection):
-    stage_registry = StageEntityRegistry(threadsafe_server_connection)
+def test_stage_entity_registry_create_or_replace(mock_server_connection):
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:

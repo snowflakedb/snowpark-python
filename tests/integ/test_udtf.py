@@ -1,15 +1,18 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
 import decimal
+import os
 import sys
+from textwrap import dedent
 from typing import Dict, List, Tuple
 
 import pytest
 
-from snowflake.snowpark import Row, Table
+from snowflake.snowpark import Row, Table, context
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import lit, udtf
@@ -532,6 +535,54 @@ def test_apply_in_pandas(session):
         ],
     )
 
+    class Column:
+        def __init__(self, spark_name: str) -> None:
+            self.spark_name = spark_name
+
+    class ColumnMap:
+        def __init__(self) -> None:
+            self.columns: List[Column] = []
+
+    # test with multiple columns in group by
+    df = session.createDataFrame(
+        [(1, 1.0), (1, 2.0), (2, 3.0), (2, 5.0), (2, 10.0)], ("id", "v")
+    )
+
+    # this is to mock the current behavior
+    df._column_map = ColumnMap()
+    df._column_map.columns = [Column("id"), Column("v")]
+
+    context._is_snowpark_connect_compatible_mode = True
+
+    def normalize(pdf):
+        v = pdf.v
+        return pdf.assign(v=(v - v.mean()) / v.std())
+
+    df = (
+        df.group_by("id")
+        .applyInPandas(
+            normalize,
+            output_schema=StructType(
+                [
+                    StructField("id", IntegerType()),
+                    StructField("v", DoubleType()),
+                ]
+            ),
+        )
+        .orderBy(["id", "v"])
+    )
+
+    Utils.check_answer(
+        df,
+        [
+            Row(ID=1, V=-0.7071067811865475),
+            Row(ID=1, V=0.7071067811865475),
+            Row(ID=2, V=-0.8320502943378437),
+            Row(ID=2, V=-0.2773500981126146),
+            Row(ID=2, V=1.1094003924504583),
+        ],
+    )
+
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_permanent_udtf_negative(session, db_parameters):
@@ -881,7 +932,7 @@ def test_register_vectorized_udtf_process_basic(session, from_file, resources_pa
     Utils.check_answer(
         df.select(process_udtf("id", "col1", "col2")),
         data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -935,7 +986,7 @@ def test_register_vectorized_udtf_process_basic_with_end_partition(
     Utils.check_answer(
         df.select(process_udtf("id", "col1", "col2").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -993,7 +1044,7 @@ def test_register_vectorized_udtf_process_sum_rows(session, from_file, resources
     Utils.check_answer(
         df.select(process_udtf("id", "col1").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1042,7 +1093,7 @@ def test_register_vectorized_udtf_process_max_batch_size(
     Utils.check_answer(
         df.select(process_udtf("id", "col1", "col2").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1092,7 +1143,7 @@ def test_register_vectorized_udtf_process_with_output_schema(session):
     Utils.check_answer(
         df.select(process_udtf("id", "col1").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1140,7 +1191,7 @@ def test_register_vectorized_udtf_process_with_type_hints(session):
     Utils.check_answer(
         df.select(process_udtf("id", "col1").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1192,7 +1243,7 @@ def test_register_vectorized_udtf_process_with_type_hints_and_output_schema(sess
     Utils.check_answer(
         df.select(process_udtf("id", "col1").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1305,3 +1356,105 @@ def test_udtf_external_access_integration(session, db_parameters):
         )
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stored proc env does not have permissions to look up warehouse details",
+)
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udtf_artifact_repository(session, resources_path):
+    class ArtifactRepositoryUDTF:
+        def process(self) -> Iterable[Tuple[str]]:
+            import urllib3
+
+            return [(str(urllib3.exceptions.HTTPError("test")),)]
+
+    ar_udtf = session.udtf.register(
+        ArtifactRepositoryUDTF,
+        output_schema=StructType([StructField("a", StringType())]),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        packages=["urllib3", "requests", "cloudpickle"],
+    )
+
+    Utils.check_answer(
+        session.table_function(ar_udtf()),
+        [
+            Row(
+                "test",
+            )
+        ],
+    )
+
+    warehouse_info = (
+        session.sql(
+            f"show warehouses like '{unquote_if_quoted(session.get_current_warehouse())}'"
+        )
+        .select('"is_current"', '"resource_constraint"')
+        .collect()
+    )
+    active, resource_constraint = warehouse_info[0]
+
+    # Only test error case on ARM warehouse. X86 warehouse will have a resource constraint
+    if len(warehouse_info) == 1 and active == "Y" and resource_constraint is None:
+        try:
+            ar_udtf = session.udtf.register(
+                ArtifactRepositoryUDTF,
+                output_schema=StructType([StructField("a", StringType())]),
+                artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+                packages=["urllib3", "requests"],
+                resource_constraint={"architecture": "x86"},
+            )
+        except SnowparkSQLException as ex:
+            assert "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse." in str(
+                ex
+            ) or "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
+            )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="artifact repository not supported in local testing",
+)
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
+)
+def test_udtf_artifact_repository_from_file(session, tmpdir):
+    source = dedent(
+        """
+    import urllib3
+    from typing import Iterable, Tuple
+    class ArtifactRepositoryUDTF:
+        def process(self) -> Iterable[Tuple[str]]:
+            return [(str(urllib3.exceptions.HTTPError("test")),)]
+    """
+    )
+    file_path = os.path.join(tmpdir, "artifact_repository_udtf.py")
+    with open(file_path, "w") as f:
+        f.write(source)
+
+    ar_udtf = session.udtf.register_from_file(
+        file_path,
+        "ArtifactRepositoryUDTF",
+        output_schema=StructType([StructField("a", StringType())]),
+        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+        packages=["urllib3", "requests"],
+    )
+
+    Utils.check_answer(
+        session.table_function(ar_udtf()),
+        [
+            Row(
+                "test",
+            )
+        ],
+    )

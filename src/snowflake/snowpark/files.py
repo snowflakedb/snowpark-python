@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -13,9 +13,8 @@ from __future__ import annotations
 import array
 import io
 import sys
+import tempfile
 from io import RawIOBase
-
-from snowflake.snowpark._internal.utils import private_preview
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -34,7 +33,7 @@ class SnowflakeFile(RawIOBase):
     SnowflakeFile supports most operations supported by Python IOBase objects.
     A SnowflakeFile object can be used as a Python IOBase object.
 
-    The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a SnowflakeFile object.
+    The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a read-only SnowflakeFile object, and call :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result` to create a write-only SnowflakeFile object.
 
     This class is intended for usage within UDFs and stored procedures and many methods do not work locally.
     """
@@ -73,24 +72,50 @@ class SnowflakeFile(RawIOBase):
         require_scoped_url: bool = True,
     ) -> SnowflakeFile:
         """
-        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
-        In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
+        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for read-based IO operations on the file.
+
+        In UDFs and Stored Procedures, the object works like a read-only Python IOBase object and as a wrapper for an IO stream of remote files.
 
         All files are accessed in the context of the UDF owner (with the exception of caller's rights stored procedures which use the caller's context).
         UDF callers should use scoped URLs to allow the UDF to access their files. By accepting only scoped URLs the UDF owner can ensure
-        the UDF caller had access to the provided file. Removing the requirement that the URL is a scoped URL (require_scoped_url=false) allows the caller
+        the UDF caller had access to the provided file. Removing the requirement that the URL is a scoped URL (require_scoped_url=False) allows the caller
         to provide URLs that may be only accessible by the UDF owner.
 
         is_owner_file is marked for deprecation. For Snowflake release 7.8 and onwards please use require_scoped_url instead.
 
         Args:
             file_location: scoped URL, file URL, or string path for files located in a stage
-            mode: A string used to mark the type of an IO stream.
+            mode: A string used to mark the type of an IO stream. Supported modes are "r" for text read and "rb" for binary read.
             is_owner_file: (Deprecated) A boolean value, if True, the API is intended to access owner's files and all URI/URL are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped URL is allowed.
             require_scoped_url: A boolean value, if True, file_location must be a scoped URL. A scoped URL ensures that the caller cannot access the UDF owners files that the caller does not have access to.
         """
+        if mode not in ("r", "rb"):
+            raise ValueError(
+                f"Invalid mode '{mode}' for SnowflakeFile.open. Supported modes are 'r' and 'rb'."
+            )
         return cls(
             file_location, mode, is_owner_file, require_scoped_url=require_scoped_url
+        )
+
+    @classmethod
+    def open_new_result(cls, mode: str = "w") -> SnowflakeFile:
+        """
+        Used to create a :class:`~snowflake.snowpark.file.SnowflakeFile` which can only be used for write-based IO operations. UDFs/Stored Procedures should return the file to materialize it, and it is then made accessible via a scoped URL returned in the query results.
+
+        In UDFs and Stored Procedures, the object works like a write-only Python IOBase object and as a wrapper for an IO stream of remote files.
+
+        Args:
+            mode: A string used to mark the type of an IO stream. Supported modes are "w" for text write and "wb" for binary write.
+        """
+        if mode not in ("w", "wb"):
+            raise ValueError(
+                f"Invalid mode '{mode}' for SnowflakeFile.open_new_result. Supported modes are 'w' and 'wb'."
+            )
+        return cls(
+            tempfile.NamedTemporaryFile().name,
+            mode,
+            require_scoped_url=0,
+            from_result_api=True,
         )
 
     def close(self) -> None:
@@ -121,23 +146,9 @@ class SnowflakeFile(RawIOBase):
 
     def isatty(self) -> None:
         """
-        Returns false, file streams in stored procedures and UDFs are never interactive in Snowflake.
+        Returns False, file streams in stored procedures and UDFs are never interactive in Snowflake.
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
-
-    @classmethod
-    @private_preview(version="1.22.1")
-    def open_new_result(cls, mode: str = "w") -> SnowflakeFile:
-        """
-        Returns a :class:`~snowflake.snowpark.file.SnowflakeFile`.
-        In UDF and Stored Procedures, the object works like a Python IOBase object and as a wrapper for an IO stream of remote files. The IO Stream is to support the file operations defined in this class.
-
-        This stream will open a writable result file that will be materialized when it's returned by a UDF or Stored Procedure. When the file is materialized then file_uri will be set to a scoped URL that temporarily references this file.
-
-        Args:
-            mode: A string used to mark the type of an IO stream.
-        """
-        return cls("new results file", mode, require_scoped_url=0, from_result_api=True)
 
     def read(self, size: int = -1) -> None:
         """
@@ -148,12 +159,6 @@ class SnowflakeFile(RawIOBase):
     def read1(self, size: int = -1) -> None:
         """
         See https://docs.python.org/3/library/io.html#io.BufferedIOBase.read1
-        """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
-
-    def readline(self, size: int = -1) -> None:
-        """
-        See https://docs.python.org/3/library/io.html#io.IOBase.readline
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
@@ -178,6 +183,12 @@ class SnowflakeFile(RawIOBase):
     def readinto1(self, b: bytes | bytearray | array.array) -> None:
         """
         See https://docs.python.org/3/library/io.html#io.BufferedIOBase.readinto1
+        """
+        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+
+    def readline(self, size: int = -1) -> None:
+        """
+        See https://docs.python.org/3/library/io.html#io.IOBase.readline
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
@@ -213,18 +224,18 @@ class SnowflakeFile(RawIOBase):
 
     def write(self, b: bytes | bytearray | array.array) -> None:
         """
-        Not yet supported in UDF and Stored Procedures.
+        See https://docs.python.org/3/library/io.html#io.RawIOBase.write
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def writable(self) -> None:
         """
-        Not yet supported in UDF and Stored Procedures.
+        See https://docs.python.org/3/library/io.html#io.IOBase.writable
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def writelines(self, lines: Iterable[str] | list[str]) -> None:
         """
-        Not yet supported in UDF and Stored Procedures.
+        See https://docs.python.org/3/library/io.html#io.IOBase.writelines
         """
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)

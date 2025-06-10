@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -66,7 +66,7 @@ def test_full_like():
     snow_df = pd.DataFrame(data)
     pandas_df = native_pd.DataFrame(data)
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         snow_result = np.full_like(snow_df, 1234)
         pandas_result = np.full_like(pandas_df, 1234)
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
@@ -76,7 +76,7 @@ def test_full_like():
         pandas_result = np.full_like(pandas_df, 1234, shape=(5, 3))
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         snow_result = np.full_like(snow_df["A"], 1234)
         pandas_result = np.full_like(pandas_df["A"], 1234)
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
@@ -199,6 +199,21 @@ def test_np_ufunc_binop_operators(np_ufunc):
         np.log,
         np.log2,
         np.log10,
+        np.trunc,
+        np.ceil,
+        np.floor,
+        np.sin,
+        np.cos,
+        np.tan,
+        np.sinh,
+        np.cosh,
+        np.tanh,
+        np.sqrt,
+        np.exp,
+        np.abs,
+        np.absolute,
+        np.positive,
+        np.negative,
     ],
 )
 def test_np_ufunc_unary_operators(np_ufunc):

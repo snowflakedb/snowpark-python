@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional
+from typing import Optional, Set
 
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
@@ -60,11 +60,23 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def DF_CANNOT_RESOLVE_COLUMN_NAME_AMONG(
-        col_name: str, all_columns: str
+        left_columns: Set[str],
+        right_columns: Set[str],
     ) -> SnowparkColumnException:
+        verb = "are" if len(left_columns) > 1 else "is"
+        left_str = (
+            f" ({', '.join(left_columns)}) {verb} in the right hand side, but not the left."
+            if left_columns
+            else ""
+        )
+        verb = "are" if len(right_columns) > 1 else "is"
+        right_str = (
+            f" ({', '.join(right_columns)}) {verb} in the left hand side, but not the right."
+            if right_columns
+            else ""
+        )
         return SnowparkColumnException(
-            f'Cannot combine the DataFrames by column names. The column "{col_name}" is '
-            f"not a column in the other DataFrame ({all_columns}).",
+            f"Cannot union the DataFrames by column names.{left_str}{right_str}",
             error_code="1102",
         )
 
@@ -116,6 +128,17 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def DF_XML_ROW_TAG_NOT_FOUND(
+        row_tag: Optional[str] = None,
+        file_path: Optional[str] = None,
+    ) -> SnowparkDataframeReaderException:
+        if row_tag is not None and file_path is not None:
+            msg = f"Cannot find the row tag '{row_tag}' in the XML file {file_path}."
+        else:
+            msg = "Cannot find the row tag in the XML file."
+        return SnowparkDataframeReaderException(msg)
+
+    @staticmethod
     def DF_CROSS_TAB_COUNT_TOO_LARGE(
         count: int, max_count: int
     ) -> SnowparkDataframeException:
@@ -126,6 +149,14 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
+    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkDataframeException:
+        return SnowparkDataframeException(
+            "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
+            "returned by the pivot() method unless the pivot is applied with a groupby clause.",
+            error_code="1109",
+        )
+
+    @staticmethod
     def DF_DATAFRAME_IS_NOT_QUALIFIED_FOR_SCALAR_QUERY(
         count: int, columns: str
     ) -> SnowparkDataframeException:
@@ -133,14 +164,6 @@ class SnowparkClientExceptionMessages:
             f"The DataFrame passed in to this function must have only one output column. "
             f"This DataFrame has {count} output columns: {columns}",
             error_code="1108",
-        )
-
-    @staticmethod
-    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkDataframeException:
-        return SnowparkDataframeException(
-            "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
-            "returned by the pivot() method.",
-            error_code="1109",
         )
 
     @staticmethod
@@ -275,23 +298,26 @@ class SnowparkClientExceptionMessages:
     @staticmethod
     def SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
         query: Optional[str] = None,
+        debug_context: Optional[str] = None,
     ) -> SnowparkSQLUnexpectedAliasException:
         return SnowparkSQLUnexpectedAliasException(
             "You can only define aliases for the root Columns in a DataFrame returned by "
             "select() and agg(). You cannot use aliases for Columns in expressions.",
             error_code="1301",
             query=query,
+            debug_context=debug_context,
         )
 
     @staticmethod
     def SQL_PYTHON_REPORT_INVALID_ID(
-        name: str, query: Optional[str] = None
+        name: str, query: Optional[str] = None, debug_context: Optional[str] = None
     ) -> SnowparkSQLInvalidIdException:
         return SnowparkSQLInvalidIdException(
             f'The column specified in df("{name}") '
             f"is not present in the output of the DataFrame.",
             error_code="1302",
             query=query,
+            debug_context=debug_context,
         )
 
     @staticmethod
@@ -299,6 +325,7 @@ class SnowparkClientExceptionMessages:
         c1: str,
         c2: str,
         query: Optional[str] = None,
+        debug_context: Optional[str] = None,
     ) -> SnowparkSQLAmbiguousJoinException:
         return SnowparkSQLAmbiguousJoinException(
             f"The reference to the column '{c1}' is ambiguous. The column is "
@@ -310,13 +337,17 @@ class SnowparkClientExceptionMessages:
             f"the DataFrame.join() method for more details.",
             error_code="1303",
             query=query,
+            debug_context=debug_context,
         )
 
     @staticmethod
     def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
         pe: ProgrammingError,
+        debug_context: Optional[str] = None,
     ) -> SnowparkSQLException:
-        return SnowparkSQLException(pe.msg, error_code="1304", conn_error=pe)
+        return SnowparkSQLException(
+            pe.msg, error_code="1304", conn_error=pe, debug_context=debug_context
+        )
 
     @staticmethod
     def SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(

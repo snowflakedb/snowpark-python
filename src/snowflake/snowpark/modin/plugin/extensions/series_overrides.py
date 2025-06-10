@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -9,6 +9,8 @@ pandas, such as `Series.memory_usage`.
 
 from __future__ import annotations
 
+import copy
+import functools
 from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
 import modin.pandas as pd
@@ -16,7 +18,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
-from modin.pandas.api.extensions import register_series_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
@@ -44,6 +45,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     convert_index_to_list_of_qcs,
     convert_index_to_qc,
     error_checking_for_init,
+    MODIN_IS_AT_LEAST_0_33_0,
 )
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
@@ -71,10 +73,27 @@ from snowflake.snowpark.modin.utils import (
 )
 
 
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.pandas.api.extensions import (
+        register_series_accessor as _register_series_accessor,
+    )
+
+    register_series_accessor = functools.partial(
+        _register_series_accessor, backend="Snowflake"
+    )
+else:  # pragma: no branch
+    from modin.pandas.api.extensions import register_series_accessor
+
+
 def register_series_not_implemented():
     def decorator(base_method: Any):
         func = series_not_implemented()(base_method)
-        register_series_accessor(base_method.__name__)(func)
+        name = (
+            base_method.fget.__name__
+            if isinstance(base_method, property)
+            else base_method.__name__
+        )
+        register_series_accessor(name)(func)
         return func
 
     return decorator
@@ -85,44 +104,92 @@ def register_series_not_implemented():
 # Because __getattr__ itself is responsible for resolving extension methods, we cannot override
 # this method via the extensions module, and have to do it with an old-fashioned set.
 # We cannot name this method __getattr__ because Python will treat this as this file's __getattr__.
-def _fake_getattr(self, key):
-    """
-    Return item identified by `key`.
+if MODIN_IS_AT_LEAST_0_33_0:
+    from modin.pandas.base import (
+        _ATTRS_NO_LOOKUP,
+        sentinel,
+    )
+    from modin.core.storage_formats.pandas.query_compiler_caster import (
+        EXTENSION_NO_LOOKUP,
+    )
 
-    Parameters
-    ----------
-    key : hashable
-        Key to get.
-
-    Returns
-    -------
-    Any
-
-    Notes
-    -----
-    First try to use `__getattribute__` method. If it fails
-    try to get `key` from `Series` fields.
-    """
-    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from modin.pandas.base import _ATTRS_NO_LOOKUP
-    from modin.pandas.series import _SERIES_EXTENSIONS_
-
-    try:
-        return _SERIES_EXTENSIONS_.get(key, object.__getattribute__(self, key))
-    except AttributeError as err:
-        if key not in _ATTRS_NO_LOOKUP:
-            try:
-                value = self[key]
-                if isinstance(value, Series) and value.empty:
+    def _getattr_impl(self, key):
+        """
+        Return item identified by `key`.
+        Parameters
+        ----------
+        key : hashable
+            Key to get.
+        Returns
+        -------
+        Any
+        Notes
+        -----
+        First try to use `__getattribute__` method. If it fails
+        try to get `key` from `Series` fields.
+        """
+        # NOTE that to get an attribute, python calls __getattribute__() first and
+        # then falls back to __getattr__() if the former raises an AttributeError.
+        try:
+            if key not in EXTENSION_NO_LOOKUP:
+                extension = self._getattr__from_extension_impl(
+                    key, set(), Series._extensions
+                )
+                if extension is not sentinel:
+                    return extension
+            return super(Series, self).__getattr__(key)
+        except AttributeError as err:
+            if key not in _ATTRS_NO_LOOKUP:
+                try:
+                    value = self[key]
+                    if isinstance(value, Series) and value.empty:
+                        raise err
+                    return value
+                except Exception:
+                    # We want to raise err if self[key] raises any kind of exception
                     raise err
-                return value
-            except Exception:
-                # We want to raise err if self[key] raises any kind of exception
-                raise err
-        raise err
+            raise err
+
+else:
+
+    def _getattr_impl(self, key):
+        """
+        Return item identified by `key`.
+
+        Parameters
+        ----------
+        key : hashable
+            Key to get.
+
+        Returns
+        -------
+        Any
+
+        Notes
+        -----
+        First try to use `__getattribute__` method. If it fails
+        try to get `key` from `Series` fields.
+        """
+        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+        from modin.pandas.base import _ATTRS_NO_LOOKUP
+        from modin.pandas.series import _SERIES_EXTENSIONS_
+
+        try:
+            return _SERIES_EXTENSIONS_.get(key, object.__getattribute__(self, key))
+        except AttributeError as err:
+            if key not in _ATTRS_NO_LOOKUP:
+                try:
+                    value = self[key]
+                    if isinstance(value, Series) and value.empty:
+                        raise err
+                    return value
+                except Exception:
+                    # We want to raise err if self[key] raises any kind of exception
+                    raise err
+            raise err
 
 
-Series.__getattr__ = _fake_getattr
+Series.__getattr__ = _getattr_impl
 
 
 # === UNIMPLEMENTED METHODS ===
@@ -146,11 +213,6 @@ def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
 
 @register_series_not_implemented()
 def autocorr(self, lag=1):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_series_not_implemented()
-def between(self, left, right, inclusive: str = "both"):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -186,21 +248,70 @@ def factorize(
     pass  # pragma: no cover
 
 
-@register_series_not_implemented()
+@register_series_accessor("hist")
 def hist(
     self,
     by=None,
     ax=None,
-    grid=True,
-    xlabelsize=None,
-    xrot=None,
-    ylabelsize=None,
-    yrot=None,
-    figsize=None,
-    bins=10,
-    **kwds,
+    grid: bool = True,
+    xlabelsize: int | None = None,
+    xrot: float | None = None,
+    ylabelsize: int | None = None,
+    yrot: float | None = None,
+    figsize: tuple[int, int] | None = None,
+    bins: int | Sequence[int] = 10,
+    backend: str | None = None,
+    legend: bool = False,
+    **kwargs,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    if bins is None:
+        bins = 10
+
+    # Get the query compiler representing the histogram data to be plotted.
+    # Along with the query compiler, also get the minimum and maximum values in the input series, and the computed bin size.
+    (
+        new_query_compiler,
+        min_val,
+        max_val,
+        bin_size,
+    ) = self._query_compiler.hist_on_series(
+        by=by,
+        xlabelsize=xlabelsize,
+        xrot=xrot,
+        ylabelsize=ylabelsize,
+        yrot=yrot,
+        figsize=figsize,
+        bins=bins,
+        backend=backend,
+        legend=legend,
+        **kwargs,
+    )
+
+    # Convert the result to native pandas in preparation for plotting it using Matplotlib's bar chart.
+    # Note that before converting to native pandas, the data had already been reduced in the previous step.
+    native_ser = self.__constructor__(query_compiler=new_query_compiler)._to_pandas()
+
+    # Ensure that we have enough rows in the series corresponding to all bins, even if some of them are empty.
+    native_ser_reindexed = native_ser.reindex(
+        native_pd.Index(np.linspace(min_val, max_val, bins + 1)),
+        method="nearest",
+        tolerance=bin_size / 3,
+    ).fillna(0)
+
+    # Prepare the visualization parameters to be used for rendering the bar chart.
+    import matplotlib.pyplot as plt
+
+    fig = kwargs.pop(
+        "figure", plt.gcf() if plt.get_fignums() else plt.figure(figsize=figsize)
+    )
+    if ax is None:
+        ax = fig.gca()
+    ax.grid(grid)
+    counts = native_ser_reindexed.to_list()[0:-1]
+    vals = native_ser_reindexed.index.to_list()[0:-1]
+    bar_labels = vals
+    ax.bar(vals, counts, label=bar_labels, width=bin_size, align="edge")
+    return ax
 
 
 @register_series_not_implemented()
@@ -291,7 +402,6 @@ def to_period(self, freq=None, copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
-@register_series_not_implemented()
 def to_string(
     self,
     buf=None,
@@ -305,12 +415,33 @@ def to_string(
     max_rows=None,
     min_rows=None,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    WarningMessage.single_warning(
+        "Series.to_string materializes data to the local machine."
+    )
+    return self._to_pandas().to_string(
+        buf=buf,
+        na_rep=na_rep,
+        float_format=float_format,
+        header=header,
+        index=index,
+        length=length,
+        dtype=dtype,
+        name=name,
+        max_rows=max_rows,
+        min_rows=min_rows,
+    )
 
 
 @register_series_not_implemented()
 def to_timestamp(self, freq=None, how="start", copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
+
+
+if MODIN_IS_AT_LEAST_0_33_0:
+
+    @register_series_not_implemented()
+    def update(self, other) -> None:  # noqa: PR01, RT01, D200
+        pass  # pragma: no cover
 
 
 @register_series_not_implemented()
@@ -319,12 +450,26 @@ def view(self, dtype=None):  # noqa: PR01, RT01, D200
 
 
 @register_series_not_implemented()
+@property
 def array(self):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
 @register_series_not_implemented()
+@property
 def nbytes(self):  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_series_not_implemented()
+def sem(
+    self,
+    axis: Axis | None = None,
+    skipna: bool = True,
+    ddof: int = 1,
+    numeric_only=False,
+    **kwargs,
+):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -503,7 +648,6 @@ def __init__(
         self.name = name
 
 
-@register_series_accessor("_update_inplace")
 def _update_inplace(self, new_query_compiler) -> None:
     """
     Update the current Series in-place using `new_query_compiler`.
@@ -520,6 +664,15 @@ def _update_inplace(self, new_query_compiler) -> None:
             self._parent[self.name] = self
         else:
             self._parent.loc[self.index] = self
+
+
+# Modin uses _update_inplace to implement set_backend(inplace=True), so in modin 0.33 and newer we
+# can't extend _update_inplace. To fix a query count bug specific to Snowflake in _update_inplace, we overwrite
+# _update_inplace entirely instead of using the extension system.
+if MODIN_IS_AT_LEAST_0_33_0:
+    Series._update_inplace = _update_inplace
+else:
+    register_series_accessor("_update_inplace")(_update_inplace)
 
 
 # Since Snowpark pandas leaves all data on the warehouse, memory_usage's report of local memory
@@ -957,7 +1110,6 @@ def __rtruediv__(self, left):
 
 
 register_series_accessor("__iadd__")(__add__)
-# In upstream modin, imul is typo'd to be __add__ instead of __mul__
 register_series_accessor("__imul__")(__mul__)
 register_series_accessor("__ipow__")(__pow__)
 register_series_accessor("__isub__")(__sub__)
@@ -1012,6 +1164,22 @@ def map(
     )
 
 
+if MODIN_IS_AT_LEAST_0_33_0:
+    # In older versions of Snowpark pandas, overrides to base methods would automatically override
+    # corresponding DataFrame/Series API definitions as well. For consistency between methods, this
+    # is no longer the case, and DataFrame/Series must separately apply this override.
+
+    def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+        # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+        # a column named "_attrs"
+        self._query_compiler._attrs = copy.deepcopy(value)
+
+    def _get_attrs(self) -> dict:  # noqa: RT01, D200
+        return self._query_compiler._attrs
+
+    register_series_accessor("attrs")(property(_get_attrs, _set_attrs))
+
+
 # Snowpark pandas does different validation than upstream Modin.
 @register_series_accessor("argmax")
 def argmax(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, D200
@@ -1050,26 +1218,6 @@ def argmin(self, axis=None, skipna=True, *args, **kwargs):  # noqa: PR01, RT01, 
     if not is_integer(result):  # if result is None, return -1
         result = -1
     return result
-
-
-# Modin uses the same implementation as Snowpark pandas starting form 0.31.0.
-# Until then, upstream Modin does not convert arguments in the caselist into query compilers.
-@register_series_accessor("case_when")
-def case_when(self, caselist) -> Series:  # noqa: PR01, RT01, D200
-    """
-    Replace values where the conditions are True.
-    """
-    modin_type = type(self)
-    caselist = [
-        tuple(
-            data._query_compiler if isinstance(data, modin_type) else data
-            for data in case_tuple
-        )
-        for case_tuple in caselist
-    ]
-    return self.__constructor__(
-        query_compiler=self._query_compiler.case_when(caselist=caselist)
-    )
 
 
 # Upstream Modin has a bug:
@@ -1391,10 +1539,16 @@ def groupby(
     Group Series using a mapper or by a Series of columns.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-        SeriesGroupBy,
-        validate_groupby_args,
-    )
+    if MODIN_IS_AT_LEAST_0_33_0:
+        from modin.pandas.groupby import SeriesGroupBy
+        from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
+            validate_groupby_args,
+        )
+    else:
+        from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
+            SeriesGroupBy,
+            validate_groupby_args,
+        )
 
     validate_groupby_args(by, level, observed)
 
@@ -1412,6 +1566,7 @@ def groupby(
         group_keys,
         idx_name=None,
         observed=observed,
+        drop=False,
         dropna=dropna,
     )
 

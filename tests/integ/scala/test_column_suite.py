@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
 import math
@@ -488,13 +488,13 @@ def test_column_constructors_col(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(col('"Col"')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(col("COL .")).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(col('"CoL"')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
 
 
 def test_column_constructors_select(session):
@@ -508,10 +508,10 @@ def test_column_constructors_select(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select('"Col"').collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select("COL .").collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
 
 
 @pytest.mark.xfail(
@@ -533,16 +533,16 @@ def test_sql_expr_column(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sql_expr('"Col"')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sql_expr("COL .")).collect()
-    assert "syntax error" in str(ex_info)
+    assert "syntax error" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sql_expr('"CoL"')).collect()
-    assert "invalid identifier" in str(ex_info)
+    assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.select(sql_expr("col .")).collect()
-    assert "syntax error" in str(ex_info)
+    assert "syntax error" in str(ex_info.value)
 
 
 def test_errors_for_aliased_columns(session, local_testing_mode):
@@ -556,15 +556,15 @@ def test_errors_for_aliased_columns(session, local_testing_mode):
     with pytest.raises(exc) as ex_info:
         df.select(col("a").as_("b") + 10).collect()
     if not local_testing_mode:
-        assert "You can only define aliases for the root" in str(ex_info)
+        assert "You can only define aliases for the root" in str(ex_info.value)
     else:
-        assert "invalid identifier" in str(ex_info)
+        assert "invalid identifier" in str(ex_info.value)
     with pytest.raises(exc) as ex_info:
         df.group_by(col("a")).agg(avg(col("a").as_("b"))).collect()
     if not local_testing_mode:
-        assert "You can only define aliases for the root" in str(ex_info)
+        assert "You can only define aliases for the root" in str(ex_info.value)
     else:
-        assert "invalid identifier" in str(ex_info)
+        assert "invalid identifier" in str(ex_info.value)
 
 
 def test_like(session):
@@ -668,7 +668,7 @@ def test_regexp(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.string4(session).where(col("A").regexp("+*")).collect()
-    assert "Invalid regular expression" in str(ex_info)
+    assert "Invalid regular expression" in str(ex_info.value)
 
     # Test when pattern is a column of literal strings
     df = session.create_dataframe(
@@ -728,7 +728,7 @@ def test_when_case(session, local_testing_mode):
             when(col("a").is_null(), lit("a")).when(col("a") == 1, lit(6)).as_("a")
         ).collect()
     if not local_testing_mode:
-        assert "Numeric value 'a' is not recognized" in str(ex_info)
+        assert "Numeric value 'a' is not recognized" in str(ex_info.value)
 
 
 def test_lit_contains_single_quote(session):
@@ -765,6 +765,13 @@ def test_in_expression_1_in_with_constant_value_list(session):
 
     df4 = df.select(~col("a").in_([lit(1), lit(2)]).as_("in_result"))
     Utils.check_answer(df4, [Row(False), Row(False), Row(True)], sort=False)
+
+    df5 = df.select(
+        ~col("a")
+        .in_([lit("1").cast(IntegerType()), lit("2").cast(IntegerType())])
+        .as_("in_result")
+    )
+    Utils.check_answer(df5, [Row(False), Row(False), Row(True)], sort=False)
 
 
 def test_in_expression_2_in_with_subquery(session):
@@ -869,27 +876,30 @@ def test_in_expression_3_with_all_types(session, local_testing_mode):
     Utils.check_answer(df.filter(col("string").isin(["three"])), [])
 
 
-def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="in_() with Column object as input is not supported in local testing mode.",
+)
+def test_in_expression_4_input_column_in_value_list(session):
     df = session.create_dataframe(
-        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
-    ).to_df(["a", "b", "c", "d"])
-
-    with pytest.raises(TypeError) as ex_info:
-        df.filter(col("a").in_([col("c")]))
-
-    assert (
-        "is not supported for the values parameter of the function in(). You must either "
-        "specify a sequence of literals or a DataFrame that represents a subquery."
-        in str(ex_info.value)
+        [[1, "a", 1], [2, "b", 2], [3, "b", 33]], schema=["a", "b", "c"]
     )
 
-    with pytest.raises(TypeError) as ex_info:
-        df.filter(col("a").in_([1, df["c"]]))
-
-    assert (
-        "is not supported for the values parameter of the function in(). You must either "
-        "specify a sequence of literals or a DataFrame that represents a subquery."
-        in str(ex_info.value)
+    Utils.check_answer(
+        df.select(col("a").in_([col("c")])), [Row(True), Row(True), Row(False)]
+    )
+    Utils.check_answer(
+        df.select(col("a").in_(df["c"])), [Row(True), Row(True), Row(False)]
+    )
+    Utils.check_answer(
+        df.select(~in_([col("a")], df["c"])), [Row(False), Row(False), Row(True)]
+    )
+    Utils.check_answer(
+        df.select(col("a").in_([3, df["c"]])), [Row(True), Row(True), Row(True)]
+    )
+    Utils.check_answer(
+        df.select(in_([col("a"), col("b")], [[1, "a"], [col("c"), "b"]])),
+        [Row(True), Row(False), Row(True)],
     )
 
     with pytest.raises(TypeError) as ex_info:
@@ -960,21 +970,6 @@ def test_in_expression_7_multiple_columns_with_sub_query(session):
     # select with NOT
     df4 = df.select(~in_([col("a"), col("b")], df0).as_("in_result"))
     Utils.check_answer(df4, [Row(False), Row(False), Row(True)])
-
-
-def test_in_expression_8_negative_test_to_input_column_in_value_list(session):
-    df = session.create_dataframe(
-        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
-    ).to_df("a", "b", "c", "d")
-
-    with pytest.raises(TypeError) as ex_info:
-        df.filter(in_([col("a"), col("b")], [[1, "a"], [col("c"), "b"]]))
-
-    assert (
-        "is not supported for the values parameter of the function in(). You must either "
-        "specify a sequence of literals or a DataFrame that represents a subquery."
-        in str(ex_info.value)
-    )
 
 
 def test_in_expression_9_negative_test_for_the_column_count_doesnt_match_the_value_list(

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
 import weakref
@@ -9,9 +9,10 @@ from typing import TYPE_CHECKING, Dict
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.utils import create_rlock, is_in_stored_procedure
 
+_logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
-
 
 DROP_TABLE_STATEMENT_PARAM_NAME = "auto_clean_up_temp_table"
 
@@ -58,7 +59,7 @@ class TempTableAutoCleaner:
                 )
             ):
                 warning_message = "Drop table requires async query which is not supported in stored procedure yet"
-                logging.warning(warning_message)
+                _logger.warning(warning_message)
                 self.session._conn._telemetry_client.send_temp_table_cleanup_abnormal_exception_telemetry(
                     self.session.session_id,
                     name,
@@ -73,13 +74,13 @@ class TempTableAutoCleaner:
             ):
                 self.drop_table(name)
         elif current_ref_count < 0:
-            logging.debug(
+            _logger.debug(
                 f"Unexpected reference count {current_ref_count} for table {name}"
             )
 
     def drop_table(self, name: str) -> None:  # pragma: no cover
         common_log_text = f"temp table {name} in session {self.session.session_id}"
-        logging.debug(f"Ready to drop {common_log_text}")
+        _logger.debug(f"Ready to drop {common_log_text}")
         query_id = None
         try:
             with self.session.connection.cursor() as cursor:
@@ -87,12 +88,12 @@ class TempTableAutoCleaner:
                     command=f"drop table if exists {name}",
                     _statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name},
                 )["queryId"]
-                logging.debug(
+                _logger.debug(
                     f"Dropping {common_log_text} with query id {async_job_query_id}"
                 )
         except Exception as ex:  # pragma: no cover
             warning_message = f"Failed to drop {common_log_text}, exception: {ex}"
-            logging.warning(warning_message)
+            _logger.warning(warning_message)
             if query_id is None:
                 # If no query_id is available, it means the query haven't been accepted by gs,
                 # and it won't occur in our job_etl_view, send a separate telemetry for recording.

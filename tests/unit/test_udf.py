@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -9,7 +9,11 @@ import pytest
 
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark import Session
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    set_ast_state,
+    AstFlagSource,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import IntegerType
@@ -18,7 +22,10 @@ from snowflake.snowpark.udf import UDFRegistration
 
 @mock.patch("snowflake.snowpark.udf.cleanup_failed_permanent_registration")
 def test_do_register_sp_negative(cleanup_registration_patch):
+    AST_ENABLED = False
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     fake_session = mock.create_autospec(Session)
+    fake_session.ast_enabled = AST_ENABLED
     fake_session._runtime_version_from_requirement = None
     fake_session.get_fully_qualified_name_if_possible = mock.Mock(
         return_value="database.schema"
@@ -64,6 +71,7 @@ def test_do_register_udf_sandbox(session_sandbox, cleanup_registration_patch):
                 "schema": "some_schema",
                 "application_roles": ["app_viewer"],
             },
+            _emit_ast=False,
         )
 
     cleanup_registration_patch.assert_not_called()

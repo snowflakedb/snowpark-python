@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import modin.pandas as pd
@@ -9,17 +9,13 @@ import pytest
 from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.exceptions import SnowparkSQLException
+
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     create_test_dfs,
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
 
 
 def eval_snowpark_pandas_result(*args, **kwargs):
@@ -55,7 +51,7 @@ def test_dataframe_groupby_transform(
     #   temporary function's resultant table.
     # - A second join is performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
+    with SqlCounter(query_count=4, join_count=1 + (1 if dropna else 0), udtf_count=1):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(
@@ -105,7 +101,7 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
     #   temporary function's resultant table.
     # - A second join is performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
+    with SqlCounter(query_count=4, join_count=1 + (1 if dropna else 0), udtf_count=1):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(
@@ -118,6 +114,9 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
         )
 
 
+@pytest.mark.skip(
+    reason="SNOW-1933703: Raise NotImplementedError for groupby transform"
+)
 @sql_count_checker(
     query_count=9,
     join_count=4,
@@ -146,14 +145,7 @@ def test_dataframe_groupby_transform_conflicting_labels_negative():
         pd.show(df)
 
 
-@sql_count_checker(
-    query_count=11,
-    join_count=8,
-    udtf_count=2,
-    high_count_expected=True,
-    high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
-)
-def test_dataframe_groupby_transform_conflicting_labels():
+def test_dataframe_groupby_transform_conflicting_labels(session):
     """
     Based on SNOW-1361200 - The bug occurred because of conflicting UDTF columns appended during groupby transform
     operations in `create_udtf_for_groupby_apply`.
@@ -165,17 +157,25 @@ def test_dataframe_groupby_transform_conflicting_labels():
         df["A"] = df.groupby("X")["X_DATA"].transform("count")
         df["B"] = df.groupby("X")["X_DATA"].transform("count")
 
-    eval_snowpark_pandas_result(
-        *create_test_dfs({"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9]}),
-        transform_helper,
-        inplace=True,
-    )
+    with SqlCounter(
+        query_count=7,
+        join_count=12 if session.sql_simplifier_enabled else 6,
+        udtf_count=1,
+        high_count_expected=True,
+        high_count_reason="performing two groupby transform operations that use UDTFs and compare "
+        "with pandas",
+    ):
+        eval_snowpark_pandas_result(
+            *create_test_dfs({"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9]}),
+            transform_helper,
+            inplace=True,
+        )
 
 
 @sql_count_checker(
-    query_count=11,
-    join_count=5,
-    udtf_count=2,
+    query_count=7,
+    join_count=4,
+    udtf_count=1,
     high_count_expected=True,
     high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
 )
@@ -230,3 +230,25 @@ def test_timedelta_input(pandas_df):
         *create_test_dfs(pandas_df),
         lambda df: df.groupby(0).transform(lambda series: 1),
     )
+
+
+@sql_count_checker(query_count=3)
+def test_groupby_transform_single_output_col():
+    native_df = native_pd.DataFrame(
+        {
+            "A": [1, 2, 3, 1, 2, 2],
+            "B": [4, 5, 6, 7, 8, 9],
+            "C": [10, 11, 12, 13, 14, 15],
+        }
+    )
+    error = "transform must return a scalar value for each group"
+    with pytest.raises(ValueError, match=error):
+        native_df.groupby("A").transform(
+            lambda x: native_pd.DataFrame({"x": x, "y": x})
+        )
+
+    snow_df = pd.DataFrame(native_df)
+    with pytest.raises(SnowparkSQLException, match=error):
+        snow_df.groupby("A").transform(
+            lambda x: native_pd.DataFrame({"x": x, "y": x})
+        ).to_pandas()

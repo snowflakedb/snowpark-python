@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This module contains I/O top-level pandas docstrings that override modin's docstrings."""
@@ -343,6 +343,125 @@ def read_xml():
 def json_normalize():
     """
     Normalize semi-structured JSON data into a flat table.
+
+    Parameters
+    ----------
+    data : dict or list of dicts
+        Unserialized JSON objects.
+    record_path : str or list of str, default None
+        Path in each object to list of records. If not passed, data will be assumed to be an array of records.
+    meta : list of paths (str or list of str), default None
+        Fields to use as metadata for each record in resulting table.
+    meta_prefix : str, default None
+        If True, prefix records with dotted path, e.g. foo.bar.field if meta is [‘foo’, ‘bar’].
+    record_prefix : str, default None
+        If True, prefix records with dotted path, e.g. foo.bar.field if path to records is [‘foo’, ‘bar’].
+    errors : {‘raise’, ‘ignore’}, default ‘raise’
+        Configures error handling.
+        - ‘ignore’ : will ignore KeyError if keys listed in meta are not always present.
+        - ‘raise’ : will raise KeyError if keys listed in meta are not always present.
+    sep : str, default ‘.’
+        Nested records will generate names separated by sep. e.g., for sep=’.’, {‘foo’: {‘bar’: 0}} -> foo.bar.
+    max_level : int, default None
+        Max number of levels(depth of dict) to normalize. if None, normalizes all levels.
+
+    Returns
+    -------
+    frame : DataFrame
+    Normalize semi-structured JSON data into a flat table.
+
+    Examples
+    --------
+    >>> data = [
+    ...     {"id": 1, "name": {"first": "Coleen", "last": "Volk"}},
+    ...     {"name": {"given": "Mark", "family": "Regner"}},
+    ...     {"id": 2, "name": "Faye Raker"},
+    ... ]
+    >>> pd.json_normalize(data)
+        id name.first name.last name.given name.family        name
+    0  1.0     Coleen      Volk       None        None        None
+    1  NaN       None      None       Mark      Regner        None
+    2  2.0       None      None       None        None  Faye Raker
+
+    >>> data = [
+    ...     {
+    ...         "id": 1,
+    ...         "name": "Cole Volk",
+    ...         "fitness": {"height": 130, "weight": 60},
+    ...     },
+    ...     {"name": "Mark Reg", "fitness": {"height": 130, "weight": 60}},
+    ...     {
+    ...         "id": 2,
+    ...         "name": "Faye Raker",
+    ...         "fitness": {"height": 130, "weight": 60},
+    ...     },
+    ... ]
+    >>> pd.json_normalize(data, max_level=0)
+        id        name                        fitness
+    0  1.0   Cole Volk  {'height': 130, 'weight': 60}
+    1  NaN    Mark Reg  {'height': 130, 'weight': 60}
+    2  2.0  Faye Raker  {'height': 130, 'weight': 60}
+
+    Normalizes nested data up to level 1.
+
+    >>> data = [
+    ...     {
+    ...         "id": 1,
+    ...         "name": "Cole Volk",
+    ...         "fitness": {"height": 130, "weight": 60},
+    ...     },
+    ...     {"name": "Mark Reg", "fitness": {"height": 130, "weight": 60}},
+    ...     {
+    ...         "id": 2,
+    ...         "name": "Faye Raker",
+    ...         "fitness": {"height": 130, "weight": 60},
+    ...     },
+    ... ]
+    >>> pd.json_normalize(data, max_level=1)
+        id        name  fitness.height  fitness.weight
+    0  1.0   Cole Volk             130              60
+    1  NaN    Mark Reg             130              60
+    2  2.0  Faye Raker             130              60
+
+    >>> data = [
+    ...     {
+    ...         "state": "Florida",
+    ...         "shortname": "FL",
+    ...         "info": {"governor": "Rick Scott"},
+    ...         "counties": [
+    ...             {"name": "Dade", "population": 12345},
+    ...             {"name": "Broward", "population": 40000},
+    ...             {"name": "Palm Beach", "population": 60000},
+    ...         ],
+    ...     },
+    ...     {
+    ...         "state": "Ohio",
+    ...         "shortname": "OH",
+    ...         "info": {"governor": "John Kasich"},
+    ...         "counties": [
+    ...             {"name": "Summit", "population": 1234},
+    ...             {"name": "Cuyahoga", "population": 1337},
+    ...         ],
+    ...     },
+    ... ]
+    >>> result = pd.json_normalize(
+    ...     data, "counties", ["state", "shortname", ["info", "governor"]]
+    ... )
+    >>> result
+             name  population    state shortname info.governor
+    0        Dade       12345  Florida        FL    Rick Scott
+    1     Broward       40000  Florida        FL    Rick Scott
+    2  Palm Beach       60000  Florida        FL    Rick Scott
+    3      Summit        1234     Ohio        OH   John Kasich
+    4    Cuyahoga        1337     Ohio        OH   John Kasich
+
+    >>> data = {"A": [1, 2]}
+    >>> pd.json_normalize(data, "A", record_prefix="Prefix.")
+       Prefix.0
+    0         1
+    1         2
+
+    Returns normalized data with columns prefixed with the given string.
     """
 
 
@@ -355,6 +474,193 @@ def read_orc():
 def read_excel():
     """
     Read an Excel file into a Snowpark pandas DataFrame.
+
+    Supports xls, xlsx, xlsm, xlsb, odf, ods and odt file extensions read from a local filesystem or URL. Supports an option to read a single sheet or a list of sheets.
+
+    Parameters
+    ----------
+    io : str, bytes, ExcelFile, xlrd.Book, path object, or file-like object
+        Any valid string path is acceptable. The string could be a URL. Valid URL schemes include http, ftp, s3, and file. For file URLs, a host is expected. A local file could be: file://localhost/path/to/table.xlsx.
+        If you want to pass in a path object, pandas accepts any os.PathLike.
+        By file-like object, we refer to objects with a read() method, such as a file handle (e.g. via builtin open function) or StringIO.
+
+        Deprecated since version 2.1.0: Passing byte strings is deprecated. To read from a byte string, wrap it in a BytesIO object.
+
+    sheet_name : str, int, list, or None, default 0
+        Strings are used for sheet names. Integers are used in zero-indexed sheet positions (chart sheets do not count as a sheet position). Lists of strings/integers are used to request multiple sheets. Specify None to get all worksheets.
+        Available cases:
+        - Defaults to 0: 1st sheet as a DataFrame
+        - 1: 2nd sheet as a DataFrame
+        - "Sheet1": Load sheet with name “Sheet1”
+        - [0, 1, "Sheet5"]: Load first, second and sheet named “Sheet5” as a dict of DataFrame
+        - None: All worksheets.
+    header : int, list of int, default 0
+        Row (0-indexed) to use for the column labels of the parsed DataFrame. If a list of integers is passed those row positions will be combined into a MultiIndex. Use None if there is no header.
+    names : array-like, default None
+        List of column names to use. If file contains no header row, then you should explicitly pass header=None.
+    index_col : int, str, list of int, default None
+        Column (0-indexed) to use as the row labels of the DataFrame. Pass None if there is no such column. If a list is passed, those columns will be combined into a MultiIndex. If a subset of data is selected with usecols, index_col is based on the subset.
+        Missing values will be forward filled to allow roundtripping with to_excel for merged_cells=True. To avoid forward filling the missing values use set_index after reading the data instead of index_col.
+    usecols : str, list-like, or callable, default None
+        - If None, then parse all columns.
+        - If str, then indicates comma separated list of Excel column letters and column ranges (e.g. “A:E” or “A,C,E:F”). Ranges are inclusive of both sides.
+        - If list of int, then indicates list of column numbers to be parsed (0-indexed).
+        - If list of string, then indicates list of column names to be parsed.
+        - If callable, then evaluate each column name against it and parse the column if the callable returns True.
+
+        Returns a subset of the columns according to behavior above.
+    dtype : Type name or dict of column -> type, default None
+        Data type for data or columns. E.g. {‘a’: np.float64, ‘b’: np.int32} Use object to preserve data as stored in Excel and not interpret dtype, which will necessarily result in object dtype. If converters are specified, they will be applied INSTEAD of dtype conversion. If you use None, it will infer the dtype of each column based on the data.
+    engine : {‘openpyxl’, ‘calamine’, ‘odf’, ‘pyxlsb’, ‘xlrd’}, default None
+        If io is not a buffer or path, this must be set to identify io. Engine compatibility :
+        - openpyxl supports newer Excel file formats.
+        - calamine supports Excel (.xls, .xlsx, .xlsm, .xlsb) and OpenDocument (.ods) file formats.
+        - odf supports OpenDocument file formats (.odf, .ods, .odt).
+        - pyxlsb supports Binary Excel files.
+        - xlrd supports old-style Excel files (.xls).
+
+        When engine=None, the following logic will be used to determine the engine:
+        - If path_or_buffer is an OpenDocument format (.odf, .ods, .odt), then odf will be used.
+        - Otherwise if path_or_buffer is an xls format, xlrd will be used.
+        - Otherwise if path_or_buffer is in xlsb format, pyxlsb will be used.
+        - Otherwise openpyxl will be used.
+    converters : dict, default None
+        Dict of functions for converting values in certain columns. Keys can either be integers or column labels, values are functions that take one input argument, the Excel cell content, and return the transformed content.
+    true_values : list, default None
+        Values to consider as True.
+    false_values : list, default None
+        Values to consider as False.
+    skiprows : list-like, int, or callable, optional
+        Line numbers to skip (0-indexed) or number of lines to skip (int) at the start of the file. If callable, the callable function will be evaluated against the row indices, returning True if the row should be skipped and False otherwise. An example of a valid callable argument would be lambda x: x in [0, 2].
+    nrows : int, default None
+        Number of rows to parse.
+    na_values : scalar, str, list-like, or dict, default None
+        Additional strings to recognize as NA/NaN. If dict passed, specific per-column NA values. By default the following values are interpreted as NaN: ‘’, ‘#N/A’, ‘#N/A N/A’, ‘#NA’, ‘-1.#IND’, ‘-1.#QNAN’, ‘-NaN’, ‘-nan’, ‘1.#IND’, ‘1.#QNAN’, ‘<NA>’, ‘N/A’, ‘NA’, ‘NULL’, ‘NaN’, ‘None’, ‘n/a’, ‘nan’, ‘null’.
+    keep_default_na : bool, default True
+        Whether or not to include the default NaN values when parsing the data. Depending on whether na_values is passed in, the behavior is as follows:
+        - If keep_default_na is True, and na_values are specified, na_values is appended to the default NaN values used for parsing.
+        - If keep_default_na is True, and na_values are not specified, only the default NaN values are used for parsing.
+        - If keep_default_na is False, and na_values are specified, only the NaN values specified na_values are used for parsing.
+        - If keep_default_na is False, and na_values are not specified, no strings will be parsed as NaN.
+
+        Note that if na_filter is passed in as False, the keep_default_na and na_values parameters will be ignored.
+    na_filter : bool, default True
+        Detect missing value markers (empty strings and the value of na_values). In data without any NAs, passing na_filter=False can improve the performance of reading a large file.
+    verbose : bool, default False
+        Indicate number of NA values placed in non-numeric columns.
+    parse_dates : bool, list-like, or dict, default False
+        The behavior is as follows:
+        - bool. If True -> try parsing the index.
+        - list of int or names. e.g. If [1, 2, 3] -> try parsing columns 1, 2, 3 each as a separate date column.
+        - list of lists. e.g. If [[1, 3]] -> combine columns 1 and 3 and parse as a single date column.
+        - dict, e.g. {‘foo’ : [1, 3]} -> parse columns 1, 3 as date and call result ‘foo’
+
+        If a column or index contains an unparsable date, the entire column or index will be returned unaltered as an object data type. If you don`t want to parse some cells as date just change their type in Excel to “Text”. For non-standard datetime parsing, use pd.to_datetime after pd.read_excel.
+        Note: A fast-path exists for iso8601-formatted dates.
+    date_parser : function, optional
+        Function to use for converting a sequence of string columns to an array of datetime instances. The default uses dateutil.parser.parser to do the conversion. Pandas will try to call date_parser in three different ways, advancing to the next if an exception occurs: 1) Pass one or more arrays (as defined by parse_dates) as arguments; 2) concatenate (row-wise) the string values from the columns defined by parse_dates into a single array and pass that; and 3) call date_parser once for each row using one or more strings (corresponding to the columns defined by parse_dates) as arguments.
+
+        Deprecated since version 2.0.0: Use date_format instead, or read in as object and then apply to_datetime() as-needed.
+
+    date_format : str or dict of column -> format, default None
+        If used in conjunction with parse_dates, will parse dates according to this format. For anything more complex, please read in as object and then apply to_datetime() as-needed.
+
+        Added in version 2.0.0.
+
+    thousands : str, default None
+        Thousands separator for parsing string columns to numeric. Note that this parameter is only necessary for columns stored as TEXT in Excel, any numeric columns will automatically be parsed, regardless of display format.
+    decimal : str, default ‘.’
+        Character to recognize as decimal point for parsing string columns to numeric. Note that this parameter is only necessary for columns stored as TEXT in Excel, any numeric columns will automatically be parsed, regardless of display format.(e.g. use ‘,’ for European data).
+
+        Added in version 1.4.0.
+
+    comment : str, default None
+        Comments out remainder of line. Pass a character or characters to this argument to indicate comments in the input file. Any data between the comment string and the end of the current line is ignored.
+    skipfooter : int, default 0
+        Rows at the end to skip (0-indexed).
+    storage_options : dict, optional
+        Extra options that make sense for a particular storage connection, e.g. host, port, username, password, etc. For HTTP(S) URLs the key-value pairs are forwarded to urllib.request.Request as header options. For other URLs (e.g. starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to fsspec.open. Please see fsspec and urllib for more details, and for more examples on storage options refer here.
+    dtype_backend : {‘numpy_nullable’, ‘pyarrow’}, default ‘numpy_nullable’
+        Back-end data type applied to the resultant DataFrame (still experimental). Behaviour is as follows:
+        - "numpy_nullable": returns nullable-dtype-backed DataFrame (default).
+        - "pyarrow": returns pyarrow-backed nullable ArrowDtype DataFrame.
+
+        Added in version 2.0.
+
+    engine_kwargs : dict, optional
+        Arbitrary keyword arguments passed to excel engine.
+
+    Returns
+    -------
+    DataFrame or dict of DataFrames
+        DataFrame from the passed in Excel file. See notes in sheet_name argument for more information on when a dict of DataFrames is returned.
+
+    See also
+    --------
+    DataFrame.to_excel
+        Write DataFrame to an Excel file.
+    DataFrame.to_csv
+        Write DataFrame to a comma-separated values (csv) file.
+    read_csv
+        Read a comma-separated values (csv) file into DataFrame.
+    read_fwf
+        Read a table of fixed-width formatted lines into DataFrame.
+
+    Notes
+    -----
+    For specific information on the methods used for each Excel engine, refer to the pandas `user guide <https://pandas.pydata.org/docs/user_guide/io.html#io-excel-reader>`_.
+
+    Examples
+    --------
+    The file can be read using the file name as string or an open file object:
+
+    >>> pd.read_excel('tmp.xlsx', index_col=0)  # doctest: +SKIP
+           Name  Value
+    0   string1      1
+    1   string2      2
+    2  #Comment      3
+
+    >>> pd.read_excel(open('tmp.xlsx', 'rb'),
+    ...               sheet_name='Sheet3')  # doctest: +SKIP
+       Unnamed: 0      Name  Value
+    0           0   string1      1
+    1           1   string2      2
+    2           2  #Comment      3
+
+    Index and header can be specified via the index_col and header arguments
+
+    >>> pd.read_excel('tmp.xlsx', index_col=None, header=None)  # doctest: +SKIP
+         0         1      2
+    0  NaN      Name  Value
+    1  0.0   string1      1
+    2  1.0   string2      2
+    3  2.0  #Comment      3
+
+    Column types are inferred but can be explicitly specified
+
+    >>> pd.read_excel('tmp.xlsx', index_col=0,
+    ...               dtype={'Name': str, 'Value': float})  # doctest: +SKIP
+           Name  Value
+    0   string1    1.0
+    1   string2    2.0
+    2  #Comment    3.0
+
+    True, False, and NA values, and thousands separators have defaults, but can be explicitly specified, too. Supply the values you would like as strings or lists of strings!
+
+    >>> pd.read_excel('tmp.xlsx', index_col=0,
+    ...               na_values=['string1', 'string2'])  # doctest: +SKIP
+           Name  Value
+    0       NaN      1
+    1       NaN      2
+    2  #Comment      3
+
+    Comment lines in the excel input file can be skipped using the comment kwarg.
+
+    >>> pd.read_excel('tmp.xlsx', index_col=0, comment='#')  # doctest: +SKIP
+          Name  Value
+    0  string1    1.0
+    1  string2    2.0
+    2     None    NaN
     """
 
 

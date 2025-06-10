@@ -1,7 +1,6 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
 
 import math
 
@@ -91,7 +90,7 @@ def test_dataframe_isna_with_math_na_values(df_input, test_case_name):
     "df_input, test_case_name",
     update_none_in_df_data_test_cases(
         RAW_NA_DF_DATA_TEST_CASES,
-        pd.array([1, None], dtype=pd.Int64Dtype())[-1],
+        native_pd.array([1, None], dtype=pd.Int64Dtype())[-1],
         "pd.array(None)",
     ),
 )

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
 import json
 import logging
+import threading
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -26,10 +27,10 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
+from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
-    create_rlock,
     is_in_stored_procedure,
     result_set_to_rows,
 )
@@ -66,8 +67,16 @@ class MockedSnowflakeConnection(SnowflakeConnection):
         super().__init__(*args, **kwargs, application="localtesting")
         self._password = None
 
+        self._disable_query_context_cache = True
+
     def connect(self, **kwargs) -> None:
-        self._rest = Mock()
+        attrs = {
+            "request.return_value": {
+                "success": False,
+                "message": "Not implemented in MockConnection",
+            }
+        }
+        self._rest = Mock(**attrs)
 
     def close(self, retry: bool = True) -> None:
         self._rest = None
@@ -236,7 +245,7 @@ class MockServerConnection:
                     Row(status=f"Table {name} successfully created.")
                 ]  # TODO: match message
 
-        def drop_table(self, name: Union[str, Iterable[str]]) -> None:
+        def drop_table(self, name: Union[str, Iterable[str]], **kwargs) -> None:
             with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
@@ -244,13 +253,21 @@ class MockServerConnection:
                 if name in self.table_registry:
                     self.table_registry.pop(name)
 
+                # Notify query listeners.
+                self.conn.notify_mock_query_record_listener(**kwargs)
+
         def create_or_replace_view(
-            self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
+            self,
+            execution_plan: MockExecutionPlan,
+            name: Union[str, Iterable[str]],
+            replace: bool,
         ):
             with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
+                if not replace and name in self.view_registry:
+                    raise SnowparkLocalTestingException(f"View {name} already exists")
                 self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
@@ -285,14 +302,10 @@ class MockServerConnection:
         self._cursor = Mock()
         self._options = options or {}
         session_params = self._options.get("session_parameters", {})
-        # thread safe param protection
-        self._thread_safe_session_enabled = session_params.get(
-            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
-        )
-        self._lock = create_rlock(self._thread_safe_session_enabled)
+        self._thread_safe_session_enabled = True
+        self._lock = threading.RLock()
         self._lower_case_parameters = {}
-        self.remove_query_listener = Mock()
-        self.add_query_listener = Mock()
+        self._query_listeners = set()
         self._telemetry_client = Mock()
         self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
         self.stage_registry = StageEntityRegistry(self)
@@ -332,6 +345,24 @@ class MockServerConnection:
             self._oob_telemetry.disable()
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
+        self._suppress_not_implemented_error = False
+
+    def add_query_listener(
+        self, listener: "snowflake.snowpark.query_history.QueryListener"
+    ) -> None:
+        self._query_listeners.add(listener)
+
+    def remove_query_listener(
+        self, listener: "snowflake.snowpark.query_history.QueryListener"
+    ) -> None:
+        self._query_listeners.remove(listener)
+
+    def notify_query_listeners(
+        self, query_record: "snowflake.snowpark.query_history.QueryRecord", **kwargs
+    ) -> None:
+        with self._lock:
+            for listener in self._query_listeners:
+                listener._notify(query_record, **kwargs)
 
     def log_not_supported_error(
         self,
@@ -353,15 +384,16 @@ class MockServerConnection:
             raise_error: Set to an exception to raise exception
             warning_logger: Set logger to log a warning message
         """
-        self._oob_telemetry.log_not_supported_error(
-            external_feature_name=external_feature_name,
-            internal_feature_name=internal_feature_name,
-            parameters_info=parameters_info,
-            error_message=error_message,
-            connection_uuid=self._connection_uuid,
-            raise_error=raise_error,
-            warning_logger=warning_logger,
-        )
+        if not self._suppress_not_implemented_error:
+            self._oob_telemetry.log_not_supported_error(
+                external_feature_name=external_feature_name,
+                internal_feature_name=internal_feature_name,
+                parameters_info=parameters_info,
+                error_message=error_message,
+                connection_uuid=self._connection_uuid,
+                raise_error=raise_error,
+                warning_logger=warning_logger,
+            )
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
@@ -608,6 +640,7 @@ class MockServerConnection:
                 raise_error=NotImplementedError,
             )
 
+        rows = []
         res = execute_mock_plan(plan, plan.expr_to_alias)
         if isinstance(res, TableEmulator):
             # stringfy the variant type in the result df
@@ -682,10 +715,18 @@ class MockServerConnection:
             # we do not mock the splitting into data chunks behavior
             rows = [rows] if to_iter else rows
 
-        if to_iter:
-            return iter(rows)
+        # Notify query listeners.
+        self.notify_mock_query_record_listener(**kwargs)
 
-        return rows
+        return iter(rows) if to_iter else rows
+
+    def notify_mock_query_record_listener(self, **kwargs: Dict[Any, Any]):
+        notify_kwargs = {"requestId": str(uuid.uuid4())}
+        if DATAFRAME_AST_PARAMETER in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        from snowflake.snowpark.query_history import QueryRecord
+
+        self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -746,14 +787,20 @@ class MockServerConnection:
                 values.append(value)
             rows.append(Row(*values))
 
+        # This should be internally backed by get_result_set. Need to notify query listeners here manually.
+        notify_kwargs = {"requestId": str(uuid.uuid4())}
+        if DATAFRAME_AST_PARAMETER in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        from snowflake.snowpark.query_history import QueryRecord
+
+        self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
+
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
-        self.log_not_supported_error(
-            external_feature_name="Running SQL queries",
-            internal_feature_name="MockServerConnection.get_result_query_id",
-            raise_error=NotImplementedError,
-        )
+        # get the iterator such that the data is not fetched
+        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
+        return result_set["sfqid"]
 
     @property
     def max_string_size(self) -> int:

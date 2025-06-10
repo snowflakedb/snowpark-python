@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from collections.abc import Hashable
@@ -26,7 +26,8 @@ from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 
 ROW_POSITION_INDEX_COLUMN_PANDAS_LABEL = "row_position_index"
-LIT_ONE_COLUMN_PANDAS_LABEL = "lit_one"
+LIT_TRUE_COLUMN_PANDAS_LABEL = "lit_true"
+NULL_COLUMN_ID = '"NULL"'
 
 
 def single_get_dummies_pivot(
@@ -57,52 +58,52 @@ def single_get_dummies_pivot(
             and the row position column of the original internal_frame as index column.
 
     Example:
-        With the following DataFrame, where lit_one is the dummy lit one column:
+        With the following DataFrame, where lit_true is the dummy lit true column:
 
-             A  C lit_one
-          0  a  1   1
-          1  b  2   1
-          2  a  3   1
+             A  C lit_true
+          0  a  1   True
+          1  b  2   True
+          2  a  3   True
 
         the result of calling single_get_dummies_pivot with ['"C"]' as column_to_keep,
         "A" as prefix, and "_" as prefix_sep will be the following:
 
-            C  A_a  A_b
-         0  1    1    0
-         1  2    0    1
-         2  3    1    0
+            C   A_a     A_b
+         0  1   True   False
+         1  2   False  True
+         2  3   True   False
     """
 
-    # get the row position column and dummy lit one column
+    # get the row position column and dummy lit true column
     assert internal_frame.row_position_snowflake_quoted_identifier is not None
     row_position_snowflake_quoted_identifier = (
         internal_frame.row_position_snowflake_quoted_identifier
     )
-    lit_one_column_snowflake_quoted_identifier = (
+    lit_true_column_snowflake_quoted_identifier = (
         internal_frame.data_column_snowflake_quoted_identifiers[-1]
     )
-    # for the dataframe passed for pivot, we keep the row position column, dummy lit one column,
+    # for the dataframe passed for pivot, we keep the row position column, dummy lit true column,
     # pivot column, and the specified columns_to_keep
     columns_snowflake_quoted_identifier = [
         row_position_snowflake_quoted_identifier,
         pivot_column_snowflake_quoted_identifier,
-        lit_one_column_snowflake_quoted_identifier,
+        lit_true_column_snowflake_quoted_identifier,
     ] + columns_to_keep_snowflake_quoted_identifiers
     ordered_dataframe = internal_frame.ordered_dataframe.select(
         columns_snowflake_quoted_identifier
     )
-    # Perform pivot on the pivot column with dummy lit one column as value column.
+    # Perform pivot on the pivot column with dummy lit true column as value column.
     # With the above example, the result of pivot will be:
     #
-    #    C    a    b
-    # 0  1    1    0
-    # 1  2    0    1
-    # 2  3    1    0
+    #    C    a       b
+    # 0  1    True    False
+    # 1  2   False     True
+    # 2  3    True    False
     pivoted_ordered_dataframe = ordered_dataframe.pivot(
         col(str(pivot_column_snowflake_quoted_identifier)),
         None,
         0,
-        min_(lit_one_column_snowflake_quoted_identifier),
+        min_(lit_true_column_snowflake_quoted_identifier),
     )
     pivoted_ordered_dataframe = pivoted_ordered_dataframe.sort(
         OrderingColumn(row_position_snowflake_quoted_identifier)
@@ -119,6 +120,9 @@ def single_get_dummies_pivot(
         for quoted_identifier in pivoted_ordered_dataframe.projected_column_snowflake_quoted_identifiers
         if (quoted_identifier not in origin_column_snowflake_quoted_identifiers)
     ]
+    # Remove the NULL column if it exists.
+    if NULL_COLUMN_ID in pivot_result_column_snowflake_quoted_identifiers:
+        pivot_result_column_snowflake_quoted_identifiers.remove(NULL_COLUMN_ID)
 
     # Next handle the prefix for the pivot result column
     # We then need to get the new result columns.
@@ -157,7 +161,22 @@ def single_get_dummies_pivot(
         index_column_types=None,
     )
 
-    return result_internal_frame
+    # Rename the pivot result column to avoid duplicated column names. Snowpark
+    # dataframe can have duplicate columns names if multiple columns are pivoted,
+    # and they have at least one common value (including null).
+    pivot_result_column_new_snowflake_quoted_identifiers = (
+        pivoted_ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=pivot_result_column_pandas_labels
+        )
+    )
+    return result_internal_frame.rename_snowflake_identifiers(
+        dict(
+            zip(
+                pivot_result_column_snowflake_quoted_identifiers,
+                pivot_result_column_new_snowflake_quoted_identifiers,
+            )
+        )
+    )
 
 
 def get_dummies_helper(
@@ -202,9 +221,9 @@ def get_dummies_helper(
                 f"get_dummies with duplicated columns {pandas_label}"
             )
 
-    # append a lit one column as value column for pivot
+    # append a lit true column as value column for pivot
     new_internal_frame = internal_frame.ensure_row_position_column().append_column(
-        LIT_ONE_COLUMN_PANDAS_LABEL, pandas_lit(1)
+        LIT_TRUE_COLUMN_PANDAS_LABEL, pandas_lit(True)
     )
     # the dummy column is appended as the last data column of the new_internal_frame
     row_position_column_snowflake_quoted_identifier = (

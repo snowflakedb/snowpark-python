@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from unittest import mock
@@ -20,7 +20,6 @@ def mock_server_connection() -> ServerConnection:
     fake_snowflake_connection._conn = mock.MagicMock()
     fake_snowflake_connection._telemetry = None
     fake_snowflake_connection._session_parameters = {}
-    fake_snowflake_connection._thread_safe_session_enabled = True
     fake_snowflake_connection.cursor.return_value = mock.create_autospec(
         SnowflakeCursor
     )
@@ -34,7 +33,6 @@ def closed_mock_server_connection() -> ServerConnection:
     fake_snowflake_connection._conn = mock.MagicMock()
     fake_snowflake_connection._telemetry = None
     fake_snowflake_connection._session_parameters = {}
-    fake_snowflake_connection._thread_safe_session_enabled = True
     fake_snowflake_connection.is_closed = mock.MagicMock(return_value=False)
     fake_snowflake_connection.cursor.return_value = mock.create_autospec(
         SnowflakeCursor
@@ -67,6 +65,7 @@ def mock_snowflake_plan(mock_query) -> Analyzer:
 def mock_analyzer(mock_snowflake_plan) -> Analyzer:
     def mock_resolve(x):
         mock_snowflake_plan.source_plan = x
+        mock_snowflake_plan.df_ast_id = None
         return mock_snowflake_plan
 
     fake_analyzer = mock.create_autospec(Analyzer)
@@ -78,6 +77,7 @@ def mock_analyzer(mock_snowflake_plan) -> Analyzer:
 def mock_session(mock_analyzer) -> Session:
     fake_session = mock.create_autospec(Session)
     fake_session._cte_optimization_enabled = False
+    fake_session._join_alias_fix = False
     fake_session._analyzer = mock_analyzer
     fake_session._plan_lock = mock.MagicMock()
     mock_analyzer.session = fake_session

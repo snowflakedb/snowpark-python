@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This module contains groupby docstrings that override modin's docstrings."""
@@ -89,7 +89,7 @@ engine_kwargs : dict, default None
 
 Returns
 -------
-{klass}
+:class:`~modin.pandas.{klass}`
 
 {examples}"""
 
@@ -207,7 +207,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Object with missing values filled.
 
         See also
@@ -926,7 +926,75 @@ class DataFrameGroupBy:
         """
 
     def pct_change():
-        pass
+        """
+        Calculate pct_change of each value to previous entry in group.
+
+        Parameters
+        ----------
+        periods : int, default 1
+            Periods to shift for forming percent change.
+        fill_method : {"bfill", "ffill", "pad"}, default "ffill"
+            How to handle NAs before computing percent changes.
+
+            .. deprecated:: 2.1.0
+                All options of fill_method are deprecated except fill_method=None.
+
+        limit : int, optional
+            The number of consecutive NAs to fill before stopping.
+            Snowpark pandas does not yet support this parameter.
+
+            .. deprecated:: 2.1.0
+
+        freq : DateOffset, timedelta, or str, optional
+            Increment to use from time series API (e.g. ‘ME’ or BDay()).
+            Snowpark pandas does not yet support this parameter.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            Percentage changes within each group.
+
+        Notes
+        -----
+        This function ignores the `as_index`, `sort`, `group_keys`, and `dropna` arguments passed
+        to the initial `groupby` call.
+
+        Examples
+        --------
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b', 'b']
+        >>> ser = pd.Series([1, 2, 3, 4], index=lst)
+        >>> ser
+        a    1
+        a    2
+        b    3
+        b    4
+        dtype: int64
+        >>> ser.groupby(level=0).pct_change()
+        a         NaN
+        a    1.000000
+        b         NaN
+        b    0.333333
+        dtype: float64
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [2, 5, 8], [2, 6, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"], index=["tuna", "salmon", "catfish", "goldfish"])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                   a  b  c
+            tuna   1  2  3
+          salmon   1  5  6
+         catfish   2  5  8
+        goldfish   2  6  9
+        >>> df.groupby("a").pct_change()  # doctest: +NORMALIZE_WHITESPACE
+                    b  c
+            tuna    NaN    NaN
+          salmon    1.5  1.000
+         catfish    NaN    NaN
+        goldfish    0.2  0.125
+        """
 
     def filter():
         pass
@@ -989,7 +1057,6 @@ class DataFrameGroupBy:
         """
 
     def apply():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply function ``func`` group-wise and combine the results together.
 
@@ -1011,6 +1078,9 @@ class DataFrameGroupBy:
             A callable that takes a dataframe or series as its first argument, and
             returns a dataframe, a series or a scalar. In addition the
             callable may take positional and keyword arguments.
+        include_groups : bool, default True
+            When True, will apply ``func`` to the groups in the case that they
+            are columns of the DataFrame.
         args, kwargs : tuple and dict
             Optional positional and keyword arguments to pass to ``func``.
 
@@ -1051,21 +1121,21 @@ class DataFrameGroupBy:
         its argument and returns a DataFrame. `apply` combines the result for
         each group together into a new DataFrame:
 
-        >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +SKIP
-                    B    C
-        0.0  0.333333  0.4
-        1.0  0.666667  0.6
-        2.0  1.000000  1.0
+        >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum())
+                  B    C
+        0  0.333333  0.4
+        1  0.666667  0.6
+        2  1.000000  1.0
 
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
 
-        >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +SKIP
+        >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
                     B    C
         A
-        a 0.0  0.333333  0.4
-          1.0  0.666667  0.6
-        b 2.0  1.000000  1.0
+        a 0  0.333333  0.4
+          1  0.666667  0.6
+        b 2  1.000000  1.0
         """
 
     @property
@@ -1177,7 +1247,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Object with missing values filled.
 
         See also
@@ -1591,7 +1661,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             DataFrame or Series of boolean values, where a value is True if all elements
             are True within its respective group, False otherwise.
 
@@ -1640,7 +1710,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             DataFrame or Series of boolean values, where a value is True if any element
             is True within its respective group, False otherwise.
 
@@ -1683,7 +1753,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        DataFrame or Series
+        :class:`~modin.pandas.DataFrame` or :class:`~modin.pandas.Series`
             Number of rows in each group as a Series if as_index is True
             or a DataFrame if as_index is False.
 
@@ -1787,7 +1857,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        DataFrame
+        :class:`~modin.pandas.DataFrame`
         """
 
     def resample():
@@ -1937,13 +2007,57 @@ class DataFrameGroupBy:
         -------
         Generator
             A generator yielding a sequence of (name, subsetted object) for each group.
+
+        Examples
+        --------
+
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b']
+        >>> ser = pd.Series([1, 2, 3], index=lst)
+        >>> ser
+        a    1
+        a    2
+        b    3
+        dtype: int64
+        >>> for x, y in ser.groupby(level=0):
+        ...     print(f'{x}\\n{y}\\n')
+        a
+        a    1
+        a    2
+        dtype: int64
+        <BLANKLINE>
+        b
+        b    3
+        dtype: int64
+        <BLANKLINE>
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"])
+        >>> df
+           a  b  c
+        0  1  2  3
+        1  1  5  6
+        2  7  8  9
+        >>> for x, y in df.groupby(by=["a"]):
+        ...     print(f'{x}\\n{y}\\n')
+        (1,)
+           a  b  c
+        0  1  2  3
+        1  1  5  6
+        <BLANKLINE>
+        (7,)
+           a  b  c
+        2  7  8  9
+        <BLANKLINE>
         """
 
     def cov():
         pass
 
     def transform():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call function producing a same-indexed DataFrame on each group.
 
@@ -2013,7 +2127,7 @@ class DataFrameGroupBy:
         i     X     9    90    -9
         j     Y    10    10   -10
 
-        >>> df.groupby("col1", dropna=True).transform(lambda df, n: df.head(n), n=2)  # doctest: +SKIP
+        >>> df.groupby("col1", dropna=True).transform(lambda df, n: df.head(n), n=2)
            col2  col3  col4
         a   1.0  40.0  -1.0
         b   NaN   NaN   NaN
@@ -2026,7 +2140,7 @@ class DataFrameGroupBy:
         i   NaN   NaN   NaN
         j  10.0  10.0 -10.0
 
-        >>> df.groupby("col1", dropna=False).transform("mean")  # doctest: +SKIP
+        >>> df.groupby("col1", dropna=False).transform("mean")
            col2  col3  col4
         a  2.50  25.0 -2.50
         b  5.00  65.0 -5.00
@@ -2352,7 +2466,7 @@ class DataFrameGroupBy:
         pass
 
 
-class SeriesGroupBy:
+class SeriesGroupBy(DataFrameGroupBy):
     def get_group(self):
         pass
 
@@ -2411,7 +2525,7 @@ class SeriesGroupBy:
 
         Returns
         -------
-        DataFrame or Series
+        :class:`~modin.pandas.DataFrame` or :class:`~modin.pandas.Series`
             Number of rows in each group as a Series if as_index is True
             or a DataFrame if as_index is False.
 
@@ -2451,6 +2565,45 @@ class SeriesGroupBy:
         pass
 
     def unique():
+        """
+        Return unique values for each group.
+
+        Return unique values for each of the grouped values. Returned in
+        order of appearance. Hash table-based unique, therefore does NOT sort.
+
+        Returns
+        -------
+        Series
+            Unique values for each of the grouped values.
+
+        See Also
+        --------
+        Series.unique : Return unique values of Series object.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([('Chihuahua', 'dog', 6.1),
+        ...                    ('Beagle', 'dog', 15.2),
+        ...                    ('Chihuahua', 'dog', 6.9),
+        ...                    ('Persian', 'cat', 9.2),
+        ...                    ('Chihuahua', 'dog', 7),
+        ...                    ('Persian', 'cat', 8.8)],
+        ...                   columns=['breed', 'animal', 'height_in'])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+               breed     animal   height_in
+        0  Chihuahua        dog         6.1
+        1     Beagle        dog        15.2
+        2  Chihuahua        dog         6.9
+        3    Persian        cat         9.2
+        4  Chihuahua        dog         7.0
+        5    Persian        cat         8.8
+        >>> ser = df.groupby('animal')['breed'].unique()
+        >>> ser
+        animal
+        cat              [Persian]
+        dog    [Chihuahua, Beagle]
+        Name: breed, dtype: object
+        """
         pass
 
     def apply():

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -25,7 +25,12 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils, iceberg_supported
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    TestFiles,
+    Utils,
+    iceberg_supported,
+)
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -400,7 +405,7 @@ def test_copy_csv_negative(session, tmp_stage_name1, tmp_table_name):
     with pytest.raises(SnowparkSQLException) as exec_info:
         df.copy_into_table(tmp_table_name, transformations=[col("$s1").as_("c1_alias")])
     assert "Insert value list does not match column list expecting 3 but got 1" in str(
-        exec_info
+        exec_info.value
     )
 
 
@@ -673,7 +678,7 @@ def test_copy_csv_negative_test_with_column_names(session, tmp_stage_name1):
                 target_columns=["c1", "c2", "c3", "c4"],
                 transformations=[col("$1"), col("$2"), col("$3"), col("$4")],
             )
-        assert "invalid identifier 'C4'" in str(exec_info)
+        assert "invalid identifier 'C4'" in str(exec_info.value)
     finally:
         Utils.drop_table(session, table_name)
 
@@ -972,8 +977,16 @@ def test_copy_non_csv_transformation(
                     C="a",
                     D=datetime.date(2022, 4, 1),
                     T=datetime.time(11, 11, 11),
-                    TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
-                    TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    TS_NTZ=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
+                    TS=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
                     V='{"key":"value"}',
                 )
             ],
@@ -1108,7 +1121,7 @@ def test_copy_non_csv_negative_test(
             )
         assert (
             "Insert value list does not match column list expecting 1 but got 2"
-            in str(exec_info)
+            in str(exec_info.value)
         )
     finally:
         Utils.drop_table(session, table_name)

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -235,11 +235,11 @@ def test_specified_window_frame(session):
     assert df1.columns[0] == '" a"'
     df2 = df1.select(rank().over(Window.order_by('" a"').rows_between(1, 2)) - 1)
     expected_columns = [
-        '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
+        '"(RANK() OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
     ]
     if session.eliminate_numeric_sql_value_cast_enabled:
         expected_columns = [
-            '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1)"'
+            '"(RANK() OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1)"'
         ]
     verify_column_result(session, df2, expected_columns, [LongType()], [Row(0)])
 
@@ -291,11 +291,11 @@ def test_special_frame_boundry(session):
         - 1
     )
     expected_columns = [
-        '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1 :: INT)"'
+        '"(RANK() OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1 :: INT)"'
     ]
     if session.eliminate_numeric_sql_value_cast_enabled:
         expected_columns = [
-            '"(RANK() OVER (  ORDER BY "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1)"'
+            '"(RANK() OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST  RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING ) - 1)"'
         ]
 
     verify_column_result(session, df2, expected_columns, [LongType()], [Row(0)])
@@ -315,10 +315,10 @@ def test_rank_related_function_expression(session, local_testing_mode):
         session,
         df2,
         [
-            '"LAG("" A"", 1, NULL) OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
-            '"LEAD("" A"", 1, NULL) OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
-            '"FIRST_VALUE("" A"") OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
-            '"LAST_VALUE("" A"") OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
+            '"LAG("" A"", 1, NULL) OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST )"',
+            '"LEAD("" A"", 1, NULL) OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST )"',
+            '"FIRST_VALUE("" A"") OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST )"',
+            '"LAST_VALUE("" A"") OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST )"',
         ],
         [StringType(), StringType(), StringType(), StringType()],
         [Row(None, None, "v", "v")],
@@ -335,10 +335,10 @@ def test_rank_related_function_expression(session, local_testing_mode):
         session,
         df3,
         [
-            '"LAG(""A"", 1, NULL) OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
-            '"LEAD(""A"", 1, NULL) OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
-            '"FIRST_VALUE(""A"") OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
-            '"LAST_VALUE(""A"") OVER (  ORDER BY "" A"" ASC NULLS FIRST )"',
+            '"LAG(""A"", 1, NULL) OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST )"',
+            '"LEAD(""A"", 1, NULL) OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST )"',
+            '"FIRST_VALUE(""A"") OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST )"',
+            '"LAST_VALUE(""A"") OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST )"',
         ],
         [
             # SNOW-1527199 lag and lead is not returning the correct type under local testing mode
@@ -361,7 +361,7 @@ def test_literal(session, local_testing_mode):
         BooleanType(),
         # snowflake doesn't enforce the inner type of ArrayType, so it is expected that
         # it returns StringType() as inner type.
-        ArrayType(LongType()) if local_testing_mode else ArrayType(StringType()),
+        ArrayType(LongType()) if local_testing_mode else ArrayType(),
     ]
     verify_column_result(
         session,
@@ -377,10 +377,6 @@ def test_literal(session, local_testing_mode):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1358946: Interval is not supported in Local Testing",
-)
 def test_interval(session):
     df1 = session.create_dataframe(
         [
@@ -678,7 +674,7 @@ def test_list_agg_within_group_sort_order(session):
         session,
         df2,
         [
-            '"LISTAGG ( DISTINCT ""A B"", \'A\') WITHIN GROUP ( ORDER BY ""A B"" ASC NULLS FIRST) OVER (PARTITION BY ""A B""  )"'
+            '"LISTAGG ( DISTINCT ""A B"", \'A\') WITHIN GROUP ( ORDER BY \n    ""A B"" ASC NULLS FIRST) OVER (PARTITION BY ""A B""  )"'
         ],
         [StringType()],
         [Row("1")],
@@ -907,7 +903,7 @@ def test_str_column_name_no_quotes(session, local_testing_mode):
 def test_show_column_name_with_quotes(session, local_testing_mode):
     df = session.create_dataframe([1, 2], schema=["a"])
     assert (
-        df.select(col("a"))._show_string()
+        df.select(col("a"))._show_string(_emit_ast=session.ast_enabled)
         == """\
 -------
 |"A"  |
@@ -918,7 +914,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
 """
     )
     assert (
-        df.select(avg(col("a")))._show_string()
+        df.select(avg(col("a")))._show_string(_emit_ast=session.ast_enabled)
         == """\
 ----------------
 |"AVG(""A"")"  |
@@ -931,7 +927,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
     # column name with quotes
     df = session.create_dataframe([1, 2], schema=['"a"'])
     assert (
-        df.select(col('"a"'))._show_string()
+        df.select(col('"a"'))._show_string(_emit_ast=session.ast_enabled)
         == """\
 -------
 |"a"  |
@@ -942,7 +938,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
 """
     )
     assert (
-        df.select(avg(col('"a"')))._show_string()
+        df.select(avg(col('"a"')))._show_string(_emit_ast=session.ast_enabled)
         == """\
 ----------------
 |"AVG(""A"")"  |

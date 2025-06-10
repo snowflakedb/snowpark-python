@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import decimal
 import math
@@ -15,12 +15,9 @@ from snowflake.snowpark.functions import (
     avg,
     col,
     count,
+    count_distinct,
     covar_pop,
-    covar_samp,
-    function,
-    grouping,
     listagg,
-    lit,
     max as max_,
     mean,
     median,
@@ -31,7 +28,7 @@ from snowflake.snowpark.functions import (
     upper,
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
-from snowflake.snowpark.types import DoubleType
+from snowflake.snowpark.types import DoubleType, IntegerType, StructType, StructField
 from tests.utils import Utils
 
 
@@ -314,7 +311,7 @@ def test_df_agg_dict_arg(session):
     )
 
 
-def test_df_agg_invalid_args_in_list(session):
+def test_df_agg_invalid_args_in_list_negative(session):
     """Test for making sure when a list passed to agg() produces correct errors."""
 
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
@@ -469,85 +466,15 @@ def test_agg_double_column(session):
 
 def test_agg_function_multiple_parameters(session):
     origin_df = session.create_dataframe(["k1", "k1", "k3", "k4", [None]], schema=["v"])
-    assert origin_df.select(listagg("v", delimiter='~!1,."')).collect() == [
-        Row('k1~!1,."k1~!1,."k3~!1,."k4')
-    ]
+    assert origin_df.select(
+        listagg("v", delimiter='~!1,."').within_group(origin_df.v.asc())
+    ).collect() == [Row('k1~!1,."k1~!1,."k3~!1,."k4')]
 
     assert origin_df.select(
-        listagg("v", delimiter='~!1,."', is_distinct=True)
+        listagg("v", delimiter='~!1,."', is_distinct=True).within_group(
+            origin_df.v.asc()
+        )
     ).collect() == [Row('k1~!1,."k3~!1,."k4')]
-
-
-def test_register_new_methods(session, local_testing_mode):
-    if not local_testing_mode:
-        pytest.skip("mock implementation does not apply to live code")
-
-    origin_df = session.create_dataframe(
-        [
-            [10.0, 11.0],
-            [20.0, 22.0],
-            [25.0, 0.0],
-            [30.0, 35.0],
-        ],
-        schema=["m", "n"],
-    )
-
-    # approx_percentile
-    with pytest.raises(NotImplementedError):
-        origin_df.select(function("approx_percentile")(col("m"), lit(0.5))).collect()
-        # snowflake.snowpark.functions.approx_percentile is being updated to use lit
-        # so `function` won't be needed here.
-
-    @snowpark_mock_functions.patch("approx_percentile")
-    def mock_approx_percentile(
-        column: ColumnEmulator, percentile: float
-    ) -> ColumnEmulator:
-        assert column.tolist() == [10.0, 20.0, 25.0, 30.0]
-        assert percentile == 0.5
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(
-        function("approx_percentile")(col("m"), lit(0.5))
-    ).collect() == [Row(123)]
-
-    # covar_samp
-    with pytest.raises(NotImplementedError):
-        origin_df.select(covar_samp(col("m"), "n")).collect()
-
-    @snowpark_mock_functions.patch(covar_samp)
-    def mock_covar_samp(
-        column1: ColumnEmulator,
-        column2: ColumnEmulator,
-    ):
-        assert column1.tolist() == [10.0, 20.0, 25.0, 30.0]
-        assert column2.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(covar_samp(col("m"), "n")).collect() == [Row(123)]
-
-    # stddev
-    with pytest.raises(NotImplementedError):
-        origin_df.select(stddev("n")).collect()
-
-    @snowpark_mock_functions.patch(stddev)
-    def mock_stddev(column: ColumnEmulator):
-        assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(stddev("n")).collect() == [Row(123)]
-
-    # grouping
-    with pytest.raises(NotImplementedError):
-        origin_df.select(grouping("m", col("n"))).collect()
-
-    @snowpark_mock_functions.patch(grouping)
-    def mock_mock_grouping(*columns):
-        assert len(columns) == 2
-        assert columns[0].tolist() == [10.0, 20.0, 25.0, 30.0]
-        assert columns[1].tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(grouping("m", col("n"))).collect() == [Row(123)]
 
 
 def test_group_by(session, local_testing_mode):
@@ -642,16 +569,10 @@ def test_agg(session, local_testing_mode):
         pytest.skip("mock implementation does not apply to live code")
 
     registry = snowpark_mock_functions.MockedFunctionRegistry.get_or_create()
-    registry.unregister("stddev")
     registry.unregister("stddev_pop")
 
     with pytest.raises(NotImplementedError):
         origin_df.select(stddev("n"), stddev_pop("m")).collect()
-
-    @snowpark_mock_functions.patch("stddev")
-    def mock_stddev(column: ColumnEmulator):
-        assert column.tolist() == [11.0, 22.0, 9.0, 9.0, 35.0, 99.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
 
     # stddev_pop is not implemented yet
     with pytest.raises(NotImplementedError):
@@ -663,7 +584,9 @@ def test_agg(session, local_testing_mode):
         return ColumnEmulator(data=456, sf_type=ColumnType(DoubleType(), False))
 
     Utils.check_answer(
-        origin_df.select(stddev("n"), stddev_pop("m")).collect(), Row(123.0, 456.0)
+        origin_df.select(stddev("n"), stddev_pop("m")).collect(),
+        Row(34.89, 456.0),
+        float_equality_threshold=0.1,
     )
 
 
@@ -685,4 +608,29 @@ def test_agg_column_naming(session):
 
     assert df2.columns == ['"UPPER(A)"', '"MAX(B)"']
     assert df3.columns == ["UPPER", "MAX"]
-    assert df2.collect() == df3.collect() == [Row("X", 2), Row("Y", 1)]
+    expected = [Row("X", 2), Row("Y", 1)]
+    Utils.check_answer(df2, expected)
+    Utils.check_answer(df3, expected)
+
+
+def test_agg_on_empty_df(session):
+    df = session.create_dataframe([], StructType([StructField("a", IntegerType())]))
+    aggs = [
+        avg("a"),
+        count("a"),
+        count_distinct("a"),
+        listagg("a"),
+        max_("a"),
+        mean("a"),
+        median("a"),
+        min_("a"),
+        stddev("a"),
+        sum_("a"),
+    ]
+    agged_with_group_by = df.group_by("a").agg(*aggs)
+    agged_no_group_by = df.group_by().agg(*aggs)
+
+    Utils.check_answer(agged_with_group_by, [])
+    Utils.check_answer(
+        agged_no_group_by, [Row(None, 0, 0, "", None, None, None, None, None, None)]
+    )

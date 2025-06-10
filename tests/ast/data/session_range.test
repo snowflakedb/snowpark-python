@@ -1,0 +1,177 @@
+## TEST CASE
+
+r = session.range(10)
+
+r = session.range(1, 10)
+
+r = session.range(1, 10, 2)
+
+r = session.range(1, None)
+
+r = session.range(1, None, 2)
+
+## EXPECTED UNPARSER OUTPUT
+
+r = session.range(10, None, 1)
+
+r = session.range(1, 10, 1)
+
+r = session.range(1, 10, 2)
+
+r = session.range(1, None, 1)
+
+r = session.range(1, None, 2)
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      range {
+        src {
+          end_column: 29
+          end_line: 25
+          file: 2
+          start_column: 12
+          start_line: 25
+        }
+        start: 10
+        step {
+          value: 1
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "r"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      range {
+        end {
+          value: 10
+        }
+        src {
+          end_column: 32
+          end_line: 27
+          file: 2
+          start_column: 12
+          start_line: 27
+        }
+        start: 1
+        step {
+          value: 1
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "r"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      range {
+        end {
+          value: 10
+        }
+        src {
+          end_column: 35
+          end_line: 29
+          file: 2
+          start_column: 12
+          start_line: 29
+        }
+        start: 1
+        step {
+          value: 2
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "r"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      range {
+        src {
+          end_column: 34
+          end_line: 31
+          file: 2
+          start_column: 12
+          start_line: 31
+        }
+        start: 1
+        step {
+          value: 1
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "r"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      range {
+        src {
+          end_column: 37
+          end_line: 33
+          file: 2
+          start_column: 12
+          start_line: 33
+        }
+        start: 1
+        step {
+          value: 2
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "r"
+    }
+    uid: 5
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

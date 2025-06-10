@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import collections.abc
 import inspect
@@ -10,6 +10,7 @@ import sys
 import typing
 import zipfile
 from copy import deepcopy
+from enum import Enum
 from logging import getLogger
 from types import ModuleType
 from typing import (
@@ -29,7 +30,7 @@ import cloudpickle
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal import code_generation, type_utils
-from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
+from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql, to_sql_no_cast
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     NoneType,
@@ -52,6 +53,7 @@ from snowflake.snowpark._internal.utils import (
     random_number,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warning,
 )
 from snowflake.snowpark.types import DataType, StructField, StructType
 from snowflake.snowpark.version import VERSION
@@ -91,19 +93,31 @@ AGGREGATE_FUNCTION_FINISH_METHOD = "finish"
 AGGREGATE_FUNCTION_MERGE_METHOD = "merge"
 AGGREGATE_FUNCTION_STATE_METHOD = "aggregate_state"
 
-EXECUTE_AS_WHITELIST = frozenset(["owner", "caller"])
+EXECUTE_AS_WHITELIST = frozenset(["owner", "caller", "restricted caller"])
 
 REGISTER_KWARGS_ALLOWLIST = {
     "native_app_params",
     "anonymous",
     "force_inline_code",
     "_from_pandas_udf_function",
+    "input_names",  # for pandas_udtf
+    "max_batch_size",  # for pandas_udtf
+    "_registered_object_name",  # object name within Snowflake (post registration)
 }
+
+ALLOWED_CONSTRAINT_CONFIGURATION = {"architecture": {"x86"}}
 
 
 class UDFColumn(NamedTuple):
     datatype: DataType
     name: str
+
+
+class RegistrationType(Enum):
+    UDF = "UDF"
+    UDAF = "UDAF"
+    UDTF = "UDTF"
+    SPROC = "SPROC"
 
 
 class ExtensionFunctionProperties:
@@ -133,7 +147,9 @@ class ExtensionFunctionProperties:
         func: Union[Callable, Tuple[str, str]],
         replace: bool = False,
         if_not_exists: bool = False,
-        execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+        execute_as: Optional[
+            typing.Literal["caller", "owner", "restricted caller"]
+        ] = None,
         anonymous: bool = False,
     ) -> None:
         self.func = func
@@ -408,10 +424,13 @@ def get_opt_arg_defaults(
                 for value, tp in zip(default_values, input_types_for_default_args)
             ]
 
-        default_values_to_sql_str = [
-            to_sql(value, datatype)
-            for value, datatype in zip(default_values, input_types_for_default_args)
-        ]
+        if num_optional_args != 0:
+            default_values_to_sql_str = [
+                to_sql(value, datatype)
+                for value, datatype in zip(default_values, input_types_for_default_args)
+            ]
+        else:
+            default_values_to_sql_str = []
         return [None] * num_positional_args + default_values_to_sql_str
 
     def get_opt_arg_defaults_from_callable():
@@ -501,7 +520,9 @@ def check_register_args(
         )
 
 
-def check_execute_as_arg(execute_as: typing.Literal["caller", "owner"]):
+def check_execute_as_arg(
+    execute_as: typing.Literal["caller", "owner", "restricted caller"]
+):
     if (
         not isinstance(execute_as, str)
         or execute_as.lower() not in EXECUTE_AS_WHITELIST
@@ -523,6 +544,22 @@ def check_python_runtime_version(runtime_version_from_requirement: Optional[str]
             f"Your system version is {system_version} while your requirements have specified version "
             f"{runtime_version_from_requirement}!"
         )
+
+
+def check_resource_constraint(constraint: Optional[Dict[str, str]]):
+    if constraint is None:
+        return
+
+    errors = []
+    for key, value in constraint.items():
+        if key.lower() not in ALLOWED_CONSTRAINT_CONFIGURATION:
+            errors.append(ValueError(f"Unknown resource constraint key '{key}'"))
+            continue
+        if value.lower() not in ALLOWED_CONSTRAINT_CONFIGURATION[key]:
+            errors.append(ValueError(f"Unknown value '{value}' for key '{key}'"))
+
+    if errors:
+        raise Exception(errors)
 
 
 def process_file_path(file_path: str) -> str:
@@ -1053,6 +1090,7 @@ def resolve_imports_and_packages(
     is_dataframe_input: bool = False,
     max_batch_size: Optional[int] = None,
     *,
+    artifact_repository: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = False,
     skip_upload_on_content_match: bool = False,
@@ -1066,26 +1104,41 @@ def resolve_imports_and_packages(
     Optional[str],
     bool,
 ]:
-
-    # resolve packages
-    if session is None:  # In case of sandbox
-        resolved_packages = resolve_packages_in_client_side_sandbox(packages=packages)
-    else:  # In any other scenario
-        resolved_packages = (
-            session._resolve_packages(
-                packages,
-                include_pandas=is_pandas_udf,
-                statement_params=statement_params,
+    if artifact_repository and artifact_repository != "conda":
+        # Artifact Repository packages are not resolved
+        resolved_packages = []
+        if not packages and session:
+            resolved_packages = list(
+                session._resolve_packages([], artifact_repository=artifact_repository)
             )
-            if packages is not None
-            else session._resolve_packages(
-                [],
-                session._packages,
-                validate_package=False,
-                include_pandas=is_pandas_udf,
-                statement_params=statement_params,
+        elif packages:
+            if not all(isinstance(package, str) for package in packages):
+                raise TypeError(
+                    "Artifact repository requires that all packages be passed as str."
+                )
+            resolved_packages = packages
+    else:
+        # resolve packages
+        if session is None:  # In case of sandbox
+            resolved_packages = resolve_packages_in_client_side_sandbox(
+                packages=packages
             )
-        )
+        else:  # In any other scenario
+            resolved_packages = (
+                session._resolve_packages(
+                    packages,
+                    include_pandas=is_pandas_udf,
+                    statement_params=statement_params,
+                )
+                if packages is not None
+                else session._resolve_packages(
+                    [],
+                    session._packages,
+                    validate_package=False,
+                    include_pandas=is_pandas_udf,
+                    statement_params=statement_params,
+                )
+            )
 
     all_urls = []
     if session is not None:
@@ -1237,8 +1290,9 @@ def create_python_udf_or_sp(
     replace: bool,
     if_not_exists: bool,
     raw_imports: Optional[List[Union[str, Tuple[str, str]]]],
+    registration_type: RegistrationType,
     inline_python_code: Optional[str] = None,
-    execute_as: Optional[typing.Literal["caller", "owner"]] = None,
+    execute_as: Optional[typing.Literal["caller", "owner", "restricted caller"]] = None,
     api_call_source: Optional[str] = None,
     strict: bool = False,
     secure: bool = False,
@@ -1250,12 +1304,20 @@ def create_python_udf_or_sp(
     native_app_params: Optional[Dict[str, Any]] = None,
     copy_grants: bool = False,
     runtime_version: Optional[str] = None,
+    artifact_repository: Optional[str] = None,
+    resource_constraint: Optional[Dict[str, str]] = None,
 ) -> None:
     runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
+    check_resource_constraint(resource_constraint)
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
-    if isinstance(return_type, StructType) and not return_type.structured:
+
+    if (
+        isinstance(return_type, StructType)
+        and not return_type.structured
+        and registration_type in {RegistrationType.UDTF, RegistrationType.SPROC}
+    ):
         return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
     elif installed_pandas and isinstance(return_type, PandasDataFrameType):
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
@@ -1270,6 +1332,26 @@ def create_python_udf_or_sp(
     )
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
+
+    artifact_repository_in_sql = (
+        f"ARTIFACT_REPOSITORY={artifact_repository}" if artifact_repository else ""
+    )
+
+    resource_constraint_fmt = (
+        ""
+        if resource_constraint is None
+        else ",".join(f"{k}='{v}'" for k, v in resource_constraint.items())
+    )
+    resource_constraint_sql = (
+        f"RESOURCE_CONSTRAINT=({resource_constraint_fmt})"
+        if resource_constraint_fmt
+        else ""
+    )
+    if artifact_repository_in_sql:
+        warning(
+            "artifact_repository_support",
+            "Support for artifact_repository udxf options is experimental since v1.29.0. Do not use it in production.",
+        )
     # Since this function is called for UDFs and Stored Procedures we need to
     #  make execute_as_sql a multi-line string for cases when we need it.
     #  This makes sure that when we don't need it we don't end up inserting
@@ -1346,8 +1428,10 @@ LANGUAGE PYTHON {strict_as_sql}
 {mutability}
 RUNTIME_VERSION={runtime_version}
 {imports_in_sql}
+{artifact_repository_in_sql}
 {packages_in_sql}
 {external_access_integrations_in_sql}
+{resource_constraint_sql}
 {secrets_in_sql}
 HANDLER='{handler}'{execute_as_sql}
 {inline_python_code_in_sql}
@@ -1391,7 +1475,7 @@ def generate_anonymous_python_sp_sql(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
-):
+) -> str:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
         if not runtime_version
@@ -1475,6 +1559,8 @@ def generate_call_python_sp_sql(
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
             sql_args.append(session._analyzer.analyze(arg._expression, {}))
+        elif "system$" in sproc_name.lower():
+            sql_args.append(to_sql_no_cast(arg, infer_type(arg)))
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import re
@@ -437,7 +437,7 @@ def test_dataframe_mask_not_implemented(test_data, test_cond, test_others):
         snow_dfs[0].mask(snow_dfs[1], snow_dfs[2], axis=1)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_dataframe_mask_cond_is_array(caplog):
     data = [[1, 2], [3, 4]]
     cond = np.array([[True, False], [False, True]])
@@ -448,7 +448,7 @@ def test_dataframe_mask_cond_is_array(caplog):
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.mask(cond))
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_dataframe_mask_cond_is_array_wrong_size_negative():
     data = [[1, 2, 3], [3, 4, 5], [5, 6, 7]]
     cond = np.array([[True, False], [False, True]])
@@ -500,7 +500,7 @@ def test_dataframe_mask_with_callable_other():
     )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=2)
 def test_dataframe_mask_other_is_array():
     data = [[1, 3], [2, 4]]
     other = np.array([[99, -99], [101, -101]])
@@ -513,7 +513,7 @@ def test_dataframe_mask_other_is_array():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_dataframe_mask_other_is_array_wrong_size_negative():
     data = [[1, 2, 3], [3, 4, 5], [5, 6, 7]]
     other = np.array([[99, -99], [101, -101]])
@@ -543,7 +543,7 @@ def test_dataframe_mask_sizes_do_not_match_negative_test(test_data, test_cond):
         snow_df.mask(snow_cond_df)
 
 
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=1, join_count=3)
 def test_dataframe_mask_with_np_array_cond():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -570,7 +570,7 @@ def test_dataframe_mask_with_np_array_cond():
     )
 
 
-@sql_count_checker(query_count=2, join_count=4)
+@sql_count_checker(query_count=1, join_count=4)
 def test_dataframe_mask_with_np_array_cond_mismatched_labels():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -827,9 +827,7 @@ def test_mask_with_scalar_cond(cond):
     native_ser = native_pd.DataFrame([[1, 2, 3]])
     snow_ser = pd.DataFrame(native_ser)
 
-    sql_count = 1 if isinstance(cond, list) else 0
-
-    with SqlCounter(query_count=sql_count):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             snow_ser,
             native_ser,
@@ -863,7 +861,7 @@ def test_mask_series_other_axis_not_specified():
     )
 
 
-@sql_count_checker(query_count=2, join_count=3)
+@sql_count_checker(query_count=1, join_count=3)
 @pytest.mark.parametrize(
     "data",
     [[10], [10, 11, 12], [10, 11, 12, 13]],
@@ -908,7 +906,7 @@ def test_mask_series_other_axis_0(index, data):
     )
 
 
-@sql_count_checker(query_count=2, join_count=3, union_count=1)
+@sql_count_checker(query_count=1, join_count=3, union_count=1)
 @pytest.mark.parametrize(
     "data",
     [[10], [10, 11, 12], [10, 11, 12, 13]],

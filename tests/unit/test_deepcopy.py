@@ -1,12 +1,11 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import uuid
 from unittest import mock
 
 from snowflake.snowpark import Session, functions as F, types as T
-from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import UNION
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnStateDict,
@@ -114,11 +113,9 @@ def verify_copied_selectable(
     assert copy.deepcopy(original_selectable, memo) is copied_selectable
 
 
-def test_selectable_entity():
-    analyzer = mock.create_autospec(Analyzer)
-    session = mock.create_autospec(Session)
+def test_selectable_entity(mock_session, mock_analyzer):
     selectable_entity = SelectableEntity(
-        SnowflakeTable("TEST_TABLE", session=session), analyzer=analyzer
+        SnowflakeTable("TEST_TABLE", session=mock_session), analyzer=mock_analyzer
     )
     init_selectable_fields(selectable_entity, init_plan=False)
     copied_selectable = copy.deepcopy(selectable_entity)
@@ -126,12 +123,11 @@ def test_selectable_entity():
     assert copied_selectable.entity.name == selectable_entity.entity.name
 
 
-def test_select_sql():
-    analyzer = mock.create_autospec(Analyzer)
+def test_select_sql(mock_session, mock_analyzer):
     # none-select sql
     sql = "show tables limit 10"
     select_sql = SelectSQL(
-        sql, convert_to_select=False, analyzer=analyzer, params=[1, "a", 2, "b"]
+        sql, convert_to_select=False, analyzer=mock_analyzer, params=[1, "a", 2, "b"]
     )
 
     init_selectable_fields(select_sql, init_plan=True)
@@ -148,13 +144,11 @@ def test_select_sql():
     assert copied_selectable.original_sql == select_sql.original_sql
 
 
-def test_select_snowflake_plan():
-    analyzer = mock.create_autospec(Analyzer)
-    session = mock.create_autospec(Session)
-    snowflake_plan = init_snowflake_plan(session)
+def test_select_snowflake_plan(mock_session, mock_analyzer):
+    snowflake_plan = init_snowflake_plan(mock_session)
     select_snowflake_plan = SelectSnowflakePlan(
         snowflake_plan=snowflake_plan,
-        analyzer=analyzer,
+        analyzer=mock_analyzer,
     )
     init_selectable_fields(select_snowflake_plan, init_plan=False)
     copied_selectable = copy.deepcopy(select_snowflake_plan)
@@ -164,9 +158,7 @@ def test_select_snowflake_plan():
     assert copied_selectable._query_params == copied_selectable._query_params
 
 
-def test_select_statement():
-    analyzer = mock.create_autospec(Analyzer)
-    session = mock.create_autospec(Session)
+def test_select_statement(mock_session, mock_analyzer):
     projection = [
         F.cast(F.col("B"), T.IntegerType())._expression,
         (F.col("A") + F.col("B")).alias("A")._expression,
@@ -176,7 +168,7 @@ def test_select_statement():
     limit_ = 5
     offset = 2
     from_ = SelectableEntity(
-        SnowflakeTable("TEST_TABLE", session=session), analyzer=analyzer
+        SnowflakeTable("TEST_TABLE", session=mock_session), analyzer=mock_analyzer
     )
     select_snowflake_plan = SelectStatement(
         projection=projection,
@@ -185,7 +177,7 @@ def test_select_statement():
         order_by=order_by,
         limit_=limit_,
         offset=offset,
-        analyzer=analyzer,
+        analyzer=mock_analyzer,
     )
     init_selectable_fields(select_snowflake_plan, init_plan=False)
     copied_selectable = copy.deepcopy(select_snowflake_plan)
@@ -198,13 +190,11 @@ def test_select_statement():
     assert copied_selectable._query_params == select_snowflake_plan._query_params
 
 
-def test_select_table_function():
-    analyzer = mock.create_autospec(Analyzer)
-    session = mock.create_autospec(Session)
+def test_select_table_function(mock_session, mock_analyzer):
     select_table_function_plan = SelectTableFunction(
         func_expr=TableFunctionExpression(func_name="test_table_function"),
-        snowflake_plan=init_snowflake_plan(session),
-        analyzer=analyzer,
+        snowflake_plan=init_snowflake_plan(mock_session),
+        analyzer=mock_analyzer,
     )
     init_selectable_fields(select_table_function_plan, init_plan=False)
     copied_selectable = copy.deepcopy(select_table_function_plan)
@@ -217,21 +207,19 @@ def test_select_table_function():
     )
 
 
-def test_set_statement():
-    analyzer = mock.create_autospec(Analyzer)
-    session = mock.create_autospec(Session)
+def test_set_statement(mock_session, mock_analyzer):
     # construct the SetOperands
     select_entity1 = SelectableEntity(
-        SnowflakeTable("TEST_TABLE", session=session), analyzer=analyzer
+        SnowflakeTable("TEST_TABLE", session=mock_session), analyzer=mock_analyzer
     )
     select_entity2 = SelectableEntity(
-        SnowflakeTable("TEST_TABLE2", session=session), analyzer=analyzer
+        SnowflakeTable("TEST_TABLE2", session=mock_session), analyzer=mock_analyzer
     )
     operand1 = SetOperand(selectable=select_entity1, operator=UNION)
     operand2 = SetOperand(selectable=select_entity2, operator=UNION)
 
     # construct the set statement
-    set_statement = SetStatement(*[operand1, operand2], analyzer=analyzer)
+    set_statement = SetStatement(*[operand1, operand2], analyzer=mock_analyzer)
     init_selectable_fields(set_statement, init_plan=False)
     copied_selectable = copy.deepcopy(set_statement)
     verify_copied_selectable(copied_selectable, set_statement, expect_plan_copied=False)

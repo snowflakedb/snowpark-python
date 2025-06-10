@@ -2,7 +2,7 @@ name: Daily Snowpark pandas jupyter notebook test
 
 on:
     schedule:
-      - cron: "0 16 * * *" # Runs 16:00 UTC on every day
+      - cron: "0 11 * * *" # Runs 9:00 UTC on every day
     workflow_dispatch:
         inputs:
             logLevel:
@@ -104,7 +104,9 @@ jobs:
               run: ls -lh dist
               shell: bash
             - name: Upgrade setuptools, pip and wheel
-              run: python -m pip install -U setuptools pip wheel
+              run: python -m pip install -U setuptools pip wheel tox
+            - name: Build protobuf Python files
+              run: python -m tox -e protoc
             - name: Install project
               run: python -m pip install -e ".[modin-development]"
             - name: Install test requirements

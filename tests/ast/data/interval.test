@@ -1,0 +1,1074 @@
+## TEST CASE
+
+from snowflake.snowpark._internal.analyzer.expression import Interval
+
+df1 = session.create_dataframe(
+        [
+            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
+            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+        ],
+        schema=["a", "b"],
+    )
+
+df2 = df1.select(
+    df1["a"]
+    + make_interval(
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+        microseconds=4,
+        nanoseconds=4,
+    )
+)
+
+df4 = df1.select(df1["a"] + make_interval(1234))
+
+df5 = df1.select(
+    df1["a"]
+    + make_interval(
+        quarters=1,
+        months=2,
+        weeks=3,
+        days=4,
+        hours=5,
+        minutes=6,
+        seconds=7
+    )
+)
+
+df6 = df1.select(
+    df1["a"]
+    + make_interval(
+        years=1,
+        months=2,
+        weeks=3,
+        days=4,
+        hours=5,
+        minutes=6,
+        seconds=7,
+        milliseconds=8,
+        microseconds=9,
+        nanoseconds=10
+    )
+)
+
+df7 = df1.select(df1["a"] + make_interval(weeks=21, mins=0))
+
+
+## EXPECTED UNPARSER OUTPUT
+
+df1 = session.create_dataframe([[datetime.datetime(2010, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST")), datetime.datetime(2011, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST"))], [datetime.datetime(2012, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST")), datetime.datetime(2013, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST"))]], schema=["a", "b"])
+
+df2 = df1.select(df1["a"] + make_interval(days=2, hours=2, microseconds=4, milliseconds=3, minutes=3, months=1, nanoseconds=4, quarters=1, seconds=3, weeks=2))
+
+df4 = df1.select(df1["a"] + make_interval(years=1234))
+
+df5 = df1.select(df1["a"] + make_interval(days=4, hours=5, minutes=6, months=2, quarters=1, seconds=7, weeks=3))
+
+df6 = df1.select(df1["a"] + make_interval(days=4, hours=5, microseconds=9, milliseconds=8, minutes=6, months=2, nanoseconds=10, seconds=7, weeks=3, years=1))
+
+df7 = df1.select(df1["a"] + make_interval(mins=0, weeks=21))
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 13
+                  end_line: 33
+                  file: 2
+                  start_column: 14
+                  start_line: 27
+                }
+                vs {
+                  python_timestamp_val {
+                    day: 1
+                    month: 1
+                    src {
+                      end_column: 13
+                      end_line: 33
+                      file: 2
+                      start_column: 14
+                      start_line: 27
+                    }
+                    tz {
+                      name {
+                        value: "EST"
+                      }
+                      offset_seconds: -18000
+                    }
+                    year: 2010
+                  }
+                }
+                vs {
+                  python_timestamp_val {
+                    day: 1
+                    month: 1
+                    src {
+                      end_column: 13
+                      end_line: 33
+                      file: 2
+                      start_column: 14
+                      start_line: 27
+                    }
+                    tz {
+                      name {
+                        value: "EST"
+                      }
+                      offset_seconds: -18000
+                    }
+                    year: 2011
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 13
+                  end_line: 33
+                  file: 2
+                  start_column: 14
+                  start_line: 27
+                }
+                vs {
+                  python_timestamp_val {
+                    day: 1
+                    month: 1
+                    src {
+                      end_column: 13
+                      end_line: 33
+                      file: 2
+                      start_column: 14
+                      start_line: 27
+                    }
+                    tz {
+                      name {
+                        value: "EST"
+                      }
+                      offset_seconds: -18000
+                    }
+                    year: 2012
+                  }
+                }
+                vs {
+                  python_timestamp_val {
+                    day: 1
+                    month: 1
+                    src {
+                      end_column: 13
+                      end_line: 33
+                      file: 2
+                      start_column: 14
+                      start_line: 27
+                    }
+                    tz {
+                      name {
+                        value: "EST"
+                      }
+                      offset_seconds: -18000
+                    }
+                    year: 2013
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "a"
+            vs: "b"
+          }
+        }
+        src {
+          end_column: 13
+          end_line: 33
+          file: 2
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            add {
+              lhs {
+                dataframe_col {
+                  col_name: "a"
+                  df {
+                    dataframe_ref {
+                      id: 1
+                    }
+                  }
+                  src {
+                    end_column: 20
+                    end_line: 36
+                    file: 2
+                    start_column: 12
+                    start_line: 36
+                  }
+                }
+              }
+              rhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "make_interval"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "days"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 2
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "hours"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 2
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "microseconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 4
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "milliseconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 3
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "minutes"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 3
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "months"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 1
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "nanoseconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 4
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "quarters"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 1
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "seconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 3
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "weeks"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 48
+                          file: 2
+                          start_column: 14
+                          start_line: 37
+                        }
+                        v: 2
+                      }
+                    }
+                  }
+                  src {
+                    end_column: 13
+                    end_line: 48
+                    file: 2
+                    start_column: 14
+                    start_line: 37
+                  }
+                }
+              }
+              src {
+                end_column: 13
+                end_line: 48
+                file: 2
+                start_column: 12
+                start_line: 36
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 49
+          file: 2
+          start_column: 14
+          start_line: 35
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            add {
+              lhs {
+                dataframe_col {
+                  col_name: "a"
+                  df {
+                    dataframe_ref {
+                      id: 1
+                    }
+                  }
+                  src {
+                    end_column: 33
+                    end_line: 51
+                    file: 2
+                    start_column: 25
+                    start_line: 51
+                  }
+                }
+              }
+              rhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "make_interval"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "years"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 55
+                          end_line: 51
+                          file: 2
+                          start_column: 36
+                          start_line: 51
+                        }
+                        v: 1234
+                      }
+                    }
+                  }
+                  src {
+                    end_column: 55
+                    end_line: 51
+                    file: 2
+                    start_column: 36
+                    start_line: 51
+                  }
+                }
+              }
+              src {
+                end_column: 55
+                end_line: 51
+                file: 2
+                start_column: 25
+                start_line: 51
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 56
+          end_line: 51
+          file: 2
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            add {
+              lhs {
+                dataframe_col {
+                  col_name: "a"
+                  df {
+                    dataframe_ref {
+                      id: 1
+                    }
+                  }
+                  src {
+                    end_column: 20
+                    end_line: 54
+                    file: 2
+                    start_column: 12
+                    start_line: 54
+                  }
+                }
+              }
+              rhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "make_interval"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "days"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 63
+                          file: 2
+                          start_column: 14
+                          start_line: 55
+                        }
+                        v: 4
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "hours"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 63
+                          file: 2
+                          start_column: 14
+                          start_line: 55
+                        }
+                        v: 5
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "minutes"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 63
+                          file: 2
+                          start_column: 14
+                          start_line: 55
+                        }
+                        v: 6
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "months"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 63
+                          file: 2
+                          start_column: 14
+                          start_line: 55
+                        }
+                        v: 2
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "quarters"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 63
+                          file: 2
+                          start_column: 14
+                          start_line: 55
+                        }
+                        v: 1
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "seconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 63
+                          file: 2
+                          start_column: 14
+                          start_line: 55
+                        }
+                        v: 7
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "weeks"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 63
+                          file: 2
+                          start_column: 14
+                          start_line: 55
+                        }
+                        v: 3
+                      }
+                    }
+                  }
+                  src {
+                    end_column: 13
+                    end_line: 63
+                    file: 2
+                    start_column: 14
+                    start_line: 55
+                  }
+                }
+              }
+              src {
+                end_column: 13
+                end_line: 63
+                file: 2
+                start_column: 12
+                start_line: 54
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 64
+          file: 2
+          start_column: 14
+          start_line: 53
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df5"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            add {
+              lhs {
+                dataframe_col {
+                  col_name: "a"
+                  df {
+                    dataframe_ref {
+                      id: 1
+                    }
+                  }
+                  src {
+                    end_column: 20
+                    end_line: 67
+                    file: 2
+                    start_column: 12
+                    start_line: 67
+                  }
+                }
+              }
+              rhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "make_interval"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "days"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 4
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "hours"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 5
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "microseconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 9
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "milliseconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 8
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "minutes"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 6
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "months"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 2
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "nanoseconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 10
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "seconds"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 7
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "weeks"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 3
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "years"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 13
+                          end_line: 79
+                          file: 2
+                          start_column: 14
+                          start_line: 68
+                        }
+                        v: 1
+                      }
+                    }
+                  }
+                  src {
+                    end_column: 13
+                    end_line: 79
+                    file: 2
+                    start_column: 14
+                    start_line: 68
+                  }
+                }
+              }
+              src {
+                end_column: 13
+                end_line: 79
+                file: 2
+                start_column: 12
+                start_line: 67
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 80
+          file: 2
+          start_column: 14
+          start_line: 66
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df6"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            add {
+              lhs {
+                dataframe_col {
+                  col_name: "a"
+                  df {
+                    dataframe_ref {
+                      id: 1
+                    }
+                  }
+                  src {
+                    end_column: 33
+                    end_line: 82
+                    file: 2
+                    start_column: 25
+                    start_line: 82
+                  }
+                }
+              }
+              rhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "make_interval"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "mins"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 67
+                          end_line: 82
+                          file: 2
+                          start_column: 36
+                          start_line: 82
+                        }
+                      }
+                    }
+                  }
+                  named_args {
+                    _1: "weeks"
+                    _2 {
+                      int64_val {
+                        src {
+                          end_column: 67
+                          end_line: 82
+                          file: 2
+                          start_column: 36
+                          start_line: 82
+                        }
+                        v: 21
+                      }
+                    }
+                  }
+                  src {
+                    end_column: 67
+                    end_line: 82
+                    file: 2
+                    start_column: 36
+                    start_line: 82
+                  }
+                }
+              }
+              src {
+                end_column: 67
+                end_line: 82
+                file: 2
+                start_column: 25
+                start_line: 82
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 68
+          end_line: 82
+          file: 2
+          start_column: 14
+          start_line: 82
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df7"
+    }
+    uid: 6
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

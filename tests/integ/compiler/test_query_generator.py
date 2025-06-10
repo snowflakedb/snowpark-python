@@ -1,10 +1,12 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import copy
 from typing import List
 
 import pytest
+from snowflake.connector import IntegrityError
 
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
@@ -20,14 +22,27 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    CopyIntoLocationNode,
     LogicalPlan,
     SaveMode,
     SnowflakeCreateTable,
     SnowflakeTable,
     TableCreationSource,
 )
-from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark._internal.analyzer.table_merge_expression import (
+    TableDelete,
+    TableMerge,
+    TableUpdate,
+)
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    CreateViewCommand,
+    PersistedView,
+    Project,
+)
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
+from snowflake.snowpark._internal.compiler.repeated_subquery_elimination import (
+    RepeatedSubqueryElimination,
+)
 from snowflake.snowpark._internal.compiler.utils import (
     create_query_generator,
     resolve_and_update_snowflake_plan,
@@ -36,7 +51,8 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import avg, col, lit
+from snowflake.snowpark.functions import avg, col, lit, when_matched
+from snowflake.snowpark.types import StructType, StructField, LongType
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import TestFiles, Utils
@@ -54,6 +70,7 @@ def reset_node(node: LogicalPlan, query_generator: QueryGenerator) -> None:
     def reset_selectable(selectable_node: Selectable) -> None:
         # reset the analyzer to use the current query generator instance to
         # ensure the new query generator is used during the resolve process
+        selectable_node._is_valid_for_replacement = True
         selectable_node.analyzer = query_generator
         if not isinstance(selectable_node, (SelectSnowflakePlan, SelectSQL)):
             selectable_node._snowflake_plan = None
@@ -228,9 +245,10 @@ def test_table_create_from_large_query_breakdown(session, plan_source_generator)
     assert len(queries[PlanQueryType.QUERIES]) == 1
     assert len(queries[PlanQueryType.POST_ACTIONS]) == 0
 
-    assert (
+    assert Utils.normalize_sql(
         queries[PlanQueryType.QUERIES][0].sql
-        == f" CREATE  SCOPED TEMPORARY  TABLE  {table_name}    AS  SELECT  *  FROM (select 1 as a, 2 as b)"
+    ) == Utils.normalize_sql(
+        f"CREATE SCOPED TEMPORARY TABLE {table_name} AS SELECT * FROM ( select 1 as a, 2 as b )"
     )
 
 
@@ -392,6 +410,68 @@ def test_multiple_plan_query_generation(session):
     assert result_post_actions == expected_post_actions
 
 
+@pytest.mark.parametrize(
+    "plan_lambda",
+    [
+        lambda df, name: SnowflakeCreateTable(
+            [name],
+            column_names=None,
+            mode=SaveMode.OVERWRITE,
+            query=df._plan,
+            creation_source=TableCreationSource.OTHERS,
+            table_type="temp",
+            clustering_exprs=None,
+            comment=None,
+        ),
+        lambda df, name: CreateViewCommand(name, PersistedView(), None, True, df._plan),
+        lambda df, name: CopyIntoLocationNode(
+            df._plan,
+            name,
+            partition_by=None,
+            file_format_name=None,
+            file_format_type=None,
+            format_type_options=None,
+            header=False,
+            copy_options={},
+        ),
+        lambda df, name: TableMerge(
+            name,
+            df._plan,
+            (df["a"] == 1)._expression,
+            [when_matched().update({"value": df["a"]})._clause],
+        ),
+        lambda df, name: TableUpdate(name, {}, None, df._plan),
+        lambda df, name: TableDelete(name, None, df._plan),
+    ],
+)
+def test_referenced_cte_propagation(session, plan_lambda):
+    cte_optimization_enabled = session._cte_optimization_enabled
+    try:
+        session._cte_optimization_enabled = True
+        df0 = session.create_dataframe([[1], [2], [5]], schema=["a"])
+        df = session.create_dataframe(
+            [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]],
+            schema=["a", "b", "c", "d"],
+        )
+        df_filter = df0.filter(col("a") < 3)
+        # filter with NOT
+        df_in = df.filter(~df["a"].in_(df_filter))
+        df = df_in.union_all(df)
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        logical_plan = plan_lambda(df, table_name)
+        snowflake_plan = session._analyzer.resolve(logical_plan)
+        query_generator = create_query_generator(snowflake_plan)
+
+        repeated_subquery_elimination = RepeatedSubqueryElimination(
+            [copy.deepcopy(snowflake_plan)], query_generator
+        )
+        optimized_logical_plans = repeated_subquery_elimination.apply().logical_plans
+        assert len(optimized_logical_plans) == 1
+        assert len(optimized_logical_plans[0].referenced_ctes) == 1
+    finally:
+        session._cte_optimization_enabled = cte_optimization_enabled
+
+
 def test_in_with_subquery(session):
     # This test checks the subquery usage of the code generator
     df0 = session.create_dataframe([[1], [2], [5]], schema=["a"])
@@ -409,7 +489,10 @@ def test_in_with_subquery_multiple_query(session):
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
-        expected_describe_count = 3 if session.sql_simplifier_enabled else 2
+        if session.sql_simplifier_enabled:
+            expected_describe_count = 1 if session.reduce_describe_query_enabled else 3
+        else:
+            expected_describe_count = 2
         with SqlCounter(query_count=0, describe_count=expected_describe_count):
             df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
             df = session.create_dataframe(
@@ -457,3 +540,26 @@ def test_select_alias(session):
     # Add a new column d that doesn't use c after c was added previously. Flatten safely.
     df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
     check_generated_plan_queries(df2._plan)
+
+
+def test_nullable_is_false_dataframe(session):
+    from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
+
+    schema = StructType([StructField("key", LongType(), nullable=True)])
+    assert session.create_dataframe([None], schema=schema).collect()[0][0] is None
+
+    assert (
+        session.create_dataframe(
+            [None for _ in range(ARRAY_BIND_THRESHOLD + 1)], schema=schema
+        ).collect()[0][0]
+        is None
+    )
+
+    schema = StructType([StructField("key", LongType(), nullable=False)])
+    with pytest.raises(IntegrityError, match="NULL result in a non-nullable column"):
+        session.create_dataframe([None for _ in range(10)], schema=schema).collect()
+
+    with pytest.raises(IntegrityError, match="NULL result in a non-nullable column"):
+        session.create_dataframe(
+            [None for _ in range(ARRAY_BIND_THRESHOLD + 1)], schema=schema
+        ).collect()

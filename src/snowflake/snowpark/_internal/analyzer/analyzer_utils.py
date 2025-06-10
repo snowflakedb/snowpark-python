@@ -1,12 +1,23 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import json
 import math
+import os
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union
+import tempfile
+from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 
+from snowflake.connector import ProgrammingError
+from snowflake.connector.cursor import SnowflakeCursor
+from snowflake.connector.options import pyarrow
+from snowflake.connector.pandas_tools import (
+    _create_temp_stage,
+    _create_temp_file_format,
+    build_location_helper,
+)
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Except,
@@ -35,6 +46,7 @@ from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     quote_name,
     random_name_for_temp_object,
+    unwrap_single_quote,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DataType
@@ -52,6 +64,7 @@ RIGHT_PARENTHESIS = ")"
 LEFT_BRACKET = "["
 RIGHT_BRACKET = "]"
 AS = " AS "
+EXCLUDE = " EXCLUDE "
 AND = " AND "
 OR = " OR "
 NOT = " NOT "
@@ -174,6 +187,7 @@ LISTAGG = " LISTAGG "
 HEADER = " HEADER "
 COMMENT = " COMMENT "
 IGNORE_NULLS = " IGNORE NULLS "
+INCLUDE_NULLS = " INCLUDE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
 RENAME = " RENAME "
@@ -184,6 +198,11 @@ WITH = "WITH "
 DEFAULT_ON_NULL = " DEFAULT ON NULL "
 ANY = " ANY "
 ICEBERG = " ICEBERG "
+ICEBERG_VERSION = "ICEBERG_VERSION"
+RENAME_FIELDS = " RENAME FIELDS"
+ADD_FIELDS = " ADD FIELDS"
+NEW_LINE = "\n"
+TAB = "    "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -204,6 +223,7 @@ def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
         STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
             "storage_serialization_policy", None
         ),
+        ICEBERG_VERSION: iceberg_config.get("iceberg_version", None),
     }
 
 
@@ -248,7 +268,9 @@ def partition_spec(col_exprs: List[str]) -> str:
 
 
 def order_by_spec(col_exprs: List[str]) -> str:
-    return f" ORDER BY {COMMA.join(col_exprs)}" if col_exprs else EMPTY_STRING
+    if not col_exprs:
+        return EMPTY_STRING
+    return ORDER_BY + NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(col_exprs)
 
 
 def table_function_partition_spec(
@@ -279,7 +301,9 @@ def within_group_expression(column: str, order_by_cols: List[str]) -> str:
         + WITHIN_GROUP
         + LEFT_PARENTHESIS
         + ORDER_BY
-        + COMMA.join(order_by_cols)
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(order_by_cols)
         + RIGHT_PARENTHESIS
     )
 
@@ -366,11 +390,15 @@ def lateral_statement(lateral_expression: str, child: str) -> str:
     return (
         SELECT
         + STAR
+        + NEW_LINE
         + FROM
         + LEFT_PARENTHESIS
+        + NEW_LINE
         + child
+        + NEW_LINE
         + RIGHT_PARENTHESIS
         + COMMA
+        + NEW_LINE
         + LATERAL
         + lateral_expression
     )
@@ -396,18 +424,25 @@ def join_table_function_statement(
 
     left_cols = [f"{LEFT_ALIAS}.{col}" for col in left_cols]
     right_cols = [f"{RIGHT_ALIAS}.{col}" for col in right_cols]
-    select_cols = COMMA.join(left_cols + right_cols)
+    select_cols = (COMMA + NEW_LINE + TAB).join(left_cols + right_cols)
 
     return (
         SELECT
+        + NEW_LINE
+        + TAB
         + select_cols
+        + NEW_LINE
         + FROM
         + LEFT_PARENTHESIS
+        + NEW_LINE
         + child
+        + NEW_LINE
         + RIGHT_PARENTHESIS
         + AS
         + LEFT_ALIAS
+        + NEW_LINE
         + JOIN
+        + NEW_LINE
         + table(func)
         + AS
         + RIGHT_ALIAS
@@ -433,19 +468,27 @@ def case_when_expression(branches: List[Tuple[str, str]], else_value: str) -> st
 
 
 def project_statement(project: List[str], child: str, is_distinct: bool = False) -> str:
+    if not project:
+        columns = STAR
+    else:
+        columns = NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(project)
+
     return (
         SELECT
         + f"{DISTINCT if is_distinct else EMPTY_STRING}"
-        + f"{STAR if not project else COMMA.join(project)}"
+        + columns
+        + NEW_LINE
         + FROM
         + LEFT_PARENTHESIS
+        + NEW_LINE
         + child
+        + NEW_LINE
         + RIGHT_PARENTHESIS
     )
 
 
 def filter_statement(condition: str, child: str) -> str:
-    return project_statement([], child) + WHERE + condition
+    return project_statement([], child) + NEW_LINE + WHERE + condition
 
 
 def sample_statement(
@@ -478,6 +521,56 @@ def sample_statement(
         )
 
 
+def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> str:
+    PERCENT_RANK_COL = random_name_for_temp_object(TempObjectType.COLUMN)
+    LEFT_ALIAS = "SNOWPARK_LEFT"
+    RIGHT_ALIAS = "SNOWPARK_RIGHT"
+    child_with_percentage_rank_stmt = (
+        SELECT
+        + STAR
+        + COMMA
+        + f"PERCENT_RANK() OVER (PARTITION BY {col} ORDER BY RANDOM()) AS {PERCENT_RANK_COL}"
+        + FROM
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + child
+        + NEW_LINE
+        + RIGHT_PARENTHESIS
+    )
+
+    # PERCENT_RANK assigns values between 0.0 - 1.0 both inclusive. In our, query we only
+    # select values where percent_rank <= value. If value = 0, then we will select one sample
+    # unless we update the fractions as done below. This update ensures that, if the original
+    # stratified sample fraction = 0, we select 0 rows for the given key.
+    updated_fractions = {k: v if v > 0 else -1 for k, v in fractions.items()}
+    fraction_flatten_stmt = f"SELECT KEY, VALUE FROM TABLE(FLATTEN(input => parse_json('{json.dumps(updated_fractions)}')))"
+
+    return (
+        SELECT
+        + f"{LEFT_ALIAS}.* EXCLUDE {PERCENT_RANK_COL}"
+        + FROM
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + child_with_percentage_rank_stmt
+        + NEW_LINE
+        + RIGHT_PARENTHESIS
+        + AS
+        + LEFT_ALIAS
+        + JOIN
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + fraction_flatten_stmt
+        + NEW_LINE
+        + RIGHT_PARENTHESIS
+        + AS
+        + RIGHT_ALIAS
+        + ON
+        + f"{LEFT_ALIAS}.{col} = {RIGHT_ALIAS}.KEY"
+        + WHERE
+        + f"{LEFT_ALIAS}.{PERCENT_RANK_COL} <= {RIGHT_ALIAS}.VALUE"
+    )
+
+
 def aggregate_statement(
     grouping_exprs: List[str], aggregate_exprs: List[str], child: str
 ) -> str:
@@ -486,12 +579,25 @@ def aggregate_statement(
     return project_statement(aggregate_exprs, child) + (
         limit_expression(1)
         if not grouping_exprs
-        else (GROUP_BY + COMMA.join(grouping_exprs))
+        else (
+            NEW_LINE
+            + GROUP_BY
+            + NEW_LINE
+            + TAB
+            + (COMMA + NEW_LINE + TAB).join(grouping_exprs)
+        )
     )
 
 
 def sort_statement(order: List[str], child: str) -> str:
-    return project_statement([], child) + ORDER_BY + COMMA.join(order)
+    return (
+        project_statement([], child)
+        + NEW_LINE
+        + ORDER_BY
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(order)
+    )
 
 
 def range_statement(start: int, end: int, step: int, column_name: str) -> str:
@@ -734,13 +840,16 @@ def snowflake_supported_join_statement(
         + AS
         + left_alias
         + SPACE
+        + NEW_LINE
         + join_sql
         + JOIN
+        + NEW_LINE
         + LEFT_PARENTHESIS
         + right
         + RIGHT_PARENTHESIS
         + AS
         + right_alias
+        + NEW_LINE
         + f"{match_condition if match_condition else EMPTY_STRING}"
         + f"{using_condition if using_condition else EMPTY_STRING}"
         + f"{join_condition if join_condition else EMPTY_STRING}"
@@ -999,7 +1108,10 @@ def infer_schema_statement(
         + file_format_name
         + SINGLE_QUOTE
         + (
-            ", " + ", ".join(f"{k} => {v}" for k, v in options.items())
+            ", "
+            + ", ".join(
+                f"{k} => {convert_value_to_sql_option(v)}" for k, v in options.items()
+            )
             if options
             else ""
         )
@@ -1018,7 +1130,9 @@ def file_operation_statement(
     raise ValueError(f"Unsupported file operation type {command}")
 
 
-def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -> str:
+def convert_value_to_sql_option(
+    value: Optional[Union[str, bool, int, float, list, tuple]]
+) -> str:
     if isinstance(value, str):
         if len(value) > 1 and is_single_quoted(value):
             return value
@@ -1028,6 +1142,9 @@ def convert_value_to_sql_option(value: Optional[Union[str, bool, int, float]]) -
             )  # escape single quotes before adding a pair of quotes
             return f"'{value}'"
     else:
+        if isinstance(value, (list, tuple)):
+            # Snowflake sql uses round brackets for options that are lists
+            return f"({', '.join(convert_value_to_sql_option(val) for val in value)})"
         return str(value)
 
 
@@ -1116,13 +1233,21 @@ def rank_related_function_expression(
     )
 
 
-def cast_expression(child: str, datatype: DataType, try_: bool = False) -> str:
+def cast_expression(
+    child: str,
+    datatype: DataType,
+    try_: bool = False,
+    is_rename: bool = False,
+    is_add: bool = False,
+) -> str:
     return (
         (TRY_CAST if try_ else CAST)
         + LEFT_PARENTHESIS
         + child
         + AS
         + convert_sp_to_sf_type(datatype)
+        + (RENAME_FIELDS if is_rename else "")
+        + (ADD_FIELDS if is_add else "")
         + RIGHT_PARENTHESIS
     )
 
@@ -1132,13 +1257,12 @@ def order_expression(name: str, direction: str, null_ordering: str) -> str:
 
 
 def create_or_replace_view_statement(
-    name: str, child: str, is_temp: bool, comment: Optional[str]
+    name: str, child: str, is_temp: bool, comment: Optional[str], replace: bool
 ) -> str:
     comment_sql = get_comment_sql(comment)
     return (
         CREATE
-        + OR
-        + REPLACE
+        + f"{OR + REPLACE if replace else EMPTY_STRING}"
         + f"{TEMPORARY if is_temp else EMPTY_STRING}"
         + VIEW
         + name
@@ -1203,7 +1327,9 @@ def pivot_statement(
     aggregate: str,
     default_on_null: Optional[str],
     child: str,
+    should_alias_column_with_agg: bool,
 ) -> str:
+    select_str = STAR
     if isinstance(pivot_values, str):
         # The subexpression in this case already includes parenthesis.
         values_str = pivot_values
@@ -1213,16 +1339,35 @@ def pivot_statement(
             + (ANY if pivot_values is None else COMMA.join(pivot_values))
             + RIGHT_PARENTHESIS
         )
+        if pivot_values is not None and should_alias_column_with_agg:
+            quoted_names = [quote_name(value) for value in pivot_values]
+            # unwrap_single_quote on the value to match the output closer to what spark generates
+            aliased_names = [
+                quote_name(f"{unwrap_single_quote(value)}_{aggregate}")
+                for value in pivot_values
+            ]
+            aliased_string = [
+                f"{quoted_name}{AS}{aliased_name}"
+                for aliased_name, quoted_name in zip(aliased_names, quoted_names)
+            ]
+            exclude_str = COMMA.join(quoted_names)
+            aliased_str = COMMA.join(aliased_string)
+            select_str = f"{STAR}{EXCLUDE}{LEFT_PARENTHESIS}{exclude_str}{RIGHT_PARENTHESIS}, {aliased_str}"
 
     return (
         SELECT
-        + STAR
+        + select_str
         + FROM
         + LEFT_PARENTHESIS
+        + NEW_LINE
         + child
+        + NEW_LINE
         + RIGHT_PARENTHESIS
+        + NEW_LINE
         + PIVOT
         + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
         + aggregate
         + FOR
         + pivot_column
@@ -1233,22 +1378,33 @@ def pivot_statement(
             if default_on_null
             else EMPTY_STRING
         )
+        + NEW_LINE
         + RIGHT_PARENTHESIS
     )
 
 
 def unpivot_statement(
-    value_column: str, name_column: str, column_list: List[str], child: str
+    value_column: str,
+    name_column: str,
+    column_list: List[str],
+    include_nulls: bool,
+    child: str,
 ) -> str:
     return (
         SELECT
         + STAR
         + FROM
         + LEFT_PARENTHESIS
+        + NEW_LINE
         + child
+        + NEW_LINE
         + RIGHT_PARENTHESIS
+        + NEW_LINE
         + UNPIVOT
+        + (INCLUDE_NULLS if include_nulls else EMPTY_STRING)
         + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
         + value_column
         + FOR
         + name_column
@@ -1256,6 +1412,7 @@ def unpivot_statement(
         + LEFT_PARENTHESIS
         + COMMA.join(column_list)
         + RIGHT_PARENTHESIS
+        + NEW_LINE
         + RIGHT_PARENTHESIS
     )
 
@@ -1266,11 +1423,16 @@ def rename_statement(column_map: Dict[str, str], child: str) -> str:
         + STAR
         + RENAME
         + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
         + COMMA.join([f"{before}{AS}{after}" for before, after in column_map.items()])
+        + NEW_LINE
         + RIGHT_PARENTHESIS
         + FROM
         + LEFT_PARENTHESIS
+        + NEW_LINE
         + child
+        + NEW_LINE
         + RIGHT_PARENTHESIS
     )
 
@@ -1352,7 +1514,11 @@ def copy_into_table(
         + column_str
         + FROM
         + from_str
-        + (PATTERN + EQUALS + single_quote(pattern) if pattern else EMPTY_STRING)
+        + (
+            NEW_LINE + PATTERN + EQUALS + single_quote(pattern)
+            if pattern
+            else EMPTY_STRING
+        )
         + files_str
         + ftostr
         + costr
@@ -1520,10 +1686,15 @@ def merge_statement(
         + table_name
         + USING
         + LEFT_PARENTHESIS
+        + NEW_LINE
+        + TAB
         + source
+        + NEW_LINE
         + RIGHT_PARENTHESIS
+        + NEW_LINE
         + ON
         + join_expr
+        + NEW_LINE
         + EMPTY_STRING.join(clauses)
     )
 
@@ -1536,7 +1707,7 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
         attr.name
         + SPACE
-        + convert_sp_to_sf_type(attr.datatype)
+        + convert_sp_to_sf_type(attr.datatype, attr.nullable)
         + (NOT_NULL if not attr.nullable else EMPTY_STRING)
         for attr in attributes
     )
@@ -1640,3 +1811,250 @@ def cte_statement(queries: List[str], table_names: List[str]) -> str:
         for query, table_name in zip(queries, table_names)
     )
     return f"{WITH}{result}"
+
+
+def write_arrow(
+    cursor: SnowflakeCursor,
+    table: "pyarrow.Table",
+    table_name: str,
+    database: Optional[str] = None,
+    schema: Optional[str] = None,
+    chunk_size: Optional[int] = None,
+    compression: str = "gzip",
+    on_error: str = "abort_statement",
+    parallel: int = 4,
+    quote_identifiers: bool = True,
+    auto_create_table: bool = False,
+    overwrite: bool = False,
+    table_type: Literal["", "temp", "temporary", "transient"] = "",
+    use_logical_type: Optional[bool] = None,
+    use_scoped_temp_object: bool = False,
+    **kwargs: Any,
+) -> Tuple[
+    bool,
+    int,
+    int,
+    Sequence[
+        Tuple[
+            str,
+            str,
+            int,
+            int,
+            int,
+            int,
+            Optional[str],
+            Optional[int],
+            Optional[int],
+            Optional[str],
+        ]
+    ],
+]:
+    """Writes a pyarrow.Table to a Snowflake table.
+
+    The pyarrow Table is written out to temporary files, uploaded to a temporary stage, and then copied into the final location.
+
+    Returns whether all files were ingested correctly, number of chunks uploaded, and number of rows ingested
+    with all of the COPY INTO command's output for debugging purposes.
+
+    Args:
+        cursor: Snowflake connector cursor used to execute queries.
+        table: The pyarrow Table that is written.
+        table_name: Table name where we want to insert into.
+        database: Database schema and table is in, if not provided the default one will be used (Default value = None).
+        schema: Schema table is in, if not provided the default one will be used (Default value = None).
+        chunk_size: Number of elements to be inserted in each batch, if not provided all elements will be dumped
+            (Default value = None).
+        compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives a
+            better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
+        on_error: Action to take when COPY INTO statements fail, default follows documentation at:
+            https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
+            (Default value = 'abort_statement').
+        parallel: Number of threads to be used when uploading chunks, default follows documentation at:
+            https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+        quote_identifiers: By default, identifiers, specifically database, schema, table and column names
+            (from df.columns) will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
+            I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+        auto_create_table: When true, will automatically create a table with corresponding columns for each column in
+            the passed in DataFrame. The table will not be created if it already exists
+        table_type: The table type of to-be-created table. The supported table types include ``temp``/``temporary``
+            and ``transient``. Empty means permanent table as per SQL convention.
+        use_logical_type: Boolean that specifies whether to use Parquet logical types. With this file format option,
+            Snowflake can interpret Parquet logical types during data loading. To enable Parquet logical types,
+            set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
+            https://docs.snowflake.com/en/sql-reference/sql/create-file-format
+    """
+    # SNOW-1904593: This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
+    # It should be pushed down into the connector, but would require a minimum required version bump.
+    import pyarrow.parquet  # type: ignore
+
+    if database is not None and schema is None:
+        raise ProgrammingError(
+            "Schema has to be provided to write_arrow when a database is provided"
+        )
+    compression_map = {"gzip": "auto", "snappy": "snappy", "none": "none"}
+    if compression not in compression_map.keys():
+        raise ProgrammingError(
+            f"Invalid compression '{compression}', only acceptable values are: {compression_map.keys()}"
+        )
+
+    if table_type and table_type.lower() not in ["temp", "temporary", "transient"]:
+        raise ProgrammingError(
+            "Unsupported table type. Expected table types: temp/temporary, transient"
+        )
+
+    if chunk_size is None:
+        chunk_size = len(table)
+
+    if use_logical_type is None:
+        sql_use_logical_type = ""
+    elif use_logical_type:
+        sql_use_logical_type = " USE_LOGICAL_TYPE = TRUE"
+    else:
+        sql_use_logical_type = " USE_LOGICAL_TYPE = FALSE"
+
+    stage_location = _create_temp_stage(
+        cursor,
+        database,
+        schema,
+        quote_identifiers,
+        compression,
+        auto_create_table,
+        overwrite,
+        use_scoped_temp_object,
+    )
+    with tempfile.TemporaryDirectory() as tmp_folder:
+        for file_number, offset in enumerate(range(0, len(table), chunk_size)):
+            # write chunk to disk
+            chunk_path = os.path.join(tmp_folder, f"{table_name}_{file_number}.parquet")
+            pyarrow.parquet.write_table(
+                table.slice(offset=offset, length=chunk_size),
+                chunk_path,
+                **kwargs,
+            )
+            # upload chunk
+            upload_sql = (
+                "PUT /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
+                "'file://{path}' @{stage_location} PARALLEL={parallel}"
+            ).format(
+                path=chunk_path.replace("\\", "\\\\").replace("'", "\\'"),
+                stage_location=stage_location,
+                parallel=parallel,
+            )
+            cursor.execute(upload_sql, _is_internal=True)
+            # Remove chunk file
+            os.remove(chunk_path)
+
+    if quote_identifiers:
+        quote = '"'
+        snowflake_column_names = [str(c).replace('"', '""') for c in table.schema.names]
+    else:
+        quote = ""
+        snowflake_column_names = list(table.schema.names)
+    columns = quote + f"{quote},{quote}".join(snowflake_column_names) + quote
+
+    def drop_object(name: str, object_type: str) -> None:
+        drop_sql = f"DROP {object_type.upper()} IF EXISTS {name} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */"
+        cursor.execute(drop_sql, _is_internal=True)
+
+    if auto_create_table or overwrite:
+        file_format_location = _create_temp_file_format(
+            cursor,
+            database,
+            schema,
+            quote_identifiers,
+            compression_map[compression],
+            sql_use_logical_type,
+            use_scoped_temp_object,
+        )
+        infer_schema_sql = f"SELECT COLUMN_NAME, TYPE FROM table(infer_schema(location=>'@{stage_location}', file_format=>'{file_format_location}'))"
+        infer_result = cursor.execute(infer_schema_sql, _is_internal=True)
+        assert infer_result is not None
+        column_type_mapping = dict(infer_result.fetchall())  # pyright: ignore
+
+        target_table_location = build_location_helper(
+            database,
+            schema,
+            (
+                random_name_for_temp_object(TempObjectType.TABLE)
+                if (overwrite and auto_create_table)
+                else table_name
+            ),
+            quote_identifiers,
+        )
+
+        parquet_columns = "$1:" + ",$1:".join(
+            f"{quote}{snowflake_col}{quote}::{column_type_mapping[col]}"
+            for snowflake_col, col in zip(snowflake_column_names, table.schema.names)
+        )
+
+        if auto_create_table:
+            create_table_columns = ", ".join(
+                [
+                    f"{quote}{snowflake_col}{quote} {column_type_mapping[col]}"
+                    for snowflake_col, col in zip(
+                        snowflake_column_names, table.schema.names
+                    )
+                ]
+            )
+            create_table_sql = (
+                f"CREATE {table_type.upper()} TABLE IF NOT EXISTS {target_table_location} "
+                f"({create_table_columns})"
+                f" /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
+            )
+            cursor.execute(create_table_sql, _is_internal=True)
+    else:
+        target_table_location = build_location_helper(
+            database=database,
+            schema=schema,
+            name=table_name,
+            quote_identifiers=quote_identifiers,
+        )
+        parquet_columns = "$1:" + ",$1:".join(
+            f"{quote}{snowflake_col}{quote}" for snowflake_col in snowflake_column_names
+        )
+
+    try:
+        if overwrite and (not auto_create_table):
+            truncate_sql = f"TRUNCATE TABLE {target_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */"
+            cursor.execute(truncate_sql, _is_internal=True)
+
+        copy_into_sql = (
+            f"COPY INTO {target_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
+            f"({columns}) "
+            f"FROM (SELECT {parquet_columns} FROM @{stage_location}) "
+            f"FILE_FORMAT=("
+            f"TYPE=PARQUET "
+            f"COMPRESSION={compression_map[compression]}"
+            f"{' BINARY_AS_TEXT=FALSE' if auto_create_table or overwrite else ''}"
+            f"{sql_use_logical_type}"
+            f") "
+            f"PURGE=TRUE ON_ERROR={on_error}"
+        )
+        copy_result = cursor.execute(copy_into_sql, _is_internal=True)
+        assert copy_result is not None
+        copy_results = copy_result.fetchall()
+
+        if overwrite and auto_create_table:
+            original_table_location = build_location_helper(
+                database=database,
+                schema=schema,
+                name=table_name,
+                quote_identifiers=quote_identifiers,
+            )
+            drop_object(original_table_location, "table")
+            rename_table_sql = f"ALTER TABLE {target_table_location} RENAME TO {original_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */"
+            cursor.execute(rename_table_sql, _is_internal=True)
+    except ProgrammingError:
+        if overwrite and auto_create_table:
+            # drop table only if we created a new one with a random name
+            drop_object(target_table_location, "table")
+        raise
+    finally:
+        cursor.close()
+
+    return (
+        all(e[1] == "LOADED" for e in copy_results),
+        len(copy_results),
+        sum(int(e[3]) for e in copy_results),
+        copy_results,  # pyright: ignore
+    )

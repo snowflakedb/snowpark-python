@@ -1,0 +1,179 @@
+## TEST CASE
+
+df1 = session.flatten(parse_json(lit('{"a": [1,2]}')), "a", False, False, "BOTH")
+
+df2 = session.flatten(col("NUM"), recursive=True, mode="ARRAY")
+
+## EXPECTED UNPARSER OUTPUT
+
+df1 = session.flatten(parse_json(lit("{\"a\": [1,2]}")), "a", False, False, "BOTH")
+
+df2 = session.flatten(col("NUM"), None, False, True, "ARRAY")
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      flatten {
+        input {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "parse_json"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 60
+                      end_line: 25
+                      file: 2
+                      start_column: 41
+                      start_line: 25
+                    }
+                    v: "{\"a\": [1,2]}"
+                  }
+                }
+                src {
+                  end_column: 60
+                  end_line: 25
+                  file: 2
+                  start_column: 41
+                  start_line: 25
+                }
+              }
+            }
+            src {
+              end_column: 61
+              end_line: 25
+              file: 2
+              start_column: 30
+              start_line: 25
+            }
+          }
+        }
+        mode {
+          flatten_mode_both: true
+        }
+        path {
+          value: "a"
+        }
+        src {
+          end_column: 89
+          end_line: 25
+          file: 2
+          start_column: 14
+          start_line: 25
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      flatten {
+        input {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "col"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 40
+                  end_line: 27
+                  file: 2
+                  start_column: 30
+                  start_line: 27
+                }
+                v: "NUM"
+              }
+            }
+            src {
+              end_column: 40
+              end_line: 27
+              file: 2
+              start_column: 30
+              start_line: 27
+            }
+          }
+        }
+        mode {
+          flatten_mode_array: true
+        }
+        recursive: true
+        src {
+          end_column: 71
+          end_line: 27
+          file: 2
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

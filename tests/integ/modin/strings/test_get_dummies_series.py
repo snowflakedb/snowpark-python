@@ -1,15 +1,12 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark._internal.utils import (
-    PIVOT_DEFAULT_ON_NULL_WARNING,
-    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
-)
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 from tests.integ.utils.sql_counter import sql_count_checker
 
@@ -59,9 +56,12 @@ def test_get_dummies_series_negative(data):
 
 
 @sql_count_checker(query_count=1)
-def test_get_dummies_does_not_raise_pivot_warning_snow_1344848(caplog):
-    # Test get_dummies, which uses the `default_on_null` parameter of
-    # snowflake.snowpark.dataframe.pivot()
-    pd.get_dummies(pd.Series(["a"])).to_pandas()
-    assert PIVOT_DEFAULT_ON_NULL_WARNING not in caplog.text
-    assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING not in caplog.text
+@pytest.mark.parametrize("kwargs", [{"dummy_na": False}, {}])
+@pytest.mark.parametrize(
+    "data", [["a", "a", None, "c"], ["a", "a", "c", "c"], ["a", "NULL"], [None, "NULL"]]
+)
+def test_get_dummies_null_values(kwargs, data):
+    ser = native_pd.Series(data, name="col")
+    expected = native_pd.get_dummies(ser, **kwargs)
+    actual = pd.get_dummies(pd.Series(ser), **kwargs)
+    assert_snowpark_pandas_equal_to_pandas(actual, expected, check_dtype=False)

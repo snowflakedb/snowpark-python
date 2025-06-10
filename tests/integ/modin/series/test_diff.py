@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -152,7 +153,7 @@ def test_series_diff_variant_with_na_values():
     )
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_series_diff_strided_row_access():
     native_series = native_pd.Series(np.arange(1000))
     snow_series = pd.Series(native_series)

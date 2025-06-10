@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -354,6 +354,7 @@ def test_create_or_replace_view(session):
         random_name_for_temp_object(TempObjectType.VIEW),
         LocalTempView(),
         None,
+        True,
         df._plan,
     )
 

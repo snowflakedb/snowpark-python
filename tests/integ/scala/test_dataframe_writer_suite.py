@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -8,10 +8,12 @@ import logging
 import pytest
 
 import snowflake.connector.errors
+
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, parse_json
+from snowflake.snowpark.functions import col, lit, object_construct, parse_json
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -21,7 +23,8 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils, iceberg_supported
+from unittest.mock import patch
+from tests.utils import TestFiles, Utils, iceberg_supported, is_in_stored_procedure
 
 
 @pytest.fixture(scope="function")
@@ -95,6 +98,36 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
             Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
         finally:
             Utils.drop_table(session, special_table_name)
+
+
+def test_write_reserved_names(session):
+    table_name = Utils.random_table_name()
+    table2_name = Utils.random_table_name()
+
+    schema = StructType([StructField("AS", LongType(), nullable=False)])
+    df = session.create_dataframe(
+        [
+            (1,),
+        ],
+        schema=schema,
+    )
+
+    try:
+        df.write.mode("overwrite").save_as_table(table_name, column_order="name")
+        table = session.table(table_name)
+
+        assert table.schema == schema
+
+        df.write.mode("append").save_as_table(table_name, column_order="name")
+
+        assert table.count() == 2
+
+        table.write.mode("append").save_as_table(table2_name, column_order="name")
+        table2 = session.table(table2_name)
+        assert table2.schema == schema
+    finally:
+        Utils.drop_table(session, table_name)
+        Utils.drop_table(session, table2_name)
 
 
 def test_snow_1668862_repro_save_null_data(session):
@@ -173,8 +206,15 @@ def test_write_with_target_table_autoincrement(
 
 
 def test_iceberg(session, local_testing_mode):
-    if not iceberg_supported(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
         pytest.skip("Test requires iceberg support.")
+
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
+    ).collect()
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
+    ).collect()
 
     table_name = Utils.random_table_name()
     df = session.create_dataframe(
@@ -192,6 +232,7 @@ def test_iceberg(session, local_testing_mode):
             "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
             "catalog": "SNOWFLAKE",
             "base_location": "snowpark_python_tests",
+            "iceberg_version": 3,
         },
     )
     try:
@@ -227,6 +268,30 @@ def test_writer_options(session, temp_stage):
     files = session.sql(f"list @{temp_stage}/test_mixed_options").collect()
     assert len(files) == 1
     assert (files[0].name).lower() == f"{temp_stage.lower()}/test_mixed_options"
+
+    # mixed case with options passed as kwargs
+    result = df.write.options(single=True, sep=";").csv(
+        f"@{temp_stage}/test_mixed_options_kwargs"
+    )
+    assert result[0].rows_unloaded == 4
+    files = session.sql(f"list @{temp_stage}/test_mixed_options_kwargs").collect()
+    assert len(files) == 1
+    assert (files[0].name).lower() == f"{temp_stage.lower()}/test_mixed_options_kwargs"
+
+
+def test_writer_options_negative(session):
+    with pytest.raises(
+        ValueError,
+        match="Cannot set options with both a dictionary and keyword arguments",
+    ):
+        session.create_dataframe([[1, 2]], schema=["a", "b"]).write.options(
+            {"overwrite": True}, overwrite=True
+        ).csv("test_path")
+
+    with pytest.raises(ValueError, match="No options were provided"):
+        session.create_dataframe([[1, 2]], schema=["a", "b"]).write.options().csv(
+            "test_path"
+        )
 
 
 @pytest.mark.skipif(
@@ -630,6 +695,81 @@ def test_write_table_names(session, db_parameters):
         Utils.drop_schema(session, double_quoted_schema)
 
 
+def test_skip_table_exists_check(session, local_testing_mode):
+    table_name = Utils.random_table_name()
+    df = session.create_dataframe([1, 2, 3], schema=["A"])
+
+    try:
+        with patch.object(
+            session, "_table_exists", wraps=session._table_exists
+        ) as table_exists:
+            # Truncate before table exists
+            df.write.save_as_table(table_name, mode="truncate", table_exists=False)
+            assert not table_exists.called
+            # Append to existing table
+            df.write.save_as_table(table_name, mode="append", table_exists=True)
+            assert not table_exists.called
+            Utils.drop_table(session, table_name)
+
+            if not local_testing_mode:
+                # Try appending to non-existent table
+                with pytest.raises(
+                    SnowparkSQLException, match="does not exist or not authorized"
+                ):
+                    df.write.save_as_table(table_name, mode="append", table_exists=True)
+
+                # Try truncating to non-existent table
+                with pytest.raises(
+                    SnowparkSQLException, match="does not exist or not authorized"
+                ):
+                    df.write.save_as_table(
+                        table_name, mode="truncate", table_exists=True
+                    )
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'schema_query'",
+)
+@pytest.mark.parametrize("format_type", ["csv", "json", "parquet"])
+def test_format_save(session, temp_stage, format_type):
+    df = session.create_dataframe([[1, 2], [1, 3], [2, 4], [2, 5]], schema=["a", "b"])
+
+    path = f"{temp_stage}/test_format_save"
+    result = (
+        df.select(object_construct("*"))
+        .write.option("compression", "None")
+        .format(format_type)
+        .save(path)
+    )
+    assert result[0].rows_unloaded == 4
+    files = session.sql(f"list @{path}").collect()
+    assert len(files) == 1
+    assert files[0].name.endswith(format_type)
+
+
+def test_format_save_negative(session):
+    df = session.create_dataframe(
+        [
+            [1, 2],
+        ],
+        schema=["a", "b"],
+    )
+    with pytest.raises(
+        ValueError,
+        match="Unsupported file format. Expected.*, got 'unsupported_format'",
+    ):
+        df.write.format("unsupported_format").save("test_path")
+
+    with pytest.raises(
+        ValueError,
+        match="File format type is not specified. Call `format` before calling `save`",
+    ):
+        df.write.save("test_path")
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
@@ -809,3 +949,93 @@ def test_writer_parquet(session, tmpdir_factory, local_testing_mode):
         Utils.assert_rows_count(data4, ROWS_COUNT)
     finally:
         Utils.drop_stage(session, temp_stage)
+
+
+def test_insert_into(session, local_testing_mode):
+    """
+    Test the insert_into API with positive and negative test cases.
+    """
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    try:
+        # Create a DataFrame with initial data
+        df = session.create_dataframe(
+            [["Alice", "Smith"], ["Bob", "Brown"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df.write.save_as_table(table_name)
+
+        # Positive Test: Append data to the table
+        df_append = session.create_dataframe(
+            [["Charlie", "White"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df_append.write.insert_into(table_name)
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(FIRST_NAME="Alice", LAST_NAME="Smith"),
+                Row(FIRST_NAME="Bob", LAST_NAME="Brown"),
+                Row(FIRST_NAME="Charlie", LAST_NAME="White"),
+            ],
+        )
+
+        # Positive Test: Overwrite data in the table
+        df_overwrite = session.create_dataframe(
+            [["David", "Green"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df_overwrite.write.insert_into(table_name, overwrite=True)
+        Utils.check_answer(
+            session.table(table_name), [Row(FIRST_NAME="David", LAST_NAME="Green")]
+        )
+
+        # Negative Test: Schema mismatch, more columns
+        df_more_columns = session.create_dataframe(
+            [["Extra", "Column", 123]],
+            schema=["FIRST_NAME", "LAST_NAME", "AGE"],
+        )
+        with pytest.raises(
+            SnowparkSQLException,
+            match="Insert value list does not match column list expecting 2 but got 3"
+            if not local_testing_mode
+            else "Cannot append because incoming data has different schema",
+        ):
+            df_more_columns.write.insert_into(table_name)
+
+        # Negative Test: Schema mismatch, less columns
+        df_less_column = session.create_dataframe(
+            [["Column"]],
+            schema=["FIRST_NAME"],
+        )
+        with pytest.raises(
+            SnowparkSQLException,
+            match="Insert value list does not match column list expecting 2 but got 1"
+            if not local_testing_mode
+            else "Cannot append because incoming data has different schema",
+        ):
+            df_less_column.write.insert_into(table_name)
+
+        # Negative Test: Schema mismatch, type
+        df_not_same_type = session.create_dataframe(
+            [[[1, 2, 3, 4], False]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+
+        if not local_testing_mode:
+            # SNOW-1890315: Local Testing missing type coercion check
+            with pytest.raises(
+                SnowparkSQLException,
+                match="Expression type does not match column data type",
+            ):
+                df_not_same_type.write.insert_into(table_name)
+
+        # Negative Test: Table does not exist
+        with pytest.raises(
+            SnowparkClientException,
+            match="Table non_existent_table does not exist or not authorized.",
+        ):
+            df.write.insert_into("non_existent_table")
+
+    finally:
+        Utils.drop_table(session, table_name)

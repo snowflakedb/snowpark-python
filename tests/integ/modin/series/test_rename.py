@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -180,7 +180,7 @@ class TestRename:
         with pytest.raises(KeyError, match=match):
             ser.rename({2: 9}, errors="raise")
 
-    @pytest.mark.skipif(running_on_public_ci(), reason="slow fallback test")
+    @pytest.mark.skipif(running_on_public_ci(), reason="slow test")
     @sql_count_checker(query_count=8, join_count=12)
     def test_rename_copy_false(self):
         # GH 46889

@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 # tests pulled from pandas/pandas/tests/groupby/test_min_max.py
 #
 
@@ -14,7 +15,6 @@ import pytest
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_frame_equal,
     create_test_dfs,
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
@@ -99,11 +99,7 @@ def test_all_any_invalid_types(data, msg):
         pd.DataFrame(data).groupby("by").any().to_pandas()
 
 
-@pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
-@sql_count_checker(query_count=5, join_count=1, udtf_count=1)
+@sql_count_checker(query_count=4, join_count=1, udtf_count=1)
 def test_all_any_chained():
     data = {
         "by": ["a", "a", "b", "c", "c"],

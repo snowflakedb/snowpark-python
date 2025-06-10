@@ -34,13 +34,13 @@ cd snowpark-python
 #### Install the library in edit mode and install its dependencies
 
 - Create a new Python virtual environment with any Python version that we support.
-  - The Snowpark Python API supports **Python 3.8, Python 3.9, Python 3.10, and Python 3.11**. 
-  - The Snowpark pandas API supports **Python 3.9, Python 3.10, and Python 3.11**. Additionally, Snowpark pandas requires **Modin 0.30.1** and **pandas 2.2.x**.
+  - The Snowpark Python API supports **Python 3.9, Python 3.10, Python 3.11 and Python 3.12**.
+  - The Snowpark pandas API supports **Python 3.9, Python 3.10, and Python 3.11**. Additionally, Snowpark pandas requires **Modin 0.32.0** and **pandas 2.2.x**.
 
     ```bash
     conda create --name snowpark-dev python=3.9
     ```
-    
+
 - Activate the new Python virtual environment. For example,
 
   ```bash
@@ -83,6 +83,33 @@ and "Mark Directory as" -> "Source Root". **NOTE**: VS Code doesn't have "Source
 
 [Configure PyCharm interpreter][config pycharm interpreter] or [Configure VS Code interpreter][config vscode interpreter] to use the previously created Python virtual environment.
 
+### Thread-safe development
+
+This section covers guidelines for developers that wish to contribute code to `Session`, `ServerConnection`, `MockServerConnection` and other related objects that are critical to correct functionality of `snowpark-python`.
+
+#### Add Config Parameter to `Session`
+
+1. If the config parameter is set once during initialization and never changed, it is safe to add the parameter to the `Session` object.
+2. If the config parameter can be updated by the user, and the update has side-effects during compilation i.e. `analyzer.analyze()`, `analyzer.resolve()` etc, add a warning at config update using `warn_session_config_update_in_multithreaded_mode`.
+
+#### Adding a new localized or shared component
+
+Once you have decided that the new component being added with required protection during concurrent access, following can be used:
+
+- `Session._thread_store`, `ServerConnection._thread_store` are `threading.local()` objects which can be used to store a per-thread instance of the component. The python connector cursor object is an example of this.
+- `Session._lock` and `ServerConnection._lock` are `RLock` objects which can be used to serialize access to shared resources. `Session.query_tag` is an example of this.
+- `Session._package_lock` is a `RLock` object which can be used to protect `packages` and `imports` for stored procedures and user defined functions.
+- `Session._plan_lock` is a `RLock` object which can be used to serialize `SnowflakePlan` and `Selectable` method calls. `SnowflakePlan.plan_state` is an example.
+- `QueryHistory(session, include_thread_id=True)` can be used to log the query history with thread id.
+
+An example PR to make auto temp table cleaner thread-safe can be found [here](https://github.com/snowflakedb/snowpark-python/pull/2309).
+
+### AST (Abstract Syntax Tree) Support in Snowpark
+
+If you are an open-source developer modifying existing Snowpark APIs (such as by adding a parameter to a `Dataframe` API), or creating new Snowpark APIs in your PR, please request a review from the `snowpark-ir` [team](https://github.com/orgs/snowflakedb/teams/snowpark-ir) and add the `snowpark-ast` [label](https://github.com/snowflakedb/snowpark-python/labels/snowpark-ast). You can also raise an issue on our [issue tracker](https://github.com/snowflakedb/snowpark-python/issues) with the `snowpark-ast` label and assign it to the `snowpark-ir` team to request a review. We will add code to support detailed logging of the usage of your modified or newly created API if relevant to your PR. After we do so, we will also update your PR description by completing the required AST support acknowledgement checkbox.
+
+If you are an internal developer, please ensure you complete the PR checklist for AST support found in the [Snowpark Python AST developer guide](https://docs.google.com/document/d/16K9jBv0pT6SkYbFTxNIQT9-bJjemE4niZTfc9mie6RQ/edit?tab=t.0), before completing the AST support acknowledgement checkbox.
+
 ## Tests
 
 The [README under tests folder](tests/README.md) tells you how to set up to run tests.
@@ -105,11 +132,11 @@ snowflake
 └── snowpark
     └── modin
         └── pandas                ← pandas API frontend layer
-        └── core          
+        └── core
             ├── dataframe         ← folder containing abstraction
             │                       for Modin frontend to DF-algebra
             │── execution         ← additional patching for I/O
-        └── plugin                          
+        └── plugin
             ├── _interal          ← Snowflake specific internals
             ├── io                ← Snowpark pandas IO functions
             ├── compiler          ← query compiler, Modin -> Snowpark pandas DF

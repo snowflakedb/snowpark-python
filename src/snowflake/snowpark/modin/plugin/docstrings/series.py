@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This module contains Series docstrings that override modin's docstrings."""
@@ -406,7 +406,7 @@ class Series(BasePandasDataset):
         pass
 
     __iadd__ = __add__
-    __imul__ = __add__
+    __imul__ = __mul__
     __ipow__ = __pow__
     __isub__ = __sub__
     __itruediv__ = __truediv__
@@ -630,7 +630,7 @@ class Series(BasePandasDataset):
     3    4
     dtype: int64
 
-    >>> s.agg('min')
+    >>> s.agg('min')  # doctest: +SKIP
     1
 
     >>> s.agg(['min', 'max'])
@@ -687,7 +687,8 @@ class Series(BasePandasDataset):
         Notes
         -----
         1. When ``func`` has a type annotation for its return value, the result will be cast
-        to the corresponding dtype. When no type annotation is provided, data will be converted
+        to the corresponding dtype. When no type annotation is provided, we try to infer
+        return type using dummy data. If return type inference is not successful data will be converted
         to VARIANT type in Snowflake, and the result will have ``dtype=object``. In this case, the return value must
         be JSON-serializable, which can be a valid input to ``json.dumps`` (e.g., ``dict`` and
         ``list`` objects are JSON-serializable, but ``bytes`` and ``datetime.datetime`` objects
@@ -728,6 +729,71 @@ class Series(BasePandasDataset):
     def between():
         """
         Return boolean Series equivalent to left <= series <= right.
+
+        This function returns a boolean vector containing `True` wherever the
+        corresponding Series element is between the boundary values `left` and
+        `right`. NA values are treated as `False`.
+
+        Parameters
+        ----------
+        left : scalar or list-like
+            Left boundary.
+        right : scalar or list-like
+            Right boundary.
+        inclusive : {"both", "neither", "left", "right"}
+            Include boundaries. Whether to set each bound as closed or open.
+
+        Returns
+        -------
+        Series
+            Series representing whether each element is between left and
+            right (inclusive).
+
+        See Also
+        --------
+        Series.gt : Greater than of series and other.
+        Series.lt : Less than of series and other.
+
+        Notes
+        -----
+        This function is equivalent to ``(left <= ser) & (ser <= right)``
+
+        Examples
+        --------
+        >>> s = pd.Series([2, 0, 4, 8, np.nan])
+
+        Boundary values are included by default:
+
+        >>> s.between(1, 4)
+        0     True
+        1    False
+        2     True
+        3    False
+        4     None
+        dtype: object
+
+        Note that to for consistency with Snowflake SQL rules, comparisons with `None`/`np.nan`
+        will return `None`. Call `astype(bool)` on the result to coerce `None` to `False`.
+
+        With `inclusive` set to ``"neither"`` boundary values are excluded:
+
+        >>> s.between(1, 4, inclusive="neither")
+        0     True
+        1    False
+        2    False
+        3    False
+        4     None
+        dtype: object
+
+        `left` and `right` can be any scalar value:
+
+        >>> s = pd.Series(['Alice', 'Bob', 'Carol', 'Eve'])
+        >>> s.between('Anna', 'Daniel')
+        0    False
+        1     True
+        2     True
+        3    False
+        dtype: bool
         """
 
     def bfill():
@@ -893,7 +959,7 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([0.0, 1.0, np.nan])
-        >>> s.count()
+        >>> s.count()  # doctest: +SKIP
         2
         """
 
@@ -1295,7 +1361,7 @@ class Series(BasePandasDataset):
         1    2
         2    3
         Name: 99, dtype: int64
-        >>> series.equals(exactly_equal)
+        >>> series.equals(exactly_equal)  # doctest: +SKIP
         True
 
         Series 'series' and 'different_column_type' have the same element
@@ -1308,7 +1374,7 @@ class Series(BasePandasDataset):
         1    2
         2    3
         Name: 99.0, dtype: int64
-        >>> series.equals(different_column_type)
+        >>> series.equals(different_column_type)  # doctest: +SKIP
         True
 
         Series 'series' and 'different_data_type' have different types for the
@@ -1321,7 +1387,7 @@ class Series(BasePandasDataset):
         1    2.0
         2    3.0
         Name: 99, dtype: float64
-        >>> series.equals(different_data_type)
+        >>> series.equals(different_data_type)  # doctest: +SKIP
         False
         """
 
@@ -1662,6 +1728,51 @@ class Series(BasePandasDataset):
     def hist():
         """
         Draw histogram of the input series using matplotlib.
+
+        Parameters
+        ----------
+        by : object, optional
+            If passed, then used to form histograms for separate groups.
+        ax : matplotlib axis object
+            If not passed, uses gca().
+        grid : bool, default True
+            Whether to show axis grid lines.
+        xlabelsize : int, default None
+            If specified changes the x-axis label size.
+        xrot : float, default None
+            Rotation of x axis labels.
+        ylabelsize : int, default None
+            If specified changes the y-axis label size.
+        yrot : float, default None
+            Rotation of y axis labels.
+        figsize : tuple, default None
+            Figure size in inches by default.
+        bins : int or sequence, default 10
+            Number of histogram bins to be used. If an integer is given, bins + 1 bin edges are calculated and returned. If bins is a sequence, gives bin edges, including left edge of first bin and right edge of last bin. In this case, bins is returned unmodified.
+        backend : str, default None
+            Backend to use instead of the backend specified in the option plotting.backend. For instance, ‘matplotlib’. Alternatively, to specify the plotting.backend for the whole session, set pd.options.plotting.backend.
+        legend : bool, default False
+            Whether to show the legend.
+        **kwargs
+            To be passed to the actual plotting function.
+
+        Returns
+        -------
+        matplotlib.AxesSubplot
+            A histogram plot.
+
+        See also
+        --------
+        matplotlib.axes.Axes.hist
+            Plot a histogram using matplotlib.
+
+        Examples
+        --------
+
+        For Series:
+        >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
+        >>> ser = pd.Series([1, 2, 2, 4, 6, 6], index=lst)
+        >>> hist = ser.hist()
         """
 
     def idxmax():
@@ -1825,7 +1936,7 @@ class Series(BasePandasDataset):
 
         Examples
         --------
-        >>> s = pd.Series(['cat', 'dog', np.nan, 'rabbit'])
+        >>> s = pd.Series(['cat', 'dog', None, 'rabbit'])
         >>> s
         0       cat
         1       dog
@@ -1835,9 +1946,9 @@ class Series(BasePandasDataset):
 
         ``map`` accepts a ``dict`` or a ``Series``. Values that are not found
         in the ``dict`` are converted to ``NaN``, unless the dict has a default
-        value (e.g. ``defaultdict``) (Currently not supported by Snowpark pandas):
+        value (e.g. ``defaultdict``):
 
-        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})  # doctest: +SKIP
+        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})
         0    kitten
         1     puppy
         2      None
@@ -1865,6 +1976,9 @@ class Series(BasePandasDataset):
 
         Note that in the above example, the missing value in Snowflake is NULL,
         it is mapped to ``None`` in a string/object column.
+
+        Snowpark pandas does not yet support `dict` subclasses other than
+        `collections.defaultdict` that define a `__missing__` method.
         """
 
     def mask():
@@ -2247,6 +2361,32 @@ class Series(BasePandasDataset):
         Make plot of Series.
         """
 
+    def pop():
+        """
+        Return item and drops from series. Raise KeyError if not found.
+
+        Parameters
+        ----------
+        item : label
+            Index of the element that needs to be removed.
+
+        Returns
+        -------
+            Value that is popped from series.
+
+        Examples
+        --------
+        >>> ser = pd.Series([1, 2, 3])
+
+        >>> ser.pop(0)  # doctest: +SKIP
+        1
+
+        >>> ser  # doctest: +SKIP
+        1    2
+        2    3
+        dtype: int64
+        """
+
     @_create_operator_docstring(pandas.core.series.Series.pow, overwrite_existing=True)
     def pow():
         pass
@@ -2499,6 +2639,23 @@ class Series(BasePandasDataset):
         -------
         Series or None
             Series, or None if ``inplace=True``.
+
+        Examples
+        --------
+        Series
+
+        >>> s = pd.Series(["dog", "cat", "monkey"])
+        >>> s
+        0       dog
+        1       cat
+        2    monkey
+        dtype: object
+        >>> s.rename_axis("animal")
+        animal
+        0       dog
+        1       cat
+        2    monkey
+        dtype: object
         """
 
     def rename():
@@ -2776,7 +2933,7 @@ class Series(BasePandasDataset):
 
         With a scalar q:
 
-        >>> s.quantile(.5)
+        >>> s.quantile(.5)  # doctest: +SKIP
         2.5
 
         With a list q:
@@ -3246,7 +3403,7 @@ class Series(BasePandasDataset):
 
         Squeezing all axes will project directly into a scalar:
 
-        >>> df_0a.squeeze()
+        >>> df_0a.squeeze()  # doctest: +SKIP
         1
         """
 
@@ -3344,7 +3501,7 @@ class Series(BasePandasDataset):
         >>> s.to_dict()
         {0: 1, 1: 2, 2: 3, 3: 4}
         >>> from collections import OrderedDict, defaultdict
-        >>> s.to_dict(OrderedDict)
+        >>> s.to_dict(OrderedDict)  # doctest: +SKIP
         OrderedDict([(0, 1), (1, 2), (2, 3), (3, 4)])
         >>> dd = defaultdict(list)
         >>> s.to_dict(dd)
@@ -3446,6 +3603,49 @@ class Series(BasePandasDataset):
     def to_string():
         """
         Render a string representation of the Series.
+
+        Parameters
+        ----------
+        buf : StringIO-like, optional
+            Buffer to write to.
+
+        na_rep : str, optional
+            String representation of NaN to use, default ‘NaN’.
+
+        float_format : one-parameter function, optional
+            Formatter function to apply to columns’ elements if they are floats, default None.
+
+        header : bool, default True
+            Add the Series header (index name).
+
+        index : bool, optional
+            Add index (row) labels, default True.
+
+        length : bool, default False
+            Add the Series length.
+
+        dtype : bool, default False
+            Add the Series dtype.
+
+        name : bool, default False
+            Add the Series name if not None.
+
+        max_rows : int, optional
+            Maximum number of rows to show before truncating. If None, show all.
+
+        min_rows : int, optional
+            The number of rows to display in a truncated repr (when number of rows is above max_rows).
+
+        Returns
+        -------
+        str or None
+            String representation of Series if buf=None, otherwise None.
+
+        Examples
+        --------
+        >>> ser = pd.Series([1, 2, 3]).to_string()
+        >>> ser
+        '0    1\\n1    2\\n2    3'
         """
 
     def to_timestamp():
@@ -3907,11 +4107,11 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([3, 2, 2, 1])
-        >>> s.is_monotonic_decreasing
+        >>> s.is_monotonic_decreasing  # doctest: +SKIP
         True
 
         >>> s = pd.Series([1, 2, 3])
-        >>> s.is_monotonic_decreasing
+        >>> s.is_monotonic_decreasing  # doctest: +SKIP
         False
         """
 
@@ -3928,11 +4128,11 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([1, 2, 2])
-        >>> s.is_monotonic_increasing
+        >>> s.is_monotonic_increasing  # doctest: +SKIP
         True
 
         >>> s = pd.Series([3, 2, 1])
-        >>> s.is_monotonic_increasing
+        >>> s.is_monotonic_increasing  # doctest: +SKIP
         False
         """
 
@@ -4043,14 +4243,14 @@ class Series(BasePandasDataset):
         4    7
         dtype: int64
 
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         4
 
         >>> s = pd.Series([pd.NaT, np.nan, pd.NA, None, 1])
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         1
 
-        >>> s.nunique(dropna=False)
+        >>> s.nunique(dropna=False)  # doctest: +SKIP
         2
         """
 

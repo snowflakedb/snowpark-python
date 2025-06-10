@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 
@@ -17,6 +17,9 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
+)
+from tests.integ.test_deepcopy import (
+    create_df_with_deep_nested_with_column_dependencies,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, Utils
@@ -92,7 +95,14 @@ def check_result_with_and_without_breakdown(session, df):
 def check_summary_breakdown_value(patch_send, expected_summary):
     _, kwargs = patch_send.call_args
     summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == expected_summary
+    assert summary_value["breakdown_summary"] == expected_summary
+
+
+def check_optimization_skipped_reason(patch_send, expected_reason):
+    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+    assert (
+        summary_value["query_breakdown_optimization_skipped_reason"] == expected_reason
+    )
 
 
 def test_no_pipeline_breaker_nodes(session):
@@ -130,6 +140,8 @@ def test_no_pipeline_breaker_nodes(session):
     expected_summary = [
         {
             "num_partitions_made": 1,
+            "num_pipeline_breaker_used": 0,
+            "num_relaxed_breaker_used": 1,
         }
     ]
     check_summary_breakdown_value(patch_send, expected_summary)
@@ -170,13 +182,17 @@ def test_large_query_breakdown_external_cte_ref(session):
     patch_send.assert_called_once()
     expected_summary = [
         {
-            "num_external_cte_ref_nodes": 6 if sql_simplifier_enabled else 2,
-            "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
-            "num_nodes_below_lower_bound": 28,
-            "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
-            "num_valid_nodes": 0,
-            "num_valid_nodes_relaxed": 0,
+            "failed_partition_summary": {
+                "num_external_cte_ref_nodes": 6 if sql_simplifier_enabled else 2,
+                "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
+                "num_nodes_below_lower_bound": 28,
+                "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
+                "num_valid_nodes": 0,
+                "num_valid_nodes_relaxed": 0,
+            },
             "num_partitions_made": 0,
+            "num_pipeline_breaker_used": 0,
+            "num_relaxed_breaker_used": 0,
         }
     ]
     check_summary_breakdown_value(patch_send, expected_summary)
@@ -202,21 +218,18 @@ def test_breakdown_at_with_query_node(session):
     queries = final_df.queries
     assert len(queries["queries"]) == 2
     assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    # SNOW-1734385: Remove it when the issue is fixed
-    assert "WITH SNOWPARK_TEMP_CTE_" in queries["queries"][0]
+    assert "WITH SNOWPARK_TEMP_CTE_" not in queries["queries"][0]
     assert len(queries["post_actions"]) == 1
 
 
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
-    if not session.cte_optimization_enabled:
-        pytest.skip("CTE optimization is not enabled")
+    session._cte_optimization_enabled = True
 
     if not session.sql_simplifier_enabled:
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
-        set_bounds(session, 60, 90)
-    session._cte_optimization_enabled = True
+        set_bounds(session, 50, 80)
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")
@@ -227,7 +240,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
         df2 = df2.with_column("a", col("a") + i + col("a"))
         df3 = df3.with_column("b", col("b") + i + col("b"))
 
-    df2 = df2.group_by("a").agg(sum_distinct(col("b")).alias("b"))
+    df2 = df2.select("b", "a")
     df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
 
     df4 = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
@@ -252,14 +265,15 @@ def test_large_query_breakdown_with_cte_optimization(session):
     assert len(queries["post_actions"]) == 1
     assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
-    patch_send.assert_called_once()
-    _, kwargs = patch_send.call_args
-    summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == [
+    expected_summary = [
         {
             "num_partitions_made": 1,
+            "num_pipeline_breaker_used": 1,
+            "num_relaxed_breaker_used": 0,
         }
     ]
+    check_summary_breakdown_value(patch_send, expected_summary)
+    patch_send.assert_called_once()
 
 
 def test_save_as_table(session, large_query_df):
@@ -313,7 +327,8 @@ def test_update_delete_merge(session, large_query_df):
     # There is one SELECT CURRENT_TRANSACTION() query and one save_as_table query since large
     # query breakdown is not triggered.
     # There are two describe queries triggered, one from save_as_table, one from session.table
-    with SqlCounter(query_count=2, describe_count=2):
+    expected_describe_count = 1 if session.reduce_describe_query_enabled else 2
+    with SqlCounter(query_count=2, describe_count=expected_describe_count):
         df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
         df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
         t = session.table(table_name)
@@ -321,7 +336,7 @@ def test_update_delete_merge(session, large_query_df):
     # update
     with session.query_history() as history:
         # 3 describe call triggered due to column state extraction
-        with SqlCounter(query_count=4, describe_count=3):
+        with SqlCounter(query_count=4, describe_count=2):
             t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -506,7 +521,7 @@ def test_multiple_query_plan(session):
         final_df = union_df.with_column("A", col("A") + lit(1))
 
         with SqlCounter(
-            query_count=15,
+            query_count=11,
             describe_count=0,
             high_count_expected=True,
             high_count_reason="low array bind threshold",
@@ -543,10 +558,7 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
                 ) as patch_send:
                     large_query_df.collect()
 
-    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
-        "active transaction": 1,
-    }
+    check_optimization_skipped_reason(patch_send, {"active transaction": 1})
 
     assert len(history.queries) == 2, history.queries
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -578,10 +590,9 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
-        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
-            "view or dynamic table command": 1,
-        }
+        check_optimization_skipped_reason(
+            patch_send, {"view or dynamic table command": 1}
+        )
 
         with caplog.at_level(logging.DEBUG):
             with patch.object(
@@ -594,14 +605,38 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
             in caplog.text
         )
         patch_send.assert_called_once()
-        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
-            "view or dynamic table command": 1,
-        }
+        check_optimization_skipped_reason(
+            patch_send, {"view or dynamic table command": 1}
+        )
     finally:
         Utils.drop_dynamic_table(session, table_name)
         Utils.drop_view(session, view_name)
         Utils.drop_table(session, source_table)
+
+
+def test_large_query_breakdown_with_nested_select(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip(
+            "the nested select optimization is only enabled with sql simplifier"
+        )
+
+    temp_table_name = Utils.random_table_name()
+    final_df = create_df_with_deep_nested_with_column_dependencies(
+        session, temp_table_name, 8
+    )
+
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = final_df.queries
+    assert len(queries["queries"]) == 3
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert queries["queries"][1].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+
+    assert len(queries["post_actions"]) == 2
+    assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+    assert queries["post_actions"][1].startswith("DROP  TABLE  If  EXISTS")
+
+    with SqlCounter(query_count=7, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
 
 
 @pytest.mark.skipif(
@@ -627,10 +662,7 @@ def test_optimization_skipped_with_no_active_db_or_schema(
         in caplog.text
     )
     patch_send.assert_called_once()
-    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
-        f"no active {db_or_schema}": 1,
-    }
+    check_optimization_skipped_reason(patch_send, {f"no active {db_or_schema}": 1})
 
 
 def test_async_job_with_large_query_breakdown(large_query_df):
@@ -675,6 +707,80 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
             else:
                 assert "_statement_params" in call.kwargs
                 assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
+@pytest.mark.parametrize("error_type", [AssertionError, ValueError, RuntimeError])
+@patch("snowflake.snowpark._internal.compiler.plan_compiler.LargeQueryBreakdown.apply")
+def test_optimization_skipped_with_exceptions(
+    mock_lqb_apply, session, large_query_df, caplog, error_type
+):
+    """Test large query breakdown is skipped when there are exceptions"""
+    caplog.clear()
+    mock_lqb_apply.side_effect = error_type("test exception")
+    with caplog.at_level(logging.DEBUG):
+        with patch.object(
+            session._conn._telemetry_client,
+            "send_query_compilation_stage_failed_telemetry",
+        ) as patch_send:
+            queries = large_query_df.queries
+
+    assert "Skipping optimization due to error:" in caplog.text
+    assert len(queries["queries"]) == 1
+    assert len(queries["post_actions"]) == 0
+
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    print(kwargs)
+    assert kwargs["error_message"] == "test exception"
+    assert kwargs["error_type"] == error_type.__name__
+
+
+def test_large_query_breakdown_with_nested_cte(session):
+    session.cte_optimization_enabled = True
+    if session.sql_simplifier_enabled:
+        set_bounds(session, 35, 45)
+    else:
+        set_bounds(session, 55, 65)
+
+    temp_table = Utils.random_table_name()
+    session.create_dataframe([(1, 2), (3, 4)], ["A", "B"]).write.save_as_table(
+        temp_table, table_type="temp"
+    )
+    base_select = session.table(temp_table)
+    for i in range(7):
+        base_select = base_select.with_column("A", col("A") + lit(i))
+
+    base_df = base_select.union_all(base_select)
+
+    df1 = base_df.with_column("A", col("A") + 1)
+    df2 = base_df.with_column("B", col("B") + 1)
+    for i in range(2):
+        df1 = df1.with_column("A", col("A") + i)
+
+    df1 = df1.group_by("A").agg(sum_distinct(col("B")).alias("B"))
+    df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    mid_final_df = df1.union_all(df2)
+
+    mid1 = mid_final_df.filter(col("A") > 10)
+    mid2 = mid_final_df.filter(col("B") > 3)
+    final_df = mid1.union_all(mid2)
+
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = final_df.queries
+        assert len(queries["queries"]) == 2
+        assert len(queries["post_actions"]) == 1
+
+        # assert that the first query contains the base temp table name
+        assert temp_table in queries["queries"][0]
+
+        # assert that query for upper cte node is re-written and does not
+        # contain query for the base temp table
+        assert temp_table not in queries["queries"][1]
+
+    check_result_with_and_without_breakdown(session, final_df)
 
 
 def test_complexity_bounds_affect_num_partitions(session, large_query_df):
@@ -722,6 +828,26 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
         assert len(queries["post_actions"]) == 0
 
 
+def test_to_selectable_memoization(session):
+    session.cte_optimization_enabled = True
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    if sql_simplifier_enabled:
+        set_bounds(session, 300, 520)
+    else:
+        set_bounds(session, 40, 55)
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a", "b")
+    for i in range(7):
+        df = df.with_column("a", col("a") + i + col("a"))
+    df1 = df.select("a", "b", (col("a") + col("b")).as_("b"))
+    df2 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    df3 = df.select("a", "b", (col("a") + col("b")).as_("d"))
+    df5 = df1.union_all(df2).union_all(df3)
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = df5.queries
+        assert len(queries["queries"]) == 2
+        assert len(queries["post_actions"]) == 1
+
+
 @sql_count_checker(query_count=0)
 def test_large_query_breakdown_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
@@ -731,16 +857,24 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="requires graphviz")
 @pytest.mark.parametrize("enabled", [False, True])
-def test_plotter(session, large_query_df, enabled):
+@pytest.mark.parametrize("plotting_score_threshold", [0, 10_000_000])
+def test_plotter(large_query_df, enabled, plotting_score_threshold):
     original_plotter_enabled = os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING")
+    original_score_threshold = os.environ.get(
+        "SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"
+    )
     try:
         os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(enabled)
+        os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"] = str(
+            plotting_score_threshold
+        )
         tmp_dir = tempfile.gettempdir()
 
         with patch("graphviz.Graph.render") as mock_render:
             large_query_df.collect()
-            assert mock_render.called == enabled
-            if not enabled:
+            should_plot = enabled and (plotting_score_threshold == 0)
+            assert mock_render.called == should_plot
+            if not should_plot:
                 return
 
             assert mock_render.call_count == 5
@@ -762,3 +896,9 @@ def test_plotter(session, large_query_df, enabled):
             ] = original_plotter_enabled
         else:
             del os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"]
+        if original_score_threshold is not None:
+            os.environ[
+                "SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"
+            ] = original_score_threshold
+        else:
+            del os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"]

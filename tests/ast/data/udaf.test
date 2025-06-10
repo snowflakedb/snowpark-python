@@ -1,0 +1,1210 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col, udaf
+
+from snowflake.snowpark.types import IntegerType
+class PythonSumUDAF:
+    def __init__(self) -> None:
+        self._sum = 0
+
+    @property
+    def aggregate_state(self):
+        return self._sum
+
+    def accumulate(self, input_value):
+        self._sum += input_value
+
+    def merge(self, other_sum):
+        self._sum += other_sum
+
+    def finish(self):
+        return self._sum
+
+sum_udaf = udaf(
+    PythonSumUDAF,
+    name="sum_int",
+    replace=True,
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+)
+
+df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+
+df.agg(sum_udaf("a")).collect()
+
+
+import heapq
+from dataclasses import dataclass
+import itertools
+from typing import List
+
+@dataclass
+class AggState:
+    minheap: List[int]
+    k: int
+
+class PythonTopK:
+    def __init__(self):
+        self._agg_state = AggState([], 0)
+
+    @property
+    def aggregate_state(self):
+        return self._agg_state
+
+    @staticmethod
+    def get_top_k_items(minheap, k):
+      # Return k smallest elements if there are more than k elements on the min heap.
+      if (len(minheap) > k):
+        return [heapq.heappop(minheap) for i in range(k)]
+      return minheap
+
+    def accumulate(self, input, k):
+        self._agg_state.k = k
+
+        # Store the input as negative value, as heapq is a min heap.
+        heapq.heappush(self._agg_state.minheap, -input)
+
+        # Store only top k items on the min heap.
+        self._agg_state.minheap = self.get_top_k_items(self._agg_state.minheap, k)
+
+    def merge(self, other_agg_state):
+        k = self._agg_state.k if self._agg_state.k > 0 else other_agg_state.k
+
+        # Merge two min heaps by popping off elements from one and pushing them onto another.
+        while(len(other_agg_state.minheap) > 0):
+            heapq.heappush(self._agg_state.minheap, heapq.heappop(other_agg_state.minheap))
+
+        # Store only k elements on the min heap.
+        self._agg_state.minheap = self.get_top_k_items(self._agg_state.minheap, k)
+
+    def finish(self):
+        return [-x for x in self._agg_state.minheap]
+
+u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True,
+          stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, if_not_exists=False, parallel=8,
+          statement_params={'a':'b', 'd':'e'}, immutable=True, external_access_integrations=['s3'],
+          secrets={'a':'c', 'e':'f'}, comment='test udaf', force_inline_code=True)
+
+df.agg(u2("a"))
+
+# Test registering UDAF from file without type hints
+sum_udaf = session.udaf.register_from_file(
+    test_files.test_udaf_py_file,
+    "MyUDAFWithoutTypeHints",
+    return_type=IntegerType(),
+    input_types=[IntegerType()],
+    immutable=True,
+)
+df.agg(sum_udaf("a"))
+
+# Test registering UDAF from file with type hints
+sum_udaf = session.udaf.register_from_file(
+    test_files.test_udaf_py_file,
+    "MyUDAFWithTypeHints",
+)
+df.agg(sum_udaf("a"))
+
+# Test artifact_repository parameters
+class ArtifactRepositoryHandler:
+    def __init__(self) -> None:
+        self._result = ""
+
+    @property
+    def aggregate_state(self):
+        return self._result
+
+    def accumulate(self, input_value):
+        import urllib3
+
+        self._result = str(urllib3.exceptions.HTTPError("test"))
+
+    def merge(self, other_result):
+        self._result += other_result
+
+    def finish(self):
+        return self._result
+
+ar_udaf = udaf(
+    ArtifactRepositoryHandler,
+    return_type=StringType(),
+    input_types=[IntegerType()],
+    artifact_repository="EXAMPLE_REPO",
+    packages=["urllib3", "requests"],
+    resource_constraint={"architecture": "x86"},
+)
+
+
+## EXPECTED UNPARSER OUTPUT
+
+sum_udaf = udaf("PythonSumUDAF", return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, copy_grants=False, _registered_object_name="sum_int")
+
+df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
+
+df = df.to_df("a", "b")
+
+df.agg(sum_udaf("a")).collect()
+
+df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
+
+df = df.to_df("a", "b")
+
+u2 = udaf("PythonTopK", return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", copy_grants=False, force_inline_code=True, _registered_object_name="top_k")
+
+res3 = df.agg(u2("a"))
+
+sum_udaf = udaf("MyUDAFWithoutTypeHints", return_type=IntegerType(), input_types=[IntegerType()], immutable=True, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+
+res4 = df.agg(sum_udaf("a"))
+
+sum_udaf = udaf("MyUDAFWithTypeHints", return_type=LongType(), input_types=[LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+
+res5 = df.agg(sum_udaf("a"))
+
+ar_udaf = udaf("ArtifactRepositoryHandler", return_type=StringType(), input_types=[IntegerType()], packages=["urllib3", "requests"], artifact_repository="EXAMPLE_REPO", resource_constraint={"architecture": "x86"}, copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx")
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      udaf {
+        handler {
+          name: "PythonSumUDAF"
+          object_name {
+            name {
+              name_flat {
+                name: "sum_int"
+              }
+            }
+          }
+        }
+        input_types {
+          integer_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 51
+                file: 2
+                start_column: 19
+                start_line: 45
+              }
+            }
+          }
+        }
+        name {
+          name {
+            name_flat {
+              name: "sum_int"
+            }
+          }
+        }
+        parallel: 4
+        replace: true
+        return_type {
+          integer_type: true
+        }
+        src {
+          end_column: 9
+          end_line: 51
+          file: 2
+          start_column: 19
+          start_line: 45
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "sum_udaf"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 71
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 3
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 71
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 4
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 71
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 5
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 71
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 6
+                  }
+                }
+              }
+            }
+          }
+        }
+        src {
+          end_column: 71
+          end_line: 53
+          file: 2
+          start_column: 13
+          start_line: 53
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_to_df {
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 87
+                end_line: 53
+                file: 2
+                start_column: 13
+                start_line: 53
+              }
+              v: "a"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 87
+                end_line: 53
+                file: 2
+                start_column: 13
+                start_line: 53
+              }
+              v: "b"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 2
+          }
+        }
+        src {
+          end_column: 87
+          end_line: 53
+          file: 2
+          start_column: 13
+          start_line: 53
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_agg {
+        df {
+          dataframe_ref {
+            id: 3
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id: 1
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 28
+                    end_line: 55
+                    file: 2
+                    start_column: 15
+                    start_line: 55
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                end_column: 28
+                end_line: 55
+                file: 2
+                start_column: 15
+                start_line: 55
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 29
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_collect {
+        block: true
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 4
+          }
+        }
+        src {
+          end_column: 39
+          end_line: 55
+          file: 2
+          start_column: 8
+          start_line: 55
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 5
+  }
+}
+body {
+  eval {
+    bind_id: 5
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 71
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 3
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 71
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 4
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 71
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 5
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 71
+                  end_line: 53
+                  file: 2
+                  start_column: 13
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      end_column: 71
+                      end_line: 53
+                      file: 2
+                      start_column: 13
+                      start_line: 53
+                    }
+                    v: 6
+                  }
+                }
+              }
+            }
+          }
+        }
+        src {
+          end_column: 71
+          end_line: 53
+          file: 2
+          start_column: 13
+          start_line: 53
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_to_df {
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 87
+                end_line: 53
+                file: 2
+                start_column: 13
+                start_line: 53
+              }
+              v: "a"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 87
+                end_line: 53
+                file: 2
+                start_column: 13
+                start_line: 53
+              }
+              v: "b"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 2
+          }
+        }
+        src {
+          end_column: 87
+          end_line: 53
+          file: 2
+          start_column: 13
+          start_line: 53
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      udaf {
+        comment {
+          value: "test udaf"
+        }
+        external_access_integrations: "s3"
+        handler {
+          id: 1
+          name: "PythonTopK"
+          object_name {
+            name {
+              name_flat {
+                name: "top_k"
+              }
+            }
+          }
+        }
+        immutable: true
+        imports {
+          name {
+            name_flat {
+              name: "numpy"
+            }
+          }
+        }
+        input_types {
+          integer_type: true
+        }
+        is_permanent: true
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 90
+                end_line: 108
+                file: 2
+                start_column: 13
+                start_line: 105
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "force_inline_code"
+          _2 {
+            bool_val {
+              src {
+                end_column: 90
+                end_line: 108
+                file: 2
+                start_column: 13
+                start_line: 105
+              }
+              v: true
+            }
+          }
+        }
+        name {
+          name {
+            name_flat {
+              name: "top_k"
+            }
+          }
+        }
+        packages: "numpy"
+        parallel: 8
+        replace: true
+        return_type {
+          integer_type: true
+        }
+        secrets {
+          _1: "a"
+          _2: "c"
+        }
+        secrets {
+          _1: "e"
+          _2: "f"
+        }
+        src {
+          end_column: 90
+          end_line: 108
+          file: 2
+          start_column: 13
+          start_line: 105
+        }
+        stage_location {
+          value: "@"
+        }
+        statement_params {
+          _1: "a"
+          _2: "b"
+        }
+        statement_params {
+          _1: "d"
+          _2: "e"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "u2"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_agg {
+        df {
+          dataframe_ref {
+            id: 3
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id: 6
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 22
+                    end_line: 110
+                    file: 2
+                    start_column: 15
+                    start_line: 110
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                end_column: 22
+                end_line: 110
+                file: 2
+                start_column: 15
+                start_line: 110
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 23
+          end_line: 110
+          file: 2
+          start_column: 8
+          start_line: 110
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      udaf {
+        handler {
+          id: 2
+          name: "MyUDAFWithoutTypeHints"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        immutable: true
+        input_types {
+          integer_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 119
+                file: 2
+                start_column: 19
+                start_line: 113
+              }
+            }
+          }
+        }
+        parallel: 4
+        return_type {
+          integer_type: true
+        }
+        src {
+          end_column: 9
+          end_line: 119
+          file: 2
+          start_column: 19
+          start_line: 113
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "sum_udaf"
+    }
+    uid: 8
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_agg {
+        df {
+          dataframe_ref {
+            id: 3
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id: 8
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 28
+                    end_line: 120
+                    file: 2
+                    start_column: 15
+                    start_line: 120
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                end_column: 28
+                end_line: 120
+                file: 2
+                start_column: 15
+                start_line: 120
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 29
+          end_line: 120
+          file: 2
+          start_column: 8
+          start_line: 120
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 9
+  }
+}
+body {
+  bind {
+    expr {
+      udaf {
+        handler {
+          id: 3
+          name: "MyUDAFWithTypeHints"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          long_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 126
+                file: 2
+                start_column: 19
+                start_line: 123
+              }
+            }
+          }
+        }
+        parallel: 4
+        return_type {
+          long_type: true
+        }
+        src {
+          end_column: 9
+          end_line: 126
+          file: 2
+          start_column: 19
+          start_line: 123
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "sum_udaf"
+    }
+    uid: 10
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_agg {
+        df {
+          dataframe_ref {
+            id: 3
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                fn_ref {
+                  id: 10
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 28
+                    end_line: 127
+                    file: 2
+                    start_column: 15
+                    start_line: 127
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                end_column: 28
+                end_line: 127
+                file: 2
+                start_column: 15
+                start_line: 127
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          end_column: 29
+          end_line: 127
+          file: 2
+          start_column: 8
+          start_line: 127
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 11
+  }
+}
+body {
+  bind {
+    expr {
+      udaf {
+        artifact_repository {
+          value: "EXAMPLE_REPO"
+        }
+        handler {
+          id: 4
+          name: "ArtifactRepositoryHandler"
+          object_name {
+            name {
+              name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_AGGREGATE_FUNCTION_xxx"
+              }
+            }
+          }
+        }
+        input_types {
+          integer_type: true
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 156
+                file: 2
+                start_column: 18
+                start_line: 149
+              }
+            }
+          }
+        }
+        packages: "urllib3"
+        packages: "requests"
+        parallel: 4
+        resource_constraint {
+          _1: "architecture"
+          _2: "x86"
+        }
+        return_type {
+          string_type {
+            length {
+            }
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 156
+          file: 2
+          start_column: 18
+          start_line: 149
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "ar_udaf"
+    }
+    uid: 12
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

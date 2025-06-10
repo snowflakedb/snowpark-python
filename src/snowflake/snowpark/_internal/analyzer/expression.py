@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -594,6 +594,9 @@ class WithinGroup(Expression):
         self.expr = expr
         self.order_by_cols = order_by_cols
         self.datatype = expr.datatype
+        assert all(
+            isinstance(order_by_col, Expression) for order_by_col in order_by_cols
+        )
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, *self.order_by_cols)
@@ -675,6 +678,7 @@ class SnowflakeUDF(Expression):
         datatype: DataType,
         nullable: bool = True,
         api_call_source: Optional[str] = None,
+        is_aggregate_function: bool = False,
     ) -> None:
         super().__init__()
         self.udf_name = udf_name
@@ -682,6 +686,7 @@ class SnowflakeUDF(Expression):
         self.datatype = datatype
         self.nullable = nullable
         self.api_call_source = api_call_source
+        self.is_aggregate_function = is_aggregate_function
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)

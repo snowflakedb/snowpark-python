@@ -1,11 +1,13 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 from typing import Any, Hashable, Optional, Union
 
 import modin.pandas as pd
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
+import numpy as np
 
 from snowflake.snowpark import functions as sp_func
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -195,46 +197,46 @@ numpy_to_pandas_universal_func_map = {
     "logaddexp2": NotImplemented,
     "true_divide": lambda obj, inputs: obj.__truediv__(*inputs),
     "floor_divide": lambda obj, inputs: obj.__floordiv__(*inputs),
-    "negative": NotImplemented,
-    "positive": NotImplemented,
+    "negative": lambda obj, inputs: -obj,
+    "positive": lambda obj, inputs: obj,
     "power": NotImplemented,  # cannot use obj.__pow__
     "float_power": lambda obj, inputs: obj.__pow__(*inputs),
     "remainder": lambda obj, inputs: obj.__mod__(*inputs),
     "mod": lambda obj, inputs: obj.__mod__(*inputs),
     "fmod": NotImplemented,
     "divmod": NotImplemented,
-    "absolute": NotImplemented,
-    "fabs": NotImplemented,
+    "absolute": lambda obj, inputs: obj.abs(),
+    "abs": lambda obj, inputs: obj.abs(),
     "rint": NotImplemented,
     "sign": NotImplemented,
     "heaviside": NotImplemented,  # heaviside step function
     "conj": NotImplemented,  # same as conjugate
     "conjugate": NotImplemented,
-    "exp": NotImplemented,
+    "exp": lambda obj, inputs: obj.apply(sp_func.exp),
     "exp2": NotImplemented,
     "log": lambda obj, inputs: obj.apply(sp_func.ln),  # use built-in function
-    "log2": lambda obj, inputs: obj.apply(sp_func.log, base=2),
-    "log10": lambda obj, inputs: obj.apply(sp_func.log, base=10),
+    "log2": lambda obj, inputs: obj.apply(sp_func._log2),
+    "log10": lambda obj, inputs: obj.apply(sp_func._log10),
     "expm1": NotImplemented,
     "log1p": NotImplemented,
-    "sqrt": NotImplemented,
+    "sqrt": lambda obj, inputs: obj.apply(sp_func.sqrt),
     "square": NotImplemented,
     "cbrt": NotImplemented,  # Cube root
     "reciprocal": NotImplemented,
     "gcd": NotImplemented,
     "lcm": NotImplemented,
     # trigonometric functions
-    "sin": NotImplemented,
-    "cos": NotImplemented,
-    "tan": NotImplemented,
+    "sin": lambda obj, inputs: obj.apply(sp_func.sin),
+    "cos": lambda obj, inputs: obj.apply(sp_func.cos),
+    "tan": lambda obj, inputs: obj.apply(sp_func.tan),
     "arcsin": NotImplemented,
     "arccos": NotImplemented,
     "arctan": NotImplemented,
     "arctan2": NotImplemented,
     "hypot": NotImplemented,
-    "sinh": NotImplemented,
-    "cosh": NotImplemented,
-    "tanh": NotImplemented,
+    "sinh": lambda obj, inputs: obj.apply(sp_func.sinh),
+    "cosh": lambda obj, inputs: obj.apply(sp_func.cosh),
+    "tanh": lambda obj, inputs: obj.apply(sp_func.tanh),
     "arcsinh": NotImplemented,
     "arccosh": NotImplemented,
     "arctanh": NotImplemented,
@@ -282,7 +284,55 @@ numpy_to_pandas_universal_func_map = {
     "ldexp": NotImplemented,
     "frexp": NotImplemented,
     "fmod": NotImplemented,
-    "floor": NotImplemented,
-    "ceil": NotImplemented,
-    "trunc": NotImplemented,
+    "floor": lambda obj, inputs: obj.apply(sp_func.floor),
+    "ceil": lambda obj, inputs: obj.apply(sp_func.ceil),
+    "trunc": lambda obj, inputs: obj.apply(
+        sp_func.trunc
+    ),  # df.truncate not supported in snowpandas yet
+}
+
+
+# Map from numpy universal (element-wise) function to Snowflake function.
+# This is used to map numpy functions to builtin sql functions when numpy function is
+# passed in apply and map methods. For example: df.apply(np.<func>)
+# Using native SQL functions instead of creating UDF/UDTF provides significant
+# better performance.
+NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION = {
+    # Math operations
+    np.absolute: sp_func.abs,
+    np.sign: sp_func.sign,
+    np.negative: sp_func.negate,
+    np.positive: lambda col: col,
+    np.sqrt: sp_func.sqrt,
+    np.square: lambda col: sp_func.builtin("square")(col),
+    np.cbrt: lambda col: sp_func.builtin("cbrt")(col),
+    np.reciprocal: lambda col: 1 / col,
+    np.exp: sp_func.exp,
+    np.exp2: lambda col: sp_func.pow(2, col),
+    np.expm1: lambda col: sp_func.exp(col) - 1,
+    np.log: sp_func.ln,
+    np.log2: sp_func._log2,
+    np.log10: sp_func._log10,
+    np.log1p: lambda col: sp_func.ln(col + 1),
+    # Trigonometric functions
+    np.sin: sp_func.sin,
+    np.cos: sp_func.cos,
+    np.tan: sp_func.tan,
+    np.sinh: sp_func.sinh,
+    np.cosh: sp_func.cosh,
+    np.tanh: sp_func.tanh,
+    np.arcsin: lambda col: sp_func.builtin("asin")(col),
+    np.arccos: lambda col: sp_func.builtin("acos")(col),
+    np.arctan: lambda col: sp_func.builtin("atan")(col),
+    np.arctan2: lambda col: sp_func.builtin("atan2")(col),
+    np.arcsinh: lambda col: sp_func.builtin("asinh")(col),
+    np.arccosh: lambda col: sp_func.builtin("acosh")(col),
+    np.arctanh: lambda col: sp_func.builtin("atanh")(col),
+    np.degrees: lambda col: sp_func.builtin("degrees")(col),
+    np.radians: lambda col: sp_func.builtin("radians")(col),
+    # Floating functions
+    np.ceil: sp_func.ceil,
+    np.floor: sp_func.floor,
+    np.trunc: sp_func.trunc,
+    np.isnan: sp_func.is_null,
 }

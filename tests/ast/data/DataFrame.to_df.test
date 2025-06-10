@@ -1,0 +1,177 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+variadic = df.to_df("one", "two")
+
+non_variadic = df.to_df(["one", "two"])
+
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+variadic = df.to_df("one", "two")
+
+non_variadic = df.to_df(["one", "two"])
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_to_df {
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 41
+                end_line: 27
+                file: 2
+                start_column: 19
+                start_line: 27
+              }
+              v: "one"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 41
+                end_line: 27
+                file: 2
+                start_column: 19
+                start_line: 27
+              }
+              v: "two"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 27
+          file: 2
+          start_column: 19
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "variadic"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_to_df {
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 47
+                end_line: 29
+                file: 2
+                start_column: 23
+                start_line: 29
+              }
+              v: "one"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 47
+                end_line: 29
+                file: 2
+                start_column: 23
+                start_line: 29
+              }
+              v: "two"
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 47
+          end_line: 29
+          file: 2
+          start_column: 23
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "non_variadic"
+    }
+    uid: 3
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 32
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

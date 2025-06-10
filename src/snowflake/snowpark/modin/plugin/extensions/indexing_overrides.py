@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 # Licensed to Modin Development Team under one or more contributor license agreements.
@@ -1033,7 +1033,9 @@ class _LocIndexer(_LocationIndexerBase):
             else row_loc
         )
         columns = (
-            col_loc._query_compiler
+            (col_loc,)
+            if is_scalar(col_loc)
+            else col_loc._query_compiler
             if isinstance(col_loc, BasePandasDataset)
             else col_loc
         )
