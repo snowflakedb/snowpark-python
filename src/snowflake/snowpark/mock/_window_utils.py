@@ -26,7 +26,6 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 
 class EntireWindowIndexer(BaseIndexer):
     def get_window_bounds(self, num_values, min_periods, center, closed, step):
-
         start = np.empty(num_values, dtype=np.int64)
         end = np.empty(num_values, dtype=np.int64)
         for i in range(num_values):
@@ -38,7 +37,6 @@ class EntireWindowIndexer(BaseIndexer):
 
 class RowFrameIndexer(BaseIndexer):
     def get_window_bounds(self, num_values, min_periods, center, closed, step):
-
         start = np.empty(num_values, dtype=np.int64)
         end = np.empty(num_values, dtype=np.int64)
 
