@@ -6,10 +6,12 @@ from collections import defaultdict
 import pytest
 import uuid
 import copy
+import time
 from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
     str_contains_alphabet,
     get_sorted_key_for_version,
+    ttl_cache,
 )
 
 
@@ -122,3 +124,55 @@ def test_get_sorted_key_for_version():
     assert get_sorted_key_for_version("10.20.30") == (10, 20, 30)
     assert get_sorted_key_for_version("4.5.6b7") == (4, 5, -1)
     assert get_sorted_key_for_version("7.8.9c") == (7, 8, -1)
+
+
+def test_ttl_cache():
+    calls = {"long": 0, "no": 0}
+
+    @ttl_cache(ttl_seconds=60 * 60 * 24)  # 24 hours
+    def sum_two_long(a, b):
+        calls["long"] += 1
+        return a + b
+
+    @ttl_cache(ttl_seconds=0)  # Effectively no cache
+    def sum_two_short(a, b):
+        calls["no"] += 1
+        return a + b
+
+    # After one call each should have executed once
+    sum_two_long(1, 1)
+    sum_two_short(1, 1)
+    assert calls["long"] == 1
+    assert calls["no"] == 1
+
+    # Windows has a 16ms time resolution so wait at least a second to make sure
+    # the short cache ages out.
+    time.sleep(1)
+
+    # After a second call the long cache should use the cached result
+    # The no-cache result should have executed again
+    sum_two_long(1, 1)
+    sum_two_short(1, 1)
+    assert calls["long"] == 1
+    assert calls["no"] == 2
+
+    # Each of the caches should have one item
+    assert len(sum_two_long._cache) == 1
+    assert len(sum_two_short._cache) == 1
+
+    time.sleep(1)
+
+    # The long cache should have a second item
+    # The no-cache should have aged out the previous call when adding the new one
+    sum_two_long(2, 2)
+    sum_two_short(2, 2)
+    assert len(sum_two_long._cache) == 2
+    assert len(sum_two_short._cache) == 1
+
+    @ttl_cache(60)
+    def union_sets(a, b):
+        return a | b
+
+    # Even though the inputs are unhashable the result is still cached
+    union_sets({1}, {2})
+    assert len(union_sets._cache) == 1

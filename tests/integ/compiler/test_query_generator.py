@@ -4,12 +4,17 @@
 
 import copy
 from typing import List
+from unittest.mock import patch
 
 import pytest
+
+import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
+
 from snowflake.connector import IntegrityError
 
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
+from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
@@ -484,7 +489,8 @@ def test_in_with_subquery(session):
     check_generated_plan_queries(df_in._plan)
 
 
-def test_in_with_subquery_multiple_query(session):
+@patch.object(snowflake_plan, "cached_analyze_attributes", wraps=analyze_attributes)
+def test_in_with_subquery_multiple_query(_, session):
     # multiple queries
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
