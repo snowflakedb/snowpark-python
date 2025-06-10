@@ -185,7 +185,10 @@ class BaseDriver:
                     if isinstance(x, (datetime.datetime, datetime.date))
                     else x
                 )
+            # astype below is meant to address copy into failure when the column contain only None value,
+            # pandas would infer wrong type for that column in that situation, thus we convert them to corresponding type.
             elif isinstance(field.datatype, BinaryType):
+                # we convert all binary to hex, so it is safe to astype to string
                 df[name] = (
                     df[name]
                     .map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
