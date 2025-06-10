@@ -97,7 +97,7 @@ def test_get_plan_from_line_numbers_sql_content(
     df = op(test_data)
 
     for line_num, expected_sql in line_to_expected_sql.items():
-        plan = get_plan_from_line_numbers(df._plan, line_num, 0)
+        plan = get_plan_from_line_numbers(df._plan, line_num)
         assert (
             plan is not None
         ), f"get_plan_from_line_numbers returned None for line {line_num}"
@@ -118,19 +118,16 @@ def test_get_plan_from_line_numbers_sql_content(
 
 
 @pytest.mark.parametrize(
-    "line_num,query_idx,expected_error",
+    "line_num,expected_error",
     [
-        (0, 1, "Query idx 1 is out of range"),
-        (6, 0, "Line number 6 does not fall within any interval"),
+        (6, "Line number 6 does not fall within any interval"),
     ],
 )
-def test_get_plan_from_line_numbers_error_cases(
-    session, line_num, query_idx, expected_error
-):
+def test_get_plan_from_line_numbers_error_cases(session, line_num, expected_error):
     """Test get_plan_from_line_numbers error cases with specific inputs."""
     session.sql_simplifier_enabled = False
 
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
     with pytest.raises(ValueError, match=expected_error):
-        get_plan_from_line_numbers(df._plan, line_num, query_idx)
+        get_plan_from_line_numbers(df._plan, line_num)

@@ -382,7 +382,12 @@ class Selectable(LogicalPlan, ABC):
             )
             self.analyzer.alias_maps_to_use = self.expr_to_alias.copy()
 
-            query = Query(self.sql_query, params=self.query_params)
+            query = Query(
+                self.commented_sql
+                if self._session._generate_multiline_queries
+                else self.sql_query,
+                params=self.query_params,
+            )
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
             schema_query = None if skip_schema_query else self.schema_query
             self._snowflake_plan = SnowflakePlan(
@@ -395,7 +400,6 @@ class Selectable(LogicalPlan, ABC):
                 source_plan=self,
                 referenced_ctes=self.referenced_ctes,
                 from_selectable_uuid=self._uuid,
-                commented_sql=self.commented_sql,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -433,14 +437,14 @@ class Selectable(LogicalPlan, ABC):
         self._cumulative_node_complexity = value
 
     @property
+    @abstractmethod
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
         """
         This property is currently only used for traversing the query plan tree
         when performing CTE optimization and constructing query line intervals.
-        Base implementation returns empty list. Subclasses override this
-        to return their direct children without creating circular dependencies.
+        Subclasses override this to return their direct children without creating circular dependencies.
         """
-        return []
+        pass
 
     @property
     def column_states(self) -> ColumnStateDict:
@@ -609,6 +613,10 @@ class SelectableEntity(Selectable):
         if self._session.reduce_describe_query_enabled and value is not None:
             self._schema_query = analyzer_utils.schema_value_statement(value)
 
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        return []
+
 
 @SnowflakePlan.Decorator.wrap_exception
 def _analyze_attributes(
@@ -640,7 +648,7 @@ class SelectSQL(Selectable):
         if not is_select and convert_to_select:
             self.pre_actions = [Query(sql, params=params)]
             self.pre_actions[-1].query_line_intervals = [
-                QueryLineInterval(0, sql.count("\n"), self.uuid, 0)
+                QueryLineInterval(0, sql.count("\n"), self.uuid)
             ]
             self._sql_query = result_scan_statement(
                 self.pre_actions[0].query_id_place_holder
@@ -716,6 +724,10 @@ class SelectSQL(Selectable):
         # auto created CTE tables referenced
         return dict()
 
+    @property
+    def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        return []
+
 
 class SelectSnowflakePlan(Selectable):
     """Wrap a SnowflakePlan to a subclass of Selectable."""
@@ -734,7 +746,6 @@ class SelectSnowflakePlan(Selectable):
         self.post_actions = self._snowflake_plan.post_actions
         self._api_calls = self._snowflake_plan.api_calls
         self._query_params = []
-        self._uuid = self._snowflake_plan.uuid
         for query in self._snowflake_plan.queries:
             if query.params:
                 self._query_params.extend(query.params)

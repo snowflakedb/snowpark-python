@@ -405,8 +405,6 @@ class SnowflakePlan(LogicalPlan):
         *,
         session: "snowflake.snowpark.session.Session",
         from_selectable_uuid: Optional[str] = None,
-        # This field take commented_sql from source plans to generate query line intervals
-        commented_sql: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
@@ -458,27 +456,23 @@ class SnowflakePlan(LogicalPlan):
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
         self.df_ast_id: Optional[int] = None
-        if commented_sql is not None:
-            from snowflake.snowpark._internal.analyzer.select_statement import (
-                Selectable,
-            )
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            Selectable,
+        )
 
-            last_query = self.queries[-1]
-            child_uuids_and_query_idxs = []
-            for child in self.children_plan_nodes:
-                if isinstance(child, Selectable):
-                    child_uuids_and_query_idxs.append((child.uuid, 0))
-                elif isinstance(child, SnowflakePlan):
-                    child_uuids_and_query_idxs.append(
-                        (child.uuid, len(child.queries) - 1)
-                    )
-            query_line_intervals = get_line_numbers(
-                commented_sql,
-                child_uuids_and_query_idxs,
-                self.uuid,
-                len(self.queries) - 1,
-            )
-            last_query.query_line_intervals = query_line_intervals
+        last_query = self.queries[-1]
+        child_uuids = []
+        for child in self.children_plan_nodes:
+            if isinstance(child, Selectable) or isinstance(child, SnowflakePlan):
+                child_uuids.append(child.uuid)
+        query_line_intervals = get_line_numbers(
+            last_query.sql,
+            child_uuids,
+            self.uuid,
+        )
+        final_sql = remove_comments(last_query.sql, child_uuids)
+        last_query.sql = final_sql
+        last_query.query_line_intervals = query_line_intervals
 
     @property
     def uuid(self) -> str:
@@ -772,10 +766,9 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         commented_sql = sql_generator(select_child.queries[-1].sql)
-        final_sql = remove_comments(commented_sql, [select_child.uuid])
         queries = select_child.queries[:-1] + [
             Query(
-                final_sql,
+                commented_sql,
                 query_id_place_holder="",
                 is_ddl_on_temp_object=is_ddl_on_temp_object,
                 params=select_child.queries[-1].params,
@@ -800,7 +793,6 @@ class SnowflakePlanBuilder:
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
             referenced_ctes=child.referenced_ctes,
-            commented_sql=commented_sql,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -866,12 +858,9 @@ class SnowflakePlanBuilder:
         commented_sql = sql_generator(
             select_left.queries[-1].sql, select_right.queries[-1].sql
         )
-        final_sql = remove_comments(
-            commented_sql, [select_left.uuid, select_right.uuid]
-        )
         queries = merged_queries + [
             Query(
-                final_sql,
+                commented_sql,
                 params=[
                     *select_left.queries[-1].params,
                     *select_right.queries[-1].params,
@@ -887,7 +876,6 @@ class SnowflakePlanBuilder:
             api_calls=api_calls,
             session=self.session,
             referenced_ctes=referenced_ctes,
-            commented_sql=commented_sql,
         )
 
     def query(
@@ -904,7 +892,6 @@ class SnowflakePlanBuilder:
             session=self.session,
             source_plan=source_plan,
             api_calls=api_calls,
-            commented_sql=sql,
         )
 
     def large_local_relation_plan(
@@ -971,7 +958,7 @@ class SnowflakePlanBuilder:
         )
         for i in range(len(queries)):
             queries[i].query_line_intervals = [
-                QueryLineInterval(0, queries[i].sql.count("\n"), new_plan.uuid, i)
+                QueryLineInterval(0, queries[i].sql.count("\n"), new_plan.uuid)
             ]
         return new_plan
 
@@ -2224,14 +2211,15 @@ class PlanQueryType(Enum):
 
 
 class QueryLineInterval:
-    def __init__(self, start: int, end: int, uuid: str, query_idx: int) -> None:
+    def __init__(self, start: int, end: int, uuid: str) -> None:
         self.start = start
         self.end = end
         self.uuid = uuid
-        self.query_idx = query_idx
 
     def __repr__(self) -> str:
-        return f"QueryLineInterval(start={self.start}, end={self.end}, uuid={self.uuid}, query_idx={self.query_idx})"
+        return (
+            f"QueryLineInterval(start={self.start}, end={self.end}, uuid={self.uuid})"
+        )
 
 
 class Query:

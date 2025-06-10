@@ -79,11 +79,11 @@ def test_multiple_queries(session):
     queries = [
         Query(
             f"create or replace temporary table {table_name1} as select * from values(1::INT, 'a'::STRING),(2::INT, 'b'::STRING) as T(A,B)",
-            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid", 0)],
+            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid")],
         ),
         Query(
             f"select * from {table_name1}",
-            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid", 1)],
+            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid")],
         ),
     ]
     attrs = [Attribute("A", IntegerType()), Attribute("B", IntegerType())]
@@ -116,11 +116,11 @@ def test_multiple_queries(session):
     queries2 = [
         Query(
             f"create or replace temporary table {table_name2} as select * from values(3::INT),(4::INT) as T(A)",
-            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid2", 0)],
+            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid2")],
         ),
         Query(
             f"select * from {table_name2}",
-            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid2", 1)],
+            query_line_intervals=[QueryLineInterval(0, 0, "test-uuid2")],
         ),
     ]
     attrs2 = [Attribute("C", LongType())]

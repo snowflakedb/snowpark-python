@@ -202,7 +202,7 @@ class MockExecutionPlan(LogicalPlan):
         self.uuid = "MOCK_UUID"
         mock_query = MagicMock()
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
-        mock_query.query_line_intervals = [QueryLineInterval(0, 0, self.uuid, 0)]
+        mock_query.query_line_intervals = [QueryLineInterval(0, 0, self.uuid)]
         self.queries = [mock_query]
         self.child = child
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
