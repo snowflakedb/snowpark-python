@@ -6,9 +6,14 @@ import threading
 import modin.pandas as pd
 import pytest
 
+import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
 import snowflake.snowpark.modin.plugin  # noqa: F401
+
 from snowflake.snowpark import QueryRecord
+from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+from unittest.mock import patch
 
 
 class CustomException(BaseException):
@@ -82,33 +87,41 @@ def test_sql_counter_with_context_manager_inside_loop():
 
 @sql_count_checker(no_check=True)
 def test_sql_counter_with_multiple_checks(session):
-    expected_describe_count = 1
-    if not session.reduce_describe_query_enabled and session.sql_simplifier_enabled:
-        expected_describe_count = 3
-    with SqlCounter(query_count=1, describe_count=expected_describe_count):
-        df = pd.DataFrame({"a": [1, 2, 3]})
-        df.to_pandas()
+    # Bypass cache
+    with patch.object(
+        snowflake_plan, "cached_analyze_attributes", wraps=analyze_attributes
+    ):
+        expected_describe_count = 1
+        if not session.reduce_describe_query_enabled and session.sql_simplifier_enabled:
+            expected_describe_count = 3
+        with SqlCounter(query_count=1, describe_count=expected_describe_count):
+            df = pd.DataFrame({"a": [1, 2, 3]})
+            df.to_pandas()
 
-    with SqlCounter(query_count=1, describe_count=expected_describe_count):
-        df = pd.DataFrame({"b": [4, 5, 6]})
-        df.to_pandas()
+        with SqlCounter(query_count=1, describe_count=expected_describe_count):
+            df = pd.DataFrame({"b": [4, 5, 6]})
+            df.to_pandas()
 
-    with SqlCounter(query_count=1, describe_count=expected_describe_count):
-        df = pd.DataFrame({"c": [7, 8, 9]})
-        df.to_pandas()
+        with SqlCounter(query_count=1, describe_count=expected_describe_count):
+            df = pd.DataFrame({"c": [7, 8, 9]})
+            df.to_pandas()
 
 
 @sql_count_checker(no_check=True)
 def test_sql_counter_with_context_manager_outside_loop(session):
-    expected_describe_count = 3
-    if not session.reduce_describe_query_enabled and session.sql_simplifier_enabled:
-        expected_describe_count = 9
-    sc = SqlCounter(query_count=3, describe_count=expected_describe_count)
-    sc.__enter__()
-    for _ in range(3):
-        df = pd.DataFrame({"a": [1, 2, 3]})
-        df.to_pandas()
-    sc.__exit__(None, None, None)
+    # Bypass cache
+    with patch.object(
+        snowflake_plan, "cached_analyze_attributes", wraps=analyze_attributes
+    ):
+        expected_describe_count = 3
+        if not session.reduce_describe_query_enabled and session.sql_simplifier_enabled:
+            expected_describe_count = 9
+        sc = SqlCounter(query_count=3, describe_count=expected_describe_count)
+        sc.__enter__()
+        for _ in range(3):
+            df = pd.DataFrame({"a": [1, 2, 3]})
+            df.to_pandas()
+        sc.__exit__(None, None, None)
 
 
 @sql_count_checker(query_count=5, join_count=2, udtf_count=1)

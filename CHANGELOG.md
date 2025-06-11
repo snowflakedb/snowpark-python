@@ -1,5 +1,13 @@
 # Release History
 
+## 1.34.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
+
 ## 1.33.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -15,6 +23,7 @@
   - `ai_similarity`
   - `ai_summarize_agg` (originally `summarize_agg`)
   - different config options for `ai_classify`
+- Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
 
 #### Bug Fixes
 
@@ -64,6 +73,7 @@
 
 #### New Features
 - Added support for **Hybrid Execution (PrPr)**. By running `from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()`, Snowpark pandas will automatically choose whether to run certain pandas operations locally or on Snowflake. This feature is disabled by default.
+- Added support for `pd.read_feather`.
 
 #### Improvements
 
