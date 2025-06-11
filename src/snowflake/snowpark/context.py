@@ -34,10 +34,14 @@ _is_snowpark_connect_compatible_mode = False
 # Following are internal-only global flags, used to enable development features.
 _enable_dataframe_trace_on_error = False
 
+# This is an internal-only global flag, used to determine whether to generate multiline queries and enable query line tracking.
+_generate_multiline_queries = False
+
 
 def configure_development_features(
     *,
     enable_dataframe_trace_on_error: bool = True,
+    generate_multiline_queries: bool = True,
 ) -> None:
     """
     Configure development features for the session.
@@ -46,6 +50,7 @@ def configure_development_features(
         enable_dataframe_trace_on_error: If True, upon failure, we will add most recent dataframe
             operations to the error trace. This requires AST collection to be enabled in the
             session which can be done using `session.ast_enabled = True`.
+        generate_multiline_queries: If True, we will generate multiline queries and enable query line tracking.
 
     Note:
         This feature is experimental since 1.33.0. Do not use it in production.
@@ -53,8 +58,9 @@ def configure_development_features(
     _logger.warning(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
     )
-    global _enable_dataframe_trace_on_error
+    global _enable_dataframe_trace_on_error, _generate_multiline_queries
     _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
+    _generate_multiline_queries = generate_multiline_queries
 
 
 def _should_use_structured_type_semantics():

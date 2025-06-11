@@ -298,7 +298,21 @@ class Selectable(LogicalPlan, ABC):
     @property
     @abstractmethod
     def commented_sql(self) -> str:
-        """Returns the sql query of this Selectable logical plan with uuids."""
+        """
+        Returns the sql query of this Selectable logical plan commented with uuids
+        of children nodes. Ex:
+
+        SELECT COL1, COL2 FROM
+        -- child_uuid
+        (
+            <child subquery>
+        )
+        -- child_uuid
+        This is used in get_snowflake_plan to generate query_line_intervals for the last query.
+        In the case of SelectSnowflakePlan and SelectTableFunction, the snowflake plan is either
+        passed in the constructor or resolved by the analyzer, so we do not need commented_sql.
+        For these classes, we just return the sql_query.
+        """
         pass
 
     @property
@@ -374,6 +388,8 @@ class Selectable(LogicalPlan, ABC):
 
     def get_snowflake_plan(self, skip_schema_query) -> SnowflakePlan:
         if self._snowflake_plan is None:
+            from snowflake.snowpark.context import _generate_multiline_queries
+
             # The query generation step can trigger analyzer.analyze(), so we need
             # to initialize alias related fields here similar to how we do it in
             # analyzer.resolve()
@@ -383,9 +399,7 @@ class Selectable(LogicalPlan, ABC):
             self.analyzer.alias_maps_to_use = self.expr_to_alias.copy()
 
             query = Query(
-                self.commented_sql
-                if self._session._generate_multiline_queries
-                else self.sql_query,
+                self.commented_sql if _generate_multiline_queries else self.sql_query,
                 params=self.query_params,
             )
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
@@ -569,8 +583,7 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_query(self) -> str:
-        sql = f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
-        return sql
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
     def commented_sql(self) -> str:
@@ -582,7 +595,8 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
-        return f"\n-- {self.uuid}\n{self.entity.name}\n-- {self.uuid}"
+        UUID = analyzer_utils.UUID_COMMENT.format(self.uuid)
+        return f"{analyzer_utils.NEW_LINE}{UUID}{analyzer_utils.NEW_LINE}{self.entity.name}{analyzer_utils.NEW_LINE}{UUID}"
 
     @property
     def schema_query(self) -> str:
@@ -615,6 +629,9 @@ class SelectableEntity(Selectable):
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        """
+        Returns an empty list because SelectableEntity is a leaf node.
+        """
         return []
 
 
@@ -647,6 +664,7 @@ class SelectSQL(Selectable):
         is_select = is_sql_select_statement(sql)
         if not is_select and convert_to_select:
             self.pre_actions = [Query(sql, params=params)]
+            # Add query_line_intervals to track the lines this query is responsible for
             self.pre_actions[-1].query_line_intervals = [
                 QueryLineInterval(0, sql.count("\n"), self.uuid)
             ]
@@ -726,6 +744,9 @@ class SelectSQL(Selectable):
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", SnowflakePlan]]:
+        """
+        Returns an empty list because SelectSQL is a leaf node.
+        """
         return []
 
 
@@ -773,7 +794,7 @@ class SelectSnowflakePlan(Selectable):
 
     @property
     def commented_sql(self) -> str:
-        return self._snowflake_plan.queries[-1].sql
+        return self.sql_query
 
     @property
     def schema_query(self) -> Optional[str]:
@@ -1012,12 +1033,9 @@ class SelectStatement(Selectable):
             return self._sql_query
         if not self.has_clause and not self.has_projection:
             self._sql_query = self.from_.sql_query
-            self._commented_sql = (
-                f"-- {self.from_.uuid}\n{self.from_.sql_query}\n-- {self.from_.uuid}"
-            )
             return self._sql_query
-        self._commented_sql = self._generate_sql()
-        self._sql_query = remove_comments(self._commented_sql, [self.from_.uuid])
+        commented_sql = self._generate_sql()
+        self._sql_query = remove_comments(commented_sql, [self.from_.uuid])
         return self._sql_query
 
     @property
@@ -1025,21 +1043,20 @@ class SelectStatement(Selectable):
         if self._commented_sql:
             return self._commented_sql
         if not self.has_clause and not self.has_projection:
-            self._sql_query = self.from_.sql_query
-            self._commented_sql = (
-                f"-- {self.from_.uuid}\n{self.from_.sql_query}\n-- {self.from_.uuid}"
-            )
+            UUID = analyzer_utils.UUID_COMMENT.format(self.from_.uuid)
+            self._commented_sql = f"{UUID}{analyzer_utils.NEW_LINE}{self.from_.sql_query}{analyzer_utils.NEW_LINE}{UUID}"
             return self._commented_sql
         self._commented_sql = self._generate_sql()
-        self._sql_query = remove_comments(self._commented_sql, [self.from_.uuid])
         return self._commented_sql
 
     def _generate_sql(self) -> str:
         """Generate SQL query with UUID comments for child plans if multiline queries are enabled.
         Otherwise, generate SQL query without comments."""
+        from snowflake.snowpark.context import _generate_multiline_queries
+
         from_clause = (
             (f"{self.from_.sql_in_subquery_with_uuid}")
-            if self._session._generate_multiline_queries
+            if _generate_multiline_queries
             else self.from_.sql_in_subquery
         )
         where_clause = (
@@ -1697,7 +1714,7 @@ class SelectTableFunction(Selectable):
 
     @property
     def commented_sql(self) -> str:
-        return self._snowflake_plan.queries[-1].sql
+        return self.sql_query
 
     @property
     def schema_query(self) -> Optional[str]:
@@ -1771,13 +1788,15 @@ class SetStatement(Selectable):
     @property
     def sql_query(self) -> str:
         if not self._sql_query:
-            self._commented_sql = (
-                self._generate_sql_with_comments()
-                if self._session._generate_multiline_queries
-                else self._generate_sql_without_comments()
+            from snowflake.snowpark.context import _generate_multiline_queries
+
+            commented_sql = (
+                self._generate_sql_with_comments_and_new_lines()
+                if _generate_multiline_queries
+                else self._generate_sql_without_comments_and_new_lines()
             )
             self._sql_query = remove_comments(
-                self._commented_sql,
+                commented_sql,
                 [operand.selectable.uuid for operand in self.set_operands],
             )
 
@@ -1786,29 +1805,25 @@ class SetStatement(Selectable):
     @property
     def commented_sql(self) -> str:
         if not self._commented_sql:
-            self._commented_sql = (
-                self._generate_sql_with_comments()
-                if self._session._generate_multiline_queries
-                else self._generate_sql_without_comments()
-            )
-            self._sql_query = remove_comments(
-                self._commented_sql,
-                [operand.selectable.uuid for operand in self.set_operands],
-            )
+            self._commented_sql = self._generate_sql_with_comments_and_new_lines()
         return self._commented_sql
 
-    def _generate_sql_without_comments(self) -> str:
+    def _generate_sql_without_comments_and_new_lines(self) -> str:
         sql = f"({self.set_operands[0].selectable.sql_query})"
         for i in range(1, len(self.set_operands)):
             sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
         return sql
 
-    def _generate_sql_with_comments(self) -> str:
+    def _generate_sql_with_comments_and_new_lines(self) -> str:
         """Generate SQL query with UUID comments for child plans."""
-        sql = f"(\n-- {self.set_operands[0].selectable.uuid}\n{self.set_operands[0].selectable.sql_query}\n-- {self.set_operands[0].selectable.uuid}\n)"
+        FIRST_UUID = analyzer_utils.UUID_FORMAT.format(
+            self.set_operands[0].selectable.uuid
+        )
+        sql = f"({analyzer_utils.NEW_LINE}{FIRST_UUID}{self.set_operands[0].selectable.sql_query}{analyzer_utils.NEW_LINE}{FIRST_UUID})"
         for i in range(1, len(self.set_operands)):
             operand = self.set_operands[i]
-            child_sql = f"(\n-- {operand.selectable.uuid}\n{operand.selectable.sql_query}\n-- {operand.selectable.uuid}\n)"
+            ITH_UUID = analyzer_utils.UUID_FORMAT.format(operand.selectable.uuid)
+            child_sql = f"({analyzer_utils.NEW_LINE}{ITH_UUID}{operand.selectable.sql_query}{analyzer_utils.NEW_LINE}{ITH_UUID})"
             sql = f"{sql}{operand.operator}{child_sql}"
         return sql
 

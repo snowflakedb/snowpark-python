@@ -3,6 +3,7 @@
 #
 
 from unittest import mock
+import pytest
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectableEntity,
@@ -19,6 +20,14 @@ from snowflake.snowpark._internal.analyzer.table_function import TableFunctionEx
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan, Query
 from snowflake.snowpark.types import StringType
 from tests.utils import Utils
+import snowflake.snowpark.context as context
+
+
+@pytest.fixture(autouse=True)
+def setup(request):
+    context.configure_development_features(generate_multiline_queries=True)
+    yield
+    context.configure_development_features(generate_multiline_queries=False)
 
 
 def test_select_statement_sql_query(mock_session, mock_analyzer):
@@ -59,7 +68,6 @@ def test_select_statement_sql_query_with_projection(mock_session, mock_analyzer)
     mock_from.expr_to_alias = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
     mock_from.df_ast_ids = None
-    mock_session._generate_multiline_queries = True
 
     def mock_analyze(expr, df_alias_map, parse_local_name=False):
         if hasattr(expr, "name"):
@@ -103,8 +111,6 @@ def test_select_sql_sql_query(mock_session, mock_analyzer):
 
 
 def test_set_statement_sql_query_no_multiline(mock_session, mock_analyzer):
-    mock_session._generate_multiline_queries = True
-
     mock_selectable1 = mock.create_autospec(SelectableEntity)
     mock_selectable1.sql_query = "SELECT 1 AS A"
     mock_selectable1.uuid = "uuid-1"

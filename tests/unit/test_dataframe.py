@@ -129,7 +129,6 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session._use_scoped_temp_objects = True
     fake_session._ast_batch = mock.create_autospec(AstBatch)
     fake_session.get_fully_qualified_name_if_possible = nop
-    fake_session._generate_multiline_queries = True
     with mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._infer_schema_for_file_format",
         query_result,

@@ -434,24 +434,8 @@ class SnowflakePlan(LogicalPlan):
                 else defaultdict(dict)
             )
         self._uuid = from_selectable_uuid if from_selectable_uuid else str(uuid.uuid4())
-        from snowflake.snowpark._internal.analyzer.select_statement import (
-            Selectable,
-        )
-
-        last_query = self.queries[-1]
-        child_uuids = []
-        for child in self.children_plan_nodes:
-            if isinstance(child, Selectable) or isinstance(child, SnowflakePlan):
-                child_uuids.append(child.uuid)
-
-        query_line_intervals = get_line_numbers(
-            last_query.sql,
-            child_uuids,
-            self.uuid,
-        )
-        final_sql = remove_comments(last_query.sql, child_uuids)
-        last_query.sql = final_sql
-        last_query.query_line_intervals = query_line_intervals
+        # We set the query line intervals for the last query in the queries list
+        self.set_last_query_line_intervals()
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
         # encode an id for CTE optimization. This is generated based on the main
@@ -670,6 +654,34 @@ class SnowflakePlan(LogicalPlan):
         if self.source_plan:
             self.source_plan.reset_cumulative_node_complexity()
 
+    def set_last_query_line_intervals(self) -> None:
+        """
+        Sets the query line intervals for the last query in the queries list. When multiline
+        queries are enabled, we expect the last query to have an SQL query that is commented with
+        the uuids of its children. We use these uuids to construct the query line intervals,
+        and then remove the comments to get the final SQL query. When multiline queries is not enabled,
+        this function will assign responsibility for the single line to the current plan, and
+        make no adjustments to the SQL query.
+        """
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            Selectable,
+        )
+
+        last_query = self.queries[-1]
+        child_uuids = []
+        for child in self.children_plan_nodes:
+            if isinstance(child, (Selectable, SnowflakePlan)):
+                child_uuids.append(child.uuid)
+
+        query_line_intervals = get_line_numbers(
+            last_query.sql,
+            child_uuids,
+            self.uuid,
+        )
+        final_sql = remove_comments(last_query.sql, child_uuids)
+        last_query.sql = final_sql
+        last_query.query_line_intervals = query_line_intervals
+
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             plan = SnowflakePlan(
@@ -709,20 +721,20 @@ class SnowflakePlan(LogicalPlan):
         copied_plan = SnowflakePlan(
             queries=copy.deepcopy(self.queries) if self.queries else [],
             schema_query=self.schema_query,
-            post_actions=copy.deepcopy(self.post_actions)
-            if self.post_actions
-            else None,
-            expr_to_alias=copy.deepcopy(self.expr_to_alias)
-            if self.expr_to_alias
-            else None,
+            post_actions=(
+                copy.deepcopy(self.post_actions) if self.post_actions else None
+            ),
+            expr_to_alias=(
+                copy.deepcopy(self.expr_to_alias) if self.expr_to_alias else None
+            ),
             source_plan=copied_source_plan,
             is_ddl_on_temp_object=self.is_ddl_on_temp_object,
             api_calls=copy.deepcopy(self.api_calls) if self.api_calls else None,
-            df_aliased_col_name_to_real_col_name=copy.deepcopy(
-                self.df_aliased_col_name_to_real_col_name
-            )
-            if self.df_aliased_col_name_to_real_col_name
-            else None,
+            df_aliased_col_name_to_real_col_name=(
+                copy.deepcopy(self.df_aliased_col_name_to_real_col_name)
+                if self.df_aliased_col_name_to_real_col_name
+                else None
+            ),
             # note that there is no copy of the session object, be careful when using the
             # session object after deepcopy
             session=self.session,
@@ -766,10 +778,9 @@ class SnowflakePlanBuilder:
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
-        commented_sql = sql_generator(select_child.queries[-1].sql)
         queries = select_child.queries[:-1] + [
             Query(
-                commented_sql,
+                sql_generator(select_child.queries[-1].sql),
                 query_id_place_holder="",
                 is_ddl_on_temp_object=is_ddl_on_temp_object,
                 params=select_child.queries[-1].params,
@@ -783,6 +794,7 @@ class SnowflakePlanBuilder:
                 child.schema_query is not None
             ), "No schema query is available in child SnowflakePlan"
             new_schema_query = schema_query or sql_generator(child.schema_query)
+
         return SnowflakePlan(
             queries,
             new_schema_query,
@@ -856,18 +868,18 @@ class SnowflakePlanBuilder:
                 select_left.referenced_ctes, select_right.referenced_ctes
             )
 
-        commented_sql = sql_generator(
-            select_left.queries[-1].sql, select_right.queries[-1].sql
-        )
         queries = merged_queries + [
             Query(
-                commented_sql,
+                sql_generator(
+                    select_left.queries[-1].sql, select_right.queries[-1].sql
+                ),
                 params=[
                     *select_left.queries[-1].params,
                     *select_right.queries[-1].params,
                 ],
             )
         ]
+
         return SnowflakePlan(
             queries,
             schema_query,
@@ -935,9 +947,11 @@ class SnowflakePlanBuilder:
             Query(
                 create_table_stmt,
                 is_ddl_on_temp_object=True,
-                temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
-                if thread_safe_session_enabled
-                else None,
+                temp_obj_name_placeholder=(
+                    (temp_table_name, TempObjectType.TABLE)
+                    if thread_safe_session_enabled
+                    else None
+                ),
             ),
             BatchInsertQuery(insert_stmt, data),
             Query(select_stmt),
@@ -949,9 +963,11 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_table_stmt,
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
-                    if thread_safe_session_enabled
-                    else None,
+                    temp_obj_name_placeholder=(
+                        (temp_table_name, TempObjectType.TABLE)
+                        if thread_safe_session_enabled
+                        else None
+                    ),
                 )
             ],
             session=self.session,
@@ -1790,11 +1806,13 @@ class SnowflakePlanBuilder:
                         ),
                         is_ddl_on_temp_object=True,
                         temp_obj_name_placeholder=(
-                            format_name,
-                            TempObjectType.FILE_FORMAT,
-                        )
-                        if thread_safe_session_enabled
-                        else None,
+                            (
+                                format_name,
+                                TempObjectType.FILE_FORMAT,
+                            )
+                            if thread_safe_session_enabled
+                            else None
+                        ),
                     )
                 )
 
@@ -1803,11 +1821,13 @@ class SnowflakePlanBuilder:
                         drop_file_format_if_exists_statement(format_name),
                         is_ddl_on_temp_object=True,
                         temp_obj_name_placeholder=(
-                            format_name,
-                            TempObjectType.FILE_FORMAT,
-                        )
-                        if thread_safe_session_enabled
-                        else None,
+                            (
+                                format_name,
+                                TempObjectType.FILE_FORMAT,
+                            )
+                            if thread_safe_session_enabled
+                            else None
+                        ),
                     )
                 )
 
@@ -1881,9 +1901,11 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
-                    if thread_safe_session_enabled
-                    else None,
+                    temp_obj_name_placeholder=(
+                        (temp_table_name, TempObjectType.TABLE)
+                        if thread_safe_session_enabled
+                        else None
+                    ),
                 ),
                 Query(
                     copy_into_table(
@@ -1911,9 +1933,11 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_table_if_exists_statement(temp_table_name),
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
-                    if thread_safe_session_enabled
-                    else None,
+                    temp_obj_name_placeholder=(
+                        (temp_table_name, TempObjectType.TABLE)
+                        if thread_safe_session_enabled
+                        else None
+                    ),
                 )
             ]
             source_plan = (

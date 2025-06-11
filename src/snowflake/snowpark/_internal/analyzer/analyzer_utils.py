@@ -204,6 +204,7 @@ ADD_FIELDS = " ADD FIELDS"
 NEW_LINE = "\n"
 TAB = "    "
 UUID_FORMAT = "-- {}\n"
+UUID_COMMENT = "-- {}"
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
