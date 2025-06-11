@@ -62,27 +62,6 @@ jobs:
           name: wheel
           path: dist/
 
-  test-unsupported-py38:
-    name: Test importing Snowpark pandas with Python 3.8 fails
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.8
-      - name: Install protoc
-        shell: bash
-        run: .github/scripts/install_protoc.sh
-      - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
-      - name: Install tox
-        run: python -m pip install tox
-      - name: Ensure importing Snowpark pandas fails on Python 3.8
-        run: tox -e snowpark_pandas_py38_import_error
-
   test-old-np:
     name: Tests that Snowpark pandas works with numpy 1.26
     needs: build
