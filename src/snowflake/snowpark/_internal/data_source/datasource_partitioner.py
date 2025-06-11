@@ -16,10 +16,10 @@ from snowflake.snowpark._internal.data_source.utils import (
     detect_dbms,
     DBMS_MAP,
     DRIVER_MAP,
+    convert_custom_schema_to_structtype,
 )
 
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark.types import (
     StructType,
@@ -88,23 +88,7 @@ class DataSourcePartitioner:
                 self.table_or_query, self.is_query
             )
         else:
-            if isinstance(self.custom_schema, str):
-                schema = type_string_to_type_object(self.custom_schema)
-                if not isinstance(schema, StructType):
-                    raise ValueError(
-                        f"Invalid schema string: {self.custom_schema}. "
-                        f"You should provide a valid schema string representing a struct type."
-                        'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    )
-                return schema
-            elif isinstance(self.custom_schema, StructType):
-                return self.custom_schema
-            else:
-                raise ValueError(
-                    f"Invalid schema type: {type(self.custom_schema)}."
-                    'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
-                )
+            return convert_custom_schema_to_structtype(self.custom_schema)
 
     @cached_property
     def partitions(self) -> List[str]:

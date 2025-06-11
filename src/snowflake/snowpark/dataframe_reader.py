@@ -1,13 +1,19 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import functools
 import multiprocessing as mp
 import os
+import queue
 import sys
+import tempfile
 import time
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
+
+import cloudpickle
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -37,6 +43,10 @@ from snowflake.snowpark._internal.data_source.utils import (
     DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
     _MAX_WORKER_SCALE,
+    convert_custom_schema_to_structtype,
+    _task_fetch_data_from_source_with_retry,
+    add_unseen_files_to_process_queue,
+    _upload_and_copy_into_table_with_retry,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -66,6 +76,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     random_name_for_temp_object,
     warning,
+    generate_random_alphanumeric,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1486,3 +1497,222 @@ class DataFrameReader:
         )
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
         return res_df
+
+    def register_custom_data_source(
+        self,
+        data_source,
+    ) -> None:
+        self.custom_data_sources[data_source.name()] = data_source
+
+    def _custom_data_source(self, data_source: str) -> DataFrame:
+        if "UDTF_CONFIGS" in self._cur_options:
+            # udtf ingestion
+            external_access_integrations = self._cur_options["UDTF_CONFIGS"].get(
+                "external_access_integration", None
+            )
+            imports = self._cur_options["UDTF_CONFIGS"].get("imports", None)
+            packages = self._cur_options["UDTF_CONFIGS"].get("packages", None)
+
+            data_source_class = self.custom_data_sources[data_source]
+            data_source_instance = data_source_class()
+            partitions = data_source_instance.partitions()
+            schema = convert_custom_schema_to_structtype(data_source_instance.schema())
+
+            pickled_partitions = [cloudpickle.dumps(par) for par in partitions]
+            partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                [[par] for par in pickled_partitions], schema=["partition"]
+            ).write.save_as_table(partitions_table, table_type="temp")
+
+            class UDTFIngestion:
+                def process(self, pickled_partition: bytearray):
+                    import cloudpickle
+
+                    partition = cloudpickle.loads(pickled_partition)
+                    reader = data_source_instance.reader(schema)
+                    for result in reader.read(partition):
+                        if isinstance(result, list):
+                            yield from result
+                        else:
+                            yield from list(reader.read(partition))
+                            break
+
+            from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
+
+            udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
+            start = time.time()
+            self._session.udtf.register(
+                UDTFIngestion,
+                name=udtf_name,
+                output_schema=StructType(
+                    [
+                        StructField(field.name, VariantType(), field.nullable)
+                        for field in schema.fields
+                    ]
+                ),
+                external_access_integrations=[external_access_integrations],
+                packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
+                imports=imports,
+            )
+            logger.debug(
+                f"register ingestion udtf takes: {time.time() - start} seconds"
+            )
+            call_udtf_sql = f"""
+                        select * from {partitions_table}, table({udtf_name}(partition))
+                        """
+            res = self._session.sql(call_udtf_sql, _emit_ast=True)
+            cols = [
+                res[field.name].cast(field.datatype).alias(field.name)
+                for field in schema.fields
+            ]
+            return res.select(cols, _emit_ast=True)
+
+        else:
+            data_source_class = self.custom_data_sources[data_source]
+            data_source_instance = data_source_class()
+            partitions = data_source_instance.partitions()
+            schema = convert_custom_schema_to_structtype(data_source_instance.schema())
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                # create temp table
+                snowflake_table_type = "TEMPORARY"
+                snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+                create_table_sql = (
+                    "CREATE "
+                    f"{snowflake_table_type} "
+                    "TABLE "
+                    f"identifier(?) "
+                    f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in schema.fields])})"""
+                    f"""{DATA_SOURCE_SQL_COMMENT}"""
+                )
+                params = (snowflake_table_name,)
+                logger.debug(
+                    f"Creating temporary Snowflake table: {snowflake_table_name}"
+                )
+                self._session.sql(
+                    create_table_sql, params=params, _emit_ast=False
+                ).collect(_emit_ast=False)
+                # create temp stage
+                snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+                sql_create_temp_stage = (
+                    f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
+                    f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+                )
+                self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                    _emit_ast=False
+                )
+
+                try:
+                    with ProcessPoolExecutor(
+                        max_workers=4
+                    ) as process_executor, ThreadPoolExecutor(
+                        max_workers=4
+                    ) as thread_executor:
+                        thread_pool_futures, process_pool_futures = [], []
+
+                        def ingestion_thread_cleanup_callback(parquet_file_path, _):
+                            # clean the local temp file after ingestion to avoid consuming too much temp disk space
+                            os.remove(parquet_file_path)
+
+                        # whether each partition should have its own reader is still under discussion
+                        logger.debug("Starting to fetch data from the data source.")
+                        for partition_idx, query in enumerate(partitions):
+                            process_future = process_executor.submit(
+                                _task_fetch_data_from_source_with_retry,
+                                data_source_instance.reader(schema),
+                                query,
+                                partition_idx,
+                                tmp_dir,
+                            )
+                            process_pool_futures.append(process_future)
+                        # Monitor queue while tasks are running
+                        parquet_file_queue = (
+                            queue.Queue()
+                        )  # maintain the queue of parquet files to process
+                        set_of_files_already_added_in_queue = (
+                            set()
+                        )  # maintain file names we have already put into queue
+                        while True:
+                            try:
+                                # each process and per fetch will create a parquet with a unique file name
+                                # we add unseen files to process queue
+                                add_unseen_files_to_process_queue(
+                                    tmp_dir,
+                                    set_of_files_already_added_in_queue,
+                                    parquet_file_queue,
+                                )
+                                file = parquet_file_queue.get_nowait()
+                                logger.debug(
+                                    f"Retrieved file from parquet queue: {file}"
+                                )
+                                thread_future = thread_executor.submit(
+                                    _upload_and_copy_into_table_with_retry,
+                                    self._session,
+                                    file,
+                                    snowflake_stage_name,
+                                    snowflake_table_name,
+                                    "abort_statement",
+                                    None,
+                                )
+                                thread_future.add_done_callback(
+                                    functools.partial(
+                                        ingestion_thread_cleanup_callback, file
+                                    )
+                                )
+                                thread_pool_futures.append(thread_future)
+                                logger.debug(
+                                    f"Submitted file {file} to thread executor for ingestion."
+                                )
+                            except queue.Empty:
+                                all_job_done = True
+                                unfinished_process_pool_futures = []
+                                logger.debug(
+                                    "Parquet queue is empty, checking unfinished process pool futures."
+                                )
+                                for future in process_pool_futures:
+                                    if future.done():
+                                        future.result()  # Throw error if the process failed
+                                        logger.debug(
+                                            "A process future completed successfully."
+                                        )
+                                    else:
+                                        unfinished_process_pool_futures.append(future)
+                                        all_job_done = False
+                                if (
+                                    all_job_done
+                                    and parquet_file_queue.empty()
+                                    and len(os.listdir(tmp_dir)) == 0
+                                ):
+                                    # we finished all the fetch work based on the following 3 conditions:
+                                    # 1. all jod is done
+                                    # 2. parquet file queue is empty
+                                    # 3. no files in the temp work dir as they are all removed in thread future callback
+                                    # now we just need to wait for all ingestion threads to complete
+                                    logger.debug(
+                                        "All jobs are done, and the parquet file queue is empty. Fetching work is complete."
+                                    )
+                                    break
+                                process_pool_futures = unfinished_process_pool_futures
+                                time.sleep(0.5)
+
+                        for future in as_completed(thread_pool_futures):
+                            future.result()  # Throw error if the thread failed
+                            logger.debug("A thread future completed successfully.")
+
+                except BaseException:
+                    # graceful shutdown
+                    process_executor.shutdown(wait=True)
+                    thread_executor.shutdown(wait=True)
+                    raise
+
+                logger.debug(
+                    "All data has been successfully loaded into the Snowflake table."
+                )
+
+                # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
+                # with the new name for the temporary table into which the external db data was ingressed.
+                # Leaving this functionality as client-side only means capturing an AST specifically for
+                # this API in a new entity is not valuable from a server-side execution or AST perspective.
+                res_df = self._session.table(snowflake_table_name, _emit_ast=True)
+                set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
+                return res_df

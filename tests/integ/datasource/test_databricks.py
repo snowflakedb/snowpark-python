@@ -12,7 +12,10 @@ from snowflake.snowpark._internal.data_source import DataSourcePartitioner
 from snowflake.snowpark._internal.data_source.drivers.databricks_driver import (
     DatabricksDriver,
 )
-from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
+from snowflake.snowpark._internal.data_source.utils import (
+    DBMS_TYPE,
+    data_source_data_to_pandas_df,
+)
 from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
@@ -108,7 +111,7 @@ def test_unit_data_source_data_to_pandas_df():
     data = [
         (1, [("key1", "value1"), ("key2", "value2")]),
     ]
-    df = DatabricksDriver.data_source_data_to_pandas_df(data, schema)
+    df = data_source_data_to_pandas_df(data, schema)
     assert df.to_dict(orient="records") == [
         {"COL1": 1, "COL2": [("key1", "value1"), ("key2", "value2")]}
     ]

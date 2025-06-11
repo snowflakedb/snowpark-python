@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import datetime
 import queue
 import time
 import traceback
@@ -10,8 +10,11 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 from io import BytesIO
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict
+from typing import Any, Tuple, Optional, Callable, Dict, List, Union
+from snowflake.connector.options import pandas as pd
 import logging
+
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
     OracledbDialect,
@@ -30,8 +33,15 @@ from snowflake.snowpark._internal.data_source.drivers import (
 )
 import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
+from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-
+from snowflake.snowpark.types import (
+    StructType,
+    IntegerType,
+    TimestampType,
+    DateType,
+    BinaryType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +169,7 @@ def _task_fetch_data_from_source(
     """
 
     def convert_to_parquet_bytesio(fetched_data, fetch_idx):
-        df = worker.data_source_data_to_pandas_df(fetched_data)
+        df = data_source_data_to_pandas_df(fetched_data, worker.schema)
         if df.empty:
             logger.debug(
                 f"The DataFrame is empty, no parquet BytesIO is generated for partition {partition_idx} fetch {fetch_idx}."
@@ -179,7 +189,11 @@ def _task_fetch_data_from_source(
         logger.debug(f"Added parquet BytesIO to queue: {parquet_id}")
 
     for i, result in enumerate(worker.read(partition)):
-        convert_to_parquet_bytesio(result, i)
+        if isinstance(result, list):
+            convert_to_parquet_bytesio(result, i)
+        else:
+            convert_to_parquet_bytesio(list(worker.read(partition)), 0)
+            break
 
     parquet_queue.put((f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}{partition_idx}", None))
 
@@ -440,3 +454,54 @@ def process_parquet_queue_with_threads(
             raise SnowparkDataframeReaderException(
                 f"Partition {idx} data fetching process failed with exit code {process.exitcode}"
             )
+
+
+def convert_custom_schema_to_structtype(
+    custom_schema: Union[str, StructType]
+) -> StructType:
+    if isinstance(custom_schema, str):
+        schema = type_string_to_type_object(custom_schema)
+        if not isinstance(schema, StructType):
+            raise ValueError(
+                f"Invalid schema string: {custom_schema}. "
+                f"You should provide a valid schema string representing a struct type."
+                'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
+            )
+        return schema
+    elif isinstance(custom_schema, StructType):
+        return custom_schema
+    else:
+        raise ValueError(
+            f"Invalid schema type: {type(custom_schema)}."
+            'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
+            'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
+        )
+
+
+def data_source_data_to_pandas_df(
+    data: List[Any], schema: StructType
+) -> "pd.DataFrame":
+    # unquote column name because double quotes stored in parquet file create column mismatch during copy into table
+    columns = [unquote_if_quoted(col.name) for col in schema.fields]
+    # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
+    df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
+
+    for field in schema.fields:
+        name = unquote_if_quoted(field.name)
+        if isinstance(field.datatype, IntegerType):
+            # 'Int64' is a pandas dtype while 'int64' is a numpy dtype, as stated here:
+            # https://github.com/pandas-dev/pandas/issues/27731
+            # https://pandas.pydata.org/docs/reference/api/pandas.Int64Dtype.html
+            # https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.int64
+            df[name] = df[name].astype("Int64")
+        elif isinstance(field.datatype, (TimestampType, DateType)):
+            df[name] = df[name].map(
+                lambda x: x.isoformat()
+                if isinstance(x, (datetime.datetime, datetime.date))
+                else x
+            )
+        elif isinstance(field.datatype, BinaryType):
+            df[name] = df[name].map(
+                lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
+            )
+    return df

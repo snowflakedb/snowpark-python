@@ -1,0 +1,39 @@
+from typing import Any, Tuple, Iterator, Union, List
+
+from snowflake.snowpark.types import StructType
+
+
+class InputPartition:
+    def __init__(self, value: Any) -> None:
+        self.value = value
+
+
+class DataSourceReader:
+    def __init__(self, schema: StructType) -> None:
+        self.schema = schema
+
+    def partitions(self) -> List[InputPartition]:
+        pass
+
+    def read(
+        self, partition: InputPartition
+    ) -> Union[Iterator[Tuple], Iterator[List[Any]]]:
+        pass
+
+
+class DataSource:
+    def __init__(self) -> None:
+        pass
+
+    def reader(self, schema: Union[StructType, str]) -> DataSourceReader:
+        pass
+
+    @classmethod
+    def name(cls) -> str:
+        pass
+
+    def schema(self) -> Union[StructType, str]:
+        pass
+
+    def partitions(self) -> List[InputPartition]:
+        pass
