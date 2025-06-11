@@ -394,9 +394,9 @@ def test_df_setitem_replace_column_with_single_column(column, key):
                 inplace=True,
             )
     else:
-        # 3 extra queries, 2 for iter and 1 for tolist
+        # 2 extra queries, 1 for iter and 1 for tolist
         with SqlCounter(
-            query_count=4
+            query_count=3
             if isinstance(column, native_pd.Index)
             and not isinstance(column, native_pd.DatetimeIndex)
             else 1,

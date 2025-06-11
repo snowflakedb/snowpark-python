@@ -9,7 +9,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_to_string():
     native_df = native_pd.DataFrame(data={"col1": [1, 2], "col2": [4, 3]})
     snow_df = pd.DataFrame(native_df)

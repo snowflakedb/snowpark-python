@@ -591,10 +591,6 @@ class DataFrame:
                              referenced in subsequent dataframe expressions.
         """
         self._session = session
-        self._ast_id = None
-        if _emit_ast:
-            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
-
         if plan is not None:
             self._plan = self._session._analyzer.resolve(plan)
         else:
@@ -608,6 +604,12 @@ class DataFrame:
             )
         else:
             self._select_statement = None
+
+        # Setup the ast id for the dataframe.
+        self.__ast_id = None
+        if _emit_ast:
+            self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
+
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
 
@@ -658,6 +660,18 @@ class DataFrame:
     @property
     def analytics(self) -> DataFrameAnalyticsFunctions:
         return self._analytics
+
+    @property
+    def _ast_id(self) -> Optional[int]:
+        return self.__ast_id
+
+    @_ast_id.setter
+    def _ast_id(self, value: Optional[int]) -> None:
+        self.__ast_id = value
+        if self._plan is not None:
+            self._plan.df_ast_id = value
+        if self._select_statement is not None:
+            self._select_statement.add_df_ast_id(value)
 
     @publicapi
     @overload
@@ -1055,7 +1069,9 @@ class DataFrame:
         # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
-                return pandas.DataFrame(result)
+                return pandas.DataFrame(
+                    result, columns=[attr.name for attr in self._plan.attributes]
+                )
 
         return result
 
@@ -1553,6 +1569,8 @@ class DataFrame:
 
         names = []
         table_func = None
+        table_func_col_names = None
+        string_col_names = []
         join_plan = None
 
         ast_cols = []
@@ -1581,6 +1599,7 @@ class DataFrame:
                     e, _ast=col_expr_ast, _is_qualified_name=self._all_variant_cols
                 )
                 names.append(col._named())
+                string_col_names.append(e)
 
             elif isinstance(e, TableFunctionCall):
                 if table_func:
@@ -1616,31 +1635,57 @@ class DataFrame:
                 #
                 # Therefore if columns names are aliased, then subsequent select must use the aliased name.
                 names.extend(alias_cols or new_cols)
-                new_col_names = [
+                table_func_col_names = [
                     self._session._analyzer.analyze(col, {}) for col in new_cols
                 ]
-
-                # a special case when dataframe.select only selects the output of table
-                # function join, we set left_cols = []. This is done in-order to handle the
-                # overlapping column case of DF and table function output with no aliases.
-                # This generates a sql like so,
-                #
-                #     SELECT T_RIGHT."COL1" FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
-                #
-                # In the above case, if the original DF had a column named "COL1", we would not
-                # have any collisions.
-                join_plan = self._session._analyzer.resolve(
-                    TableFunctionJoin(
-                        self._plan,
-                        func_expr,
-                        left_cols=[] if len(exprs) == 1 else ["*"],
-                        right_cols=new_col_names,
-                    )
-                )
             else:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
+
+        if table_func is not None:
+            """
+            When the select statement contains a table function, and all columns are strings, we can generate
+            a better SQL query that does not have any collisions.
+                SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+
+            Case 1:
+                df.select(table_function(...))
+
+            This is a special case when dataframe.select only selects the output of table
+            function join, we set left_cols = []. This is done in-order to handle the
+            overlapping column case of DF and table function output with no aliases.
+            This generates a sql like so:
+                SELECT T_RIGHT."COL1" FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+
+            Case 2:
+                df.select("col1", "col2", table_function(...))
+
+            In this case, all columns are strings except for the table function. This is a simpler case
+            where generating the join plan like below is simple.
+                SELECT T_LEFT."COL1", T_LEFT."COL2", T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+
+            Case 3:
+                df.select(col("col1"), col("col2").cast(IntegerType()), table_function(...))
+
+            In this case, the ideal SQL generation would be
+                SELECT T_LEFT."COL1", CAST(T_LEFT."COL2" AS INTEGER), T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+            However, this is not possible with the current SQL generation so we generate the join plan like below.
+                SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+            """
+            if len(string_col_names) + 1 == len(exprs):
+                # This covers both Case 1 and Case 2.
+                left_cols = string_col_names
+            else:
+                left_cols = ["*"]
+            join_plan = self._session._analyzer.resolve(
+                TableFunctionJoin(
+                    self._plan,
+                    func_expr,
+                    left_cols=left_cols,
+                    right_cols=table_func_col_names,
+                )
+            )
 
         # AST.
         stmt = _ast_stmt

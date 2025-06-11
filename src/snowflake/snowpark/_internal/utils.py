@@ -195,6 +195,7 @@ NON_FORMAT_TYPE_OPTIONS = {
     "TARGET_COLUMNS",
     "TRANSFORMATIONS",
     "COPY_OPTIONS",
+    "ENFORCE_EXISTING_FILE_FORMAT",
 }
 
 XML_ROW_TAG_STRING = "ROWTAG"
@@ -671,14 +672,14 @@ def create_or_update_statement_params_with_query_tag(
     return ret
 
 
-def get_stage_file_prefix_length(stage_location: str) -> int:
+def get_stage_parts(stage_location: str) -> tuple[str, str]:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
 
     # Remove the first three characters from @~/...
     if normalized.startswith(f"{STAGE_PREFIX}~"):
-        return len(normalized) - 3
+        return "~", normalized[3:]
 
     is_quoted = False
     for i, c in enumerate(normalized):
@@ -697,11 +698,23 @@ def get_stage_file_prefix_length(stage_location: str) -> int:
             stage_name = res[-1][0]
             # For a table stage, stage name is not in the prefix,
             # so the prefix is path. Otherwise, the prefix is stageName + "/" + path
-            return (
-                len(path)
-                if stage_name.startswith("%")
-                else len(path) + len(stage_name.strip('"')) + 1
-            )
+            return stage_name, path
+
+    return None, None
+
+
+def get_stage_file_prefix_length(stage_location: str) -> int:
+    stage_name, path = get_stage_parts(stage_location)
+
+    if stage_name == "~":
+        return len(path)
+
+    if stage_name:
+        return (
+            len(path)
+            if stage_name.startswith("%")
+            else len(path) + len(stage_name.strip('"')) + 1
+        )
 
     raise ValueError(f"Invalid stage {stage_location}")
 
@@ -899,7 +912,9 @@ class AstFlagSource(IntEnum):
     LOCAL = auto()
     """Some local criteria determined the value. This has the lowest precedence. Any other source can override it."""
     SERVER = auto()
-    """The server set the value. This has the highest precedence. Nothing else can override it."""
+    """The server set the value."""
+    USER = auto()
+    """The flag has been set by the user explicitly at their own risk."""
     TEST = auto()
     """
     Do not use this in production Snowpark code. Test code sets the value. This has the highest precedence.
@@ -919,8 +934,12 @@ class _AstFlagState(IntEnum):
     """The flag is initialized with a hard-coded default. No source has set the value."""
     TENTATIVE = auto()
     """The flag has been set by a source with lower precedence than SERVER. It can be overridden by SERVER."""
+    SERVER_SET = auto()
+    """The flag has been set by SERVER."""
+    USER_SET = auto()
+    """The flag has been set by USER."""
     FINALIZED = auto()
-    """The flag has been set by SERVER. It cannot be overridden."""
+    """The flag state can only be changed by TEST sources."""
 
 
 class _AstState:
@@ -995,6 +1014,19 @@ class _AstState:
                     enable,
                 )
                 return
+
+            # User is allowed to make the disabled -> enabled transition which is considered unsafe.
+            # This is only intended for case when the user wants to enable AST immediately after session
+            # is initialized.
+            if source == AstFlagSource.USER:
+                # User is allowed to override the server setting if it is not
+                # finalized by test.
+                self._ast_enabled = enable
+                self._state = _AstFlagState.USER_SET
+                return
+
+            # If the current state is TENTATIVE, and the value is transitioning from disabled -> enabled,
+            # then the transition is unsafe.
             safe_transition: bool = not (
                 self._state == _AstFlagState.TENTATIVE
                 and not self._ast_enabled
@@ -1007,7 +1039,7 @@ class _AstState:
                     _logger.warning(
                         "Server cannot enable AST after treating it as disabled locally. Ignoring request."
                     )
-                self._state = _AstFlagState.FINALIZED
+                self._state = _AstFlagState.SERVER_SET
             elif source == AstFlagSource.LOCAL:
                 if safe_transition:
                     self._ast_enabled = enable

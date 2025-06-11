@@ -12,6 +12,24 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
+
+
+def setup_mock_qc() -> SnowflakeQueryCompiler:
+    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
+    mock_query_compiler.columnarize.return_value = mock_query_compiler
+
+    # Hybrid engine switching methods
+    # Actual values don't matter since we don't do any computation in unit tests, and AutoSwitchBackend
+    # is disabled in conftest.py.
+    if MODIN_IS_AT_LEAST_0_33_0:
+        mock_query_compiler.get_backend.return_value = "Snowflake"
+        mock_query_compiler.move_to_cost.return_value = 0
+        mock_query_compiler.move_to_me_cost.return_value = 0
+        mock_query_compiler.max_cost.return_value = 1000
+        mock_query_compiler.stay_cost.return_value = 0
+        mock_query_compiler._max_shape.return_value = (10, 10)
+    return mock_query_compiler
 
 
 @pytest.mark.parametrize(
@@ -112,9 +130,7 @@ def test_unsupported_general(general_method, kwargs):
     ],
 )
 def test_unsupported_df(df_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = DataFrame(query_compiler=mock_query_compiler)
+    mock_df = DataFrame(query_compiler=setup_mock_qc())
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, df_method)(**kwargs)
@@ -181,9 +197,7 @@ def test_unsupported_df(df_method, kwargs):
     ],
 )
 def test_unsupported_series(series_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = Series(query_compiler=mock_query_compiler)
+    mock_df = Series(query_compiler=setup_mock_qc())
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, series_method)(**kwargs)

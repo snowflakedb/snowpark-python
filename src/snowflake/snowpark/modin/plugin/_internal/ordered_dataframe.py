@@ -236,6 +236,11 @@ class OrderedDataFrame:
     # row count snowflake quoted identifier
     row_count_snowflake_quoted_identifier: Optional[str]
 
+    # possible cached value of exact row count for this dataframe
+    row_count: Optional[int]
+    # possible cached estimate for the upper limit of the number of rows in this frame
+    row_count_upper_bound: Optional[int]
+
     def __init__(
         self,
         dataframe_ref: DataFrameReference,
@@ -680,6 +685,7 @@ class OrderedDataFrame:
             row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
         )
 
+        new_df.row_count = self.row_count
         # Update the row count upper bound
         new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
             self, DataFrameOperation.SELECT, args={}
@@ -746,6 +752,8 @@ class OrderedDataFrame:
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
         )
+        if self.row_count is not None and other.row_count is not None:
+            new_df.row_count = self.row_count + other.row_count
         # Update the row count upper bound
         new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
             self, DataFrameOperation.UNION_ALL, args={"other": other}
@@ -849,6 +857,7 @@ class OrderedDataFrame:
             # No need to reset row count, since sorting should not add/drop rows.
             row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
         )
+        new_df.row_count = self.row_count
         # Update the row count upper bound
         new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
             self, DataFrameOperation.SORT, args={}

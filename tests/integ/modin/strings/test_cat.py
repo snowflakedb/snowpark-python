@@ -79,7 +79,7 @@ def test_str_cat_incorrect_lengths(snow_series):
         ):
             snow_series.str.cat(z.values)
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         with pytest.raises(
             NotImplementedError,
             match="Snowpark pandas does not yet support the method Series.str.cat",

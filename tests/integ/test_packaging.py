@@ -5,6 +5,7 @@
 import datetime
 import logging
 import os
+import re
 import sys
 import tempfile
 from unittest.mock import patch
@@ -257,12 +258,26 @@ def test_add_packages(session, local_testing_mode):
     # add module objects
     # but we can't register a udf with these versions
     # because the server might not have them
+
+    def extract_major_minor_patch(version_string):
+        """Extract only major.minor.patch from version string like '2.3.0+4.g1dfc98e16a'"""
+        match = re.match(r"^(\d+\.\d+\.\d+)", version_string)
+        return match.group(1) if match else version_string
+
     resolved_packages = session._resolve_packages(
         [numpy, pandas, dateutil], validate_package=False
     )
-    assert f"numpy=={numpy.__version__}" in resolved_packages
-    assert f"pandas=={pandas.__version__}" in resolved_packages
-    assert f"python-dateutil=={dateutil.__version__}" in resolved_packages
+    # resolved_packages is a list of strings like
+    #   ['numpy==2.0.2', 'pandas==2.3.0', 'python-dateutil==2.9.0.post0', 'cloudpickle==3.0.0']
+    # we convert this into a string and match for package==major.minor.patch in the string
+    # this is to avoid flakiness due to the post-release version like .post0, .post1, etc.
+    resolved_str = ",".join(resolved_packages)
+    assert f"numpy=={extract_major_minor_patch(numpy.__version__)}" in resolved_str
+    assert f"pandas=={extract_major_minor_patch(pandas.__version__)}" in resolved_str
+    assert (
+        f"python-dateutil=={extract_major_minor_patch(dateutil.__version__)}"
+        in resolved_str
+    )
 
     session.clear_packages()
 

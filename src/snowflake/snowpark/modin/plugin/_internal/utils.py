@@ -9,6 +9,7 @@ import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional, Union
+from packaging import version
 
 import modin.pandas as pd
 import numpy as np
@@ -115,6 +116,12 @@ _MAX_NUM_RETRIES = 3
 _MAX_IDENTIFIER_LENGTH = 32
 
 _logger = logging.getLogger(__name__)
+
+
+# Flag guarding certain features available only in newer modin versions.
+# Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
+# code as needed when we bump dependency versions.
+MODIN_IS_AT_LEAST_0_33_0 = version.parse(pd.__version__) >= version.parse("0.33.0")
 
 
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
@@ -493,7 +500,7 @@ def create_initial_ordered_dataframe(
         )
     # Set the materialized row count
     materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
-        _emit_ast=False
+        statement_params=get_default_snowpark_pandas_statement_params(), _emit_ast=False
     )
     ordered_dataframe.row_count = materialized_row_count
     ordered_dataframe.row_count_upper_bound = materialized_row_count
@@ -1889,9 +1896,14 @@ def count_rows(df: OrderedDataFrame) -> int:
     """
     Returns the number of rows of a Snowpark DataFrame.
     """
+    if df.row_count is not None:
+        return df.row_count
     df = df.ensure_row_count_column()
     rowset = df.select(df.row_count_snowflake_quoted_identifier).limit(1).collect()
-    return 0 if len(rowset) == 0 else rowset[0][0]
+    row_count = 0 if len(rowset) == 0 else rowset[0][0]
+    df.row_count = row_count
+    df.row_count_upper_bound = row_count
+    return row_count
 
 
 def append_columns(

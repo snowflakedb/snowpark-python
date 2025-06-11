@@ -18,6 +18,7 @@ from pandas._libs.lib import NoDefault, no_default
 import snowflake.snowpark.modin.plugin  # noqa: F401
 import snowflake.snowpark.session
 from snowflake.snowpark._internal.telemetry import TelemetryClient, TelemetryField
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     _not_equal_to_default,
     _send_snowpark_pandas_telemetry_helper,
@@ -331,7 +332,7 @@ def test_property_methods_telemetry():
     assert api_call["name"] == "Series.<property fget:date>"
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_telemetry_with_update_inplace():
     # verify api_calls have been collected correctly for APIs using _update_inplace() in base.py
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
@@ -373,7 +374,9 @@ def test_telemetry_with_groupby():
     assert len(results._query_compiler.snowpark_pandas_api_calls) == 1
     assert (
         results._query_compiler.snowpark_pandas_api_calls[0]["name"]
-        == "DataFrameGroupBy.DataFrameGroupBy.mean"
+        == "DataFrameGroupBy.mean"
+        if MODIN_IS_AT_LEAST_0_33_0
+        else "DataFrameGroupBy.DataFrameGroupBy.mean"
     )
 
 
@@ -392,12 +395,21 @@ def test_telemetry_with_rolling():
 
 @sql_count_checker(query_count=2, join_count=2)
 def test_telemetry_getitem_setitem():
+    # Telemetry name changed between versions due to different applications of overrides.
+    df_getitem_name = (
+        "DataFrame.BasePandasDataset.__getitem__"
+        if MODIN_IS_AT_LEAST_0_33_0
+        else "DataFrame.__getitem__"
+    )
+    series_getitem_name = (
+        "Series.BasePandasDataset.__getitem__"
+        if MODIN_IS_AT_LEAST_0_33_0
+        else "Series.__getitem__"
+    )
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     s = df["a"]
     assert len(df._query_compiler.snowpark_pandas_api_calls) == 0
-    assert s._query_compiler.snowpark_pandas_api_calls == [
-        {"name": "DataFrame.__getitem__"}
-    ]
+    assert s._query_compiler.snowpark_pandas_api_calls == [{"name": df_getitem_name}]
     df["a"] = 0
     df["b"] = 0
     assert df._query_compiler.snowpark_pandas_api_calls == [
@@ -410,12 +422,12 @@ def test_telemetry_getitem_setitem():
     # the telemetry log from the connector to validate
     _ = s[0]
     data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name="Series.__getitem__",
+        expected_func_name=series_getitem_name,
         session=s._query_compiler._modin_frame.ordered_dataframe.session,
     )
     assert data["api_calls"] == [
-        {"name": "DataFrame.__getitem__"},
-        {"name": "Series.__getitem__"},
+        {"name": df_getitem_name},
+        {"name": series_getitem_name},
     ]
 
 

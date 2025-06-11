@@ -110,6 +110,33 @@ jobs:
       - name: Ensure importing Snowpark pandas with numpy 1.26 works
         run: tox -e snowpark_pandas_old_np
 
+  test-old-modin:
+    name: Tests that Snowpark pandas works with previous modin version
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: "aws"
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Upgrade setuptools and pip
+        run: python -m pip install -U setuptools pip
+      - name: Install tox
+        run: python -m pip install tox
+      - name: Run tests
+        run: tox -e modin_previous_version-snowparkpandasdailynotdoctest-ci
+
   test:
     name: Test modin-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
