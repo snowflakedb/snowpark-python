@@ -33,7 +33,7 @@ def test_pandas_version_error_basic():
             import pandas
 
             # use an unsupported version of pandas
-            pandas.__version__ = "1.0"
+            pandas.__version__ = "0.2"
 
             # Without the following two lines, this error is raised:
             # TypeError: metaclass conflict: the metaclass of a derived class must be
@@ -55,7 +55,7 @@ def test_pandas_version_error_in_notebooks():
                 import pandas
 
                 # use an unsupported version of pandas
-                pandas.__version__ = "1.0"
+                pandas.__version__ = "0.2"
 
                 # Without the following two lines, this error is raised:
                 # TypeError: metaclass conflict: the metaclass of a derived class must be
@@ -76,7 +76,7 @@ def test_modin_version_error_basic():
             import modin
 
             # use an unsupported version of modin
-            modin.__version__ = "1.0"
+            modin.__version__ = "0.2"
 
             import snowflake.snowpark  # noqa: F401
             import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -92,7 +92,7 @@ def test_modin_version_error_in_notebooks():
                 import modin
 
                 # use an unsupported version of modin
-                modin.__version__ = "1.0"
+                modin.__version__ = "0.2"
 
                 import snowflake.snowpark  # noqa: F401
                 import snowflake.snowpark.modin.plugin  # noqa: F401

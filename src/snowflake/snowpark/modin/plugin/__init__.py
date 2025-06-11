@@ -37,7 +37,7 @@ install_pandas_msg = (
 
 if (
     actual_pandas_version.major != supported_pandas_major_version
-    and actual_pandas_version.minor != supported_pandas_minor_version
+    or actual_pandas_version.minor != supported_pandas_minor_version
 ):
     raise RuntimeError(
         f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
