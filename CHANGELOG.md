@@ -10,6 +10,7 @@
 - Added support for PostgreSQL in `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for Databricks in `DataFrameWriter.dbapi` (PrPr) for UDTF-based ingestion.
 - Added support to `DataFrameReader` to enable use of `PATTERN` when reading files with `INFER_SCHEMA` enabled.
+- Added support to `SnowflakeFile` to enable the use of local paths for local testing.
 
 #### Bug Fixes
 
