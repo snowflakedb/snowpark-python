@@ -97,7 +97,10 @@ from snowflake.snowpark._internal.analyzer.metadata_utils import (
     cache_metadata_if_selectable,
     infer_metadata,
 )
-from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
+from snowflake.snowpark._internal.analyzer.schema_utils import (
+    analyze_attributes,
+    cached_analyze_attributes,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
     LogicalPlan,
@@ -535,7 +538,10 @@ class SnowflakePlan(LogicalPlan):
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        return analyze_attributes(self.schema_query, self.session)
+        if self.session.reduce_describe_query_enabled:
+            return cached_analyze_attributes(self.schema_query, self.session)
+        else:
+            return analyze_attributes(self.schema_query, self.session)
 
     @property
     def attributes(self) -> List[Attribute]:

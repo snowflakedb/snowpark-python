@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
+    cached_analyze_attributes,
     convert_result_meta_to_attribute,
     get_new_description,
     run_new_describe,
@@ -61,6 +62,7 @@ from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_version,
     is_in_stored_procedure,
+    is_sql_select_statement,
     normalize_local_file,
     normalize_remote_file_or_dir,
     result_set_to_iter,
@@ -501,6 +503,8 @@ class ServerConnection:
                 if not kwargs.get("_statement_params"):
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
+            if not is_sql_select_statement(query):
+                cached_analyze_attributes.clear_cache()
             if block:
                 results_cursor = self.execute_and_notify_query_listener(
                     query, params=params, **kwargs

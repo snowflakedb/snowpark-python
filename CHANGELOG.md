@@ -23,6 +23,7 @@
   - `ai_similarity`
   - `ai_summarize_agg` (originally `summarize_agg`)
   - different config options for `ai_classify`
+- Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
 
 #### Bug Fixes
 

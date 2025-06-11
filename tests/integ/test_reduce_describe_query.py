@@ -6,10 +6,15 @@ from typing import List
 
 import pytest
 
+import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
+
+from unittest.mock import patch
+
 from snowflake.snowpark import DataFrame
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -56,7 +61,11 @@ def setup(request, session):
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
         temp_table_name, table_type="temp", mode="overwrite"
     )
-    yield
+    # Bypass cache
+    with patch.object(
+        snowflake_plan, "cached_analyze_attributes", wraps=analyze_attributes
+    ):
+        yield
     session.reduce_describe_query_enabled = is_reduce_describe_query_enabled
     session.eliminate_numeric_sql_value_cast_enabled = (
         is_eliminate_numeric_sql_value_cast_enabled
