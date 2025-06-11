@@ -9,6 +9,7 @@ from typing import List, Any, Iterator, Type, Callable, Optional
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
+from snowflake.snowpark._internal.data_source.utils import data_source_data_to_pandas_df
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
 from snowflake.connector.options import pandas as pd
@@ -87,6 +88,4 @@ class DataSourceReader:
             conn.close()
 
     def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
-        # self.driver is guaranteed to be initialized in self.read() which is called prior to this method
-        assert self.driver is not None
-        return self.driver.data_source_data_to_pandas_df(data, self.schema)
+        return data_source_data_to_pandas_df(data, self.schema)
