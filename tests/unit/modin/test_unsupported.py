@@ -20,7 +20,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         ["read_gbq", {"query": ""}],
         ["read_clipboard", {}],
         ["read_hdf", {"path_or_buf": ""}],
-        ["read_feather", {"path": ""}],
         ["read_stata", {"filepath_or_buffer": ""}],
         ["read_sql", {"sql": "", "con": ""}],
         ["read_fwf", {"filepath_or_buffer": ""}],
