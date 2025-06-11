@@ -4,6 +4,7 @@
 
 import datetime
 import re
+import sys
 
 import modin.pandas as pd
 import numpy as np
@@ -336,6 +337,11 @@ def test_str___getitem___list_neg():
 )
 @sql_count_checker(query_count=1)
 def test_str___getitem___dict(data, key):
+    # pandas has an incompatibility bug with python 3.12 that should be fixed in pandas 3.0
+    # https://github.com/pandas-dev/pandas/issues/57500
+    if sys.version_info.minor == 12:
+        pytest.skip(reason="Skipping test for python 3.12")
+
     native_ser = native_pd.Series(data=data)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
@@ -436,6 +442,11 @@ def test_str_slice_list(start, stop, step):
 @pytest.mark.parametrize("step", [None, 1])
 @sql_count_checker(query_count=1)
 def test_str_slice_dict(start, stop, step):
+    # pandas has an incompatibility bug with python 3.12 that should be fixed in pandas 3.0
+    # https://github.com/pandas-dev/pandas/issues/57500
+    if sys.version_info.minor == 12:
+        pytest.skip(reason="Skipping test for python 3.12")
+
     native_ser = native_pd.Series(
         [{"a": "x", "b": "y"}, {"c": None}, {None: "z"}, None, {}]
     )
