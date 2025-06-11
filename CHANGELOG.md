@@ -64,6 +64,7 @@
 
 #### New Features
 - Added support for **Hybrid Execution (PrPr)**. By running `from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()`, Snowpark pandas will automatically choose whether to run certain pandas operations locally or on Snowflake. This feature is disabled by default.
+- Added support for `pd.read_feather`.
 
 #### Improvements
 
