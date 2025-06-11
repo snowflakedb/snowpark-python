@@ -347,6 +347,7 @@ def process_xml_range(
     null_value: str,
     charset: str,
     ignore_surrounding_whitespace: bool,
+    row_validation_xsd_path: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -375,6 +376,7 @@ def process_xml_range(
         null_value (str): The value to treat as a null value.
         charset (str): The character encoding of the XML file.
         ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
+        row_validation_xsd_path (str): Path to XSD file for row validation.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -384,6 +386,15 @@ def process_xml_range(
     tag_start_1 = f"<{tag_name}>".encode()
     tag_start_2 = f"<{tag_name} ".encode()
     closing_tag = f"</{tag_name}>".encode()
+
+    # Load XSD schema if validation is required
+    xsd_schema = None
+    if row_validation_xsd_path and lxml_installed:
+        with SnowflakeFile.open(
+            row_validation_xsd_path, "r", require_scoped_url=False
+        ) as xsd_file:
+            xsd_doc = ET.parse(xsd_file)
+            xsd_schema = ET.XMLSchema(xsd_doc)
 
     # We perform raw byte‑level scanning here because we must split the file into independent
     # chunks by byte ranges for parallel processing. A streaming parser like xml.etree.ElementTree.iterparse
@@ -460,6 +471,19 @@ def process_xml_range(
                     element = ET.fromstring(record_str, parser)
                 else:
                     element = ET.fromstring(record_str)
+
+                # Perform XSD validation if schema is available
+                if xsd_schema:
+                    if not xsd_schema.validate(element):
+                        validation_error = (
+                            str(xsd_schema.error_log.last_error)
+                            if xsd_schema.error_log.last_error
+                            else "XSD validation failed"
+                        )
+                        raise ET.ParseError(
+                            f"XSD validation failed: {validation_error}", None, 0, 0
+                        )
+
                 if ignore_namespace:
                     element = strip_xml_namespaces(element)
                 result = element_to_dict_or_str(
@@ -505,6 +529,7 @@ class XMLReader:
         null_value: str,
         charset: str,
         ignore_surrounding_whitespace: bool,
+        row_validation_xsd_path: str,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -526,6 +551,7 @@ class XMLReader:
             null_value (str): The value to treat as a null value.
             charset (str): The character encoding of the XML file.
             ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
+            row_validation_xsd_path (str): Path to XSD file for row validation.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -545,5 +571,6 @@ class XMLReader:
             null_value,
             charset,
             ignore_surrounding_whitespace,
+            row_validation_xsd_path=row_validation_xsd_path,
         ):
             yield (element,)

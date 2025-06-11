@@ -858,6 +858,8 @@ class DataFrameReader:
             - To parse the nested XML under a row tag, you can use dot notation ``.`` to query the nested fields in
               a DataFrame. See Example 13 in :class:`DataFrameReader`.
 
+            - ``compression`` is not supported for XML files when ``rowTag`` is specified.
+
             - When ``rowTag`` is specified, the following options are supported for reading XML files
               via :meth:`option()` or :meth:`options()`:
 
@@ -894,9 +896,12 @@ class DataFrameReader:
 
               + ``ignoreSurroundingWhitespace``: Whether or not whitespaces surrounding values should be skipped.
                 The default value is ``False``.
+
+              + ``rowValidationXSDPath``: The Snowflake stage path to the XSD file used for row validation.
+                Rows that do not match the XSD schema will be considered corrupt records and handled according to
+                the specified ``mode`` option.
         """
         df = self._read_semi_structured_file(path, "XML")
-
         # AST.
         if _emit_ast and self._ast is not None:
             stmt = self._session._ast_batch.bind()
