@@ -9,7 +9,7 @@ under the `pd` namespace, such as `pd.read_snowflake`.
 from typing import Any, Iterable, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
-from modin.pandas.api.extensions import register_pd_accessor
+from .general_overrides import register_pd_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
@@ -300,7 +300,7 @@ def read_snowflake(
           >>> pd.read_snowflake('''WITH filter_rows AS PROCEDURE (table_name VARCHAR, column_to_filter VARCHAR, value NUMBER)
           ... RETURNS TABLE(A NUMBER, B NUMBER, C NUMBER)
           ... LANGUAGE PYTHON
-          ... RUNTIME_VERSION = '3.8'
+          ... RUNTIME_VERSION = '3.9'
           ... PACKAGES = ('snowflake-snowpark-python')
           ... HANDLER = 'filter_rows'
           ... AS $$from snowflake.snowpark.functions import col

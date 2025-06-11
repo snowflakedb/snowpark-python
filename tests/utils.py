@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import Dict, List, NamedTuple, Optional, Union
 from threading import Thread
 from unittest import mock
+import re
 
 import pytest
 import pytz
@@ -483,6 +484,16 @@ class Utils:
         assert (
             len(query_details.collect()) > 0
         ), f"query tag '{query_tag}' not present in query history for given session"
+
+    @staticmethod
+    def normalize_sql(sql_query: str) -> str:
+        # replace all whitespace with a single space
+        stripped_sql = re.sub(r"\s+", " ", sql_query).strip()
+        # remove space followed by parenthesis
+        stripped_sql = re.sub(r"\(\s+", "(", stripped_sql)
+        stripped_sql = re.sub(r"\s+\)", ")", stripped_sql)
+
+        return stripped_sql
 
 
 class TestData:
@@ -1572,6 +1583,10 @@ class TestFiles:
     @property
     def test_xml_undeclared_namespace(self):
         return os.path.join(self.resources_path, "undeclared_namespace.xml")
+
+    @property
+    def test_null_value_xml(self):
+        return os.path.join(self.resources_path, "null_value.xml")
 
     @property
     def test_dog_image(self):

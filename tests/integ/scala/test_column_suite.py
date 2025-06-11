@@ -766,6 +766,13 @@ def test_in_expression_1_in_with_constant_value_list(session):
     df4 = df.select(~col("a").in_([lit(1), lit(2)]).as_("in_result"))
     Utils.check_answer(df4, [Row(False), Row(False), Row(True)], sort=False)
 
+    df5 = df.select(
+        ~col("a")
+        .in_([lit("1").cast(IntegerType()), lit("2").cast(IntegerType())])
+        .as_("in_result")
+    )
+    Utils.check_answer(df5, [Row(False), Row(False), Row(True)], sort=False)
+
 
 def test_in_expression_2_in_with_subquery(session):
     df0 = session.create_dataframe([[1], [2], [5]]).to_df(["a"])

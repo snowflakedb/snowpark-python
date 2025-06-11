@@ -88,6 +88,7 @@ class TelemetryField(Enum):
     KEY_API_CALLS = "api_calls"
     KEY_SFQIDS = "sfqids"
     KEY_SUBCALLS = "subcalls"
+    KEY_SAVED_TABLE_NAME = "saved_table_name"
     # function categories
     FUNC_CAT_ACTION = "action"
     FUNC_CAT_USAGE = "usage"
@@ -332,10 +333,20 @@ def dfw_collect_api_telemetry(func):
                         data=get_plan_telemetry_metrics(args[0]._dataframe._plan),
                     )
         plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
+        table_name = (
+            args[1]
+            if len(args) > 1
+            and isinstance(args[1], str)
+            and func.__name__ == "save_as_table"
+            else None
+        )
+        if table_name is None:
+            table_name = kwargs.get("table_name", None)
         api_calls = [
             *plan.api_calls,
             {
                 TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}",
+                TelemetryField.KEY_SAVED_TABLE_NAME.value: table_name,
                 **resource_usage,
             },
         ]

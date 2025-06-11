@@ -245,9 +245,10 @@ def test_table_create_from_large_query_breakdown(session, plan_source_generator)
     assert len(queries[PlanQueryType.QUERIES]) == 1
     assert len(queries[PlanQueryType.POST_ACTIONS]) == 0
 
-    assert (
+    assert Utils.normalize_sql(
         queries[PlanQueryType.QUERIES][0].sql
-        == f" CREATE  SCOPED TEMPORARY  TABLE  {table_name}    AS  SELECT  *  FROM (select 1 as a, 2 as b)"
+    ) == Utils.normalize_sql(
+        f"CREATE SCOPED TEMPORARY TABLE {table_name} AS SELECT * FROM ( select 1 as a, 2 as b )"
     )
 
 

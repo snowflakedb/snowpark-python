@@ -414,9 +414,6 @@ class BasePandasDataset:
     Since both objects share the same underlying representation, and the algorithms
     are the same, we use this object to define the general behavior of those objects
     and then use those objects to define the output type.
-
-    TelemetryMeta is a metaclass that automatically add telemetry decorators to classes/instance methods.
-    See TelemetryMeta for details. Note: Its subclasses will inherit this metaclass.
     """
 
     def abs():
