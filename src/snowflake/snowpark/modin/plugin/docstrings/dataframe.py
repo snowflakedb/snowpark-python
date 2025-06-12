@@ -6085,27 +6085,27 @@ class DataFrame(BasePandasDataset):
         >>> df1 = pd.DataFrame([['a', 'b'], ['c', 'd']],
         ...                    index=['row 1', 'row 2'],
         ...                    columns=['col 1', 'col 2'])
-        >>> df1.to_excel("output.xlsx")
+        >>> df1.to_excel("output.xlsx")  # doctest: +SKIP
 
         To specify the sheet name:
 
         >>> df1.to_excel("output.xlsx",
-        ...              sheet_name='Sheet_name_1')
+        ...              sheet_name='Sheet_name_1')  # doctest: +SKIP
 
         If you wish to write to more than one sheet in the workbook, it is necessary to specify an ExcelWriter object:
 
         >>> df2 = df1.copy()
         >>> with pd.ExcelWriter('output.xlsx') as writer:
-        ...     df1.to_excel(writer, sheet_name='Sheet_name_1')
-        ...     df2.to_excel(writer, sheet_name='Sheet_name_2')
+        ...     df1.to_excel(writer, sheet_name='Sheet_name_1')  # doctest: +SKIP
+        ...     df2.to_excel(writer, sheet_name='Sheet_name_2')  # doctest: +SKIP
 
         ExcelWriter can also be used to append to an existing Excel file:
 
         >>> with pd.ExcelWriter('output.xlsx',
         ...                     mode='a') as writer:
-        ...     df1.to_excel(writer, sheet_name='Sheet_name_3')
+        ...     df1.to_excel(writer, sheet_name='Sheet_name_3')  # doctest: +SKIP
 
         To set the library that is used to write the Excel file, you can pass the engine keyword (the default engine is automatically chosen depending on the file extension):
 
-        >>> df1.to_excel('output1.xlsx', engine='xlsxwriter')
+        >>> df1.to_excel('output1.xlsx', engine='xlsxwriter')  # doctest: +SKIP
         """
