@@ -8,6 +8,12 @@
 
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug when processing windowed functions that lead to incorrect indexing in results.
+
 ## 1.33.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
