@@ -25,9 +25,9 @@ import snowflake.snowpark.context as context
 
 @pytest.fixture(autouse=True)
 def setup(request):
-    context.configure_development_features(generate_multiline_queries=True)
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
     yield
-    context.configure_development_features(generate_multiline_queries=False)
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
 
 
 def test_select_statement_sql_query(mock_session, mock_analyzer):
@@ -85,7 +85,7 @@ def test_select_statement_sql_query_with_projection(mock_session, mock_analyzer)
         f"SELECT A FROM -- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}"
     )
     assert Utils.normalize_sql(select_statement.sql_query) == Utils.normalize_sql(
-        "SELECT A FROM SELECT * FROM BASE_TABLE"
+        "SELECT A FROM (SELECT * FROM BASE_TABLE)"
     )
 
 

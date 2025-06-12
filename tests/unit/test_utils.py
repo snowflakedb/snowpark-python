@@ -187,6 +187,7 @@ def test_ttl_cache():
 
 
 def test_remove_comments():
+
     # Test with one uuid
     sql_query = """SELECT * FROM table1
 -- uuid-1

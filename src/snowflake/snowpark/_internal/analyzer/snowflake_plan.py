@@ -10,6 +10,7 @@ import sys
 import uuid
 from collections import defaultdict, deque
 from enum import Enum
+from dataclasses import dataclass
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -656,13 +657,16 @@ class SnowflakePlan(LogicalPlan):
 
     def set_last_query_line_intervals(self) -> None:
         """
-        Sets the query line intervals for the last query in the queries list. When multiline
-        queries are enabled, we expect the last query to have an SQL query that is commented with
+        Sets the query line intervals for the last query in the queries list. When tracing
+        sql errors is enabled, we expect the last query to have an SQL query that is commented with
         the uuids of its children. We use these uuids to construct the query line intervals,
-        and then remove the comments to get the final SQL query. When multiline queries is not enabled,
-        this function will assign responsibility for the single line to the current plan, and
-        make no adjustments to the SQL query.
+        and then remove the comments to get the final SQL query. When tracing sql errors is not enabled,
+        this function will do nothing.
         """
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
+        if not _enable_trace_sql_errors_to_dataframe:
+            return
         from snowflake.snowpark._internal.analyzer.select_statement import (
             Selectable,
         )
@@ -997,12 +1001,16 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         is_distinct: bool = False,
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: project_statement(
                 project_list,
                 x,
                 is_distinct=is_distinct,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -1015,12 +1023,16 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: aggregate_statement(
                 grouping_exprs,
                 aggregate_exprs,
                 x,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -1032,11 +1044,15 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: filter_statement(
                 condition,
                 x,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -1050,12 +1066,16 @@ class SnowflakePlanBuilder:
         row_count: Optional[int] = None,
     ) -> SnowflakePlan:
         """Builds the sample part of the resultant sql statement"""
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: sample_statement(
                 x,
                 probability_fraction=probability_fraction,
                 row_count=row_count,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -1081,11 +1101,15 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: sort_statement(
                 order,
                 x,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -1115,6 +1139,8 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         use_constant_subquery_alias: bool,
     ):
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build_binary(
             lambda x, y: join_statement(
                 x,
@@ -1123,8 +1149,10 @@ class SnowflakePlanBuilder:
                 join_condition,
                 match_condition,
                 use_constant_subquery_alias,
-                left_uuid=left.uuid,
-                right_uuid=right.uuid,
+                left_uuid=left.uuid if _enable_trace_sql_errors_to_dataframe else None,
+                right_uuid=right.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             left,
             right,
@@ -1349,9 +1377,17 @@ class SnowflakePlanBuilder:
         on_top_of_oder_by: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: limit_statement(
-                limit_expr, offset_expr, x, on_top_of_oder_by, child_uuid=child.uuid
+                limit_expr,
+                offset_expr,
+                x,
+                on_top_of_oder_by,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -1367,6 +1403,8 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         should_alias_column_with_agg: bool,
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: pivot_statement(
                 pivot_column,
@@ -1375,7 +1413,9 @@ class SnowflakePlanBuilder:
                 default_on_null,
                 x,
                 should_alias_column_with_agg,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -1390,6 +1430,8 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: unpivot_statement(
                 value_column,
@@ -1397,7 +1439,9 @@ class SnowflakePlanBuilder:
                 column_list,
                 include_nulls,
                 x,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -2126,11 +2170,15 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: lateral_statement(
                 table_function,
                 x,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -2155,6 +2203,8 @@ class SnowflakePlanBuilder:
         right_cols: List[str],
         use_constant_subquery_alias: bool,
     ) -> SnowflakePlan:
+        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+
         return self.build(
             lambda x: join_table_function_statement(
                 func,
@@ -2162,7 +2212,9 @@ class SnowflakePlanBuilder:
                 left_cols,
                 right_cols,
                 use_constant_subquery_alias,
-                child_uuid=child.uuid,
+                child_uuid=child.uuid
+                if _enable_trace_sql_errors_to_dataframe
+                else None,
             ),
             child,
             source_plan,
@@ -2235,16 +2287,11 @@ class PlanQueryType(Enum):
     POST_ACTIONS = "post_actions"
 
 
+@dataclass
 class QueryLineInterval:
-    def __init__(self, start: int, end: int, uuid: str) -> None:
-        self.start = start
-        self.end = end
-        self.uuid = uuid
-
-    def __repr__(self) -> str:
-        return (
-            f"QueryLineInterval(start={self.start}, end={self.end}, uuid={self.uuid})"
-        )
+    start: int
+    end: int
+    uuid: str
 
 
 class Query:

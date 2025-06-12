@@ -1910,7 +1910,7 @@ def remove_comments(sql_query: str, uuids: List[str]) -> str:
     """Removes comments associated with child uuids in a query"""
     from snowflake.snowpark._internal.analyzer import analyzer_utils
 
-    comment_placeholders = {analyzer_utils.UUID_COMMENT.format(uuid) for uuid in uuids}
+    comment_placeholders = {analyzer_utils.format_uuid(uuid) for uuid in uuids}
     return "\n".join(
         line for line in sql_query.split("\n") if line not in comment_placeholders
     )
@@ -1949,7 +1949,7 @@ def get_line_numbers(
 
     sql_lines = commented_sql_query.split("\n")
     comment_placeholders = {
-        analyzer_utils.UUID_COMMENT.format(uuid): uuid for uuid in child_uuids
+        analyzer_utils.format_uuid(uuid): uuid for uuid in child_uuids
     }
 
     idx = 0

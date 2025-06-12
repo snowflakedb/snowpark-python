@@ -659,7 +659,7 @@ class Session:
         )
         self._generate_multiline_queries: bool = (
             self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, True
+                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, False
             )
         )
         if self._generate_multiline_queries:
@@ -793,8 +793,6 @@ class Session:
         self._generate_multiline_queries = True
         analyzer_utils.NEW_LINE = "\n"
         analyzer_utils.TAB = "    "
-        analyzer_utils.UUID_FORMAT = "-- {}\n"
-        analyzer_utils.UUID_COMMENT = "-- {}"
 
     def _disable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
@@ -802,8 +800,6 @@ class Session:
         self._generate_multiline_queries = False
         analyzer_utils.NEW_LINE = ""
         analyzer_utils.TAB = ""
-        analyzer_utils.UUID_FORMAT = ""
-        analyzer_utils.UUID_COMMENT = ""
 
     def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
         """
