@@ -49,25 +49,24 @@ def test_pandas_version_error_basic():
 
 
 def test_pandas_version_error_in_notebooks():
-    with patch.dict("sys.modules", {"snowbook": MagicMock()}):
-        with patch.dict("sys.modules", {"pandas": MagicMock()}):
-            try:
-                import pandas
+    with patch.dict("sys.modules", {"snowbook": MagicMock(), "pandas": MagicMock()}):
+        try:
+            import pandas
 
-                # use an unsupported version of pandas
-                pandas.__version__ = "0.2"
+            # use an unsupported version of pandas
+            pandas.__version__ = "0.2"
 
-                # Without the following two lines, this error is raised:
-                # TypeError: metaclass conflict: the metaclass of a derived class must be
-                # a (non-strict) subclass of the metaclasses of all its bases
-                pandas.Series = abc.ABCMeta
-                pandas.DataFrame = abc.ABCMeta
+            # Without the following two lines, this error is raised:
+            # TypeError: metaclass conflict: the metaclass of a derived class must be
+            # a (non-strict) subclass of the metaclasses of all its bases
+            pandas.Series = abc.ABCMeta
+            pandas.DataFrame = abc.ABCMeta
 
-                import snowflake.snowpark  # noqa: F401
-                import snowflake.snowpark.modin.plugin  # noqa: F401
-            except RuntimeError as ex:
-                # We will only get here when we run pytest with --noconftest
-                assert "in the Packages menu at the top of your notebook" in str(ex)
+            import snowflake.snowpark  # noqa: F401
+            import snowflake.snowpark.modin.plugin  # noqa: F401
+        except RuntimeError as ex:
+            # We will only get here when we run pytest with --noconftest
+            assert "in the Packages menu at the top of your notebook" in str(ex)
 
 
 def test_modin_version_error_basic():
@@ -86,16 +85,15 @@ def test_modin_version_error_basic():
 
 
 def test_modin_version_error_in_notebooks():
-    with patch.dict("sys.modules", {"snowbook": MagicMock()}):
-        with patch.dict("sys.modules", {"modin": MagicMock()}):
-            try:
-                import modin
+    with patch.dict("sys.modules", {"snowbook": MagicMock(), "modin": MagicMock()}):
+        try:
+            import modin
 
-                # use an unsupported version of modin
-                modin.__version__ = "0.2"
+            # use an unsupported version of modin
+            modin.__version__ = "0.2"
 
-                import snowflake.snowpark  # noqa: F401
-                import snowflake.snowpark.modin.plugin  # noqa: F401
-            except ImportError as ex:
-                # We will only get here when we run pytest with --noconftest
-                assert "in the Packages menu at the top of your notebook" in str(ex)
+            import snowflake.snowpark  # noqa: F401
+            import snowflake.snowpark.modin.plugin  # noqa: F401
+        except ImportError as ex:
+            # We will only get here when we run pytest with --noconftest
+            assert "in the Packages menu at the top of your notebook" in str(ex)
