@@ -22,9 +22,11 @@ from decimal import Decimal
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
-    DataSourcePartitioner,
+    DbapiDataSource,
 )
-from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
+from snowflake.snowpark._internal.data_source.datasource_reader import (
+    DbapiDataSourceReader,
+)
 from snowflake.snowpark._internal.data_source.drivers import (
     PyodbcDriver,
     SqliteDriver,
@@ -152,7 +154,7 @@ def test_dbapi_retry(session):
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
             _task_fetch_data_from_source_with_retry(
-                worker=DataSourceReader(
+                worker=DbapiDataSourceReader(
                     PyodbcDriver,
                     sql_server_create_connection,
                     StructType([StructField("col1", IntegerType(), False)]),
@@ -305,9 +307,9 @@ def test_partition_logic(
     session, schema, column, lower_bound, upper_bound, num_partitions, expected_queries
 ):
     with patch.object(
-        DataSourcePartitioner, "schema", new_callable=PropertyMock
+        DbapiDataSource, "schema", new_callable=PropertyMock
     ) as mock_schema:
-        partitioner = DataSourcePartitioner(
+        partitioner = DbapiDataSource(
             sql_server_create_connection,
             table_or_query="fake_table",
             is_query=False,
@@ -317,7 +319,7 @@ def test_partition_logic(
             num_partitions=num_partitions,
         )
         mock_schema.return_value = schema
-        queries = partitioner.partitions
+        queries = partitioner._partitions
         for r, expected_r in zip(queries, expected_queries):
             assert r == expected_r
 
@@ -325,9 +327,9 @@ def test_partition_logic(
 def test_partition_unsupported_type(session):
     with pytest.raises(ValueError, match="unsupported type"):
         with patch.object(
-            DataSourcePartitioner, "schema", new_callable=PropertyMock
+            DbapiDataSource, "schema", new_callable=PropertyMock
         ) as mock_schema:
-            partitioner = DataSourcePartitioner(
+            partitioner = DbapiDataSource(
                 sql_server_create_connection,
                 table_or_query="fake_table",
                 is_query=False,
@@ -339,7 +341,7 @@ def test_partition_unsupported_type(session):
             mock_schema.return_value = StructType(
                 [StructField("DATE", MapType(), False)]
             )
-            partitioner.partitions
+            partitioner._partitions
 
 
 def test_telemetry_tracking(caplog, session):
@@ -430,9 +432,9 @@ def test_custom_schema(session, custom_schema):
 
 def test_predicates():
     with patch.object(
-        DataSourcePartitioner, "schema", new_callable=PropertyMock
+        DbapiDataSource, "schema", new_callable=PropertyMock
     ) as mock_schema:
-        partitioner = DataSourcePartitioner(
+        partitioner = DbapiDataSource(
             sql_server_create_connection,
             table_or_query="fake_table",
             is_query=False,
@@ -443,7 +445,7 @@ def test_predicates():
             ],
         )
         mock_schema.return_value = StructType([StructField("ID", IntegerType(), False)])
-        queries = partitioner.partitions
+        queries = partitioner._partitions
         expected_result = [
             "SELECT * FROM fake_table WHERE id > 1 AND id <= 1000",
             "SELECT * FROM fake_table WHERE id > 1001 AND id <= 2000",
@@ -525,7 +527,7 @@ def test_negative_case(session):
 def test_task_fetch_from_data_source_with_fetch_size(
     fetch_size, partition_idx, expected_error
 ):
-    partitioner = DataSourcePartitioner(
+    partitioner = DbapiDataSource(
         sql_server_create_connection_small_data,
         table_or_query="fake",
         is_query=False,
@@ -541,7 +543,7 @@ def test_task_fetch_from_data_source_with_fetch_size(
     parquet_queue = multiprocessing.Queue()
 
     params = {
-        "worker": DataSourceReader(
+        "worker": DbapiDataSourceReader(
             PyodbcDriver,
             sql_server_create_connection_small_data,
             schema=schema,
@@ -693,12 +695,12 @@ def test_partition_wrong_input(session, caplog):
             custom_schema=StructType([StructField("ID", BooleanType(), False)]),
         )
     with patch.object(
-        DataSourcePartitioner, "schema", new_callable=PropertyMock
+        DbapiDataSource, "schema", new_callable=PropertyMock
     ) as mock_schema:
         with pytest.raises(
             ValueError, match="lower_bound cannot be greater than upper_bound"
         ):
-            partitioner = DataSourcePartitioner(
+            partitioner = DbapiDataSource(
                 sql_server_create_connection,
                 table_or_query="fake_table",
                 is_query=False,
@@ -710,9 +712,9 @@ def test_partition_wrong_input(session, caplog):
             mock_schema.return_value = StructType(
                 [StructField("DATE", IntegerType(), False)]
             )
-            partitioner.partitions
+            partitioner._partitions
 
-        partitioner = DataSourcePartitioner(
+        partitioner = DbapiDataSource(
             sql_server_create_connection,
             table_or_query="fake_table",
             is_query=False,
@@ -724,7 +726,7 @@ def test_partition_wrong_input(session, caplog):
         mock_schema.return_value = StructType(
             [StructField("DATE", IntegerType(), False)]
         )
-        partitioner.partitions
+        partitioner._partitions
         assert "The number of partitions is reduced" in caplog.text
 
 
@@ -949,7 +951,7 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, _ = sqlite3_db(dbpath)
-        reader = DataSourceReader(
+        reader = DbapiDataSourceReader(
             SqliteDriver,
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
@@ -1054,7 +1056,7 @@ def test_worker_process_unit():
         table_name, columns, example_data, _ = sqlite3_db(dbpath)
 
         # Create DataSourceReader for sqlite3
-        reader = DataSourceReader(
+        reader = DbapiDataSourceReader(
             SqliteDriver,
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
@@ -1124,7 +1126,7 @@ def test_graceful_shutdown_on_worker_process_error(session):
         with mock.patch.object(
             multiprocessing.Process, "__init__", track_process_init
         ), mock.patch(
-            "snowflake.snowpark.dataframe_reader.process_parquet_queue_with_threads",
+            "snowflake.snowpark._internal.data_source.utils.process_parquet_queue_with_threads",
             side_effect=RuntimeError("Simulated error in queue processing"),
         ):
 

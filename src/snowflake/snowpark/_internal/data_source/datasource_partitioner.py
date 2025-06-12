@@ -10,6 +10,7 @@ import logging
 import pytz
 from dateutil import parser
 
+from snowflake.data_source import DataSource
 from snowflake.snowpark._internal.data_source.dbms_dialects import BaseDialect
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import (
@@ -19,7 +20,9 @@ from snowflake.snowpark._internal.data_source.utils import (
     convert_custom_schema_to_structtype,
 )
 
-from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
+from snowflake.snowpark._internal.data_source.datasource_reader import (
+    DbapiDataSourceReader,
+)
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark.types import (
     StructType,
@@ -31,7 +34,7 @@ from snowflake.snowpark.types import (
 logger = logging.getLogger(__name__)
 
 
-class DataSourcePartitioner:
+class DbapiDataSource(DataSource):
     def __init__(
         self,
         create_connection: Callable[[], "Connection"],
@@ -48,6 +51,7 @@ class DataSourcePartitioner:
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
     ) -> None:
+        super().__init__()
         self.create_connection = create_connection
         self.table_or_query = table_or_query
         self.is_query = is_query
@@ -69,11 +73,11 @@ class DataSourcePartitioner:
         self.dialect = self.dialect_class()
         self.driver = self.driver_class(create_connection, dbms_type)
 
-    def reader(self) -> DataSourceReader:
-        return DataSourceReader(
+    def reader(self, schema: StructType) -> DbapiDataSourceReader:
+        return DbapiDataSourceReader(
             self.driver_class,
             self.create_connection,
-            self.schema,
+            schema,
             self.dbms_type,
             self.fetch_size,
             self.query_timeout,
@@ -91,7 +95,7 @@ class DataSourcePartitioner:
             return convert_custom_schema_to_structtype(self.custom_schema)
 
     @cached_property
-    def partitions(self) -> List[str]:
+    def _partitions(self) -> List[str]:
         select_query = self.dialect.generate_select_query(
             self.table_or_query, self.schema, self.driver.raw_schema, self.is_query
         )
