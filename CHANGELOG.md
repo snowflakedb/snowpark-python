@@ -4,11 +4,12 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
+
 #### Improvements
 
-- Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
-- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
-- Added a new debug mode. Enable it using `snowflake.snowpark.context.enable_debug_mode()`. In this mode `Dataframe.schema` is eagerly populated which results in describe queries being run.
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
 
 ### Snowpark Local Testing Updates
