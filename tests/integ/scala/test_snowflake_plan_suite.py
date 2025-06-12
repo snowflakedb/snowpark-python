@@ -310,11 +310,11 @@ def test_create_scoped_temp_table(session):
             == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
         inner_select_sql = (
-            f" SELECT  *  FROM {table_name}"
+            f" SELECT * FROM {table_name}"
             if session._sql_simplifier_enabled
-            else f" SELECT  *  FROM ({table_name})"
+            else f" SELECT * FROM ({table_name})"
         )
-        assert (
+        assert Utils.normalize_sql(
             session._plan_builder.save_as_table(
                 table_name=[temp_table_name],
                 column_names=None,
@@ -335,7 +335,8 @@ def test_create_scoped_temp_table(session):
             )
             .queries[0]
             .sql
-            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ({inner_select_sql})"
+        ) == Utils.normalize_sql(
+            f"CREATE TEMPORARY TABLE {temp_table_name} AS SELECT * FROM ({inner_select_sql} )"
         )
         expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
         assert expected_sql in (
@@ -483,5 +484,5 @@ def test_invalid_identifier_error_message(session):
     with pytest.raises(SnowparkSQLException, match="invalid identifier 'B'") as ex:
         session.sql(
             """SELECT "B" FROM ( SELECT $1 AS "A" FROM  VALUES (1 :: INT))"""
-        ).select("C")
+        ).select("C").collect()
     assert "There are existing quoted column identifiers" not in str(ex.value)

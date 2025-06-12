@@ -24,7 +24,10 @@ Functions
     add_months
     ai_agg
     ai_classify
+    ai_complete
     ai_filter
+    ai_similarity
+    ai_summarize_agg
     any_value
     approx_count_distinct
     approx_percentile
@@ -347,7 +350,6 @@ Functions
     substr
     substring
     sum
-    summarize_agg
     sum_distinct
     sysdate
     system_reference

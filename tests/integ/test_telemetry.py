@@ -406,6 +406,8 @@ def test_drop_duplicates_api_calls(session):
 
 @pytest.mark.parametrize("use_simplified_query_generation", [True, False])
 def test_drop_api_calls(session, use_simplified_query_generation):
+    if not session.sql_simplifier_enabled and use_simplified_query_generation:
+        pytest.skip("SELECT * EXCLUDE is only supported with SQL Simplifier")
     df = session.range(3, 8).select([col("id"), col("id").alias("id_prime")])
     original = session.conf.get("use_simplified_query_generation")
     try:
@@ -696,6 +698,8 @@ def test_count_api_calls(session):
 
 @pytest.mark.parametrize("use_simplified_query_generation", [True, False])
 def test_random_split(session, use_simplified_query_generation):
+    if not session.sql_simplifier_enabled and use_simplified_query_generation:
+        pytest.skip("SELECT * EXCLUDE is only supported with SQL Simplifier")
     original = session.conf.get("use_simplified_query_generation")
     try:
         session.conf.set(
@@ -1699,3 +1703,27 @@ def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
         session._collect_snowflake_plan_telemetry_at_critical_path = (
             original_collect_telemetry_at_critical_path
         )
+
+
+@pytest.mark.parametrize(
+    "send_telemetry_func",
+    [
+        lambda df, table_name: df.write.save_as_table(table_name, table_type="temp"),
+        lambda df, table_name: df.write.save_as_table(
+            table_name=table_name, table_type="temp"
+        ),
+    ],
+)
+def test_dataframe_writer_save_as_table_api_calls(session, send_telemetry_func):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+    table_name = f"test_table_{generate_random_alphanumeric()}"
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(
+        -1, partial(send_telemetry_func, df, table_name)
+    )
+    assert type_ == "snowpark_function_usage"
+    assert data["api_calls"][-1]["name"] == "DataFrameWriter.save_as_table"
+    assert data["api_calls"][-1]["saved_table_name"] == table_name

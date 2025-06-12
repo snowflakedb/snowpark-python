@@ -4,12 +4,13 @@
 #
 
 """Context module for Snowpark."""
+import logging
 from typing import Callable, Optional
 
 import snowflake.snowpark
 import threading
 
-from snowflake.snowpark._internal.utils import experimental
+_logger = logging.getLogger(__name__)
 
 _use_scoped_temp_objects = True
 
@@ -31,8 +32,36 @@ _use_structured_type_semantics_lock = threading.RLock()
 # This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
 _is_snowpark_connect_compatible_mode = False
 
-# Flags related to debug features
+# Following are internal-only global flags, used to enable development features.
+_enable_dataframe_trace_on_error = False
 _debug_eager_schema_validation = False
+
+
+def configure_development_features(
+    *,
+    enable_dataframe_trace_on_error: bool = True,
+    enable_eager_schema_validation: bool = True,
+) -> None:
+    """
+    Configure development features for the session.
+
+    Args:
+        enable_dataframe_trace_on_error: If True, upon failure, we will add most recent dataframe
+            operations to the error trace. This requires AST collection to be enabled in the
+            session which can be done using `session.ast_enabled = True`.
+        enable_eager_schema_validation: If True, dataframe schemas are eagerly validated by querying
+            for column metadata after every dataframe operation. This adds additional query overhead.
+
+    Note:
+        This feature is experimental since 1.33.0. Do not use it in production.
+    """
+    _logger.warning(
+        "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
+    )
+    global _enable_dataframe_trace_on_error
+    _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
+    global _debug_eager_schema_validation
+    _debug_eager_schema_validation = enable_eager_schema_validation
 
 
 def _should_use_structured_type_semantics():
@@ -40,18 +69,6 @@ def _should_use_structured_type_semantics():
     global _use_structured_type_semantics_lock
     with _use_structured_type_semantics_lock:
         return _use_structured_type_semantics
-
-
-@experimental(version="1.33.0")
-def enable_debug_mode(*, enable_eager_schema_validation=True):
-    """
-    Enables debug mode for this session.
-
-    Args:
-        enable_eager_schema_validation: When enabled dataframe schemas are eagerly validated. This results in additional queries being executed.
-    """
-    global _debug_eager_schema_validation
-    _debug_eager_schema_validation = enable_eager_schema_validation
 
 
 def get_active_session() -> "snowflake.snowpark.Session":

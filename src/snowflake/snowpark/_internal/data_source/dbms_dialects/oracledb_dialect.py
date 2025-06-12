@@ -14,6 +14,7 @@ class OracledbDialect(BaseDialect):
         table_or_query: str,
         schema: StructType,
         raw_schema: List[tuple],
+        is_query: bool,
     ) -> str:
         cols = []
         for field, raw_field in zip(schema.fields, raw_schema):

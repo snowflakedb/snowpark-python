@@ -270,25 +270,53 @@ def strip_xml_namespaces(elem: ET.Element) -> ET.Element:
     return elem
 
 
-def element_to_dict(
-    element: ET.Element, attribute_prefix: str = "_"
+def element_to_dict_or_str(
+    element: ET.Element,
+    attribute_prefix: str = "_",
+    exclude_attributes: bool = False,
+    value_tag: str = "_VALUE",
+    null_value: str = "",
+    ignore_surrounding_whitespace: bool = False,
 ) -> Optional[Union[Dict[str, Any], str]]:
     """
     Recursively converts an XML Element to a dictionary.
     """
-    if not list(element) and not element.attrib:
-        return element.text.strip() if element.text and element.text.strip() else None
 
-    result: Dict[str, Any] = {}
-
-    for attr_name, attr_value in element.attrib.items():
-        result[f"{attribute_prefix}{attr_name}"] = attr_value
+    def get_text(element: ET.Element) -> Optional[str]:
+        """Do not strip the text"""
+        if element.text is None:
+            return None
+        text = element.text.strip() if ignore_surrounding_whitespace else element.text
+        if text == null_value:
+            return None
+        return text
 
     children = list(element)
+    if not children and (not element.attrib or exclude_attributes):
+        # it's a value element with no attributes or excluded attributes, so return the text
+        return get_text(element)
+
+    result = {}
+
+    if not exclude_attributes:
+        for attr_name, attr_value in element.attrib.items():
+            if ignore_surrounding_whitespace:
+                attr_value = attr_value.strip()
+            result[f"{attribute_prefix}{attr_name}"] = (
+                None if attr_value == null_value else attr_value
+            )
+
     if children:
-        temp_dict: Dict[str, Any] = {}
+        temp_dict = {}
         for child in children:
-            child_dict = element_to_dict(child, attribute_prefix)
+            child_dict = element_to_dict_or_str(
+                child,
+                attribute_prefix=attribute_prefix,
+                exclude_attributes=exclude_attributes,
+                value_tag=value_tag,
+                null_value=null_value,
+                ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+            )
             tag = child.tag
             if tag in temp_dict:
                 if not isinstance(temp_dict[tag], list):
@@ -298,9 +326,10 @@ def element_to_dict(
                 temp_dict[tag] = child_dict
         result.update(temp_dict)
     else:
-        if element.text and element.text.strip():
-            return element.text.strip()
-
+        # it's a value element with attributes, so return the dict
+        text = get_text(element)
+        if text is not None:
+            result[value_tag] = text
     return result
 
 
@@ -311,7 +340,14 @@ def process_xml_range(
     approx_end: int,
     mode: str,
     column_name_of_corrupt_record: str,
-    strip_namespaces: bool,
+    ignore_namespace: bool,
+    attribute_prefix: str,
+    exclude_attributes: bool,
+    value_tag: str,
+    null_value: str,
+    charset: str,
+    ignore_surrounding_whitespace: bool,
+    row_validation_xsd_path: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
@@ -333,7 +369,14 @@ def process_xml_range(
         mode (str): The mode for dealing with corrupt records.
             "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
         column_name_of_corrupt_record (str): The name of the column for corrupt records.
-        strip_namespaces (bool): Whether to strip namespaces from the XML element.
+        ignore_namespace (bool): Whether to strip namespaces from the XML element.
+        attribute_prefix (str): The prefix to add to the attribute names.
+        exclude_attributes (bool): Whether to exclude attributes from the XML element.
+        value_tag (str): The tag name for the value column.
+        null_value (str): The value to treat as a null value.
+        charset (str): The character encoding of the XML file.
+        ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
+        row_validation_xsd_path (str): Path to XSD file for row validation.
         chunk_size (int): Size of chunks to read.
 
     Yields:
@@ -343,6 +386,15 @@ def process_xml_range(
     tag_start_1 = f"<{tag_name}>".encode()
     tag_start_2 = f"<{tag_name} ".encode()
     closing_tag = f"</{tag_name}>".encode()
+
+    # Load XSD schema if validation is required
+    xsd_schema = None
+    if row_validation_xsd_path and lxml_installed:
+        with SnowflakeFile.open(
+            row_validation_xsd_path, "r", require_scoped_url=False
+        ) as xsd_file:
+            xsd_doc = ET.parse(xsd_file)
+            xsd_schema = ET.XMLSchema(xsd_doc)
 
     # We perform raw byte‑level scanning here because we must split the file into independent
     # chunks by byte ranges for parallel processing. A streaming parser like xml.etree.ElementTree.iterparse
@@ -375,7 +427,7 @@ def process_xml_range(
                 if mode == "PERMISSIVE":
                     # read util the end of file or util variant column size limit
                     record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
-                    record_str = record_bytes.decode("utf-8", errors="replace")
+                    record_str = record_bytes.decode(charset, errors="replace")
                     record_str = re.sub(r"&(\w+);", replace_entity, record_str)
                     yield {column_name_of_corrupt_record: record_str}
                 elif mode == "FAILFAST":
@@ -396,7 +448,7 @@ def process_xml_range(
                     if mode == "PERMISSIVE":
                         # read util the end of file or util variant column size limit
                         record_bytes = f.read(VARIANT_COLUMN_SIZE_LIMIT)
-                        record_str = record_bytes.decode("utf-8", errors="replace")
+                        record_str = record_bytes.decode(charset, errors="replace")
                         record_str = re.sub(r"&(\w+);", replace_entity, record_str)
                         yield {column_name_of_corrupt_record: record_str}
                     elif mode == "FAILFAST":
@@ -408,7 +460,7 @@ def process_xml_range(
             # Read the complete XML record.
             f.seek(record_start)
             record_bytes = f.read(record_end - record_start)
-            record_str = record_bytes.decode("utf-8", errors="replace")
+            record_str = record_bytes.decode(charset, errors="replace")
             record_str = re.sub(r"&(\w+);", replace_entity, record_str)
 
             try:
@@ -419,9 +471,33 @@ def process_xml_range(
                     element = ET.fromstring(record_str, parser)
                 else:
                     element = ET.fromstring(record_str)
-                if strip_namespaces:
+
+                # Perform XSD validation if schema is available
+                if xsd_schema:
+                    if not xsd_schema.validate(element):
+                        validation_error = (
+                            str(xsd_schema.error_log.last_error)
+                            if xsd_schema.error_log.last_error
+                            else "XSD validation failed"
+                        )
+                        raise ET.ParseError(
+                            f"XSD validation failed: {validation_error}", None, 0, 0
+                        )
+
+                if ignore_namespace:
                     element = strip_xml_namespaces(element)
-                yield element_to_dict(element)
+                result = element_to_dict_or_str(
+                    element,
+                    attribute_prefix=attribute_prefix,
+                    exclude_attributes=exclude_attributes,
+                    value_tag=value_tag,
+                    null_value=null_value,
+                    ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+                )
+                if isinstance(result, dict):
+                    yield result
+                else:
+                    yield {value_tag: result}
             except ET.ParseError as e:
                 if mode == "PERMISSIVE":
                     yield {column_name_of_corrupt_record: record_str}
@@ -446,7 +522,14 @@ class XMLReader:
         i: int,
         mode: str,
         column_name_of_corrupt_record: str,
-        strip_namespaces: bool,
+        ignore_namespace: bool,
+        attribute_prefix: str,
+        exclude_attributes: bool,
+        value_tag: str,
+        null_value: str,
+        charset: str,
+        ignore_surrounding_whitespace: bool,
+        row_validation_xsd_path: str,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -461,7 +544,14 @@ class XMLReader:
             mode (str): The mode for dealing with corrupt records.
                 "PERMISSIVE", "DROPMALFORMED" and "FAILFAST" are supported.
             column_name_of_corrupt_record (str): The name of the column for corrupt records.
-            strip_namespaces (bool): Whether to strip namespaces from the XML element.
+            ignore_namespace (bool): Whether to strip namespaces from the XML element.
+            attribute_prefix (str): The prefix to add to the attribute names.
+            exclude_attributes (bool): Whether to exclude attributes from the XML element.
+            value_tag (str): The tag name for the value column.
+            null_value (str): The value to treat as a null value.
+            charset (str): The character encoding of the XML file.
+            ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
+            row_validation_xsd_path (str): Path to XSD file for row validation.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
@@ -474,6 +564,13 @@ class XMLReader:
             approx_end,
             mode,
             column_name_of_corrupt_record,
-            strip_namespaces,
+            ignore_namespace,
+            attribute_prefix,
+            exclude_attributes,
+            value_tag,
+            null_value,
+            charset,
+            ignore_surrounding_whitespace,
+            row_validation_xsd_path=row_validation_xsd_path,
         ):
             yield (element,)

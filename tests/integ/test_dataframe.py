@@ -36,7 +36,10 @@ from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.dataframe_na_functions import _SUBSET_CHECK_ERROR_MESSAGE
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -63,6 +66,7 @@ from snowflake.snowpark.functions import (
     udtf,
     uniform,
     when,
+    cast,
 )
 from snowflake.snowpark.types import (
     FileType,
@@ -276,7 +280,7 @@ def test_distinct(session, use_simplification, local_testing_mode):
     if not local_testing_mode:
         queries = df.distinct().queries["queries"]
         if use_simplification:
-            assert "SELECT  DISTINCT" in queries[0]
+            assert "SELECT DISTINCT" in Utils.normalize_sql(queries[0])
         else:
             assert "GROUP BY" in queries[0]
 
@@ -712,6 +716,17 @@ def test_select_with_table_function_column_overlap(session):
         df.join_table_function(two_x_udtf(df.a).alias("a2")),
         [Row(A=1, B=2, C=3, A2=2), Row(A=4, B=5, C=6, A2=8)],
     )
+
+    # ensure overlapping columns work if non-overlapping columns are selected as strings
+    Utils.check_answer(
+        df.select("b", two_x_udtf(df.a), "c"),
+        [Row(B=2, A=2, C=3), Row(B=5, A=8, C=6)],
+    )
+
+    # ensure overlapping columns raised ambiguous column error if non-overlapping columns
+    # are selected as columns
+    with pytest.raises(SnowparkSQLException, match="ambiguous column name"):
+        df.select(col("b"), two_x_udtf(df.a), col("c")).collect()
 
     # ensure explode works
     df = session.create_dataframe([(1, [1, 2]), (2, [3, 4])], schema=["id", "value"])
@@ -3352,6 +3367,262 @@ def test_append_existing_table(session, local_testing_mode):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="This test failed because of parameters setting, skip for now",
+)
+def test_dynamic_table_join_table_function(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        )
+
+        df_t.create_or_replace_dynamic_table(
+            table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1 minute",
+            is_transient=True,
+        )
+        Utils.check_answer(
+            df_t,
+            [
+                Row(
+                    SITEID=100002,
+                    COMPETITOR_ID=100316,
+                    GRADEID=9,
+                    OBSERVATION_DATE="2025-02-03",
+                    OBSERVED_PRICE=3.932,
+                    LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                    DUMMY=1,
+                )
+            ],
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="This test failed because of parameters setting, skip for now",
+)
+def test_dynamic_table_join_table_function_with_more_layers(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        )
+
+        df_t = df_t.with_column("COL1", lit(1)).distinct()
+        df_t.create_or_replace_dynamic_table(
+            table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1 minute",
+            is_transient=True,
+        )
+        Utils.check_answer(
+            df_t,
+            [
+                Row(
+                    SITEID=100002,
+                    COMPETITOR_ID=100316,
+                    GRADEID=9,
+                    OBSERVATION_DATE="2025-02-03",
+                    OBSERVED_PRICE=3.932,
+                    LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                    DUMMY=1,
+                    COL1=1,
+                )
+            ],
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="This test failed because of parameters setting, skip for now",
+)
+def test_dynamic_table_join_table_function_nested(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        ).select(
+            col("SITEID"), col("OBSERVATION_DATE"), col("LAST_UPDATED"), col("DUMMY")
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+    df_t.create_or_replace_dynamic_table(
+        table_name,
+        warehouse=session.get_current_warehouse(),
+        lag="1 minute",
+        is_transient=True,
+    )
+    Utils.check_answer(
+        df_t,
+        [
+            Row(
+                SITEID=100002,
+                OBSERVATION_DATE="2025-02-03",
+                LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                DUMMY=1,
+            )
+        ],
+    )
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="Dynamic table is a SQL feature",
@@ -5222,3 +5493,17 @@ def test_create_dataframe_file_type(session, resources_path):
     assert csv_row["CONTENT_TYPE"] == "text/csv"
     image_row = json.loads(result[1][0])
     assert image_row["CONTENT_TYPE"] == "image/jpeg"
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+def test_create_dataframe_empty_pandas_df(session, local_testing_mode):
+    pdf = pd.DataFrame([])
+    with pytest.raises(
+        ValueError if local_testing_mode else ProgrammingError,
+        match="The provided schema or inferred schema cannot be None or empty",
+    ):
+        session.create_dataframe(pdf)
+
+    pdf = pd.DataFrame([], columns=["a"], dtype=int)
+    df = session.create_dataframe(pdf)
+    Utils.check_answer(df, [])
