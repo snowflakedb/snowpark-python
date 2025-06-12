@@ -23,7 +23,7 @@ class DataSourceReader:
 
 class DataSource:
     def __init__(self) -> None:
-        pass
+        self._internal_partitions = None
 
     def reader(self, schema: Union[StructType, str]) -> DataSourceReader:
         pass
@@ -35,5 +35,7 @@ class DataSource:
     def schema(self) -> Union[StructType, str]:
         pass
 
-    def partitions(self) -> List[InputPartition]:
-        pass
+    def _partitions(self) -> List[InputPartition]:
+        if self._internal_partitions is None:
+            self._internal_partitions = self.reader(self.schema()).partitions()
+        return self._internal_partitions

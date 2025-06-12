@@ -7,6 +7,7 @@ from enum import Enum
 
 from typing import List, Any, Iterator, Type, Callable, Optional
 
+from snowflake.data_source import DataSourceReader
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import data_source_data_to_pandas_df
@@ -18,7 +19,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class DataSourceReader:
+class DbapiDataSourceReader(DataSourceReader):
     def __init__(
         self,
         driver_class: Type[BaseDriver],
@@ -32,6 +33,7 @@ class DataSourceReader:
     ) -> None:
         # we use cloudpickle to pickle the callback function so that local function and function defined in
         # __main__ can be pickled and unpickled in subprocess
+        super().__init__(schema)
         self.pickled_create_connection_callback = cloudpickle.dumps(
             create_connection, protocol=pickle.HIGHEST_PROTOCOL
         )

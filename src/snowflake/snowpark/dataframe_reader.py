@@ -1,14 +1,10 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import functools
-import multiprocessing as mp
 import os
-import queue
 import sys
-import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from collections import defaultdict
 
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
@@ -33,20 +29,15 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
-    DataSourcePartitioner,
+    DbapiDataSource,
 )
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.utils import (
-    worker_process,
-    process_parquet_queue_with_threads,
     STATEMENT_PARAMS_DATA_SOURCE,
-    DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
-    _MAX_WORKER_SCALE,
     convert_custom_schema_to_structtype,
-    _task_fetch_data_from_source_with_retry,
-    add_unseen_files_to_process_queue,
-    _upload_and_copy_into_table_with_retry,
+    create_data_source_table_and_stage,
+    local_ingestion,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -69,7 +60,6 @@ from snowflake.snowpark._internal.utils import (
     get_aliased_option_name,
     get_copy_into_table_options,
     get_stage_parts,
-    get_temp_type_for_object,
     is_in_stored_procedure,
     parse_positional_args_to_list_variadic,
     private_preview,
@@ -428,6 +418,7 @@ class DataFrameReader:
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
         self.__format: Optional[str] = None
+        self._custom_data_sources = defaultdict()
 
         self._ast = None
         if _emit_ast:
@@ -561,7 +552,10 @@ class DataFrameReader:
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
         allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
-        if canon_format not in allowed_formats:
+        if (
+            canon_format not in allowed_formats
+            and canon_format not in self._custom_data_sources
+        ):
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
             )
@@ -604,16 +598,24 @@ class DataFrameReader:
             )
 
         format_str = self._format.lower()
-        if format_str == "dbapi" and path is not None:
+        if (
+            format_str == "dbapi" or format_str in self._custom_data_sources
+        ) and path is not None:
             raise ValueError(
-                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+                f"The 'path' parameter is not supported for the {format_str} format. Please omit this parameter when calling."
             )
-        if format_str != "dbapi" and path is None:
+        if (
+            format_str != "dbapi"
+            and format_str not in self._custom_data_sources
+            and path is None
+        ):
             raise TypeError(
                 "DataFrameReader.load() missing 1 required positional argument: 'path'"
             )
         if format_str == "dbapi":
             return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
+        if format_str in self._custom_data_sources:
+            return self._custom_data_source(format_str)
 
         loader = getattr(self, self._format, None)
         if loader is not None:
@@ -1363,7 +1365,7 @@ class DataFrameReader:
         start_time = time.perf_counter()
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
-        partitioner = DataSourcePartitioner(
+        partitioner = DbapiDataSource(
             create_connection,
             table_or_query,
             is_query,
@@ -1379,7 +1381,7 @@ class DataFrameReader:
             fetch_merge_count,
         )
         struct_schema = partitioner.schema
-        partitioned_queries = partitioner.partitions
+        partitioned_queries = partitioner._partitions
 
         # udtf ingestion
         if udtf_configs is not None:
@@ -1405,84 +1407,81 @@ class DataFrameReader:
             return df
 
         # parquet ingestion
-        snowflake_table_type = "TEMPORARY"
         snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        create_table_sql = (
-            "CREATE "
-            f"{snowflake_table_type} "
-            "TABLE "
-            f"identifier(?) "
-            f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
-            f"""{DATA_SOURCE_SQL_COMMENT}"""
-        )
-        params = (snowflake_table_name,)
-        logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-        self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
-        )
-        # create temp stage
         snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-        sql_create_temp_stage = (
-            f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
-            f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+
+        create_data_source_table_and_stage(
+            self._session,
+            struct_schema,
+            snowflake_table_name,
+            snowflake_stage_name,
+            statements_params_for_telemetry,
         )
-        self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
+
+        local_ingestion(
+            self._session,
+            max_workers,
+            partitioned_queries,
+            struct_schema,
+            partitioner,
+            snowflake_table_name,
+            snowflake_stage_name,
+            statements_params_for_telemetry,
         )
 
-        try:
-            processes = []
-
-            # Determine the number of processes to use
-            max_workers = max_workers or mp.cpu_count()
-
-            # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
-            partition_queue = mp.Queue()
-            # a queue of parquet BytesIO objects to be uploaded
-            # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
-            # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
-            parquet_queue = mp.Queue(_MAX_WORKER_SCALE * max_workers)
-            for partition_idx, query in enumerate(partitioned_queries):
-                partition_queue.put((partition_idx, query))
-
-            # Start worker processes
-            logger.debug(
-                f"Starting {max_workers} worker processes to fetch data from the data source."
-            )
-            for _worker_id in range(max_workers):
-                process = mp.Process(
-                    target=worker_process,
-                    args=(partition_queue, parquet_queue, partitioner.reader()),
-                )
-                process.start()
-                processes.append(process)
-
-            # Process BytesIO objects from queue and upload them using utility method
-            process_parquet_queue_with_threads(
-                session=self._session,
-                parquet_queue=parquet_queue,
-                processes=processes,
-                total_partitions=len(partitioned_queries),
-                snowflake_stage_name=snowflake_stage_name,
-                snowflake_table_name=snowflake_table_name,
-                max_workers=max_workers,
-                statements_params=statements_params_for_telemetry,
-                on_error="abort_statement",
-            )
-
-        except BaseException as exc:
-            # Graceful shutdown - terminate all processes
-            for process in processes:
-                if process.is_alive():
-                    process.terminate()
-                    process.join(timeout=5)
-
-            if isinstance(exc, SnowparkDataframeReaderException):
-                raise exc
-
-            raise SnowparkDataframeReaderException(
-                f"Error occurred while ingesting data from the data source: {exc!r}"
-            )
+        # try:
+        #     processes = []
+        #
+        #     # Determine the number of processes to use
+        #     max_workers = max_workers or mp.cpu_count()
+        #
+        #     # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
+        #     partition_queue = mp.Queue()
+        #     # a queue of parquet BytesIO objects to be uploaded
+        #     # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
+        #     # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
+        #     parquet_queue = mp.Queue(_MAX_WORKER_SCALE * max_workers)
+        #     for partition_idx, query in enumerate(partitioned_queries):
+        #         partition_queue.put((partition_idx, query))
+        #
+        #     # Start worker processes
+        #     logger.debug(
+        #         f"Starting {max_workers} worker processes to fetch data from the data source."
+        #     )
+        #     for _worker_id in range(max_workers):
+        #         process = mp.Process(
+        #             target=worker_process,
+        #             args=(partition_queue, parquet_queue, partitioner.reader()),
+        #         )
+        #         process.start()
+        #         processes.append(process)
+        #
+        #     # Process BytesIO objects from queue and upload them using utility method
+        #     process_parquet_queue_with_threads(
+        #         session=self._session,
+        #         parquet_queue=parquet_queue,
+        #         processes=processes,
+        #         total_partitions=len(partitioned_queries),
+        #         snowflake_stage_name=snowflake_stage_name,
+        #         snowflake_table_name=snowflake_table_name,
+        #         max_workers=max_workers,
+        #         statements_params=statements_params_for_telemetry,
+        #         on_error="abort_statement",
+        #     )
+        #
+        # except BaseException as exc:
+        #     # Graceful shutdown - terminate all processes
+        #     for process in processes:
+        #         if process.is_alive():
+        #             process.terminate()
+        #             process.join(timeout=5)
+        #
+        #     if isinstance(exc, SnowparkDataframeReaderException):
+        #         raise exc
+        #
+        #     raise SnowparkDataframeReaderException(
+        #         f"Error occurred while ingesting data from the data source: {exc!r}"
+        #     )
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
@@ -1502,9 +1501,10 @@ class DataFrameReader:
         self,
         data_source,
     ) -> None:
-        self.custom_data_sources[data_source.name()] = data_source
+        self._custom_data_sources[data_source.name()] = data_source
 
     def _custom_data_source(self, data_source: str) -> DataFrame:
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         if "UDTF_CONFIGS" in self._cur_options:
             # udtf ingestion
             external_access_integrations = self._cur_options["UDTF_CONFIGS"].get(
@@ -1513,9 +1513,9 @@ class DataFrameReader:
             imports = self._cur_options["UDTF_CONFIGS"].get("imports", None)
             packages = self._cur_options["UDTF_CONFIGS"].get("packages", None)
 
-            data_source_class = self.custom_data_sources[data_source]
+            data_source_class = self._custom_data_sources[data_source]
             data_source_instance = data_source_class()
-            partitions = data_source_instance.partitions()
+            partitions = data_source_instance._partitions()
             schema = convert_custom_schema_to_structtype(data_source_instance.schema())
 
             pickled_partitions = [cloudpickle.dumps(par) for par in partitions]
@@ -1567,152 +1567,18 @@ class DataFrameReader:
             ]
             return res.select(cols, _emit_ast=True)
 
-        else:
-            data_source_class = self.custom_data_sources[data_source]
-            data_source_instance = data_source_class()
-            partitions = data_source_instance.partitions()
-            schema = convert_custom_schema_to_structtype(data_source_instance.schema())
+        # parquet ingestion
+        data_source_class = self._custom_data_sources[data_source]
+        data_source_instance = data_source_class()
+        partitions = data_source_instance._partitions()
+        schema = convert_custom_schema_to_structtype(data_source_instance.schema())
 
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                # create temp table
-                snowflake_table_type = "TEMPORARY"
-                snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-                create_table_sql = (
-                    "CREATE "
-                    f"{snowflake_table_type} "
-                    "TABLE "
-                    f"identifier(?) "
-                    f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in schema.fields])})"""
-                    f"""{DATA_SOURCE_SQL_COMMENT}"""
-                )
-                params = (snowflake_table_name,)
-                logger.debug(
-                    f"Creating temporary Snowflake table: {snowflake_table_name}"
-                )
-                self._session.sql(
-                    create_table_sql, params=params, _emit_ast=False
-                ).collect(_emit_ast=False)
-                # create temp stage
-                snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-                sql_create_temp_stage = (
-                    f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
-                    f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
-                )
-                self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
-                    _emit_ast=False
-                )
+        snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
 
-                try:
-                    with ProcessPoolExecutor(
-                        max_workers=4
-                    ) as process_executor, ThreadPoolExecutor(
-                        max_workers=4
-                    ) as thread_executor:
-                        thread_pool_futures, process_pool_futures = [], []
-
-                        def ingestion_thread_cleanup_callback(parquet_file_path, _):
-                            # clean the local temp file after ingestion to avoid consuming too much temp disk space
-                            os.remove(parquet_file_path)
-
-                        # whether each partition should have its own reader is still under discussion
-                        logger.debug("Starting to fetch data from the data source.")
-                        for partition_idx, query in enumerate(partitions):
-                            process_future = process_executor.submit(
-                                _task_fetch_data_from_source_with_retry,
-                                data_source_instance.reader(schema),
-                                query,
-                                partition_idx,
-                                tmp_dir,
-                            )
-                            process_pool_futures.append(process_future)
-                        # Monitor queue while tasks are running
-                        parquet_file_queue = (
-                            queue.Queue()
-                        )  # maintain the queue of parquet files to process
-                        set_of_files_already_added_in_queue = (
-                            set()
-                        )  # maintain file names we have already put into queue
-                        while True:
-                            try:
-                                # each process and per fetch will create a parquet with a unique file name
-                                # we add unseen files to process queue
-                                add_unseen_files_to_process_queue(
-                                    tmp_dir,
-                                    set_of_files_already_added_in_queue,
-                                    parquet_file_queue,
-                                )
-                                file = parquet_file_queue.get_nowait()
-                                logger.debug(
-                                    f"Retrieved file from parquet queue: {file}"
-                                )
-                                thread_future = thread_executor.submit(
-                                    _upload_and_copy_into_table_with_retry,
-                                    self._session,
-                                    file,
-                                    snowflake_stage_name,
-                                    snowflake_table_name,
-                                    "abort_statement",
-                                    None,
-                                )
-                                thread_future.add_done_callback(
-                                    functools.partial(
-                                        ingestion_thread_cleanup_callback, file
-                                    )
-                                )
-                                thread_pool_futures.append(thread_future)
-                                logger.debug(
-                                    f"Submitted file {file} to thread executor for ingestion."
-                                )
-                            except queue.Empty:
-                                all_job_done = True
-                                unfinished_process_pool_futures = []
-                                logger.debug(
-                                    "Parquet queue is empty, checking unfinished process pool futures."
-                                )
-                                for future in process_pool_futures:
-                                    if future.done():
-                                        future.result()  # Throw error if the process failed
-                                        logger.debug(
-                                            "A process future completed successfully."
-                                        )
-                                    else:
-                                        unfinished_process_pool_futures.append(future)
-                                        all_job_done = False
-                                if (
-                                    all_job_done
-                                    and parquet_file_queue.empty()
-                                    and len(os.listdir(tmp_dir)) == 0
-                                ):
-                                    # we finished all the fetch work based on the following 3 conditions:
-                                    # 1. all jod is done
-                                    # 2. parquet file queue is empty
-                                    # 3. no files in the temp work dir as they are all removed in thread future callback
-                                    # now we just need to wait for all ingestion threads to complete
-                                    logger.debug(
-                                        "All jobs are done, and the parquet file queue is empty. Fetching work is complete."
-                                    )
-                                    break
-                                process_pool_futures = unfinished_process_pool_futures
-                                time.sleep(0.5)
-
-                        for future in as_completed(thread_pool_futures):
-                            future.result()  # Throw error if the thread failed
-                            logger.debug("A thread future completed successfully.")
-
-                except BaseException:
-                    # graceful shutdown
-                    process_executor.shutdown(wait=True)
-                    thread_executor.shutdown(wait=True)
-                    raise
-
-                logger.debug(
-                    "All data has been successfully loaded into the Snowflake table."
-                )
-
-                # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
-                # with the new name for the temporary table into which the external db data was ingressed.
-                # Leaving this functionality as client-side only means capturing an AST specifically for
-                # this API in a new entity is not valuable from a server-side execution or AST perspective.
-                res_df = self._session.table(snowflake_table_name, _emit_ast=True)
-                set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
-                return res_df
+        create_data_source_table_and_stage(
+            self._session,
+            snowflake_table_name,
+            snowflake_stage_name,
+            statements_params_for_telemetry,
+        )

@@ -8,7 +8,7 @@ import sys
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.data_source import DataSourcePartitioner
+from snowflake.snowpark._internal.data_source import DbapiDataSource
 from snowflake.snowpark._internal.data_source.drivers.databricks_driver import (
     DatabricksDriver,
 )
@@ -170,12 +170,12 @@ def test_unit_udtf_ingestion():
     udtf_ingestion_class = dbx_driver.udtf_class_builder()
     udtf_ingestion_instance = udtf_ingestion_class()
 
-    dsp = DataSourcePartitioner(
+    dsp = DbapiDataSource(
         create_databricks_connection,
         f"(select * from {TEST_TABLE_NAME}) SORT BY COL_BYTE NULLS FIRST",
         is_query=True,
     )
-    yield_data = list(udtf_ingestion_instance.process(dsp.partitions[0]))
+    yield_data = list(udtf_ingestion_instance.process(dsp._partitions[0]))
     # databricks sort by returns the all None row as the last row regardless of NULLS FIRST/LAST
     # while in snowflake test data after default sort None is the first row
 
