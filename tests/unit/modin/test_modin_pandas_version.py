@@ -70,7 +70,7 @@ def test_modin_version_error_basic():
             import snowflake.snowpark.modin.plugin  # noqa: F401
         except ImportError as ex:
             # We will only get here when we run pytest with --noconftest
-            assert "Runn `pip install" in str(ex)
+            assert "Run `pip install" in str(ex)
 
 
 def test_modin_version_error_in_notebooks():
@@ -85,4 +85,4 @@ def test_modin_version_error_in_notebooks():
             import snowflake.snowpark.modin.plugin  # noqa: F401
         except ImportError as ex:
             # We will only get here when we run pytest with --noconftest
-            assert "inn the Packages menu at the top of your notebook" in str(ex)
+            assert "in the Packages menu at the top of your notebook" in str(ex)
