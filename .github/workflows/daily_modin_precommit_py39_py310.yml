@@ -135,7 +135,7 @@ jobs:
       - name: Install tox
         run: python -m pip install tox
       - name: Run tests
-        run: tox -e modin_previous_version-snowparkpandasdailynotdoctest-ci
+        run: tox -e modin_previous_version-snowparkpandasdailynotdoctest-modin-ci
 
   test:
     name: Test modin-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
