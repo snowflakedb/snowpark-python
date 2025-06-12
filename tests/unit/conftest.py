@@ -81,4 +81,5 @@ def mock_session(mock_analyzer) -> Session:
     fake_session._analyzer = mock_analyzer
     fake_session._plan_lock = mock.MagicMock()
     mock_analyzer.session = fake_session
+    fake_session._enable_multiline_queries()
     return fake_session
