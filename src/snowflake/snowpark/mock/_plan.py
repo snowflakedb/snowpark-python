@@ -2596,6 +2596,7 @@ def calculate_expression(
 
         # Process window frame specification
         # Reference: https://docs.snowflake.com/en/sql-reference/functions-analytic#window-frame-usage-notes
+        pd_index = res_index
         if not window_spec.frame_spec or not isinstance(
             window_spec.frame_spec, SpecifiedWindowFrame
         ):
@@ -2609,13 +2610,18 @@ def calculate_expression(
                     True,
                     False,
                 )
+
+                # Pandas reindexes the data when generating rows in a RollingGroupby
+                # The resulting index is not exposed in the window groupings so calculate it here
+                if not isinstance(windows, list):
+                    pd_index = list(windows.count().index)
             else:
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
                 # rolling can unpredictably change the index of the data
                 # apply a trivial function to materialize the final index
-                res_index = list(rolling.count().index)
+                pd_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
@@ -2663,14 +2669,16 @@ def calculate_expression(
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
-            for current_row, w in zip(res_index, windows):
-                res_cols.append(
-                    handle_function_expression(
-                        window_function, w, analyzer, expr_to_alias, current_row
-                    )
+
+            for current_row, w in zip(pd_index, windows):
+                result = handle_function_expression(
+                    window_function, w, analyzer, expr_to_alias, current_row
                 )
+                result.index = [current_row]
+                res_cols.append(result)
+
             res_col = pd.concat(res_cols) if res_cols else ColumnEmulator([])
-            res_col.index = res_index
+            res_col.reindex(res_index)
             if res_cols:
                 res_col.sf_type = res_cols[0].sf_type
             else:

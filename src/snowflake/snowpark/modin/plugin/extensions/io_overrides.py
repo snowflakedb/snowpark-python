@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Callable, Hashable, Iterable, Literal, Se
 import modin.pandas as pd
 import pandas as native_pd
 from modin.pandas import DataFrame
-from modin.pandas.api.extensions import register_pd_accessor
+from .general_overrides import register_pd_accessor
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     CompressionOptions,
@@ -274,6 +274,29 @@ def read_json(
     kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_json_signature}
     return DataFrame(
         query_compiler=PandasOnSnowflakeIO.read_json(
+            **kwargs,
+        )
+    )
+
+
+@_inherit_docstrings(native_pd.read_feather, apilink="pandas.read_feather")
+@register_pd_accessor("read_feather")
+def read_feather(
+    path: FilePath,
+    columns: Sequence[Hashable] | None = None,
+    use_threads: bool = True,
+    storage_options: StorageOptions = None,
+    dtype_backend: DtypeBackend | NoDefault = no_default,
+) -> pd.DataFrame:
+    _pd_read_feather_signature = {
+        val.name
+        for val in inspect.signature(native_pd.read_feather).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_feather_signature}
+
+    return DataFrame(
+        query_compiler=PandasOnSnowflakeIO.read_feather(
             **kwargs,
         )
     )

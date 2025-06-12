@@ -4,7 +4,7 @@
 import io
 import os
 import tempfile
-
+import re
 import pytest
 
 from snowflake.snowpark._internal.utils import normalize_local_file
@@ -12,9 +12,11 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._stage_registry import (
     StageEntityRegistry,
     extract_stage_name_and_prefix,
+    _INVALID_STAGE_LOCATION_ERR_MSG,
 )
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.session import Session
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 
 def test_util():
@@ -258,3 +260,22 @@ def test_stage_get_and_put_sproc(session):
 
     content = read_and_write_file()
     assert content == test_content
+
+
+def test_stage_invalid_stage_location(session):
+    stage_registry = StageEntityRegistry(MockServerConnection())
+    test_file = f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+    invalid_snowurl = f"sNoW://test{test_file}"
+
+    with pytest.raises(
+        SnowparkLocalTestingException,
+        match=re.escape(_INVALID_STAGE_LOCATION_ERR_MSG(invalid_snowurl)),
+    ):
+        stage_registry.read_file(invalid_snowurl, "", [], "", {})
+
+    with pytest.raises(
+        SnowparkLocalTestingException,
+        match=re.escape(_INVALID_STAGE_LOCATION_ERR_MSG(invalid_snowurl)),
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stage_registry.get(invalid_snowurl, temp_dir)

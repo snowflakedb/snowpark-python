@@ -30,6 +30,7 @@ from snowflake.snowpark.functions import (
     min,
     rank,
     row_number,
+    sum,
     to_char,
     to_date,
 )
@@ -508,6 +509,36 @@ def test_rank(session):
             Row("B", 3, 3, 3),
             Row("B", 3, 1, 4),
             Row("B", 4, 5, 5),
+        ],
+    )
+
+
+def test_window_indexing(session):
+    df = session.create_dataframe(
+        [
+            [1, 1, 1],
+            [2, 2, 1],
+            [2, 2, 1],
+            [2, 1, 1],
+        ],
+        ["A", "B", "VAL"],
+    )
+
+    window_a = Window.partition_by("A")
+    window_both = Window.partition_by("B", "A")
+
+    windowed = df.with_columns(
+        ["_A", "_BA"],
+        [sum("VAL").over(window_a), sum("VAL").over(window_both)],
+    )
+
+    Utils.check_answer(
+        windowed,
+        [
+            Row(1, 1, 1, 1, 1),
+            Row(2, 2, 1, 3, 2),
+            Row(2, 2, 1, 3, 2),
+            Row(2, 1, 1, 3, 1),
         ],
     )
 

@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 import pytest
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
@@ -596,12 +597,15 @@ def test_udaf_external_access_integration(session, db_parameters):
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
-@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stored proc env does not have permissions to look up warehouse details",
+)
 @pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
@@ -630,25 +634,37 @@ def test_udaf_artifact_repository(session):
         return_type=StringType(),
         input_types=[IntegerType()],
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        packages=["urllib3", "requests"],
+        packages=["urllib3", "requests", "cloudpickle"],
     )
     df = session.create_dataframe([(1,)], schema=["a"])
     Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])
 
-    try:
-        ar_udaf = udaf(
-            ArtifactRepositoryHandler,
-            return_type=StringType(),
-            input_types=[IntegerType()],
-            artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-            packages=["urllib3", "requests"],
-            resource_constraint={"architecture": "x86"},
+    warehouse_info = (
+        session.sql(
+            f"show warehouses like '{unquote_if_quoted(session.get_current_warehouse())}'"
         )
-    except SnowparkSQLException as ex:
-        assert (
-            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-            in str(ex.value)
-        )
+        .select('"is_current"', '"resource_constraint"')
+        .collect()
+    )
+    active, resource_constraint = warehouse_info[0]
+
+    # Only test error case on ARM warehouse. X86 warehouse will have a resource constraint
+    if len(warehouse_info) == 1 and active == "Y" and resource_constraint is None:
+        try:
+            ar_udaf = udaf(
+                ArtifactRepositoryHandler,
+                return_type=StringType(),
+                input_types=[IntegerType()],
+                artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+                packages=["urllib3", "requests", "cloudpickle"],
+                resource_constraint={"architecture": "x86"},
+            )
+        except SnowparkSQLException as ex:
+            assert "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse." in str(
+                ex
+            ) or "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                ex
+            )
 
 
 @pytest.mark.skipif(
@@ -694,7 +710,7 @@ def test_udaf_artifact_repository_from_file(session, tmpdir):
         return_type=StringType(),
         input_types=[IntegerType()],
         artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        packages=["urllib3", "requests"],
+        packages=["urllib3", "requests", "cloudpickle"],
     )
     df = session.create_dataframe([(1,)], schema=["a"])
     Utils.check_answer(df.agg(ar_udaf("a")), [Row("test")])

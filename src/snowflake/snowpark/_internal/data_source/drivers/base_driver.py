@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     IntegerType,
     BinaryType,
     DateType,
+    BooleanType,
 )
 import snowflake.snowpark
 import logging
@@ -184,10 +185,17 @@ class BaseDriver:
                     if isinstance(x, (datetime.datetime, datetime.date))
                     else x
                 )
+            # astype below is meant to address copy into failure when the column contain only None value,
+            # pandas would infer wrong type for that column in that situation, thus we convert them to corresponding type.
             elif isinstance(field.datatype, BinaryType):
-                df[name] = df[name].map(
-                    lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
+                # we convert all binary to hex, so it is safe to astype to string
+                df[name] = (
+                    df[name]
+                    .map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
+                    .astype("string")
                 )
+            elif isinstance(field.datatype, BooleanType):
+                df[name] = df[name].astype("boolean")
         return df
 
     @staticmethod

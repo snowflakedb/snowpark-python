@@ -843,6 +843,10 @@ def test_read_csv_s3():
     host = pd.session.connection.host
     if any(platform in host.split(".") for platform in ["gcp", "azure"]):
         pytest.skip(reason="Skipping test for Azure and GCP deployment")
+    if IS_WINDOWS:
+        pytest.skip(
+            reason="Skipping test for Windows because the schema cannot be found"
+        )
     with SqlCounter(query_count=9):
         df = pd.read_csv(
             "s3://sfquickstarts/frostbyte_tastybytes/analytics/menu_item_aggregate_v.csv"

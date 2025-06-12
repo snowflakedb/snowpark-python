@@ -659,11 +659,13 @@ class Session:
         )
         self._generate_multiline_queries: bool = (
             self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, True
+                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, False
             )
         )
         if self._generate_multiline_queries:
             self._enable_multiline_queries()
+        else:
+            self._disable_multiline_queries()
 
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
@@ -788,12 +790,14 @@ class Session:
     def _enable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
+        self._generate_multiline_queries = True
         analyzer_utils.NEW_LINE = "\n"
         analyzer_utils.TAB = "    "
 
     def _disable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
+        self._generate_multiline_queries = False
         analyzer_utils.NEW_LINE = ""
         analyzer_utils.TAB = ""
 
@@ -908,6 +912,7 @@ class Session:
         return is_ast_enabled()
 
     @ast_enabled.setter
+    @experimental_parameter(version="1.33.0")
     def ast_enabled(self, value: bool) -> None:
         # TODO: we could send here explicit telemetry if a user changes the behavior.
         # In addition, we could introduce a server-side parameter to enable AST capture or not.
@@ -923,13 +928,13 @@ class Session:
 
         # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
         # This feature should get moved server-side anyways.
-        if value:
+        if value and self._auto_clean_up_temp_table_enabled:
             _logger.warning(
                 "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
-            self.auto_clean_up_temp_table_enabled = False
-        set_ast_state(AstFlagSource.LOCAL, value)
+            self._auto_clean_up_temp_table_enabled = False
+        set_ast_state(AstFlagSource.USER, value)
 
     @property
     def cte_optimization_enabled(self) -> bool:
