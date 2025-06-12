@@ -374,8 +374,6 @@ class Table(DataFrame):
             - Fixed-size sampling doesn't work with SYSTEM | BLOCK sampling.
 
         """
-        if sampling_method is None and seed is None:
-            return super().sample(frac=frac, n=n, _emit_ast=_emit_ast)
         DataFrame._validate_sample_input(frac, n)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
