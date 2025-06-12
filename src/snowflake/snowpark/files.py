@@ -11,12 +11,19 @@ This class is intended for usage within stored procedures and UDFs and many meth
 from __future__ import annotations
 
 import array
-import io
 import sys
 import tempfile
 import os
-from io import RawIOBase, UnsupportedOperation, SEEK_SET, SEEK_END, SEEK_CUR
+from io import (
+    RawIOBase,
+    UnsupportedOperation,
+    BufferedReader,
+    SEEK_SET,
+    SEEK_END,
+    SEEK_CUR,
+)
 from snowflake.snowpark._internal.utils import RELATIVE_PATH_PREFIX
+from typing import Sequence
 import logging
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -27,8 +34,9 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+_NON_LOCAL_PATH_ERR_MSG = "SnowflakeFile currently only supports relative paths."
+_WRITE_MODE_ERR_MSG = "SnowflakeFile currently doesn't support writing locally."
 _DEFER_IMPLEMENTATION_ERR_MSG = "SnowflakeFile currently only works in UDF and Stored Procedures. It doesn't work locally yet."
-_CLOSED_FILE_IO_ERR_MSG = "I/O operation on closed file."
 _logger = logging.getLogger(__name__)
 
 
@@ -70,7 +78,8 @@ class SnowflakeFile(RawIOBase):
         # Attributes required for local testing functionality
         _DEFAULT_READ_BUFFER_SIZE = 32 * 1024
         if mode in ("r", "rb"):
-            self._file_stream = io.BufferedReader(
+            # Buffered Reader used to support BufferedIOBase methods such as read1 and readinto1
+            self._file_stream = BufferedReader(
                 open(self._file_location, self._mode), _DEFAULT_READ_BUFFER_SIZE
             )
         else:
@@ -146,11 +155,11 @@ class SnowflakeFile(RawIOBase):
         Internal function to validate open status of the file object before performing an IO operation.
         """
         if self._file_stream.closed:
-            raise ValueError(_CLOSED_FILE_IO_ERR_MSG)
+            raise ValueError("I/O operation on closed file.")
 
     def close(self) -> None:
         """
-        Close the underlying Snowflake file stream.
+        Closes the underlying IO Stream of the SnowflakeFile
         """
         self._file_stream.close()
 
@@ -165,16 +174,19 @@ class SnowflakeFile(RawIOBase):
 
     def fileno(self) -> int:
         """
-        Getting a file descriptor number is not supported. Raises an OSError.
+        Getting a file descriptor number is not supported in Snowflake. Raises an OSError.
         """
         self._raise_if_closed()
         raise OSError("This object does not use a file descriptor")
 
     def flush(self) -> None:
         """
-        Read no-op. Fail if the stream is closed.
+        Fail if the stream is closed. Does nothing in read mode, not implemented in write mode.
         """
         self._raise_if_closed()
+        if self._mode in ("r", "rb"):
+            pass
+        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def isatty(self) -> bool:
         """
@@ -183,32 +195,28 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_closed()
         return False
 
-    def read(self, size: int = -1):
+    def read(self, size: int = -1) -> Sequence:
         """
-        From https://docs.python.org/3/library/io.html#io.BufferedIOBase.read
+        From https://docs.python.org/3/library/io.html#io.RawIOBase.read
 
-        Read and return up to size bytes. If the argument is omitted, None, or negative, data is read and returned until EOF is
-        reached. An empty bytes object is returned if the stream is already at EOF.
+        Read up to size bytes from the object and return them. As a convenience, if size is unspecified or -1,
+        all bytes until EOF are returned. Otherwise, only one system call is ever made.
+        Fewer than size bytes may be returned if the operating system call returns fewer than size bytes.
 
-        If the argument is positive, and the underlying raw stream is not interactive, multiple raw reads may be issued to
-        satisfy the byte count (unless EOF is reached first). But for interactive raw streams, at most one raw read will be
-        issued, and a short result does not imply that EOF is imminent.
-
-        A BlockingIOError is raised if the underlying raw stream is in non blocking-mode, and has no data available at the
-        moment.
+        If 0 bytes are returned, and size was not 0, this indicates end of file. If the object is in non-blocking mode
+        and no bytes are available, None is returned.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
         if self._file_location.startswith(RELATIVE_PATH_PREFIX):
             return self._file_stream.raw.read(size)
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
-    def read1(self, size: int = -1):
+    def read1(self, size: int = -1) -> Sequence:
         """
         From https://docs.python.org/3/library/io.html#io.BufferedIOBase.read1
 
         Read and return up to size bytes, with at most one call to the underlying raw stream’s read() (or readinto()) method.
-        This can be useful if you are implementing your own buffering on top of a BufferedIOBase object.
 
         If size is -1 (the default), an arbitrary number of bytes are returned (more than zero unless EOF is reached).
         """
@@ -218,16 +226,18 @@ class SnowflakeFile(RawIOBase):
             if self._mode == "r":
                 return self.read(size).encode()
             return self._file_stream.read1(size)
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def readable(self) -> bool:
         """
-        Whether the stream is readable.
+        From https://docs.python.org/3/library/io.html#io.IOBase.seekable
+
+        Returns whether or not the stream is readable.
         """
         self._raise_if_closed()
         return self._file_stream.readable()
 
-    def readall(self):
+    def readall(self) -> Sequence:
         """
         From https://docs.python.org/3/library/io.html#io.RawIOBase.readall
 
@@ -249,12 +259,12 @@ class SnowflakeFile(RawIOBase):
                 buffer_len = len(b)
                 if buffer_len == 0:
                     return 0
-                content = self.read1(buffer_len)
+                content = self.read(buffer_len).encode()
                 size = memoryview(content)
                 b[:buffer_len] = content
                 return size.nbytes
-            return self._file_stream.readinto(b)
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+            return self._file_stream.raw.readinto(b)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def readinto1(self, b: bytes | bytearray | array.array) -> int:
         """
@@ -273,14 +283,14 @@ class SnowflakeFile(RawIOBase):
                 buffer_len = len(b)
                 if buffer_len == 0:
                     return 0
-                content = self._file_stream.raw.read(buffer_len).encode()
+                content = self.read1(buffer_len)
                 size = memoryview(content)
                 b[:buffer_len] = content
                 return size.nbytes
             return self._file_stream.readinto1(b)
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
-    def readline(self, size: int = -1):
+    def readline(self, size: int = -1) -> Sequence:
         """
         From https://docs.python.org/3/library/io.html#io.IOBase.readline
 
@@ -293,9 +303,9 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_not_read()
         if self._file_location.startswith(RELATIVE_PATH_PREFIX):
             return self._file_stream.raw.readline(size)
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
-    def readlines(self, hint: int = -1):
+    def readlines(self, hint: int = -1) -> list[Sequence]:
         """
         From https://docs.python.org/3/library/io.html#io.IOBase.readlines
 
@@ -310,10 +320,12 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_not_read()
         if self._file_location.startswith(RELATIVE_PATH_PREFIX):
             return self._file_stream.raw.readlines(hint)
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def seek(self, offset: int, whence: int = SEEK_SET) -> int:
         """
+        See https://docs.python.org/3/library/io.html#io.IOBase.seek
+
         Move the stream position to a new location given an offset and a starting position. SEEK_SET/0
         indicates a position relative to the start of the file. SEEK_CUR/1 indicates a position relative
         to the current stream position. SEEK_END/2 indicates a position relative to the end of the file.
@@ -335,26 +347,30 @@ class SnowflakeFile(RawIOBase):
             if pos < 0:
                 raise ValueError(f"Negative seek position {pos}")
             return self._file_stream.seek(pos, SEEK_SET)
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def seekable(self) -> bool:
         """
-        Whether the stream is seekable.
+        See https://docs.python.org/3/library/io.html#io.IOBase.seekable
+
+        Returns whether or not the stream is seekable.
         """
         self._raise_if_closed()
         if self._file_location.startswith(RELATIVE_PATH_PREFIX):
             return self._mode in ("r", "rb")
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def tell(self) -> int:
         """
+        See https://docs.python.org/3/library/io.html#io.IOBase.seekable
+
         Gets the current stream position.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
         if self._file_location.startswith(RELATIVE_PATH_PREFIX):
             return self._file_stream.tell()
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def truncate(self, size: int | None = None) -> int:
         """
@@ -362,23 +378,27 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         if self._mode in ("r", "rb"):
-            raise UnsupportedOperation()
+            raise UnsupportedOperation(
+                "Not yet supported in UDF and Stored Procedures."
+            )
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def write(self, b: bytes | bytearray | array.array) -> int:
         """
+        See https://docs.python.org/3/library/io.html#io.RawIOBase.write
+
         Write the given bytes-like object, b, to the underlying raw stream, and return the number of bytes-like objects
         written (e.g. unicode characters provided to a text input count as 1). The number of bytes should equal the input
-        bytes, since all bytes are written directly to the stream.
-
-        See https://docs.python.org/3/library/io.html#io.RawIOBase.write for external comments.
+        bytes, since all bytes are written directly to the stream. Local testing support is not implemented yet.
         """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_WRITE_MODE_ERR_MSG)
 
     def writable(self) -> bool:
         """
-        Whether the stream is writable.
+        See https://docs.python.org/3/library/io.html#io.IOBase.seekable
+
+        Returns whether or not the stream is writable.
         """
         self._raise_if_closed()
         if self._file_location.startswith(RELATIVE_PATH_PREFIX):
@@ -390,6 +410,6 @@ class SnowflakeFile(RawIOBase):
         From https://docs.python.org/3/library/io.html#io.IOBase.writelines
 
         Write a list of lines to the stream. Line separators are not added, so it is usual for each of the lines provided to
-        have a line separator at the end.
+        have a line separator at the end. Local testing support is not implemented yet.
         """
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        raise NotImplementedError(_WRITE_MODE_ERR_MSG)

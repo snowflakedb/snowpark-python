@@ -9,10 +9,8 @@ import os
 import io
 from io import UnsupportedOperation
 
-from snowflake.snowpark.files import (
-    SnowflakeFile,
-    _CLOSED_FILE_IO_ERR_MSG,
-)
+from snowflake.snowpark.files import SnowflakeFile, _DEFER_IMPLEMENTATION_ERR_MSG
+
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 import tempfile
 import logging
@@ -285,16 +283,16 @@ def test_flush_snowflakefile():
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
 def test_isatty_snowflakefile_local(read_mode, write_mode, temp_file):
-    def get_atty(mode: str) -> bool:
+    def get_atty_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.isatty()
 
-    def get_atty2(file_location: str, mode: str) -> bool:
+    def get_atty_read(file_location: str, mode: str) -> bool:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.isatty()
 
-    assert not get_atty(write_mode)
-    assert not get_atty2(temp_file, read_mode)
+    assert not get_atty_write(write_mode)
+    assert not get_atty_read(temp_file, read_mode)
 
 
 @pytest.mark.parametrize("mode", ["r", "rb"])
@@ -306,7 +304,9 @@ def test_truncate_read_mode_snowflakefile_local(mode, temp_file):
         with SnowflakeFile.open(file_location, mode) as f:
             return f.truncate(1)
 
-    with pytest.raises(UnsupportedOperation, match=""):
+    with pytest.raises(
+        UnsupportedOperation, match="Not yet supported in UDF and Stored Procedures."
+    ):
         num_bytes = sf_truncate(temp_file, mode)
         assert num_bytes
 
@@ -317,7 +317,7 @@ def test_truncate_write_mode_snowflakefile_local(mode):
         with SnowflakeFile.open_new_result(mode) as f:
             return f.truncate(1)
 
-    with pytest.raises(NotImplementedError, match=""):
+    with pytest.raises(NotImplementedError, match=_DEFER_IMPLEMENTATION_ERR_MSG):
         num_bytes = sf_truncate(mode)
         assert num_bytes
 
@@ -348,7 +348,7 @@ def test_methods_closed_snowflakefile_local(temp_file, mode):
                 f.writable,
             ]
             for method in methods:
-                with pytest.raises(ValueError, match=_CLOSED_FILE_IO_ERR_MSG):
+                with pytest.raises(ValueError, match="I/O operation on closed file."):
                     method()
 
     sf_closed(temp_file, mode)
@@ -356,16 +356,16 @@ def test_methods_closed_snowflakefile_local(temp_file, mode):
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
 def test_readable_snowflakefile_local(read_mode, write_mode, temp_file):
-    def is_readable(mode: str) -> bool:
+    def is_readable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.readable()
 
-    def is_readable2(file_location: str, mode: str) -> bool:
+    def is_readable_read(file_location: str, mode: str) -> bool:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.readable()
 
-    assert not is_readable(write_mode)
-    assert is_readable2(temp_file, read_mode)
+    assert not is_readable_write(write_mode)
+    assert is_readable_read(temp_file, read_mode)
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
@@ -594,16 +594,16 @@ def test_seek_error_snowflakefile_local(
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
 def test_seekable_snowflakefile_local(read_mode, write_mode, temp_file):
-    def is_seekable(mode: str) -> bool:
+    def is_seekable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.seekable()
 
-    def is_seekable2(file_location: str, mode: str) -> bool:
+    def is_seekable_read(file_location: str, mode: str) -> bool:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.seekable()
 
-    assert not is_seekable(write_mode)
-    assert is_seekable2(temp_file, read_mode)
+    assert not is_seekable_write(write_mode)
+    assert is_seekable_read(temp_file, read_mode)
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
@@ -665,16 +665,16 @@ def test_tell_snowflakefile_local(read_mode, write_mode, temp_file):
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
 def test_writable_snowflakefile_local(read_mode, write_mode, temp_file):
-    def is_writable(mode: str) -> bool:
+    def is_writable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.writable()
 
-    def is_writable2(file_location: str, mode: str) -> bool:
+    def is_writable_read(file_location: str, mode: str) -> bool:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.writable()
 
-    assert is_writable(write_mode)
-    assert not is_writable2(temp_file, read_mode)
+    assert is_writable_write(write_mode)
+    assert not is_writable_read(temp_file, read_mode)
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
