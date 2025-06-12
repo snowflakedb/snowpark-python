@@ -8,6 +8,12 @@
 
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
 
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.to_excel` and `Series.to_excel`.
+
 ## 1.33.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
