@@ -212,11 +212,11 @@ def format_uuid(uuid: Optional[str], with_new_line: bool = False) -> str:
     """
     Format a uuid into a comment, if the uuid is not empty.
     """
-    return (
-        f"{UUID_COMMENT.format(uuid)}{NEW_LINE if with_new_line else EMPTY_STRING}"
-        if uuid
-        else EMPTY_STRING
-    )
+    if not uuid:
+        return EMPTY_STRING
+    if with_new_line:
+        return f"\n{UUID_COMMENT.format(uuid)}\n"
+    return f"{UUID_COMMENT.format(uuid)}"
 
 
 def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:

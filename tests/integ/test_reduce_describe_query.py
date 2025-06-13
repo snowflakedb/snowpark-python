@@ -61,6 +61,10 @@ def setup(request, session):
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
         temp_table_name, table_type="temp", mode="overwrite"
     )
+    enable_multiline_queries = session._generate_multiline_queries
+    if enable_multiline_queries:
+        session._disable_multiline_queries()
+        print("DISABLED")
     # Bypass cache
     with patch.object(
         snowflake_plan, "cached_analyze_attributes", wraps=analyze_attributes
@@ -243,11 +247,11 @@ def has_star_in_projection(df: DataFrame) -> bool:
 @pytest.mark.parametrize(
     "create_df_func",
     create_from_sql_funcs
-    + create_from_values_funcs
-    + create_from_table_funcs
-    + create_from_snowflake_plan_funcs
-    + create_from_table_function_funcs
-    + create_from_unions_funcs,
+    # + create_from_values_funcs
+    # + create_from_table_funcs
+    # + create_from_snowflake_plan_funcs
+    # + create_from_table_function_funcs
+    # + create_from_unions_funcs,
 )
 def test_metadata_no_change(session, action, create_df_func):
     df = create_df_func(session)

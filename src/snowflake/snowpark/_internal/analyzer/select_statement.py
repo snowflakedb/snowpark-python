@@ -389,7 +389,7 @@ class Selectable(LogicalPlan, ABC):
 
     def get_snowflake_plan(self, skip_schema_query) -> SnowflakePlan:
         if self._snowflake_plan is None:
-            from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+            import snowflake.snowpark.context as context
 
             # The query generation step can trigger analyzer.analyze(), so we need
             # to initialize alias related fields here similar to how we do it in
@@ -401,7 +401,7 @@ class Selectable(LogicalPlan, ABC):
 
             query = Query(
                 self.commented_sql
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else self.sql_query,
                 params=self.query_params,
             )
@@ -598,8 +598,8 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
-        UUID = analyzer_utils.format_uuid(self.uuid)
-        return f"{analyzer_utils.NEW_LINE}{UUID}{analyzer_utils.NEW_LINE}{self.entity.name}{analyzer_utils.NEW_LINE}{UUID}"
+        UUID = analyzer_utils.format_uuid(self.uuid, with_new_line=True)
+        return f"{UUID}{self.entity.name}{UUID}"
 
     @property
     def schema_query(self) -> str:
@@ -1045,8 +1045,8 @@ class SelectStatement(Selectable):
         if self._commented_sql:
             return self._commented_sql
         if not self.has_clause and not self.has_projection:
-            UUID = analyzer_utils.format_uuid(self.from_.uuid)
-            self._commented_sql = f"{UUID}{analyzer_utils.NEW_LINE}{self.from_.sql_query}{analyzer_utils.NEW_LINE}{UUID}"
+            UUID = analyzer_utils.format_uuid(self.from_.uuid, with_new_line=True)
+            self._commented_sql = f"{UUID}{self.from_.sql_query}{UUID}"
             return self._commented_sql
         self._commented_sql = self._generate_sql(generate_uuid_comments=True)
         return self._commented_sql

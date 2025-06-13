@@ -64,7 +64,7 @@ def test_format_uuid():
     assert result == expected
 
     result_with_newline = format_uuid(uuid_str, with_new_line=True)
-    expected_with_newline = f"-- {uuid_str}\n"
+    expected_with_newline = f"\n-- {uuid_str}\n"
     assert result_with_newline == expected_with_newline
 
     empty_result = format_uuid(None)

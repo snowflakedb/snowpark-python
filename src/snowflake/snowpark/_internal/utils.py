@@ -1912,7 +1912,9 @@ def remove_comments(sql_query: str, uuids: List[str]) -> str:
 
     comment_placeholders = {analyzer_utils.format_uuid(uuid) for uuid in uuids}
     return "\n".join(
-        line for line in sql_query.split("\n") if line not in comment_placeholders
+        line
+        for line in sql_query.split("\n")
+        if line not in comment_placeholders and line != ""
     )
 
 
@@ -1970,8 +1972,7 @@ def get_line_numbers(
                 found_start = True
                 child_start = idx
                 current_child_uuid = comment_placeholders[line]
-
-        else:
+        elif line != "":
             idx += 1
 
     current_pos = 0

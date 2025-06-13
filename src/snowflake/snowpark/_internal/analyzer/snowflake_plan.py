@@ -663,9 +663,9 @@ class SnowflakePlan(LogicalPlan):
         and then remove the comments to get the final SQL query. When tracing sql errors is not enabled,
         this function will do nothing.
         """
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
-        if not _enable_trace_sql_errors_to_dataframe:
+        if not context._enable_trace_sql_errors_to_dataframe:
             return
         from snowflake.snowpark._internal.analyzer.select_statement import (
             Selectable,
@@ -1001,7 +1001,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         is_distinct: bool = False,
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: project_statement(
@@ -1009,7 +1009,7 @@ class SnowflakePlanBuilder:
                 x,
                 is_distinct=is_distinct,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -1023,7 +1023,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: aggregate_statement(
@@ -1031,7 +1031,7 @@ class SnowflakePlanBuilder:
                 aggregate_exprs,
                 x,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -1044,14 +1044,14 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: filter_statement(
                 condition,
                 x,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -1066,7 +1066,7 @@ class SnowflakePlanBuilder:
         row_count: Optional[int] = None,
     ) -> SnowflakePlan:
         """Builds the sample part of the resultant sql statement"""
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: sample_statement(
@@ -1074,7 +1074,7 @@ class SnowflakePlanBuilder:
                 probability_fraction=probability_fraction,
                 row_count=row_count,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -1101,14 +1101,14 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: sort_statement(
                 order,
                 x,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -1139,7 +1139,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         use_constant_subquery_alias: bool,
     ):
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build_binary(
             lambda x, y: join_statement(
@@ -1149,9 +1149,11 @@ class SnowflakePlanBuilder:
                 join_condition,
                 match_condition,
                 use_constant_subquery_alias,
-                left_uuid=left.uuid if _enable_trace_sql_errors_to_dataframe else None,
+                left_uuid=left.uuid
+                if context._enable_trace_sql_errors_to_dataframe
+                else None,
                 right_uuid=right.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             left,
@@ -1377,7 +1379,7 @@ class SnowflakePlanBuilder:
         on_top_of_oder_by: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: limit_statement(
@@ -1386,7 +1388,7 @@ class SnowflakePlanBuilder:
                 x,
                 on_top_of_oder_by,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -1403,7 +1405,7 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         should_alias_column_with_agg: bool,
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: pivot_statement(
@@ -1414,7 +1416,7 @@ class SnowflakePlanBuilder:
                 x,
                 should_alias_column_with_agg,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -1430,7 +1432,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: unpivot_statement(
@@ -1440,7 +1442,7 @@ class SnowflakePlanBuilder:
                 include_nulls,
                 x,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -2170,14 +2172,14 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: lateral_statement(
                 table_function,
                 x,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,
@@ -2203,7 +2205,7 @@ class SnowflakePlanBuilder:
         right_cols: List[str],
         use_constant_subquery_alias: bool,
     ) -> SnowflakePlan:
-        from snowflake.snowpark.context import _enable_trace_sql_errors_to_dataframe
+        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: join_table_function_statement(
@@ -2213,7 +2215,7 @@ class SnowflakePlanBuilder:
                 right_cols,
                 use_constant_subquery_alias,
                 child_uuid=child.uuid
-                if _enable_trace_sql_errors_to_dataframe
+                if context._enable_trace_sql_errors_to_dataframe
                 else None,
             ),
             child,

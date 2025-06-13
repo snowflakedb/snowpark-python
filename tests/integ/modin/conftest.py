@@ -24,7 +24,6 @@ from tests.integ.utils.sql_counter import (
     is_sql_counter_called,
 )
 from tests.utils import Utils, running_on_jenkins
-import snowflake.snowpark.context as context
 
 if MODIN_IS_AT_LEAST_0_33_0:
     from modin.config import AutoSwitchBackend
@@ -285,8 +284,6 @@ def indices_dict():
 @pytest.fixture(scope="module", autouse=True)
 def session(session):
     session._disable_multiline_queries()
-    # We disable trace_sql_errors because it requires multiline queries to be enabled
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
     return session
 
 

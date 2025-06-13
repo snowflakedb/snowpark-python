@@ -48,7 +48,7 @@ def test_select_statement_sql_query(mock_session, mock_analyzer):
     )
     assert (
         select_statement.commented_sql
-        == f"-- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}"
+        == f"\n-- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}\n"
     )
     assert select_statement.sql_query == "SELECT * FROM BASE_TABLE"
 
