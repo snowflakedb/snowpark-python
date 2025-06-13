@@ -11,6 +11,7 @@ import snowflake.snowpark
 import threading
 
 _logger = logging.getLogger(__name__)
+
 _use_scoped_temp_objects = True
 
 # This is an internal-only global flag, used to determine whether to execute code in a client's local sandbox or connect to a Snowflake account.
@@ -33,11 +34,13 @@ _is_snowpark_connect_compatible_mode = False
 
 # Following are internal-only global flags, used to enable development features.
 _enable_dataframe_trace_on_error = False
+_debug_eager_schema_validation = False
 
 
 def configure_development_features(
     *,
     enable_dataframe_trace_on_error: bool = True,
+    enable_eager_schema_validation: bool = True,
 ) -> None:
     """
     Configure development features for the session.
@@ -46,6 +49,8 @@ def configure_development_features(
         enable_dataframe_trace_on_error: If True, upon failure, we will add most recent dataframe
             operations to the error trace. This requires AST collection to be enabled in the
             session which can be done using `session.ast_enabled = True`.
+        enable_eager_schema_validation: If True, dataframe schemas are eagerly validated by querying
+            for column metadata after every dataframe operation. This adds additional query overhead.
 
     Note:
         This feature is experimental since 1.33.0. Do not use it in production.
@@ -55,6 +60,8 @@ def configure_development_features(
     )
     global _enable_dataframe_trace_on_error
     _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
+    global _debug_eager_schema_validation
+    _debug_eager_schema_validation = enable_eager_schema_validation
 
 
 def _should_use_structured_type_semantics():
