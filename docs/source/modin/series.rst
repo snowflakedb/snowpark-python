@@ -332,4 +332,5 @@ Series
     :toctree: pandas_api/
 
     Series.to_csv
+    Series.to_excel
     Series.to_string

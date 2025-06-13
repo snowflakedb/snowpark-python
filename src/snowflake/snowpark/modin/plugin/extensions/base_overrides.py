@@ -327,30 +327,6 @@ def to_clipboard(
 
 
 @register_base_not_implemented()
-def to_excel(
-    self,
-    excel_writer,
-    sheet_name="Sheet1",
-    na_rep="",
-    float_format=None,
-    columns=None,
-    header=True,
-    index=True,
-    index_label=None,
-    startrow=0,
-    startcol=0,
-    engine=None,
-    merge_cells=True,
-    encoding=no_default,
-    inf_rep="inf",
-    verbose=no_default,
-    freeze_panes=None,
-    storage_options: StorageOptions = None,
-):  # pragma: no cover  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def to_hdf(
     self, path_or_buf, key, format="table", **kwargs
 ):  # pragma: no cover  # noqa: PR01, RT01, D200
