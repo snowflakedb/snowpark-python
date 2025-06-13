@@ -374,8 +374,6 @@ class Table(DataFrame):
             - Fixed-size sampling doesn't work with SYSTEM | BLOCK sampling.
 
         """
-        if sampling_method is None and seed is None:
-            return super().sample(frac=frac, n=n, _emit_ast=_emit_ast)
         DataFrame._validate_sample_input(frac, n)
         if sampling_method and sampling_method.upper() not in (
             "BERNOULLI",
@@ -428,7 +426,10 @@ class Table(DataFrame):
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} ROWS"
         seed_text = f" SEED ({seed})" if seed is not None else ""
         sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
-        return self._session.sql(sql_text, _ast_stmt=stmt)
+        new_df = self._session.sql(sql_text, _ast_stmt=stmt)
+        if self._session.reduce_describe_query_enabled:
+            new_df._plan._metadata = self._plan._metadata
+        return new_df
 
     @overload
     @publicapi
