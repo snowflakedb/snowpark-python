@@ -235,6 +235,7 @@ def update_resolvable_node(
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
+        node._commented_sql = None
         node._snowflake_plan = None
         # make sure we also clean up the cached _projection_in_str, so that
         # the projection expression can be re-analyzed during code generation
@@ -265,6 +266,7 @@ def update_resolvable_node(
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
+        node._commented_sql = None
         node._snowflake_plan = None
         node.analyzer = query_generator
 

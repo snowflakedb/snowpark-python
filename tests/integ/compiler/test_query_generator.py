@@ -81,6 +81,7 @@ def reset_node(node: LogicalPlan, query_generator: QueryGenerator) -> None:
             selectable_node._snowflake_plan = None
         if isinstance(selectable_node, (SelectStatement, SetStatement)):
             selectable_node._sql_query = None
+            selectable_node._commented_sql = None
             selectable_node._projection_in_str = None
         if isinstance(selectable_node, SelectStatement):
             selectable_node.expr_to_alias = selectable_node.from_.expr_to_alias

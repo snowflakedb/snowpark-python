@@ -102,6 +102,7 @@ class NopConnection(MockServerConnection):
             "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": False,
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": False,
+            "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES": True,
         }
         self._disable_local_testing_telemetry = True
         self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()

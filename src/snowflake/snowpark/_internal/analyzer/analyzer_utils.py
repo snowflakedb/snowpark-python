@@ -203,8 +203,20 @@ RENAME_FIELDS = " RENAME FIELDS"
 ADD_FIELDS = " ADD FIELDS"
 NEW_LINE = "\n"
 TAB = "    "
+UUID_COMMENT = "-- {}"
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
+
+
+def format_uuid(uuid: Optional[str], with_new_line: bool = True) -> str:
+    """
+    Format a uuid into a comment, if the uuid is not empty.
+    """
+    if not uuid:
+        return EMPTY_STRING
+    if with_new_line:
+        return f"\n{UUID_COMMENT.format(uuid)}\n"
+    return f"{UUID_COMMENT.format(uuid)}"
 
 
 def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
@@ -386,7 +398,10 @@ def flatten_expression(
     )
 
 
-def lateral_statement(lateral_expression: str, child: str) -> str:
+def lateral_statement(
+    lateral_expression: str, child: str, child_uuid: Optional[str] = None
+) -> str:
+    UUID = format_uuid(child_uuid)
     return (
         SELECT
         + STAR
@@ -394,8 +409,10 @@ def lateral_statement(lateral_expression: str, child: str) -> str:
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
+        + UUID
         + child
         + NEW_LINE
+        + UUID
         + RIGHT_PARENTHESIS
         + COMMA
         + NEW_LINE
@@ -410,6 +427,7 @@ def join_table_function_statement(
     left_cols: List[str],
     right_cols: List[str],
     use_constant_subquery_alias: bool,
+    child_uuid: Optional[str] = None,
 ) -> str:
     LEFT_ALIAS = (
         "T_LEFT"
@@ -425,6 +443,7 @@ def join_table_function_statement(
     left_cols = [f"{LEFT_ALIAS}.{col}" for col in left_cols]
     right_cols = [f"{RIGHT_ALIAS}.{col}" for col in right_cols]
     select_cols = (COMMA + NEW_LINE + TAB).join(left_cols + right_cols)
+    UUID = format_uuid(child_uuid)
 
     return (
         SELECT
@@ -435,8 +454,10 @@ def join_table_function_statement(
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
+        + UUID
         + child
         + NEW_LINE
+        + UUID
         + RIGHT_PARENTHESIS
         + AS
         + LEFT_ALIAS
@@ -467,12 +488,17 @@ def case_when_expression(branches: List[Tuple[str, str]], else_value: str) -> st
     )
 
 
-def project_statement(project: List[str], child: str, is_distinct: bool = False) -> str:
+def project_statement(
+    project: List[str],
+    child: str,
+    is_distinct: bool = False,
+    child_uuid: Optional[str] = None,
+) -> str:
     if not project:
         columns = STAR
     else:
         columns = NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(project)
-
+    UUID = format_uuid(child_uuid)
     return (
         SELECT
         + f"{DISTINCT if is_distinct else EMPTY_STRING}"
@@ -481,25 +507,35 @@ def project_statement(project: List[str], child: str, is_distinct: bool = False)
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
+        + UUID
         + child
         + NEW_LINE
+        + UUID
         + RIGHT_PARENTHESIS
     )
 
 
-def filter_statement(condition: str, child: str) -> str:
-    return project_statement([], child) + NEW_LINE + WHERE + condition
+def filter_statement(
+    condition: str, child: str, child_uuid: Optional[str] = None
+) -> str:
+    return (
+        project_statement([], child, child_uuid=child_uuid)
+        + NEW_LINE
+        + WHERE
+        + condition
+    )
 
 
 def sample_statement(
     child: str,
     probability_fraction: Optional[float] = None,
     row_count: Optional[int] = None,
+    child_uuid: Optional[str] = None,
 ):
     """Generates the sql text for the sample part of the plan being executed"""
     if probability_fraction is not None:
         return (
-            project_statement([], child)
+            project_statement([], child, child_uuid=child_uuid)
             + SAMPLE
             + LEFT_PARENTHESIS
             + str(probability_fraction * 100)
@@ -507,7 +543,7 @@ def sample_statement(
         )
     elif row_count is not None:
         return (
-            project_statement([], child)
+            project_statement([], child, child_uuid=child_uuid)
             + SAMPLE
             + LEFT_PARENTHESIS
             + str(row_count)
@@ -521,10 +557,13 @@ def sample_statement(
         )
 
 
-def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> str:
+def sample_by_statement(
+    child: str, col: str, fractions: Dict[Any, float], child_uuid: Optional[str] = None
+) -> str:
     PERCENT_RANK_COL = random_name_for_temp_object(TempObjectType.COLUMN)
     LEFT_ALIAS = "SNOWPARK_LEFT"
     RIGHT_ALIAS = "SNOWPARK_RIGHT"
+    UUID = format_uuid(child_uuid)
     child_with_percentage_rank_stmt = (
         SELECT
         + STAR
@@ -533,8 +572,10 @@ def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> st
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
+        + UUID
         + child
         + NEW_LINE
+        + UUID
         + RIGHT_PARENTHESIS
     )
 
@@ -572,11 +613,14 @@ def sample_by_statement(child: str, col: str, fractions: Dict[Any, float]) -> st
 
 
 def aggregate_statement(
-    grouping_exprs: List[str], aggregate_exprs: List[str], child: str
+    grouping_exprs: List[str],
+    aggregate_exprs: List[str],
+    child: str,
+    child_uuid: Optional[str] = None,
 ) -> str:
     # add limit 1 because aggregate may be on non-aggregate function in a scalar aggregation
     # for example, df.agg(lit(1))
-    return project_statement(aggregate_exprs, child) + (
+    return project_statement(aggregate_exprs, child, child_uuid=child_uuid) + (
         limit_expression(1)
         if not grouping_exprs
         else (
@@ -589,9 +633,11 @@ def aggregate_statement(
     )
 
 
-def sort_statement(order: List[str], child: str) -> str:
+def sort_statement(
+    order: List[str], child: str, child_uuid: Optional[str] = None
+) -> str:
     return (
-        project_statement([], child)
+        project_statement([], child, child_uuid=child_uuid)
         + NEW_LINE
         + ORDER_BY
         + NEW_LINE
@@ -600,7 +646,9 @@ def sort_statement(order: List[str], child: str) -> str:
     )
 
 
-def range_statement(start: int, end: int, step: int, column_name: str) -> str:
+def range_statement(
+    start: int, end: int, step: int, column_name: str, child_uuid: Optional[str] = None
+) -> str:
     range = end - start
 
     if (range > 0 > step) or (range < 0 < step):
@@ -632,6 +680,7 @@ def range_statement(start: int, end: int, step: int, column_name: str) -> str:
             + column_name
         ],
         table(generator(0 if count < 0 else count)),
+        child_uuid=child_uuid,
     )
 
 
@@ -791,7 +840,11 @@ def snowflake_supported_join_statement(
     condition: str,
     match_condition: str,
     use_constant_subquery_alias: bool,
+    left_uuid: Optional[str] = None,
+    right_uuid: Optional[str] = None,
 ) -> str:
+    LEFT_UUID = format_uuid(left_uuid)
+    RIGHT_UUID = format_uuid(right_uuid)
     left_alias = (
         "SNOWPARK_LEFT"
         if use_constant_subquery_alias
@@ -835,7 +888,11 @@ def snowflake_supported_join_statement(
 
     source = (
         LEFT_PARENTHESIS
+        + NEW_LINE
+        + LEFT_UUID
         + left
+        + NEW_LINE
+        + LEFT_UUID
         + RIGHT_PARENTHESIS
         + AS
         + left_alias
@@ -845,7 +902,11 @@ def snowflake_supported_join_statement(
         + JOIN
         + NEW_LINE
         + LEFT_PARENTHESIS
+        + NEW_LINE
+        + RIGHT_UUID
         + right
+        + NEW_LINE
+        + RIGHT_UUID
         + RIGHT_PARENTHESIS
         + AS
         + right_alias
@@ -865,6 +926,8 @@ def join_statement(
     join_condition: str,
     match_condition: str,
     use_constant_subquery_alias: bool,
+    left_uuid: Optional[str] = None,
+    right_uuid: Optional[str] = None,
 ) -> str:
     if isinstance(join_type, (LeftSemi, LeftAnti)):
         return left_semi_or_anti_join_statement(
@@ -885,6 +948,8 @@ def join_statement(
         join_condition,
         match_condition,
         use_constant_subquery_alias,
+        left_uuid=left_uuid,
+        right_uuid=right_uuid,
     )
 
 
@@ -1030,10 +1095,14 @@ def create_table_as_select_statement(
 
 
 def limit_statement(
-    row_count: str, offset: str, child: str, on_top_of_order_by: bool
+    row_count: str,
+    offset: str,
+    child: str,
+    on_top_of_order_by: bool,
+    child_uuid: Optional[str] = None,
 ) -> str:
     return (
-        f"{child if on_top_of_order_by else project_statement([], child)}"
+        f"{child if on_top_of_order_by else project_statement([], child, child_uuid=child_uuid)}"
         + LIMIT
         + row_count
         + OFFSET
@@ -1328,8 +1397,10 @@ def pivot_statement(
     default_on_null: Optional[str],
     child: str,
     should_alias_column_with_agg: bool,
+    child_uuid: Optional[str] = None,
 ) -> str:
     select_str = STAR
+    UUID = format_uuid(child_uuid)
     if isinstance(pivot_values, str):
         # The subexpression in this case already includes parenthesis.
         values_str = pivot_values
@@ -1360,8 +1431,10 @@ def pivot_statement(
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
+        + UUID
         + child
         + NEW_LINE
+        + UUID
         + RIGHT_PARENTHESIS
         + NEW_LINE
         + PIVOT
@@ -1389,15 +1462,19 @@ def unpivot_statement(
     column_list: List[str],
     include_nulls: bool,
     child: str,
+    child_uuid: Optional[str] = None,
 ) -> str:
+    UUID = format_uuid(child_uuid)
     return (
         SELECT
         + STAR
         + FROM
         + LEFT_PARENTHESIS
         + NEW_LINE
+        + UUID
         + child
         + NEW_LINE
+        + UUID
         + RIGHT_PARENTHESIS
         + NEW_LINE
         + UNPIVOT
