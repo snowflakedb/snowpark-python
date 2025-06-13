@@ -50,8 +50,7 @@ def configure_development_features(
         enable_dataframe_trace_on_error: If True, upon failure, we will add most recent dataframe
             operations to the error trace. This requires AST collection to be enabled in the
             session which can be done using `session.ast_enabled = True`.
-        generate_multiline_queries: If True, we will generate multiline queries and enable query line tracking.
-
+        enable_trace_sql_errors_to_dataframe: If True, we will enable query line tracking.
     Note:
         This feature is experimental since 1.33.0. Do not use it in production.
     """

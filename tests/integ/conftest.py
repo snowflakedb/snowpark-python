@@ -178,7 +178,6 @@ def db_parameters(local_testing_mode) -> Dict[str, str]:
     else:
         CONNECTION_PARAMETERS["schema_with_secret"] = CONNECTION_PARAMETERS["schema"]
     CONNECTION_PARAMETERS["local_testing"] = local_testing_mode
-
     CONNECTION_PARAMETERS["session_parameters"] = {
         "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES": True
     }
