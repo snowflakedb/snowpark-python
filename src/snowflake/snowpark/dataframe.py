@@ -648,7 +648,7 @@ class DataFrame:
 
         if context._debug_eager_schema_validation:
             # Getting the plan attributes may run a describe query
-            # and popilates the schema for the dataframe.
+            # and populates the schema for the dataframe.
             self._plan.attributes
 
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
