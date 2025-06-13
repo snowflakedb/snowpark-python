@@ -135,6 +135,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
+import snowflake.snowpark.context as context
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -663,9 +664,8 @@ class SnowflakePlan(LogicalPlan):
         and then remove the comments to get the final SQL query. When tracing sql errors is not enabled,
         this function will do nothing.
         """
-        import snowflake.snowpark.context as context
-
         if not context._enable_trace_sql_errors_to_dataframe:
+            # No action is needed if feature is not enabled
             return
         from snowflake.snowpark._internal.analyzer.select_statement import (
             Selectable,
@@ -1001,7 +1001,6 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         is_distinct: bool = False,
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
 
         return self.build(
             lambda x: project_statement(
@@ -1023,8 +1022,6 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: aggregate_statement(
                 grouping_exprs,
@@ -1044,8 +1041,6 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: filter_statement(
                 condition,
@@ -1066,8 +1061,6 @@ class SnowflakePlanBuilder:
         row_count: Optional[int] = None,
     ) -> SnowflakePlan:
         """Builds the sample part of the resultant sql statement"""
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: sample_statement(
                 x,
@@ -1101,8 +1094,6 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: sort_statement(
                 order,
@@ -1139,8 +1130,6 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         use_constant_subquery_alias: bool,
     ):
-        import snowflake.snowpark.context as context
-
         return self.build_binary(
             lambda x, y: join_statement(
                 x,
@@ -1379,8 +1368,6 @@ class SnowflakePlanBuilder:
         on_top_of_oder_by: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: limit_statement(
                 limit_expr,
@@ -1405,8 +1392,6 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         should_alias_column_with_agg: bool,
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: pivot_statement(
                 pivot_column,
@@ -1432,8 +1417,6 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: unpivot_statement(
                 value_column,
@@ -2172,8 +2155,6 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: lateral_statement(
                 table_function,
@@ -2205,8 +2186,6 @@ class SnowflakePlanBuilder:
         right_cols: List[str],
         use_constant_subquery_alias: bool,
     ) -> SnowflakePlan:
-        import snowflake.snowpark.context as context
-
         return self.build(
             lambda x: join_table_function_statement(
                 func,

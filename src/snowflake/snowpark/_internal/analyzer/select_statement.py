@@ -349,7 +349,7 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
-        UUID = analyzer_utils.format_uuid(self.uuid, with_new_line=True)
+        UUID = analyzer_utils.format_uuid(self.uuid)
         return (
             f"{analyzer_utils.LEFT_PARENTHESIS}"
             f"{analyzer_utils.NEW_LINE}"
@@ -598,7 +598,7 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
-        UUID = analyzer_utils.format_uuid(self.uuid, with_new_line=True)
+        UUID = analyzer_utils.format_uuid(self.uuid)
         return f"{UUID}{self.entity.name}{UUID}"
 
     @property
@@ -1045,7 +1045,7 @@ class SelectStatement(Selectable):
         if self._commented_sql:
             return self._commented_sql
         if not self.has_clause and not self.has_projection:
-            UUID = analyzer_utils.format_uuid(self.from_.uuid, with_new_line=True)
+            UUID = analyzer_utils.format_uuid(self.from_.uuid)
             self._commented_sql = f"{UUID}{self.from_.sql_query}{UUID}"
             return self._commented_sql
         self._commented_sql = self._generate_sql(generate_uuid_comments=True)
@@ -1055,7 +1055,7 @@ class SelectStatement(Selectable):
         """Generate SQL query with UUID comments for child plans if multiline queries are enabled.
         Otherwise, generate SQL query without comments."""
         from_clause = (
-            (f"{self.from_.sql_in_subquery_with_uuid}")
+            self.from_.sql_in_subquery_with_uuid
             if generate_uuid_comments
             else self.from_.sql_in_subquery
         )
@@ -1799,9 +1799,7 @@ class SetStatement(Selectable):
 
     def _generate_sql(self, generate_uuid_comments: bool) -> str:
         FIRST_UUID = (
-            analyzer_utils.format_uuid(
-                self.set_operands[0].selectable.uuid, with_new_line=True
-            )
+            analyzer_utils.format_uuid(self.set_operands[0].selectable.uuid)
             if generate_uuid_comments
             else ""
         )
@@ -1813,7 +1811,7 @@ class SetStatement(Selectable):
         for i in range(1, len(self.set_operands)):
             operand = self.set_operands[i]
             ITH_UUID = (
-                analyzer_utils.format_uuid(operand.selectable.uuid, with_new_line=True)
+                analyzer_utils.format_uuid(operand.selectable.uuid)
                 if generate_uuid_comments
                 else ""
             )

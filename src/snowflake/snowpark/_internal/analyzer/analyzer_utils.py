@@ -208,7 +208,7 @@ UUID_COMMENT = "-- {}"
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
 
-def format_uuid(uuid: Optional[str], with_new_line: bool = False) -> str:
+def format_uuid(uuid: Optional[str], with_new_line: bool = True) -> str:
     """
     Format a uuid into a comment, if the uuid is not empty.
     """
@@ -401,7 +401,7 @@ def flatten_expression(
 def lateral_statement(
     lateral_expression: str, child: str, child_uuid: Optional[str] = None
 ) -> str:
-    UUID = format_uuid(child_uuid, with_new_line=True)
+    UUID = format_uuid(child_uuid)
     return (
         SELECT
         + STAR
@@ -443,7 +443,7 @@ def join_table_function_statement(
     left_cols = [f"{LEFT_ALIAS}.{col}" for col in left_cols]
     right_cols = [f"{RIGHT_ALIAS}.{col}" for col in right_cols]
     select_cols = (COMMA + NEW_LINE + TAB).join(left_cols + right_cols)
-    UUID = format_uuid(child_uuid, with_new_line=True)
+    UUID = format_uuid(child_uuid)
 
     return (
         SELECT
@@ -498,7 +498,7 @@ def project_statement(
         columns = STAR
     else:
         columns = NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(project)
-    UUID = format_uuid(child_uuid, with_new_line=True)
+    UUID = format_uuid(child_uuid)
     return (
         SELECT
         + f"{DISTINCT if is_distinct else EMPTY_STRING}"
@@ -563,7 +563,7 @@ def sample_by_statement(
     PERCENT_RANK_COL = random_name_for_temp_object(TempObjectType.COLUMN)
     LEFT_ALIAS = "SNOWPARK_LEFT"
     RIGHT_ALIAS = "SNOWPARK_RIGHT"
-    UUID = format_uuid(child_uuid, with_new_line=True)
+    UUID = format_uuid(child_uuid)
     child_with_percentage_rank_stmt = (
         SELECT
         + STAR
@@ -843,8 +843,8 @@ def snowflake_supported_join_statement(
     left_uuid: Optional[str] = None,
     right_uuid: Optional[str] = None,
 ) -> str:
-    LEFT_UUID = format_uuid(left_uuid, with_new_line=True)
-    RIGHT_UUID = format_uuid(right_uuid, with_new_line=True)
+    LEFT_UUID = format_uuid(left_uuid)
+    RIGHT_UUID = format_uuid(right_uuid)
     left_alias = (
         "SNOWPARK_LEFT"
         if use_constant_subquery_alias
@@ -1400,7 +1400,7 @@ def pivot_statement(
     child_uuid: Optional[str] = None,
 ) -> str:
     select_str = STAR
-    UUID = format_uuid(child_uuid, with_new_line=True)
+    UUID = format_uuid(child_uuid)
     if isinstance(pivot_values, str):
         # The subexpression in this case already includes parenthesis.
         values_str = pivot_values
@@ -1464,7 +1464,7 @@ def unpivot_statement(
     child: str,
     child_uuid: Optional[str] = None,
 ) -> str:
-    UUID = format_uuid(child_uuid, with_new_line=True)
+    UUID = format_uuid(child_uuid)
     return (
         SELECT
         + STAR
