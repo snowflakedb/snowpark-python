@@ -98,7 +98,6 @@ def test_get_plan_from_line_numbers_sql_content(
 
     for line_num, expected_sql in line_to_expected_sql.items():
         plan = get_plan_from_line_numbers(df._plan, line_num)
-        print(plan.queries[-1].sql)
         assert (
             plan is not None
         ), f"get_plan_from_line_numbers returned None for line {line_num}"
