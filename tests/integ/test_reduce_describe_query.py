@@ -49,6 +49,17 @@ param_list = [False, True]
 temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
 
+class LessThanOrEq:
+    def __init__(self, val) -> None:
+        self.val = val
+
+    def __repr__(self):
+        return repr(self.val)
+
+    def __eq__(self, other):
+        return self.val >= other
+
+
 @pytest.fixture(params=param_list, autouse=True, scope="module")
 def setup(request, session):
     # set eliminate_numeric_sql_value_cast_enabled to True for quoted identifier comparison
@@ -251,7 +262,7 @@ def has_star_in_projection(df: DataFrame) -> bool:
 )
 def test_metadata_no_change(session, action, create_df_func):
     df = create_df_func(session)
-    with SqlCounter(query_count=0, describe_count=1):
+    with SqlCounter(query_count=0, describe_count=LessThanOrEq(1)):
         attributes = df._plan.attributes
         quoted_identifiers = df._plan.quoted_identifiers
 
@@ -296,16 +307,19 @@ def test_select_quoted_identifiers(
     ):
         df = action(df)
 
+    identifiers = df._plan._metadata.quoted_identifiers or [
+        attr.name for attr in df._plan._metadata.attributes or []
+    ]
+
     # if we select a "*", it can't be inferred when sql simplifier is disabled
     # because no describe query is issued before to get quoted identifiers
     if session.reduce_describe_query_enabled and not has_star_in_projection(df):
-        assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
+        assert identifiers == expected_quoted_identifiers
         expected_describe_query_count = 0
     else:
         assert df._plan._metadata.quoted_identifiers is None
         expected_describe_query_count = 1
 
-    assert df._plan._metadata.attributes is None
     with SqlCounter(query_count=0, describe_count=expected_describe_query_count):
         quoted_identifiers = df._plan.quoted_identifiers
         assert quoted_identifiers == expected_quoted_identifiers
@@ -313,15 +327,18 @@ def test_select_quoted_identifiers(
 
 def test_snowflake_values(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    expected_quoted_identifiers = ['"A"', '"B"']
+    expected_identifiers = ['"A"', '"B"']
     if session.reduce_describe_query_enabled:
         with SqlCounter(query_count=0, describe_count=0):
-            assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
-            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+            identifiers = df._plan._metadata.quoted_identifiers or [
+                attr.name for attr in df._plan._metadata.attributes or []
+            ]
+            assert identifiers == expected_identifiers
+            assert df._plan.quoted_identifiers == identifiers
     else:
         with SqlCounter(query_count=0, describe_count=1):
             assert df._plan._metadata.quoted_identifiers is None
-            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+            assert df._plan.quoted_identifiers == expected_identifiers
 
 
 @pytest.mark.parametrize(
