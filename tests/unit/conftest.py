@@ -5,6 +5,7 @@
 from unittest import mock
 
 import pytest
+import tempfile
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.cursor import SnowflakeCursor
@@ -83,3 +84,9 @@ def mock_session(mock_analyzer) -> Session:
     mock_analyzer.session = fake_session
     fake_session._enable_multiline_queries()
     return fake_session
+
+
+@pytest.fixture(scope="function")
+def temp_file():
+    with tempfile.NamedTemporaryFile() as temp_file:
+        yield temp_file.name
