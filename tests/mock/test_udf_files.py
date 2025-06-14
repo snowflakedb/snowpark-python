@@ -12,14 +12,43 @@ from snowflake.snowpark.files import SnowflakeFile
 from tests.utils import Utils
 
 
-@pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_read_snowflakefile_local(read_mode, write_mode, temp_file, session):
-    test_msg = generate_random_alphanumeric()
+def _write_test_msg(
+    write_mode: str, file_location: str, test_msg: str = None
+) -> str | bytes:
+    """
+    Generates a test message or uses the provided message and writes it to the specified file location.
+
+    Used to create a test message for reading in SnowflakeFile tests.
+    """
+    if test_msg is None:
+        test_msg = generate_random_alphanumeric()
     if write_mode == "wb":
         test_msg = test_msg.encode()
-
-    with open(temp_file, write_mode) as f:
+    with open(file_location, write_mode) as f:
         f.write(test_msg)
+    return test_msg
+
+
+def _generate_and_write_lines(
+    num_lines: int, write_mode: str, file_location: str
+) -> list[str | bytes]:
+    """
+    Generates a list of test messages and writes them to the specified file location.
+    """
+    lines = [f"{generate_random_alphanumeric()}\n" for _ in range(num_lines)]
+    if write_mode == "wb":
+        lines = [line.encode() for line in lines]
+
+    with open(file_location, write_mode) as f:
+        for line in lines:
+            f.write(line)
+
+    return lines
+
+
+@pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
+def test_read_snowflakefile_local(read_mode, write_mode, temp_file, session):
+    test_msg = _write_test_msg(write_mode, temp_file)
 
     @udf
     def read_file(file_location: str, mode: str) -> str:
@@ -36,12 +65,7 @@ def test_read_snowflakefile_local(read_mode, write_mode, temp_file, session):
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
 def test_read_sproc_snowflakefile_local(read_mode, write_mode, temp_file, session):
-    test_msg = generate_random_alphanumeric()
-    if write_mode == "wb":
-        test_msg = test_msg.encode()
-
-    with open(temp_file, write_mode) as f:
-        f.write(test_msg)
+    test_msg = _write_test_msg(write_mode, temp_file)
 
     @udf
     def read_file(file_location: str, mode: str) -> str:
@@ -110,14 +134,7 @@ def test_readable_snowflakefile_local(read_mode, write_mode, temp_file, session)
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
 def test_readline_snowflakefile_local(read_mode, write_mode, temp_file, session):
     num_lines = 5
-
-    lines = [f"{generate_random_alphanumeric()}\n" for _ in range(num_lines)]
-    if write_mode == "wb":
-        lines = [line.encode() for line in lines]
-
-    with open(temp_file, write_mode) as f:
-        for line in lines:
-            f.write(line)
+    lines = _generate_and_write_lines(num_lines, write_mode, temp_file)
 
     @udf
     def get_line(file_location: str, mode: str) -> str:
@@ -142,11 +159,7 @@ def test_readline_snowflakefile_local(read_mode, write_mode, temp_file, session)
 def test_seek_snowflakefile_local(
     read_mode, write_mode, offset, whence, temp_file, session
 ):
-    test_msg = generate_random_alphanumeric()
-    if write_mode == "wb":
-        test_msg = test_msg.encode()
-    with open(temp_file, mode=write_mode) as f:
-        f.write(test_msg)
+    _write_test_msg(write_mode, temp_file)
 
     @udf
     def seek(file_location: str, mode: str, offset: int, whence: int) -> int:
@@ -188,12 +201,7 @@ def test_seekable_snowflakefile_local(read_mode, write_mode, temp_file, session)
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
 def test_tell_snowflakefile_local(read_mode, write_mode, temp_file, session):
-    test_msg = generate_random_alphanumeric()
-    if write_mode == "wb":
-        test_msg = test_msg.encode()
-
-    with open(temp_file, mode=write_mode) as f:
-        f.write(test_msg)
+    _write_test_msg(write_mode, temp_file)
 
     @udf
     def try_tell(file_location: str, mode: str, size: int) -> int:
@@ -249,13 +257,8 @@ def test_writable_snowflakefile_local(read_mode, write_mode, temp_file, session)
 )
 def test_readinto_snowflakefile_local(read_mode, write_mode, size, temp_file, session):
     test_msg = generate_random_alphanumeric(size)
+    _write_test_msg(write_mode, temp_file, test_msg)
     encoded_test_msg = test_msg.encode()
-
-    with open(temp_file, write_mode) as f:
-        if write_mode == "wb":
-            f.write(encoded_test_msg)
-        else:
-            f.write(test_msg)
 
     @udf
     def sf_readinto(file_location: str, mode: str, buffer: bytearray) -> int:

@@ -3,11 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-"""
-SnowflakeFile for UDFs and stored procedures in Snowpark.
-
-This class is intended for usage within stored procedures and UDFs and many methods do not work locally.
-"""
 from __future__ import annotations
 
 import array
@@ -36,7 +31,7 @@ else:
 
 _NON_LOCAL_PATH_ERR_MSG = "SnowflakeFile currently only supports relative paths."
 _WRITE_MODE_ERR_MSG = "SnowflakeFile currently doesn't support writing locally."
-_DEFER_IMPLEMENTATION_ERR_MSG = "SnowflakeFile currently only works in UDF and Stored Procedures. It doesn't work locally yet."
+_DEFER_IMPLEMENTATION_ERR_MSG = "Not yet supported in UDF and Stored Procedures."
 _logger = logging.getLogger(__name__)
 
 
@@ -47,8 +42,6 @@ class SnowflakeFile(RawIOBase):
     A SnowflakeFile object can be used as a Python IOBase object.
 
     The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a read-only SnowflakeFile object, and call :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result` to create a write-only SnowflakeFile object.
-
-    This class is intended for usage within UDFs and stored procedures and many methods do not work locally.
     """
 
     def __init__(
@@ -83,9 +76,8 @@ class SnowflakeFile(RawIOBase):
                 open(self._file_location, self._mode), _DEFAULT_READ_BUFFER_SIZE
             )
         else:
-            self._file_stream = open(
-                self._file_location, self._mode
-            )  # need to still open a file stream for testing, otherwise class throws an attribute not found error for methods like close
+            # need to still open a file stream for testing
+            self._file_stream = open(self._file_location, self._mode)
 
     @classmethod
     def open(
@@ -147,8 +139,15 @@ class SnowflakeFile(RawIOBase):
         """
         Internal function to validate read mode of the file object before performing an IO operation.
         """
-        if self._mode not in ["r", "rb"]:
+        if self._mode not in ("r", "rb"):
             raise UnsupportedOperation(f"Not readable mode={self._mode}")
+
+    def _raise_if_not_write(self) -> None:
+        """
+        Internal function to validate write mode of the file object before performing a IO operation.
+        """
+        if self._mode not in ("w", "wb"):
+            raise UnsupportedOperation(f"Not writable mode={self._mode}")
 
     def _raise_if_closed(self) -> None:
         """
@@ -159,6 +158,8 @@ class SnowflakeFile(RawIOBase):
 
     def close(self) -> None:
         """
+        See https://docs.python.org/3/library/io.html#io.IOBase.close
+
         Closes the underlying IO Stream of the SnowflakeFile
         """
         self._file_stream.close()
@@ -230,7 +231,7 @@ class SnowflakeFile(RawIOBase):
 
     def readable(self) -> bool:
         """
-        From https://docs.python.org/3/library/io.html#io.IOBase.seekable
+        From https://docs.python.org/3/library/io.html#io.IOBase.readable
 
         Returns whether or not the stream is readable.
         """
@@ -362,7 +363,7 @@ class SnowflakeFile(RawIOBase):
 
     def tell(self) -> int:
         """
-        See https://docs.python.org/3/library/io.html#io.IOBase.seekable
+        See https://docs.python.org/3/library/io.html#io.IOBase.tell
 
         Gets the current stream position.
         """
@@ -377,12 +378,8 @@ class SnowflakeFile(RawIOBase):
         Not yet supported in UDF and Stored Procedures.
         """
         self._raise_if_closed()
-        if self._mode in ("r", "rb"):
-            raise UnsupportedOperation(
-                "Not yet supported in UDF and Stored Procedures."
-            )
-        else:
-            raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        self._raise_if_not_write()
+        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
     def write(self, b: bytes | bytearray | array.array) -> int:
         """
@@ -396,14 +393,12 @@ class SnowflakeFile(RawIOBase):
 
     def writable(self) -> bool:
         """
-        See https://docs.python.org/3/library/io.html#io.IOBase.seekable
+        See https://docs.python.org/3/library/io.html#io.IOBase.writable
 
         Returns whether or not the stream is writable.
         """
         self._raise_if_closed()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
-            return self._file_stream.writable()
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        return self._file_stream.writable()
 
     def writelines(self, lines: Iterable[str] | list[str]) -> None:
         """
