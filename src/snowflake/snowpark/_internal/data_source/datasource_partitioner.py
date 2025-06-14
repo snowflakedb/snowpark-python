@@ -10,16 +10,19 @@ import logging
 import pytz
 from dateutil import parser
 
+from snowflake.data_source import DataSource
 from snowflake.snowpark._internal.data_source.dbms_dialects import BaseDialect
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import (
     detect_dbms,
     DBMS_MAP,
     DRIVER_MAP,
+    convert_custom_schema_to_structtype,
 )
 
-from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
-from snowflake.snowpark._internal.type_utils import type_string_to_type_object
+from snowflake.snowpark._internal.data_source.datasource_reader import (
+    DbapiDataSourceReader,
+)
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark.types import (
     StructType,
@@ -31,7 +34,7 @@ from snowflake.snowpark.types import (
 logger = logging.getLogger(__name__)
 
 
-class DataSourcePartitioner:
+class DbapiDataSource(DataSource):
     def __init__(
         self,
         create_connection: Callable[[], "Connection"],
@@ -48,6 +51,7 @@ class DataSourcePartitioner:
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
     ) -> None:
+        super().__init__()
         self.create_connection = create_connection
         self.table_or_query = table_or_query
         self.is_query = is_query
@@ -69,11 +73,11 @@ class DataSourcePartitioner:
         self.dialect = self.dialect_class()
         self.driver = self.driver_class(create_connection, dbms_type)
 
-    def reader(self) -> DataSourceReader:
-        return DataSourceReader(
+    def reader(self, schema: StructType) -> DbapiDataSourceReader:
+        return DbapiDataSourceReader(
             self.driver_class,
             self.create_connection,
-            self.schema,
+            schema,
             self.dbms_type,
             self.fetch_size,
             self.query_timeout,
@@ -88,26 +92,10 @@ class DataSourcePartitioner:
                 self.table_or_query, self.is_query
             )
         else:
-            if isinstance(self.custom_schema, str):
-                schema = type_string_to_type_object(self.custom_schema)
-                if not isinstance(schema, StructType):
-                    raise ValueError(
-                        f"Invalid schema string: {self.custom_schema}. "
-                        f"You should provide a valid schema string representing a struct type."
-                        'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    )
-                return schema
-            elif isinstance(self.custom_schema, StructType):
-                return self.custom_schema
-            else:
-                raise ValueError(
-                    f"Invalid schema type: {type(self.custom_schema)}."
-                    'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
-                )
+            return convert_custom_schema_to_structtype(self.custom_schema)
 
     @cached_property
-    def partitions(self) -> List[str]:
+    def _partitions(self) -> List[str]:
         select_query = self.dialect.generate_select_query(
             self.table_or_query, self.schema, self.driver.raw_schema, self.is_query
         )
