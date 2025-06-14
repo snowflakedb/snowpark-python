@@ -6,6 +6,8 @@
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
 from snowflake.snowpark._internal.ast.utils import build_udtf, with_src_position
 from snowflake.snowpark._internal.udf_utils import process_registration_inputs
 from snowflake.snowpark._internal.utils import TempObjectType
@@ -74,9 +76,12 @@ class MockUDTFRegistration(UDTFRegistration):
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.udtf, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.udtf, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.Udtf()
 
             object_name = kwargs["_registered_object_name"]
             udtf = MockUserDefinedTableFunction(
@@ -86,6 +91,7 @@ class MockUDTFRegistration(UDTFRegistration):
                 object_name,
                 _ast=ast,
                 _ast_id=ast_id,
+                _session=self._session,
             )
             # Add to registry to MockPlan can execute.
             self._registry[object_name] = udtf
@@ -130,9 +136,12 @@ class MockUDTFRegistration(UDTFRegistration):
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.bind()
-            ast = with_src_position(stmt.expr.udtf, stmt)
-            ast_id = stmt.uid
+            if self._session is not None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.udtf, stmt)
+                ast_id = stmt.uid
+            else:
+                ast = proto.Udtf()
 
             build_udtf(
                 ast,
@@ -168,6 +177,7 @@ class MockUDTFRegistration(UDTFRegistration):
             packages=packages,
             _ast=ast,
             _ast_id=ast_id,
+            _session=self._session,
         )
 
         # Add to registry to MockPlan can execute.
