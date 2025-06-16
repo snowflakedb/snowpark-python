@@ -846,7 +846,6 @@ def test_modin_e2e_telemetry(send_mock, session):
 
         if message.get("source") != "modin":
             continue
-        print(message)
         data = message.get("data", {})
         assert data.get("category") == "modin"
         assert data.get("modin_event_aggregatable") is False
