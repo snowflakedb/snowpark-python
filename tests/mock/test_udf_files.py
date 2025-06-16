@@ -10,11 +10,12 @@ from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.files import SnowflakeFile
 from tests.utils import Utils
+from typing import Union
 
 
 def _write_test_msg(
     write_mode: str, file_location: str, test_msg: str = None
-) -> str | bytes:
+) -> Union[str, bytes]:
     """
     Generates a test message or uses the provided message and writes it to the specified file location.
 
@@ -31,7 +32,7 @@ def _write_test_msg(
 
 def _generate_and_write_lines(
     num_lines: int, write_mode: str, file_location: str
-) -> list[str | bytes]:
+) -> list[Union[str | bytes]]:
     """
     Generates a list of test messages and writes them to the specified file location.
     """
