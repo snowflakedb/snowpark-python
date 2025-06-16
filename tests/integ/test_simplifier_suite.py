@@ -1121,6 +1121,11 @@ def test_join_dataframes(session, simplifier_table):
 
 def test_sample(session, simplifier_table):
     df = session.table(simplifier_table)
+    df_table_row_sample = session.table(simplifier_table).sample(n=3)
+    assert Utils.normalize_sql(
+        df_table_row_sample.queries["queries"][-1]
+    ) == Utils.normalize_sql(f"SELECT * FROM {simplifier_table} SAMPLE (3 ROWS)")
+
     df_table_sample = df.sample(
         0.5, sampling_method="BERNOULLI", seed=1
     )  # SQL is generated from Table's sample method.
@@ -1137,14 +1142,14 @@ def test_sample(session, simplifier_table):
         0.5
     )  # SQL is generated from DataFrame's sample method..
     df3 = df_query_sample.select("a").select("a").select("a")
-    assert df3.queries["queries"][-1].count("SELECT") == 3
+    assert df3.queries["queries"][-1].count("SELECT") == 2
 
     df4 = (
         df_query_sample.select((col("a") + 1).as_("a"))
         .select((col("a") + 1).as_("a"))
         .select((col("a") + 1).as_("a"))
     )
-    assert df4.queries["queries"][-1].count("SELECT") == 5
+    assert df4.queries["queries"][-1].count("SELECT") == 4
 
 
 def test_unpivot(session, simplifier_table):
