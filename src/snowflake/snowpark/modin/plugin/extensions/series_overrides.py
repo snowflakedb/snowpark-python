@@ -420,7 +420,7 @@ def to_excel(
     engine_kwargs: dict[str, Any] | None = None,
 ):  # noqa: PR01, RT01, D200
     WarningMessage.single_warning(
-        "DataFrame.to_excel materializes data to the local machine."
+        "Series.to_excel materializes data to the local machine."
     )
     return self._to_pandas().to_excel(
         excel_writer=excel_writer,
